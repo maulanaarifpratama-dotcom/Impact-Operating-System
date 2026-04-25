@@ -1,22 +1,17 @@
 import { NavLink, useLocation, useNavigate, Link } from 'react-router-dom';
-import { useState } from 'react';
 import {
   LayoutDashboard,
-  FolderKanban,
+  FileText,
+  Search,
+  BookOpen,
+  Megaphone,
   Settings as SettingsIcon,
   LogOut,
   User as UserIcon,
   ChevronsUpDown,
-  ChevronDown,
-  Package,
+  type LucideIcon,
 } from 'lucide-react';
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from '@/components/ui/collapsible';
 import { Logo } from '@/components/Logo';
-import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   DropdownMenu,
@@ -39,17 +34,24 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from '@/components/ui/sidebar';
-import { PRODUCTS } from '@/lib/brand';
 import { useAuth } from '@/providers/AuthProvider';
 import { cn } from '@/lib/utils';
 
-/** Badge label per produk. Grant Writer sudah live (Chunk 2). */
-const stageBadge: Record<string, { label: string; tone: 'live' | 'soon' }> = {
-  building: { label: 'Aktif', tone: 'live' },
-  next: { label: 'Soon', tone: 'soon' },
-  planned: { label: 'Soon', tone: 'soon' },
-  future: { label: 'Soon', tone: 'soon' },
-};
+/** Flat nav items — single-level menu, no nested dropdown. */
+interface NavItem {
+  name: string;
+  href: string;
+  icon: LucideIcon;
+  exact?: boolean;
+}
+
+const NAV_ITEMS: NavItem[] = [
+  { name: 'Dashboard',   href: '/dashboard',                    icon: LayoutDashboard, exact: true },
+  { name: 'Grant Writer', href: '/dashboard/grant-writer',      icon: FileText },
+  { name: 'Grantfinder', href: '/dashboard/grantfinder',        icon: Search },
+  { name: 'Library',     href: '/dashboard/impactory-library',  icon: BookOpen },
+  { name: 'Ads',         href: '/dashboard/impactory-ads',      icon: Megaphone },
+];
 
 function initials(name?: string | null, email?: string | null) {
   const src = (name || email || '?').trim();
@@ -65,23 +67,20 @@ export function DashboardSidebar() {
   const navigate = useNavigate();
   const { user, profile, signOut } = useAuth();
   const path = location.pathname;
-  const isActive = (p: string) => path === p || path.startsWith(p + '/');
-
-  /** Keep "Produk" dropdown open if user is on any product route. */
-  const productActive = PRODUCTS.some((p) => isActive(p.href));
-  const [productsOpen, setProductsOpen] = useState(productActive);
+  const isActive = (item: NavItem) =>
+    item.exact ? path === item.href : path === item.href || path.startsWith(item.href + '/');
 
   const handleSignOut = async () => {
     await signOut();
     navigate('/', { replace: true });
   };
 
-  const linkClass = ({ isActive: a }: { isActive: boolean }) =>
+  const linkClass = (active: boolean) =>
     cn(
       'flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-      a
-        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-        : 'text-sidebar-foreground/85 hover:bg-sidebar-accent/60 hover:text-sidebar-accent-foreground',
+      active
+        ? 'bg-sidebar-accent text-sidebar-accent-foreground shadow-sm'
+        : 'text-sidebar-foreground/85 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground',
     );
 
   return (
@@ -96,120 +95,43 @@ export function DashboardSidebar() {
 
       <SidebarContent className="bg-sidebar">
         <SidebarGroup>
-          {!collapsed && <SidebarGroupLabel className="text-sidebar-foreground/60">Workspace</SidebarGroupLabel>}
+          {!collapsed && (
+            <SidebarGroupLabel className="text-sidebar-foreground/60">
+              Menu
+            </SidebarGroupLabel>
+          )}
           <SidebarGroupContent>
             <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Dashboard" isActive={isActive('/dashboard')}>
-                  <NavLink to="/dashboard" end className={linkClass}>
-                    <LayoutDashboard className="h-4 w-4 shrink-0" />
-                    {!collapsed && <span>Dashboard</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {NAV_ITEMS.map((item) => {
+                const active = isActive(item);
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild tooltip={item.name} isActive={active}>
+                      <NavLink
+                        to={item.href}
+                        end={item.exact}
+                        className={linkClass(active)}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{item.name}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
 
         <SidebarGroup>
           {!collapsed && (
-            <SidebarGroupLabel className="text-sidebar-foreground/60">Produk</SidebarGroupLabel>
+            <SidebarGroupLabel className="text-sidebar-foreground/60">Akun</SidebarGroupLabel>
           )}
           <SidebarGroupContent>
             <SidebarMenu>
-              {collapsed ? (
-                /* Collapsed sidebar: render product links flat (icons only) */
-                PRODUCTS.map((p) => (
-                  <SidebarMenuItem key={p.key}>
-                    <SidebarMenuButton asChild tooltip={p.name} isActive={isActive(p.href)}>
-                      <NavLink to={p.href} className={linkClass}>
-                        <p.icon className="h-4 w-4 shrink-0" />
-                      </NavLink>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                ))
-              ) : (
-                /* Expanded sidebar: collapsible dropdown trigger + nested items */
-                <Collapsible open={productsOpen} onOpenChange={setProductsOpen}>
-                  <SidebarMenuItem>
-                    <CollapsibleTrigger asChild>
-                      <SidebarMenuButton
-                        tooltip="Produk"
-                        isActive={productActive}
-                        className={cn(
-                          'group/produk w-full',
-                          productActive && 'bg-sidebar-accent/40 text-sidebar-accent-foreground',
-                        )}
-                      >
-                        <Package className="h-4 w-4 shrink-0" />
-                        <span className="flex-1 truncate">Produk</span>
-                        <Badge
-                          variant="outline"
-                          className="ml-auto border-sidebar-border bg-sidebar-accent/40 text-[10px] font-normal text-sidebar-foreground/70"
-                        >
-                          {PRODUCTS.length}
-                        </Badge>
-                        <ChevronDown
-                          className={cn(
-                            'h-3.5 w-3.5 shrink-0 text-sidebar-foreground/60 transition-transform',
-                            productsOpen && 'rotate-180',
-                          )}
-                        />
-                      </SidebarMenuButton>
-                    </CollapsibleTrigger>
-                  </SidebarMenuItem>
-
-                  <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
-                    <SidebarMenu className="ml-4 mt-1 gap-0.5 border-l border-sidebar-border/50 pl-2">
-                      {PRODUCTS.map((p) => (
-                        <SidebarMenuItem key={p.key}>
-                          <SidebarMenuButton
-                            asChild
-                            tooltip={p.name}
-                            isActive={isActive(p.href)}
-                            size="sm"
-                          >
-                            <NavLink to={p.href} className={linkClass}>
-                              <p.icon className="h-3.5 w-3.5 shrink-0" />
-                              <span className="flex-1 truncate">{p.name}</span>
-                              <Badge
-                                variant="outline"
-                                className={cn(
-                                  'ml-auto text-[9px] font-medium',
-                                  stageBadge[p.releaseStage].tone === 'live'
-                                    ? 'border-accent/50 bg-accent/20 text-accent-foreground'
-                                    : 'border-sidebar-border bg-sidebar-accent/40 font-normal text-sidebar-foreground/70',
-                                )}
-                              >
-                                {stageBadge[p.releaseStage].label}
-                              </Badge>
-                            </NavLink>
-                          </SidebarMenuButton>
-                        </SidebarMenuItem>
-                      ))}
-                    </SidebarMenu>
-                  </CollapsibleContent>
-                </Collapsible>
-              )}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        <SidebarGroup>
-          {!collapsed && <SidebarGroupLabel className="text-sidebar-foreground/60">Akun</SidebarGroupLabel>}
-          <SidebarGroupContent>
-            <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="My Projects" isActive={isActive('/dashboard/projects')}>
-                  <NavLink to="/dashboard/projects" className={linkClass}>
-                    <FolderKanban className="h-4 w-4 shrink-0" />
-                    {!collapsed && <span>My Projects</span>}
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Settings" isActive={isActive('/settings')}>
-                  <NavLink to="/settings" className={linkClass}>
+                <SidebarMenuButton asChild tooltip="Settings" isActive={path.startsWith('/settings')}>
+                  <NavLink to="/settings" className={linkClass(path.startsWith('/settings'))}>
                     <SettingsIcon className="h-4 w-4 shrink-0" />
                     {!collapsed && <span>Settings</span>}
                   </NavLink>

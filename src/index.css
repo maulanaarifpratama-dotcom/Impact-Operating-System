@@ -50,14 +50,14 @@
 
     --radius: 0.625rem;
 
-    /* Sidebar — navy theme */
-    --sidebar-background: 212 56% 23%;
-    --sidebar-foreground: 210 40% 96%;
-    --sidebar-primary: 178 48% 45%;
+    /* Sidebar — slate-800 (#1E293B) with teal active highlight */
+    --sidebar-background: 217 33% 17%;          /* #1E293B */
+    --sidebar-foreground: 0 0% 100%;             /* white text */
+    --sidebar-primary: 178 48% 32%;              /* teal active bg */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 212 50% 30%;
+    --sidebar-accent: 178 48% 32%;               /* teal active highlight */
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 212 40% 32%;
+    --sidebar-border: 217 25% 25%;
     --sidebar-ring: 178 48% 45%;
 
     /* Gradients & shadows */
