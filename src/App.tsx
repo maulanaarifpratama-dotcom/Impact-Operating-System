@@ -12,6 +12,9 @@ import Signup from './pages/auth/Signup';
 import AuthCallback from './pages/auth/Callback';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import DashboardHome from './pages/dashboard/DashboardHome';
+import GrantWriterIndex from './pages/dashboard/grant-writer/GrantWriterIndex';
+import GrantWriterWizard from './pages/dashboard/grant-writer/GrantWriterWizard';
+import GrantWriterProposal from './pages/dashboard/grant-writer/GrantWriterProposal';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -42,7 +45,10 @@ const App = () => (
               }
             >
               <Route path="/dashboard" element={<DashboardHome />} />
-              {/* /dashboard/* product routes + /settings/* land in Chunk 2-4 */}
+              <Route path="/dashboard/grant-writer" element={<GrantWriterIndex />} />
+              <Route path="/dashboard/grant-writer/:projectId" element={<GrantWriterWizard />} />
+              <Route path="/dashboard/grant-writer/:projectId/proposal" element={<GrantWriterProposal />} />
+              {/* /settings/* + other product routes land in Chunk 3-4 */}
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
