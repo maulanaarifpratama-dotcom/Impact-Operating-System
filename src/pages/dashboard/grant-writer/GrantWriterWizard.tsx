@@ -8,9 +8,11 @@ import {
   Loader2,
   Save,
   Sparkles,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { WizardStepper } from '@/components/grant-writer/WizardStepper';
@@ -24,6 +26,7 @@ import { StepRisks } from '@/components/grant-writer/steps/StepRisks';
 import { useWizardProject } from '@/lib/grant-writer/useWizardProject';
 import { WIZARD_STEPS } from '@/lib/grant-writer/types';
 import { generateLfaMatrix, renderProposalMarkdown } from '@/lib/grant-writer/generator';
+import { GrantWriterChat } from '@/components/grant-writer/chat/GrantWriterChat';
 
 export default function GrantWriterWizard() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -41,6 +44,7 @@ export default function GrantWriterWizard() {
   } = useWizardProject(projectId);
 
   const [generating, setGenerating] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const currentStep = project?.current_step ?? 1;
   const stepMeta = useMemo(
@@ -146,82 +150,122 @@ export default function GrantWriterWizard() {
   const isLast = currentStep === WIZARD_STEPS.length;
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <Button variant="ghost" size="sm" asChild className="-ml-2 mb-1">
-            <Link to="/dashboard/grant-writer">
-              <ArrowLeft className="mr-1 h-4 w-4" /> Semua proyek
-            </Link>
-          </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">{project.title}</h1>
-          <p className="text-sm text-muted-foreground">
-            Langkah {currentStep} dari {WIZARD_STEPS.length} · {stepMeta.label}
-          </p>
+    <div className="flex flex-col gap-6 lg:flex-row lg:gap-6">
+      {/* Left: wizard column */}
+      <div className="min-w-0 flex-1 space-y-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <Button variant="ghost" size="sm" asChild className="-ml-2 mb-1">
+              <Link to="/dashboard/grant-writer">
+                <ArrowLeft className="mr-1 h-4 w-4" /> Semua proyek
+              </Link>
+            </Button>
+            <h1 className="truncate text-2xl font-semibold tracking-tight">{project.title}</h1>
+            <p className="text-sm text-muted-foreground">
+              Langkah {currentStep} dari {WIZARD_STEPS.length} · {stepMeta.label}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            {saving ? (
+              <span className="flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Menyimpan…
+              </span>
+            ) : lastSavedAt ? (
+              <span className="flex items-center gap-1">
+                <Check className="h-3 w-3 text-accent" /> Tersimpan{' '}
+                {lastSavedAt.toLocaleTimeString('id-ID')}
+              </span>
+            ) : (
+              <span>Autosave aktif</span>
+            )}
+
+            {/* Mobile chat trigger */}
+            <Sheet open={chatOpen} onOpenChange={setChatOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="lg:hidden"
+                  aria-label="Buka asisten AI"
+                >
+                  <MessageSquare className="mr-1 h-4 w-4" /> AI
+                </Button>
+              </SheetTrigger>
+              <SheetContent
+                side="right"
+                className="flex w-full flex-col gap-0 p-0 sm:max-w-md"
+              >
+                <GrantWriterChat
+                  projectId={project.id}
+                  organizationId={project.organization_id}
+                  wizardData={data}
+                  currentStepId={stepMeta.id}
+                />
+              </SheetContent>
+            </Sheet>
+          </div>
         </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {saving ? (
-            <span className="flex items-center gap-1">
-              <Loader2 className="h-3 w-3 animate-spin" /> Menyimpan…
-            </span>
-          ) : lastSavedAt ? (
-            <span className="flex items-center gap-1">
-              <Check className="h-3 w-3 text-accent" /> Tersimpan{' '}
-              {lastSavedAt.toLocaleTimeString('id-ID')}
-            </span>
-          ) : (
-            <span>Autosave aktif</span>
-          )}
+
+        <Card>
+          <CardContent className="overflow-x-auto pt-4">
+            <WizardStepper
+              currentStep={currentStep}
+              maxReached={Math.max(currentStep, project.current_step)}
+              onStepClick={(s) => setStep(s)}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg">{stepMeta.label}</CardTitle>
+            <p className="text-sm text-muted-foreground">{stepMeta.description}</p>
+          </CardHeader>
+          <CardContent>{renderStep()}</CardContent>
+        </Card>
+
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Button variant="outline" onClick={goPrev} disabled={currentStep === 1}>
+            <ArrowLeft className="mr-1 h-4 w-4" /> Sebelumnya
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" onClick={() => void saveNow()} disabled={saving}>
+              <Save className="mr-1 h-4 w-4" /> Simpan
+            </Button>
+            {isLast ? (
+              <Button onClick={handleGenerate} disabled={generating}>
+                {generating ? (
+                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1 h-4 w-4" />
+                )}
+                Buat Proposal
+              </Button>
+            ) : (
+              <Button onClick={goNext}>
+                Lanjut <ArrowRight className="ml-1 h-4 w-4" />
+              </Button>
+            )}
+            <Button variant="outline" asChild>
+              <Link to={`/dashboard/grant-writer/${project.id}/proposal`}>
+                <FileText className="mr-1 h-4 w-4" /> Pratinjau
+              </Link>
+            </Button>
+          </div>
         </div>
       </div>
 
-      <Card>
-        <CardContent className="overflow-x-auto pt-4">
-          <WizardStepper
-            currentStep={currentStep}
-            maxReached={Math.max(currentStep, project.current_step)}
-            onStepClick={(s) => setStep(s)}
+      {/* Right: persistent chat (desktop only) */}
+      <aside className="hidden lg:block lg:w-[380px] xl:w-[420px] shrink-0">
+        <div className="sticky top-6 h-[calc(100vh-7rem)] overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
+          <GrantWriterChat
+            projectId={project.id}
+            organizationId={project.organization_id}
+            wizardData={data}
+            currentStepId={stepMeta.id}
           />
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">{stepMeta.label}</CardTitle>
-          <p className="text-sm text-muted-foreground">{stepMeta.description}</p>
-        </CardHeader>
-        <CardContent>{renderStep()}</CardContent>
-      </Card>
-
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button variant="outline" onClick={goPrev} disabled={currentStep === 1}>
-          <ArrowLeft className="mr-1 h-4 w-4" /> Sebelumnya
-        </Button>
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" onClick={() => void saveNow()} disabled={saving}>
-            <Save className="mr-1 h-4 w-4" /> Simpan
-          </Button>
-          {isLast ? (
-            <Button onClick={handleGenerate} disabled={generating}>
-              {generating ? (
-                <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="mr-1 h-4 w-4" />
-              )}
-              Buat Proposal
-            </Button>
-          ) : (
-            <Button onClick={goNext}>
-              Lanjut <ArrowRight className="ml-1 h-4 w-4" />
-            </Button>
-          )}
-          <Button variant="outline" asChild>
-            <Link to={`/dashboard/grant-writer/${project.id}/proposal`}>
-              <FileText className="mr-1 h-4 w-4" /> Pratinjau
-            </Link>
-          </Button>
         </div>
-      </div>
+      </aside>
     </div>
   );
 }
