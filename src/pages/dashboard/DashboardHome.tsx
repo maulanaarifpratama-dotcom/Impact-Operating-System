@@ -3,7 +3,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/providers/AuthProvider';
 import { PRODUCTS } from '@/lib/brand';
-import { Sparkles, Hammer, ArrowUpRight } from 'lucide-react';
+import { Sparkles, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const stageBadgeClass: Record<string, string> = {
