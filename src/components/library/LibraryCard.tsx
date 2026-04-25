@@ -1,4 +1,4 @@
-import { ArrowUpRight, Clock, FileText, Sparkles } from 'lucide-react';
+import { ArrowUpRight, Clock, Download, FileText, Sparkles } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -76,10 +76,25 @@ export function LibraryCard({ item, onOpen }: LibraryCardProps) {
         ))}
       </div>
 
-      <Button onClick={onOpen} size="sm" className="bg-accent text-accent-foreground hover:bg-accent/90">
-        Buka
-        <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
-      </Button>
+      {item.format === 'web' ? (
+        <Button
+          onClick={onOpen}
+          size="sm"
+          className="bg-accent text-accent-foreground hover:bg-accent/90"
+        >
+          Buka
+          <ArrowUpRight className="ml-1 h-3.5 w-3.5" />
+        </Button>
+      ) : (
+        <Button
+          onClick={onOpen}
+          size="sm"
+          className="bg-accent text-accent-foreground hover:bg-accent/90"
+        >
+          <Download className="mr-1 h-3.5 w-3.5" />
+          Unduh {FORMAT_LABEL[item.format]}
+        </Button>
+      )}
     </Card>
   );
 }
