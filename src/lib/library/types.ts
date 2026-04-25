@@ -5,13 +5,14 @@
 import type { GrantSector } from '@/lib/grantfinder/types';
 export { SECTOR_LABEL, SDG_LABELS } from '@/lib/grantfinder/types';
 
-export type LibraryKind = 'data_sdg' | 'riset' | 'template' | 'case_study';
+export type LibraryKind = 'data_sdg' | 'riset' | 'template' | 'case_study' | 'panduan';
 
 export const KIND_LABEL: Record<LibraryKind, string> = {
   data_sdg: 'Data SDGs',
   riset: 'Riset & Whitepaper',
   template: 'Template',
   case_study: 'Studi Kasus',
+  panduan: 'Panduan',
 };
 
 export const KIND_DESC: Record<LibraryKind, string> = {
@@ -19,6 +20,7 @@ export const KIND_DESC: Record<LibraryKind, string> = {
   riset: 'Ringkasan riset dan whitepaper sektor sosial.',
   template: 'Format dokumen siap pakai untuk donor & laporan.',
   case_study: 'Studi kasus organisasi yang berhasil mendapat funding.',
+  panduan: 'Panduan praktis langkah-demi-langkah untuk tim program & fundraising.',
 };
 
 export type FileFormat = 'pdf' | 'docx' | 'xlsx' | 'csv' | 'pptx' | 'web';
@@ -60,4 +62,5 @@ export const KIND_TONE: Record<LibraryKind, string> = {
   riset: 'border-accent/30 bg-accent/10 text-accent',
   template: 'border-warning/30 bg-warning/15 text-warning',
   case_study: 'border-success/30 bg-success/15 text-success',
+  panduan: 'border-secondary/40 bg-secondary/20 text-secondary-foreground',
 };
