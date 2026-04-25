@@ -72,8 +72,8 @@ export const PRODUCTS: ProductMeta[] = [
     longDescription:
       'Buat ad copy berperforma untuk Meta, Google, dan TikTok — dirancang khusus untuk kampanye sosial dan UMKM.',
     icon: Megaphone,
-    releaseLabel: '2027',
-    releaseStage: 'future',
+    releaseLabel: 'MVP Aktif',
+    releaseStage: 'building',
     href: '/dashboard/impactory-ads',
   },
 ];
