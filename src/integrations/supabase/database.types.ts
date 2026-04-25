@@ -11,6 +11,8 @@ export type OrgRole = 'owner' | 'admin' | 'member';
 export type SubscriptionStatus = 'trialing' | 'active' | 'past_due' | 'canceled' | 'incomplete';
 export type PlanTier = 'free' | 'starter' | 'premium' | 'enterprise';
 export type ProductKey = 'grant_writer' | 'impactory_library' | 'grantfinder' | 'impactory_ads';
+export type GwProjectStatus = 'draft' | 'generating' | 'completed' | 'archived';
+export type GwDonorStandard = 'un_oecd_dac' | 'world_bank' | 'usaid' | 'eu' | 'generic';
 
 export interface Database {
   public: {
@@ -256,6 +258,99 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['waitlist']['Insert']>;
         Relationships: [];
       };
+      gw_projects: {
+        Row: {
+          id: string;
+          organization_id: string;
+          created_by: string;
+          title: string;
+          summary: string | null;
+          sector: string | null;
+          geography: string | null;
+          duration_months: number | null;
+          budget_idr: number | null;
+          donor_standard: GwDonorStandard;
+          target_donor: string | null;
+          status: GwProjectStatus;
+          current_step: number;
+          wizard_data: Json;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          organization_id: string;
+          created_by: string;
+          title: string;
+          summary?: string | null;
+          sector?: string | null;
+          geography?: string | null;
+          duration_months?: number | null;
+          budget_idr?: number | null;
+          donor_standard?: GwDonorStandard;
+          target_donor?: string | null;
+          status?: GwProjectStatus;
+          current_step?: number;
+          wizard_data?: Json;
+        };
+        Update: Partial<Database['public']['Tables']['gw_projects']['Insert']>;
+        Relationships: [];
+      };
+      gw_lfa_documents: {
+        Row: {
+          id: string;
+          project_id: string;
+          organization_id: string;
+          generated_by: string;
+          version: number;
+          matrix: Json;
+          proposal_markdown: string | null;
+          model: string | null;
+          donor_standard: GwDonorStandard;
+          is_current: boolean;
+          created_at: string;
+        };
+        Insert: {
+          project_id: string;
+          organization_id: string;
+          generated_by: string;
+          version?: number;
+          matrix: Json;
+          proposal_markdown?: string | null;
+          model?: string | null;
+          donor_standard?: GwDonorStandard;
+          is_current?: boolean;
+        };
+        Update: Partial<Database['public']['Tables']['gw_lfa_documents']['Insert']>;
+        Relationships: [];
+      };
+      gw_proposals: {
+        Row: {
+          id: string;
+          project_id: string;
+          lfa_document_id: string | null;
+          organization_id: string;
+          created_by: string;
+          title: string;
+          format: string;
+          content_markdown: string | null;
+          file_url: string | null;
+          exported_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          project_id: string;
+          lfa_document_id?: string | null;
+          organization_id: string;
+          created_by: string;
+          title: string;
+          format?: string;
+          content_markdown?: string | null;
+          file_url?: string | null;
+          exported_at?: string | null;
+        };
+        Update: Partial<Database['public']['Tables']['gw_proposals']['Insert']>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -270,6 +365,8 @@ export interface Database {
       subscription_status: SubscriptionStatus;
       plan_tier: PlanTier;
       product_key: ProductKey;
+      gw_project_status: GwProjectStatus;
+      gw_donor_standard: GwDonorStandard;
     };
   };
 }
