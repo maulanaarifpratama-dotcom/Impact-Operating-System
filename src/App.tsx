@@ -46,7 +46,18 @@ const App = () => (
             <Route path="/library" element={<Navigate to="/dashboard/impactory-library" replace />} />
             <Route path="/ads" element={<Navigate to="/dashboard/impactory-ads" replace />} />
 
-            {/* Protected */}
+            {/* Public product pages (MVP demo — no auth required) */}
+            <Route element={<DashboardLayout />}>
+              <Route path="/dashboard/grant-writer" element={<GrantWriterIndex />} />
+              <Route path="/dashboard/grant-writer/:projectId" element={<GrantWriterWizard />} />
+              <Route path="/dashboard/grant-writer/quick/:projectId" element={<GrantWriterQuickWizard />} />
+              <Route path="/dashboard/grant-writer/:projectId/proposal" element={<GrantWriterProposal />} />
+              <Route path="/dashboard/impactory-library" element={<ImpactoryLibrary />} />
+              <Route path="/dashboard/grantfinder" element={<Grantfinder />} />
+              <Route path="/dashboard/impactory-ads" element={<ImpactoryAds />} />
+            </Route>
+
+            {/* Protected (dashboard home & future account routes) */}
             <Route
               element={
                 <ProtectedRoute>
@@ -55,13 +66,6 @@ const App = () => (
               }
             >
               <Route path="/dashboard" element={<DashboardHome />} />
-              <Route path="/dashboard/grant-writer" element={<GrantWriterIndex />} />
-              <Route path="/dashboard/grant-writer/:projectId" element={<GrantWriterWizard />} />
-              <Route path="/dashboard/grant-writer/quick/:projectId" element={<GrantWriterQuickWizard />} />
-              <Route path="/dashboard/grant-writer/:projectId/proposal" element={<GrantWriterProposal />} />
-              <Route path="/dashboard/impactory-library" element={<ImpactoryLibrary />} />
-              <Route path="/dashboard/grantfinder" element={<Grantfinder />} />
-              <Route path="/dashboard/impactory-ads" element={<ImpactoryAds />} />
               {/* /settings/* + other product routes land in Chunk 3-4 */}
             </Route>
 
