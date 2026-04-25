@@ -61,8 +61,8 @@ export const PRODUCTS: ProductMeta[] = [
     longDescription:
       'Lacak ribuan peluang hibah dari donor lokal dan internasional. Filter berdasarkan sektor, geografi, dan tahap organisasi.',
     icon: Search,
-    releaseLabel: 'Q4 2026',
-    releaseStage: 'planned',
+    releaseLabel: 'MVP Aktif',
+    releaseStage: 'building',
     href: '/dashboard/grantfinder',
   },
   {
