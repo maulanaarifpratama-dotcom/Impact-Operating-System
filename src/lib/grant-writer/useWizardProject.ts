@@ -5,14 +5,14 @@ import type { WizardData } from './types';
 
 type GwProjectRow = Database['public']['Tables']['gw_projects']['Row'];
 
-export interface UseWizardProjectResult {
+export interface UseWizardProjectResult<TData = WizardData> {
   project: GwProjectRow | null;
-  data: WizardData;
+  data: TData;
   loading: boolean;
   saving: boolean;
   lastSavedAt: Date | null;
   error: string | null;
-  setData: (updater: (prev: WizardData) => WizardData) => void;
+  setData: (updater: (prev: TData) => TData) => void;
   setStep: (step: number) => Promise<void>;
   saveNow: () => Promise<void>;
 }
@@ -21,15 +21,17 @@ export interface UseWizardProjectResult {
  * Loads a gw_projects row, exposes wizard_data with optimistic updates,
  * and autosaves changes to Supabase (debounced 800ms).
  */
-export function useWizardProject(projectId: string | undefined): UseWizardProjectResult {
+export function useWizardProject<TData = WizardData>(
+  projectId: string | undefined,
+): UseWizardProjectResult<TData> {
   const [project, setProject] = useState<GwProjectRow | null>(null);
-  const [data, setDataState] = useState<WizardData>({});
+  const [data, setDataState] = useState<TData>({} as TData);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const dataRef = useRef<WizardData>({});
+  const dataRef = useRef<TData>({} as TData);
   const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirtyRef = useRef(false);
 
@@ -52,7 +54,7 @@ export function useWizardProject(projectId: string | undefined): UseWizardProjec
         setError(err.message);
       } else if (row) {
         setProject(row);
-        const wd = (row.wizard_data as WizardData) ?? {};
+        const wd = ((row.wizard_data as unknown) as TData) ?? ({} as TData);
         setDataState(wd);
         dataRef.current = wd;
       }
@@ -81,7 +83,7 @@ export function useWizardProject(projectId: string | undefined): UseWizardProjec
   }, [projectId]);
 
   const setData = useCallback(
-    (updater: (prev: WizardData) => WizardData) => {
+    (updater: (prev: TData) => TData) => {
       setDataState((prev) => {
         const next = updater(prev);
         dataRef.current = next;

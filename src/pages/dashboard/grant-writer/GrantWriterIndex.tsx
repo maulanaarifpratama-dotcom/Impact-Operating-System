@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, FileText, Loader2, ArrowRight } from 'lucide-react';
+import { Plus, FileText, Loader2, ArrowRight, Zap, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,6 +19,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
 import type { Database, GwProjectStatus } from '@/integrations/supabase/database.types';
+import { cn } from '@/lib/utils';
+import { QUICK_STEPS, WIZARD_STEPS } from '@/lib/grant-writer/types';
 
 type Project = Database['public']['Tables']['gw_projects']['Row'];
 
@@ -29,6 +31,13 @@ const STATUS_LABEL: Record<GwProjectStatus, string> = {
   archived: 'Diarsipkan',
 };
 
+type WizardMode = 'quick' | 'lfa';
+
+function getProjectMode(p: Project): WizardMode {
+  const wd = (p.wizard_data ?? {}) as Record<string, unknown>;
+  return wd._mode === 'quick' ? 'quick' : 'lfa';
+}
+
 export default function GrantWriterIndex() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -37,6 +46,7 @@ export default function GrantWriterIndex() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
+  const [mode, setMode] = useState<WizardMode>('quick');
   const [creating, setCreating] = useState(false);
 
   const load = async () => {
@@ -70,19 +80,30 @@ export default function GrantWriterIndex() {
           title: title.trim(),
           status: 'draft',
           current_step: 1,
-          wizard_data: {},
+          wizard_data: { _mode: mode } as never,
         })
         .select('id')
         .single();
       if (error) throw error;
-      toast({ title: 'Proyek dibuat', description: 'Mulai isi konteks proyek Anda.' });
-      navigate(`/dashboard/grant-writer/${data.id}`);
+      toast({
+        title: 'Proyek dibuat',
+        description:
+          mode === 'quick'
+            ? 'Mode cepat: 4 langkah ke proposal donor-ready.'
+            : 'Mode LFA lengkap: 7 langkah standar UN/OECD-DAC.',
+      });
+      navigate(
+        mode === 'quick'
+          ? `/dashboard/grant-writer/quick/${data.id}`
+          : `/dashboard/grant-writer/${data.id}`,
+      );
     } catch (err: any) {
       toast({ title: 'Gagal membuat proyek', description: err.message, variant: 'destructive' });
     } finally {
       setCreating(false);
       setCreateOpen(false);
       setTitle('');
+      setMode('quick');
     }
   };
 
@@ -114,7 +135,8 @@ export default function GrantWriterIndex() {
             <div>
               <h3 className="text-lg font-semibold">Belum ada proyek</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Buat proyek pertama Anda untuk memulai wizard 7 langkah LFA.
+                Buat proyek pertama Anda — pilih mode <strong>Quick</strong> (4 langkah) atau{' '}
+                <strong>LFA Lengkap</strong> (7 langkah).
               </p>
             </div>
             <Button onClick={() => setCreateOpen(true)}>
@@ -124,47 +146,99 @@ export default function GrantWriterIndex() {
         </Card>
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map((p) => (
-            <Link key={p.id} to={`/dashboard/grant-writer/${p.id}`} className="group">
-              <Card className="h-full transition-all hover:shadow-elegant">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-2">
-                    <CardTitle className="line-clamp-2 text-base">{p.title}</CardTitle>
-                    <Badge variant="secondary" className="shrink-0">
-                      {STATUS_LABEL[p.status as GwProjectStatus] ?? p.status}
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm">
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span>Langkah {p.current_step}/7</span>
-                    <span>{new Date(p.updated_at).toLocaleDateString('id-ID')}</span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full bg-accent transition-all"
-                      style={{ width: `${Math.min(100, (p.current_step / 7) * 100)}%` }}
-                    />
-                  </div>
-                  <div className="flex items-center text-accent group-hover:underline">
-                    Lanjutkan <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                  </div>
-                </CardContent>
-              </Card>
-            </Link>
-          ))}
+          {projects.map((p) => {
+            const m = getProjectMode(p);
+            const total = m === 'quick' ? QUICK_STEPS.length : WIZARD_STEPS.length;
+            const href =
+              m === 'quick'
+                ? `/dashboard/grant-writer/quick/${p.id}`
+                : `/dashboard/grant-writer/${p.id}`;
+            return (
+              <Link key={p.id} to={href} className="group">
+                <Card className="h-full transition-all hover:shadow-elegant">
+                  <CardHeader>
+                    <div className="flex items-start justify-between gap-2">
+                      <CardTitle className="line-clamp-2 text-base">{p.title}</CardTitle>
+                      <Badge variant="secondary" className="shrink-0">
+                        {STATUS_LABEL[p.status as GwProjectStatus] ?? p.status}
+                      </Badge>
+                    </div>
+                    <div className="mt-1">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          'gap-1 text-xs',
+                          m === 'quick'
+                            ? 'border-primary/30 text-primary'
+                            : 'border-accent/30 text-accent',
+                        )}
+                      >
+                        {m === 'quick' ? (
+                          <>
+                            <Zap className="h-3 w-3" /> Quick · 4 langkah
+                          </>
+                        ) : (
+                          <>
+                            <Layers className="h-3 w-3" /> LFA Lengkap · 7 langkah
+                          </>
+                        )}
+                      </Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="space-y-3 text-sm">
+                    <div className="flex items-center justify-between text-muted-foreground">
+                      <span>
+                        Langkah {Math.min(p.current_step, total)}/{total}
+                      </span>
+                      <span>{new Date(p.updated_at).toLocaleDateString('id-ID')}</span>
+                    </div>
+                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full bg-accent transition-all"
+                        style={{
+                          width: `${Math.min(100, (p.current_step / total) * 100)}%`,
+                        }}
+                      />
+                    </div>
+                    <div className="flex items-center text-accent group-hover:underline">
+                      Lanjutkan <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Buat proyek baru</DialogTitle>
             <DialogDescription>
-              Beri nama proyek Anda. Anda bisa mengubahnya nanti di langkah konteks.
+              Pilih mode dan beri nama proyek. Mode tidak bisa diubah setelah proyek dibuat.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-2 py-2">
+          <div className="space-y-4 py-2">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ModeOption
+                active={mode === 'quick'}
+                onClick={() => setMode('quick')}
+                icon={<Zap className="h-4 w-4" />}
+                title="Quick"
+                subtitle="4 langkah · cocok untuk donor lokal/private"
+                meta="≈ 15 menit"
+              />
+              <ModeOption
+                active={mode === 'lfa'}
+                onClick={() => setMode('lfa')}
+                icon={<Layers className="h-4 w-4" />}
+                title="LFA Lengkap"
+                subtitle="7 langkah · standar UN/OECD-DAC, World Bank, USAID"
+                meta="≈ 1–2 jam"
+              />
+            </div>
+            <div className="space-y-2">
             <Label htmlFor="project-title">Nama proyek</Label>
             <Input
               id="project-title"
@@ -173,6 +247,7 @@ export default function GrantWriterIndex() {
               placeholder="Mis. Program Literasi Anak Pesisir"
               autoFocus
             />
+          </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
@@ -186,5 +261,52 @@ export default function GrantWriterIndex() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function ModeOption({
+  active,
+  onClick,
+  icon,
+  title,
+  subtitle,
+  meta,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  meta: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'group flex flex-col items-start gap-1.5 rounded-lg border p-3 text-left transition-all',
+        active
+          ? 'border-primary bg-primary/5 ring-2 ring-primary/15'
+          : 'border-border hover:border-primary/40 hover:bg-muted/50',
+      )}
+    >
+      <div className="flex w-full items-center justify-between">
+        <div className="flex items-center gap-2">
+          <span
+            className={cn(
+              'flex h-7 w-7 items-center justify-center rounded-md',
+              active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
+            )}
+          >
+            {icon}
+          </span>
+          <span className="text-sm font-semibold">{title}</span>
+        </div>
+        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+          {meta}
+        </span>
+      </div>
+      <p className="text-xs text-muted-foreground">{subtitle}</p>
+    </button>
   );
 }

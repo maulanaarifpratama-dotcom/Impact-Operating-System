@@ -9,26 +9,26 @@ import {
   Save,
   Sparkles,
   MessageSquare,
+  Zap,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { WizardStepper } from '@/components/grant-writer/WizardStepper';
-import { StepContext } from '@/components/grant-writer/steps/StepContext';
-import { StepStakeholders } from '@/components/grant-writer/steps/StepStakeholders';
-import { StepProblemTree } from '@/components/grant-writer/steps/StepProblemTree';
-import { StepObjectives } from '@/components/grant-writer/steps/StepObjectives';
-import { StepActivities } from '@/components/grant-writer/steps/StepActivities';
-import { StepIndicators } from '@/components/grant-writer/steps/StepIndicators';
-import { StepRisks } from '@/components/grant-writer/steps/StepRisks';
+import { QuickStepper } from '@/components/grant-writer/quick/QuickStepper';
+import { QuickStepOrganization } from '@/components/grant-writer/quick/QuickStepOrganization';
+import { QuickStepProgram } from '@/components/grant-writer/quick/QuickStepProgram';
+import { QuickStepBudget } from '@/components/grant-writer/quick/QuickStepBudget';
+import { QuickStepGenerate } from '@/components/grant-writer/quick/QuickStepGenerate';
 import { useWizardProject } from '@/lib/grant-writer/useWizardProject';
-import { WIZARD_STEPS } from '@/lib/grant-writer/types';
-import { generateLfaMatrix, renderProposalMarkdown } from '@/lib/grant-writer/generator';
+import { QUICK_STEPS } from '@/lib/grant-writer/types';
+import type { QuickWizardData } from '@/lib/grant-writer/types';
+import { renderQuickProposalMarkdown } from '@/lib/grant-writer/quickGenerator';
 import { GrantWriterChat } from '@/components/grant-writer/chat/GrantWriterChat';
 
-export default function GrantWriterWizard() {
+export default function GrantWriterQuickWizard() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -41,23 +41,23 @@ export default function GrantWriterWizard() {
     setData,
     setStep,
     saveNow,
-  } = useWizardProject(projectId);
+  } = useWizardProject<QuickWizardData>(projectId);
 
   const [generating, setGenerating] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
 
   const currentStep = project?.current_step ?? 1;
   const stepMeta = useMemo(
-    () => WIZARD_STEPS.find((s) => s.index === currentStep) ?? WIZARD_STEPS[0],
+    () => QUICK_STEPS.find((s) => s.index === currentStep) ?? QUICK_STEPS[0],
     [currentStep],
   );
 
-  // If this project was created in Quick mode, redirect to the quick wizard.
+  // If project is in LFA mode, redirect to the full wizard.
   useEffect(() => {
     if (!project) return;
     const wd = (project.wizard_data ?? {}) as Record<string, unknown>;
-    if (wd._mode === 'quick') {
-      navigate(`/dashboard/grant-writer/quick/${project.id}`, { replace: true });
+    if (wd._mode && wd._mode !== 'quick') {
+      navigate(`/dashboard/grant-writer/${project.id}`, { replace: true });
     }
   }, [project, navigate]);
 
@@ -83,17 +83,15 @@ export default function GrantWriterWizard() {
   }
 
   const goPrev = () => currentStep > 1 && setStep(currentStep - 1);
-  const goNext = () => currentStep < WIZARD_STEPS.length && setStep(currentStep + 1);
+  const goNext = () => currentStep < QUICK_STEPS.length && setStep(currentStep + 1);
 
   const handleGenerate = async () => {
     if (!projectId) return;
     setGenerating(true);
     try {
       await saveNow();
-      const matrix = generateLfaMatrix(data);
-      const markdown = renderProposalMarkdown(data, matrix);
+      const markdown = renderQuickProposalMarkdown(data);
 
-      // Get next version number
       const { data: existing } = await supabase
         .from('gw_lfa_documents')
         .select('version')
@@ -102,6 +100,14 @@ export default function GrantWriterWizard() {
         .limit(1);
       const nextVersion = (existing?.[0]?.version ?? 0) + 1;
 
+      // Minimal placeholder matrix — Quick mode doesn't produce a full LFA matrix.
+      const matrix = {
+        meta: {
+          mode: 'quick',
+          generatedAt: new Date().toISOString(),
+        },
+      };
+
       const { error: docErr } = await supabase.from('gw_lfa_documents').insert({
         project_id: projectId,
         organization_id: project.organization_id,
@@ -109,7 +115,7 @@ export default function GrantWriterWizard() {
         version: nextVersion,
         matrix: matrix as never,
         proposal_markdown: markdown,
-        donor_standard: matrix.meta.donorStandard,
+        donor_standard: 'generic',
         is_current: true,
       });
       if (docErr) throw docErr;
@@ -137,30 +143,23 @@ export default function GrantWriterWizard() {
 
   const renderStep = () => {
     switch (stepMeta.id) {
-      case 'context':
-        return <StepContext data={data} onChange={setData} />;
-      case 'stakeholders':
-        return <StepStakeholders data={data} onChange={setData} />;
-      case 'problem_tree':
-        return <StepProblemTree data={data} onChange={setData} />;
-      case 'objectives':
-        return <StepObjectives data={data} onChange={setData} />;
-      case 'lfa_matrix':
-        return <StepActivities data={data} onChange={setData} />;
-      case 'indicators':
-        return <StepIndicators data={data} onChange={setData} />;
-      case 'risks':
-        return <StepRisks data={data} onChange={setData} />;
+      case 'organization':
+        return <QuickStepOrganization data={data} onChange={setData} />;
+      case 'program':
+        return <QuickStepProgram data={data} onChange={setData} />;
+      case 'budget':
+        return <QuickStepBudget data={data} onChange={setData} />;
+      case 'generate':
+        return <QuickStepGenerate data={data} />;
       default:
         return null;
     }
   };
 
-  const isLast = currentStep === WIZARD_STEPS.length;
+  const isLast = currentStep === QUICK_STEPS.length;
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row lg:gap-6">
-      {/* Left: wizard column */}
       <div className="min-w-0 flex-1 space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
@@ -169,9 +168,16 @@ export default function GrantWriterWizard() {
                 <ArrowLeft className="mr-1 h-4 w-4" /> Semua proyek
               </Link>
             </Button>
-            <h1 className="truncate text-2xl font-semibold tracking-tight">{project.title}</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-2xl font-semibold tracking-tight">
+                {project.title}
+              </h1>
+              <Badge variant="secondary" className="gap-1">
+                <Zap className="h-3 w-3" /> Quick
+              </Badge>
+            </div>
             <p className="text-sm text-muted-foreground">
-              Langkah {currentStep} dari {WIZARD_STEPS.length} · {stepMeta.label}
+              Langkah {currentStep} dari {QUICK_STEPS.length} · {stepMeta.label}
             </p>
           </div>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -188,7 +194,6 @@ export default function GrantWriterWizard() {
               <span>Autosave aktif</span>
             )}
 
-            {/* Mobile chat trigger */}
             <Sheet open={chatOpen} onOpenChange={setChatOpen}>
               <SheetTrigger asChild>
                 <Button
@@ -207,8 +212,8 @@ export default function GrantWriterWizard() {
                 <GrantWriterChat
                   projectId={project.id}
                   organizationId={project.organization_id}
-                  wizardData={data}
-                  currentStepId={stepMeta.id}
+                  wizardData={data as never}
+                  currentStepId={'context'}
                 />
               </SheetContent>
             </Sheet>
@@ -217,7 +222,7 @@ export default function GrantWriterWizard() {
 
         <Card>
           <CardContent className="overflow-x-auto pt-4">
-            <WizardStepper
+            <QuickStepper
               currentStep={currentStep}
               maxReached={Math.max(currentStep, project.current_step)}
               onStepClick={(s) => setStep(s)}
@@ -264,14 +269,13 @@ export default function GrantWriterWizard() {
         </div>
       </div>
 
-      {/* Right: persistent chat (desktop only) */}
       <aside className="hidden lg:block lg:w-[380px] xl:w-[420px] shrink-0">
         <div className="sticky top-6 h-[calc(100vh-7rem)] overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
           <GrantWriterChat
             projectId={project.id}
             organizationId={project.organization_id}
-            wizardData={data}
-            currentStepId={stepMeta.id}
+            wizardData={data as never}
+            currentStepId={'context'}
           />
         </div>
       </aside>

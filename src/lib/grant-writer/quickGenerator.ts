@@ -1,0 +1,105 @@
+import type { QuickWizardData } from './types';
+import { ORG_TYPES } from './types';
+
+const fmtIdr = (n: number) =>
+  n
+    ? new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        maximumFractionDigits: 0,
+      }).format(n)
+    : '—';
+
+export function renderQuickProposalMarkdown(data: QuickWizardData): string {
+  const o = data.organization ?? {};
+  const p = data.program ?? {};
+  const b = data.budget ?? {};
+  const orgTypeLabel = ORG_TYPES.find((t) => t.value === o.orgType)?.label ?? '—';
+
+  return `# ${p.programTitle ?? 'Proposal Program'}
+
+**Diusulkan oleh:** ${o.orgName ?? '—'}
+**Sektor:** ${p.sector ?? '—'}
+**Lokasi:** ${b.geography ?? '—'}
+**Durasi:** ${b.durationMonths ?? '—'} bulan
+**Anggaran:** ${fmtIdr(b.budgetIdr ?? 0)}
+**Donor target:** ${p.targetDonor ?? '—'}
+
+---
+
+## 1. Tentang Organisasi
+
+**${o.orgName ?? '—'}** (${orgTypeLabel}${o.yearFounded ? `, didirikan ${o.yearFounded}` : ''}) ${o.website ? `— ${o.website}` : ''}
+
+${o.orgProfile ?? '_Profil organisasi belum diisi._'}
+
+**Kontak:** ${o.contactPerson ?? '—'}${o.contactEmail ? ` (${o.contactEmail})` : ''}
+
+## 2. Latar Belakang
+
+${p.background ?? '_Belum diisi._'}
+
+## 3. Permasalahan
+
+${p.problemStatement ?? '_Belum diisi._'}
+
+## 4. Solusi yang Ditawarkan
+
+${p.proposedSolution ?? '_Belum diisi._'}
+
+## 5. Penerima Manfaat
+
+- **Jumlah:** ${b.beneficiaryCount ?? '—'} orang
+- **Lokasi:** ${b.geography ?? '—'}
+
+${b.beneficiaryDescription ?? '_Profil penerima manfaat belum diisi._'}
+
+## 6. Outcome yang Diharapkan
+
+${p.expectedOutcomes ?? '_Belum diisi._'}
+
+## 7. Anggaran
+
+**Total:** ${fmtIdr(b.budgetIdr ?? 0)} untuk ${b.durationMonths ?? '—'} bulan
+
+${b.budgetBreakdown ? `**Rincian:**\n\n${b.budgetBreakdown}` : '_Rincian anggaran belum diisi._'}
+
+---
+
+_Proposal ini dihasilkan otomatis oleh Impactory Grant Writer (mode Quick) pada ${new Date().toLocaleString('id-ID')}._
+`;
+}
+
+export function quickCompleteness(data: QuickWizardData): {
+  filled: number;
+  total: number;
+  missing: string[];
+} {
+  const o = data.organization ?? {};
+  const p = data.program ?? {};
+  const b = data.budget ?? {};
+  const checks: { ok: boolean; label: string }[] = [
+    { ok: !!o.orgName, label: 'Nama organisasi' },
+    { ok: !!o.orgType, label: 'Jenis organisasi' },
+    { ok: !!o.contactPerson, label: 'Kontak person' },
+    { ok: !!o.contactEmail, label: 'Email kontak' },
+    { ok: !!o.orgProfile, label: 'Profil organisasi' },
+    { ok: !!p.programTitle, label: 'Judul program' },
+    { ok: !!p.sector, label: 'Sektor' },
+    { ok: !!p.background, label: 'Latar belakang' },
+    { ok: !!p.problemStatement, label: 'Pernyataan masalah' },
+    { ok: !!p.proposedSolution, label: 'Solusi' },
+    { ok: !!p.expectedOutcomes, label: 'Outcome' },
+    { ok: !!b.beneficiaryCount, label: 'Jumlah penerima manfaat' },
+    { ok: !!b.beneficiaryDescription, label: 'Profil penerima manfaat' },
+    { ok: !!b.geography, label: 'Lokasi' },
+    { ok: !!b.durationMonths, label: 'Durasi' },
+    { ok: !!b.budgetIdr, label: 'Anggaran' },
+  ];
+  const filled = checks.filter((c) => c.ok).length;
+  return {
+    filled,
+    total: checks.length,
+    missing: checks.filter((c) => !c.ok).map((c) => c.label),
+  };
+}

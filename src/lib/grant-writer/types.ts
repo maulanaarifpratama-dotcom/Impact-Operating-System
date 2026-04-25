@@ -214,3 +214,97 @@ export const SECTORS = [
   'Pangan & Pertanian',
   'Lainnya',
 ];
+
+// ============================================================
+// Quick mode (4 langkah sederhana)
+// ============================================================
+
+export type QuickStepId =
+  | 'organization'
+  | 'program'
+  | 'budget'
+  | 'generate';
+
+export interface QuickStepMeta {
+  id: QuickStepId;
+  index: number;
+  label: string;
+  description: string;
+}
+
+export const QUICK_STEPS: QuickStepMeta[] = [
+  {
+    id: 'organization',
+    index: 1,
+    label: 'Info Organisasi',
+    description: 'Nama, jenis, dan profil singkat organisasi pengusul.',
+  },
+  {
+    id: 'program',
+    index: 2,
+    label: 'Deskripsi Program',
+    description: 'Judul, latar belakang, masalah, dan solusi yang ditawarkan.',
+  },
+  {
+    id: 'budget',
+    index: 3,
+    label: 'Target & Anggaran',
+    description: 'Penerima manfaat, durasi, lokasi, dan estimasi anggaran.',
+  },
+  {
+    id: 'generate',
+    index: 4,
+    label: 'Generate Proposal',
+    description: 'Tinjau ringkasan dan generate proposal donor-ready.',
+  },
+];
+
+export interface QuickOrganizationData {
+  orgName: string;
+  orgType:
+    | 'yayasan'
+    | 'perkumpulan'
+    | 'koperasi'
+    | 'komunitas'
+    | 'pt'
+    | 'lainnya';
+  yearFounded?: number;
+  website?: string;
+  contactPerson: string;
+  contactEmail: string;
+  orgProfile: string; // 1-3 paragraf profil
+}
+
+export interface QuickProgramData {
+  programTitle: string;
+  sector: string;
+  targetDonor: string;
+  background: string;
+  problemStatement: string;
+  proposedSolution: string;
+  expectedOutcomes: string;
+}
+
+export interface QuickBudgetData {
+  beneficiaryCount: number;
+  beneficiaryDescription: string;
+  geography: string;
+  durationMonths: number;
+  budgetIdr: number;
+  budgetBreakdown: string; // free text bullets
+}
+
+export interface QuickWizardData {
+  organization?: Partial<QuickOrganizationData>;
+  program?: Partial<QuickProgramData>;
+  budget?: Partial<QuickBudgetData>;
+}
+
+export const ORG_TYPES: { value: QuickOrganizationData['orgType']; label: string }[] = [
+  { value: 'yayasan', label: 'Yayasan' },
+  { value: 'perkumpulan', label: 'Perkumpulan' },
+  { value: 'koperasi', label: 'Koperasi' },
+  { value: 'komunitas', label: 'Komunitas / Akar Rumput' },
+  { value: 'pt', label: 'PT / Social Enterprise' },
+  { value: 'lainnya', label: 'Lainnya' },
+];
