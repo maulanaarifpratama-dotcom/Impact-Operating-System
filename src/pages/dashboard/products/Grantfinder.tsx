@@ -215,19 +215,34 @@ export default function Grantfinder() {
 
         {/* Catalog */}
         <TabsContent value="catalog" className="mt-5 space-y-4">
-          <Card className="space-y-3 p-4 shadow-card">
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <div className="relative flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <Card className="relative space-y-4 overflow-hidden border-accent/20 bg-gradient-to-br from-primary/5 via-background to-accent-soft/30 p-5 shadow-card md:p-6">
+            {/* Decorative gradient blob */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-gradient-to-br from-accent/20 to-primary/10 blur-3xl"
+            />
+            <div className="relative flex flex-col gap-3 sm:flex-row sm:items-stretch">
+              <div className="group relative flex-1">
+                <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-accent" />
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   placeholder="Cari donor, judul program, atau kata kunci..."
-                  className="pl-9"
+                  className="h-14 rounded-xl border-2 border-border bg-card pl-12 pr-4 text-base shadow-sm transition-all placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/20 md:text-lg"
                 />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    aria-label="Bersihkan pencarian"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
               </div>
               <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
-                <SelectTrigger className="sm:w-[180px]">
+                <SelectTrigger className="h-14 rounded-xl border-2 sm:w-[200px]">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
