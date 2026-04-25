@@ -81,29 +81,40 @@ function pickRotating<T>(arr: T[], i: number): T {
 }
 
 /**
- * Produces 3 deterministic variants for a single platform.
+ * Produces a single variant for a platform at a given seed (deterministic).
+ * Same brief + platform + seed → same variant.
  */
-export function generateAdVariantsForPlatform(
+export function buildVariant(
   brief: AdBrief,
   platform: AdPlatform,
-): AdVariant[] {
+  seed: number,
+  index: number,
+): AdVariant {
   const openers = TONE_OPENERS[brief.tone];
   const headlines = PLATFORM_HEADLINE[platform];
   const bodies = PLATFORM_BODY[platform](brief);
   const ctas = CTA_BY_OBJECTIVE[brief.objective];
   const hashtags = HASHTAGS_BY_OBJECTIVE[brief.objective];
 
-  return Array.from({ length: 3 }).map((_, i) => {
-    const opener = pickRotating(openers, i);
-    const headlineList = headlines(brief.campaign || 'Kampanye Anda', opener);
-    return {
-      id: `${platform}-var-${i + 1}`,
-      headline: pickRotating(headlineList, i),
-      body: bodies[i] ?? bodies[0],
-      cta: pickRotating(ctas, i),
-      hashtags: platform === 'tiktok' || platform === 'meta' ? hashtags : undefined,
-    };
-  });
+  const opener = pickRotating(openers, seed);
+  const headlineList = headlines(brief.campaign || 'Kampanye Anda', opener);
+  return {
+    id: `${platform}-var-${index + 1}-s${seed}`,
+    headline: pickRotating(headlineList, seed),
+    body: bodies[seed % bodies.length] ?? bodies[0],
+    cta: pickRotating(ctas, seed),
+    hashtags: platform === 'tiktok' || platform === 'meta' ? hashtags : undefined,
+  };
+}
+
+/**
+ * Produces 3 deterministic variants for a single platform.
+ */
+export function generateAdVariantsForPlatform(
+  brief: AdBrief,
+  platform: AdPlatform,
+): AdVariant[] {
+  return Array.from({ length: 3 }).map((_, i) => buildVariant(brief, platform, i, i));
 }
 
 export interface PlatformResult {

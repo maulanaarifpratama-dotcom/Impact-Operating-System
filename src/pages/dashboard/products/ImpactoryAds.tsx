@@ -326,6 +326,7 @@ export default function ImpactoryAds() {
                         variant={v}
                         index={i}
                         platform={res.platform}
+                        brief={brief}
                       />
                     ))}
                   </div>
