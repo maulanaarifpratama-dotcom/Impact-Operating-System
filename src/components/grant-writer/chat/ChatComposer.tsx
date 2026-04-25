@@ -21,7 +21,7 @@ export function ChatComposer({
   onStop,
   isStreaming,
   disabled,
-  placeholder = 'Tanya AI tentang langkah ini… (Enter untuk kirim, Shift+Enter baris baru)',
+  placeholder = 'Tanya Grant Writer AI...',
 }: ChatComposerProps) {
   const taRef = useRef<HTMLTextAreaElement | null>(null);
 
