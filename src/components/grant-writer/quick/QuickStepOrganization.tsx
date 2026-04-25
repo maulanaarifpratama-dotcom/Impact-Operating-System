@@ -1,6 +1,6 @@
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import {
   Select,
   SelectContent,
@@ -8,11 +8,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Check } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import type {
   QuickOrganizationData,
   QuickWizardData,
+  QuickOrgType,
 } from '@/lib/grant-writer/types';
-import { ORG_TYPES } from '@/lib/grant-writer/types';
+import { ORG_TYPES, SDG_GOALS } from '@/lib/grant-writer/types';
 
 interface Props {
   data: QuickWizardData;
@@ -21,6 +24,9 @@ interface Props {
 
 export function QuickStepOrganization({ data, onChange }: Props) {
   const o = (data.organization ?? {}) as Partial<QuickOrganizationData>;
+  const sdgs = o.sdgFocus ?? [];
+  const currentYear = new Date().getFullYear();
+
   const update = <K extends keyof QuickOrganizationData>(
     key: K,
     value: QuickOrganizationData[K],
@@ -30,15 +36,22 @@ export function QuickStepOrganization({ data, onChange }: Props) {
       organization: { ...(prev.organization ?? {}), [key]: value },
     }));
 
+  const toggleSdg = (num: number) => {
+    const next = sdgs.includes(num)
+      ? sdgs.filter((n) => n !== num)
+      : [...sdgs, num].sort((a, b) => a - b);
+    update('sdgFocus', next);
+  };
+
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-6">
       <div className="grid gap-4 md:grid-cols-2">
         <div>
           <Label htmlFor="org-name">Nama organisasi *</Label>
           <Input
             id="org-name"
             value={o.orgName ?? ''}
-            onChange={(e) => update('orgName', e.target.value)}
+            onChange={(e) => update('orgName', e.target.value.slice(0, 200))}
             maxLength={200}
             placeholder="cth. Yayasan Cahaya Pesisir"
             className="mt-1.5"
@@ -48,7 +61,7 @@ export function QuickStepOrganization({ data, onChange }: Props) {
           <Label>Jenis organisasi *</Label>
           <Select
             value={o.orgType ?? ''}
-            onValueChange={(v) => update('orgType', v as QuickOrganizationData['orgType'])}
+            onValueChange={(v) => update('orgType', v as QuickOrgType)}
           >
             <SelectTrigger className="mt-1.5">
               <SelectValue placeholder="Pilih jenis" />
@@ -64,69 +77,84 @@ export function QuickStepOrganization({ data, onChange }: Props) {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div>
-          <Label htmlFor="org-year">Tahun berdiri</Label>
-          <Input
-            id="org-year"
-            type="number"
-            min={1900}
-            max={new Date().getFullYear()}
-            value={o.yearFounded ?? ''}
-            onChange={(e) => update('yearFounded', Number(e.target.value) || 0)}
-            placeholder="cth. 2015"
-            className="mt-1.5"
-          />
-        </div>
-        <div>
-          <Label htmlFor="org-web">Website / media sosial</Label>
-          <Input
-            id="org-web"
-            value={o.website ?? ''}
-            onChange={(e) => update('website', e.target.value)}
-            placeholder="https://…"
-            className="mt-1.5"
-          />
-        </div>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <div>
-          <Label htmlFor="org-cp">Kontak person *</Label>
-          <Input
-            id="org-cp"
-            value={o.contactPerson ?? ''}
-            onChange={(e) => update('contactPerson', e.target.value)}
-            placeholder="Nama lengkap"
-            className="mt-1.5"
-          />
-        </div>
-        <div>
-          <Label htmlFor="org-mail">Email kontak *</Label>
-          <Input
-            id="org-mail"
-            type="email"
-            value={o.contactEmail ?? ''}
-            onChange={(e) => update('contactEmail', e.target.value)}
-            placeholder="kontak@organisasi.org"
-            className="mt-1.5"
-          />
-        </div>
+      <div>
+        <Label htmlFor="org-year">Tahun berdiri</Label>
+        <Input
+          id="org-year"
+          type="number"
+          min={1900}
+          max={currentYear}
+          value={o.yearFounded ?? ''}
+          onChange={(e) => {
+            const n = Number(e.target.value);
+            if (!n) return update('yearFounded', undefined as never);
+            if (n < 1900 || n > currentYear) return;
+            update('yearFounded', n);
+          }}
+          placeholder="cth. 2015"
+          className="mt-1.5 max-w-[200px]"
+        />
+        <p className="mt-1 text-xs text-muted-foreground">
+          Antara 1900 dan {currentYear}.
+        </p>
       </div>
 
       <div>
-        <Label htmlFor="org-profile">Profil singkat organisasi *</Label>
-        <Textarea
-          id="org-profile"
-          value={o.orgProfile ?? ''}
-          onChange={(e) => update('orgProfile', e.target.value)}
-          maxLength={2000}
-          placeholder="Misi, fokus kerja, capaian utama, area dampingan…"
-          className="mt-1.5 min-h-[140px]"
-        />
+        <div className="flex items-center justify-between gap-2">
+          <Label>Fokus SDGs *</Label>
+          <Badge variant="secondary" className="text-xs">
+            {sdgs.length} dipilih
+          </Badge>
+        </div>
         <p className="mt-1 text-xs text-muted-foreground">
-          1–3 paragraf. Sebut misi, fokus kerja, dan capaian terbesar.
+          Pilih satu atau lebih Sustainable Development Goals yang relevan dengan kerja
+          organisasi Anda.
         </p>
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+          {SDG_GOALS.map((g) => {
+            const active = sdgs.includes(g.num);
+            return (
+              <button
+                key={g.num}
+                type="button"
+                onClick={() => toggleSdg(g.num)}
+                aria-pressed={active}
+                className={cn(
+                  'group relative flex items-start gap-2 rounded-lg border p-2.5 text-left transition-all',
+                  active
+                    ? 'border-transparent shadow-sm ring-2 ring-offset-1 ring-offset-background'
+                    : 'border-border hover:border-primary/40 hover:bg-muted/40',
+                )}
+                style={
+                  active
+                    ? { ['--sdg-color' as never]: g.color, boxShadow: `0 0 0 2px ${g.color}` }
+                    : undefined
+                }
+              >
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-sm font-bold text-white"
+                  style={{ backgroundColor: g.color }}
+                >
+                  {g.num}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    SDG {g.num}
+                  </span>
+                  <span className="line-clamp-2 text-xs font-medium leading-tight text-foreground">
+                    {g.title}
+                  </span>
+                </span>
+                {active && (
+                  <Check
+                    className="absolute right-1.5 top-1.5 h-3.5 w-3.5"
+                    style={{ color: g.color }}
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
