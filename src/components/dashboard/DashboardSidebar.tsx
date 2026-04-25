@@ -1,4 +1,5 @@
 import { NavLink, useLocation, useNavigate, Link } from 'react-router-dom';
+import { useState } from 'react';
 import {
   LayoutDashboard,
   FolderKanban,
@@ -6,7 +7,14 @@ import {
   LogOut,
   User as UserIcon,
   ChevronsUpDown,
+  ChevronDown,
+  Package,
 } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Logo } from '@/components/Logo';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -59,6 +67,10 @@ export function DashboardSidebar() {
   const path = location.pathname;
   const isActive = (p: string) => path === p || path.startsWith(p + '/');
 
+  /** Keep "Produk" dropdown open if user is on any product route. */
+  const productActive = PRODUCTS.some((p) => isActive(p.href));
+  const [productsOpen, setProductsOpen] = useState(productActive);
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/', { replace: true });
@@ -100,34 +112,85 @@ export function DashboardSidebar() {
         </SidebarGroup>
 
         <SidebarGroup>
-          {!collapsed && <SidebarGroupLabel className="text-sidebar-foreground/60">Produk</SidebarGroupLabel>}
+          {!collapsed && (
+            <SidebarGroupLabel className="text-sidebar-foreground/60">Produk</SidebarGroupLabel>
+          )}
           <SidebarGroupContent>
             <SidebarMenu>
-              {PRODUCTS.map((p) => (
-                <SidebarMenuItem key={p.key}>
-                  <SidebarMenuButton asChild tooltip={p.name} isActive={isActive(p.href)}>
-                    <NavLink to={p.href} className={linkClass}>
-                      <p.icon className="h-4 w-4 shrink-0" />
-                      {!collapsed && (
-                        <>
-                          <span className="flex-1 truncate">{p.name}</span>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              'ml-auto text-[10px] font-medium',
-                              stageBadge[p.releaseStage].tone === 'live'
-                                ? 'border-accent/50 bg-accent/20 text-accent-foreground'
-                                : 'border-sidebar-border bg-sidebar-accent/40 font-normal text-sidebar-foreground/70',
-                            )}
+              {collapsed ? (
+                /* Collapsed sidebar: render product links flat (icons only) */
+                PRODUCTS.map((p) => (
+                  <SidebarMenuItem key={p.key}>
+                    <SidebarMenuButton asChild tooltip={p.name} isActive={isActive(p.href)}>
+                      <NavLink to={p.href} className={linkClass}>
+                        <p.icon className="h-4 w-4 shrink-0" />
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))
+              ) : (
+                /* Expanded sidebar: collapsible dropdown trigger + nested items */
+                <Collapsible open={productsOpen} onOpenChange={setProductsOpen}>
+                  <SidebarMenuItem>
+                    <CollapsibleTrigger asChild>
+                      <SidebarMenuButton
+                        tooltip="Produk"
+                        isActive={productActive}
+                        className={cn(
+                          'group/produk w-full',
+                          productActive && 'bg-sidebar-accent/40 text-sidebar-accent-foreground',
+                        )}
+                      >
+                        <Package className="h-4 w-4 shrink-0" />
+                        <span className="flex-1 truncate">Produk</span>
+                        <Badge
+                          variant="outline"
+                          className="ml-auto border-sidebar-border bg-sidebar-accent/40 text-[10px] font-normal text-sidebar-foreground/70"
+                        >
+                          {PRODUCTS.length}
+                        </Badge>
+                        <ChevronDown
+                          className={cn(
+                            'h-3.5 w-3.5 shrink-0 text-sidebar-foreground/60 transition-transform',
+                            productsOpen && 'rotate-180',
+                          )}
+                        />
+                      </SidebarMenuButton>
+                    </CollapsibleTrigger>
+                  </SidebarMenuItem>
+
+                  <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+                    <SidebarMenu className="ml-4 mt-1 gap-0.5 border-l border-sidebar-border/50 pl-2">
+                      {PRODUCTS.map((p) => (
+                        <SidebarMenuItem key={p.key}>
+                          <SidebarMenuButton
+                            asChild
+                            tooltip={p.name}
+                            isActive={isActive(p.href)}
+                            size="sm"
                           >
-                            {stageBadge[p.releaseStage].label}
-                          </Badge>
-                        </>
-                      )}
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                            <NavLink to={p.href} className={linkClass}>
+                              <p.icon className="h-3.5 w-3.5 shrink-0" />
+                              <span className="flex-1 truncate">{p.name}</span>
+                              <Badge
+                                variant="outline"
+                                className={cn(
+                                  'ml-auto text-[9px] font-medium',
+                                  stageBadge[p.releaseStage].tone === 'live'
+                                    ? 'border-accent/50 bg-accent/20 text-accent-foreground'
+                                    : 'border-sidebar-border bg-sidebar-accent/40 font-normal text-sidebar-foreground/70',
+                                )}
+                              >
+                                {stageBadge[p.releaseStage].label}
+                              </Badge>
+                            </NavLink>
+                          </SidebarMenuButton>
+                        </SidebarMenuItem>
+                      ))}
+                    </SidebarMenu>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
