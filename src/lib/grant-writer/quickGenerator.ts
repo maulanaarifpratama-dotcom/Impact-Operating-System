@@ -85,9 +85,8 @@ export function quickCompleteness(data: QuickWizardData): {
   const checks: { ok: boolean; label: string }[] = [
     { ok: !!o.orgName, label: 'Nama organisasi' },
     { ok: !!o.orgType, label: 'Jenis organisasi' },
-    { ok: !!o.contactPerson, label: 'Kontak person' },
-    { ok: !!o.contactEmail, label: 'Email kontak' },
-    { ok: !!o.orgProfile, label: 'Profil organisasi' },
+    { ok: (o.sdgFocus?.length ?? 0) > 0, label: 'Fokus SDGs' },
+    { ok: !!o.yearFounded, label: 'Tahun berdiri' },
     { ok: !!p.programTitle, label: 'Judul program' },
     { ok: !!p.sector, label: 'Sektor' },
     { ok: !!p.background, label: 'Latar belakang' },
