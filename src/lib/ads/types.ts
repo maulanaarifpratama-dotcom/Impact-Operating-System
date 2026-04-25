@@ -32,7 +32,7 @@ export type AdObjective = 'donasi' | 'awareness' | 'recruit_relawan' | 'event_si
 export const OBJECTIVE_LABEL: Record<AdObjective, string> = {
   donasi: 'Galang donasi',
   awareness: 'Edukasi & awareness',
-  recruit_relawan: 'Rekrut relawan',
+  recruit_relawan: 'Volunteer (rekrut relawan)',
   event_signup: 'Pendaftaran event',
   sales_umkm: 'Penjualan UMKM sosial',
 };
