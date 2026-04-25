@@ -3,7 +3,15 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/providers/AuthProvider';
 import { PRODUCTS } from '@/lib/brand';
-import { Sparkles, Hammer, ArrowUpRight } from 'lucide-react';
+import { Sparkles, ArrowUpRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+const stageBadgeClass: Record<string, string> = {
+  building: 'border-accent/40 bg-accent/15 text-accent',
+  next: 'border-primary/30 bg-primary/10 text-primary',
+  planned: 'border-border bg-muted text-muted-foreground',
+  future: 'border-border bg-muted text-muted-foreground',
+};
 
 export default function DashboardHome() {
   const { profile, user } = useAuth();
@@ -16,20 +24,20 @@ export default function DashboardHome() {
           Selamat datang, {name} 👋
         </h1>
         <p className="mt-1.5 text-muted-foreground">
-          Foundation Impactory siap. Grant Writer akan dibangun di Chunk 2.
+          Dua produk sudah aktif: <strong>Grant Writer</strong> dan <strong>Grantfinder</strong>. Mulai dari mana saja.
         </p>
       </div>
 
       <Card className="border-accent/30 bg-accent-soft/50 p-6 shadow-card">
         <div className="flex items-start gap-4">
           <div className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent text-accent-foreground">
-            <Hammer className="h-5 w-5" />
+            <Sparkles className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="font-semibold">Foundation siap.</h2>
+            <h2 className="font-semibold">2 produk aktif, 2 menyusul.</h2>
             <p className="mt-1 text-sm text-foreground/80">
-              Database (profiles, organizations, subscriptions, audit log, dll) sudah ter-setup. Auth + RLS aktif.
-              Chunk berikutnya akan menambahkan wizard <strong>Grant Writer</strong>, halaman Settings, dan Admin area.
+              <strong>Grant Writer</strong> (LFA & Quick mode) dan <strong>Grantfinder</strong> (28+ hibah dengan matching score & tracker) sudah bisa dipakai.
+              Berikutnya: Impactory Library dan Impactory Ads.
             </p>
           </div>
         </div>
@@ -51,7 +59,10 @@ export default function DashboardHome() {
                   <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-hero text-white">
                     <p.icon className="h-5 w-5" />
                   </div>
-                  <Badge variant="outline">{p.releaseLabel}</Badge>
+                  <Badge variant="outline" className={cn('font-medium', stageBadgeClass[p.releaseStage])}>
+                    {p.releaseStage === 'building' && <Sparkles className="mr-1 h-3 w-3" />}
+                    {p.releaseLabel}
+                  </Badge>
                 </div>
                 <h3 className="mt-4 flex items-center gap-1.5 font-semibold">
                   {p.name}
