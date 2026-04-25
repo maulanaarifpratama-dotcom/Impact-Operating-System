@@ -38,7 +38,7 @@ const SECTOR_GROUPS: { key: SectorGroup; label: string; maps: GrantSector[] }[] 
   { key: 'seni_budaya', label: 'Seni Budaya', maps: ['kebudayaan'] },
 ];
 
-const KINDS: (LibraryKind | 'all')[] = ['all', 'data_sdg', 'riset', 'template', 'case_study'];
+const KINDS: (LibraryKind | 'all')[] = ['all', 'template', 'data_sdg', 'riset', 'panduan'];
 
 export default function ImpactoryLibrary() {
   const [tab, setTab] = useState<LibraryKind | 'all'>('all');
@@ -93,70 +93,73 @@ export default function ImpactoryLibrary() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      {/* Hero */}
+      {/* Hero: Library + search bar besar + filter tabs */}
       <Card className="relative overflow-hidden border-accent/20 bg-gradient-to-br from-accent-soft/60 via-background to-background p-6 shadow-card md:p-8">
-        <div className="grid gap-6 md:grid-cols-[auto_1fr_auto] md:items-center">
-          <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-accent text-accent-foreground shadow-elegant md:h-16 md:w-16">
-            <BookOpen className="h-7 w-7 md:h-8 md:w-8" />
-          </div>
-          <div className="space-y-1.5">
-            <Badge className="bg-accent/15 text-accent hover:bg-accent/20 border-accent/30">
-              <Sparkles className="mr-1 h-3 w-3" />
-              MVP — {MOCK_LIBRARY.length} item terkurasi
-            </Badge>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Impactory Library</h1>
-            <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-              Data SDGs, riset, template, dan studi kasus terpilih untuk memperkuat proposal & program Anda.
-            </p>
-          </div>
-          {featuredCount > 0 && (
-            <div className="flex items-center gap-2 rounded-lg border border-accent/30 bg-accent/5 px-3 py-2 text-sm">
-              <Sparkles className="h-4 w-4 text-accent" />
-              <span className="font-medium text-accent">{featuredCount} pilihan editor</span>
-            </div>
-          )}
-        </div>
-      </Card>
-
-      {/* Search bar besar */}
-      <Card className="relative space-y-3 overflow-hidden border-accent/20 bg-gradient-to-br from-primary/5 via-background to-accent-soft/30 p-5 shadow-card md:p-6">
         <div
           aria-hidden
-          className="pointer-events-none absolute -right-16 -top-16 h-48 w-48 rounded-full bg-gradient-to-br from-accent/20 to-primary/10 blur-3xl"
+          className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-gradient-to-br from-accent/25 to-primary/10 blur-3xl"
         />
-        <div className="group relative">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-accent" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Cari data, riset, template, atau studi kasus..."
-            className="h-14 rounded-xl border-2 border-border bg-card pl-12 pr-12 text-base shadow-sm transition-all placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/20 md:text-lg"
-          />
-          {search && (
-            <button
-              type="button"
-              onClick={() => setSearch('')}
-              aria-label="Bersihkan pencarian"
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
+        <div className="relative space-y-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-accent-foreground shadow-elegant md:h-14 md:w-14">
+              <BookOpen className="h-6 w-6 md:h-7 md:w-7" />
+            </div>
+            <div className="flex-1 space-y-1">
+              <Badge className="bg-accent/15 text-accent hover:bg-accent/20 border-accent/30">
+                <Sparkles className="mr-1 h-3 w-3" />
+                MVP — {MOCK_LIBRARY.length} item terkurasi
+                {featuredCount > 0 && <> · {featuredCount} pilihan editor</>}
+              </Badge>
+              <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Library</h1>
+            </div>
+          </div>
+
+          {/* Search bar besar */}
+          <div className="group relative">
+            <Search className="pointer-events-none absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground transition-colors group-focus-within:text-accent" />
+            <Input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Cari template, data SDGs, riset, atau panduan..."
+              className="h-14 rounded-xl border-2 border-border bg-card pl-12 pr-12 text-base shadow-sm transition-all placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/20 md:text-lg"
+            />
+            {search && (
+              <button
+                type="button"
+                onClick={() => setSearch('')}
+                aria-label="Bersihkan pencarian"
+                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Filter tabs di dalam hero */}
+          <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+            <TabsList className="flex h-auto flex-wrap gap-1 bg-card/60 p-1 backdrop-blur">
+              {KINDS.map((k) => (
+                <TabsTrigger
+                  key={k}
+                  value={k}
+                  className="data-[state=active]:bg-accent data-[state=active]:text-accent-foreground data-[state=active]:shadow-sm"
+                >
+                  {k === 'all' ? 'Semua' : KIND_LABEL[k as LibraryKind]}
+                  <Badge
+                    variant="secondary"
+                    className="ml-2 text-[10px] data-[state=active]:bg-accent-foreground/20"
+                  >
+                    {counts[k] ?? 0}
+                  </Badge>
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </div>
       </Card>
 
-      {/* Tabs per kind */}
+      {/* Tabs content (controlled by hero tabs) */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
-        <TabsList className="flex flex-wrap gap-1">
-          {KINDS.map((k) => (
-            <TabsTrigger key={k} value={k}>
-              {k === 'all' ? 'Semua' : KIND_LABEL[k as LibraryKind]}
-              <Badge variant="secondary" className="ml-2 text-[10px]">
-                {counts[k] ?? 0}
-              </Badge>
-            </TabsTrigger>
-          ))}
-        </TabsList>
 
         {KINDS.map((k) => (
           <TabsContent key={k} value={k} className="mt-5">
