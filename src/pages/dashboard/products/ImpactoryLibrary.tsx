@@ -21,7 +21,6 @@ import {
   KIND_DESC,
   KIND_LABEL,
   SDG_LABELS,
-  SECTOR_LABEL,
 } from '@/lib/library/types';
 import { LibraryCard } from '@/components/library/LibraryCard';
 import { LibraryDetailDialog } from '@/components/library/LibraryDetailDialog';
@@ -253,11 +252,7 @@ export default function ImpactoryLibrary() {
         ))}
       </Tabs>
 
-      {/* Note: SECTOR_LABEL imported elsewhere via LibraryCard; expose to keep tree-shake friendly. */}
       <LibraryDetailDialog item={activeItem} onClose={() => setActiveItem(null)} />
     </div>
   );
 }
-
-// ensure SECTOR_LABEL retained as re-export (used by detail dialog)
-void SECTOR_LABEL;
