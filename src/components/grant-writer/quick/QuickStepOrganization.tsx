@@ -8,7 +8,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Check } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type {
   QuickOrganizationData,
@@ -120,7 +120,7 @@ export function QuickStepOrganization({ data, onChange }: Props) {
                 onClick={() => toggleSdg(g.num)}
                 aria-pressed={active}
                 className={cn(
-                  'group relative flex items-start gap-2 rounded-lg border p-2.5 text-left transition-all',
+                  'group relative flex items-start gap-2 rounded-lg border p-2.5 pb-8 text-left transition-all',
                   active
                     ? 'border-transparent shadow-sm ring-2 ring-offset-1 ring-offset-background'
                     : 'border-border hover:border-primary/40 hover:bg-muted/40',
@@ -146,10 +146,12 @@ export function QuickStepOrganization({ data, onChange }: Props) {
                   </span>
                 </span>
                 {active && (
-                  <Check
-                    className="absolute right-1.5 top-1.5 h-3.5 w-3.5"
-                    style={{ color: g.color }}
-                  />
+                  <span
+                    aria-hidden
+                    className="absolute bottom-1.5 right-1.5 flex h-6 w-6 items-center justify-center rounded-md bg-teal-500 text-white shadow-sm"
+                  >
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
                 )}
               </button>
             );
