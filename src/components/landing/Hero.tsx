@@ -32,7 +32,7 @@ export function Hero() {
 
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Button asChild size="lg" className="bg-gradient-hero text-white shadow-elegant hover:opacity-95">
-              <Link to="/signup">
+              <Link to="/dashboard/grant-writer">
                 Mulai gratis <ArrowRight className="ml-1 h-4 w-4" />
               </Link>
             </Button>
