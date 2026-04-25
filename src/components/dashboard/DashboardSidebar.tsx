@@ -159,7 +159,7 @@ export function DashboardSidebar() {
                     </CollapsibleTrigger>
                   </SidebarMenuItem>
 
-                  <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
+                  <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-accordion-up data-[state=open]:animate-accordion-down">
                     <SidebarMenu className="ml-4 mt-1 gap-0.5 border-l border-sidebar-border/50 pl-2">
                       {PRODUCTS.map((p) => (
                         <SidebarMenuItem key={p.key}>
