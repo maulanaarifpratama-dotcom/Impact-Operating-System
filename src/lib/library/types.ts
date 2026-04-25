@@ -55,6 +55,8 @@ export interface LibraryItem {
   featured?: boolean;
   /** Free-text tags for additional searchability. */
   tags?: string[];
+  /** Mock download/usage count untuk peringkat "Paling Diunduh". */
+  downloads?: number;
 }
 
 export const KIND_TONE: Record<LibraryKind, string> = {

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { BookOpen, Filter, Search, Sparkles, X } from 'lucide-react';
+import { BookOpen, Download, Filter, Search, Sparkles, TrendingUp, X } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -82,6 +82,38 @@ export default function ImpactoryLibrary() {
 
   const hasActiveFilter = !!search || sectorGroups.length > 0 || sdg !== 'all';
 
+  /**
+   * Deterministic mock "downloads" so the ranking is stable across renders.
+   * Featured items get a baseline boost so they trend higher.
+   */
+  const withDownloads = useMemo(
+    () =>
+      MOCK_LIBRARY.map((it) => {
+        if (typeof it.downloads === 'number') return it;
+        const seed = it.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+        const base = 120 + (seed % 880); // 120–999
+        const boost = it.featured ? 600 : 0;
+        return { ...it, downloads: base + boost };
+      }),
+    [],
+  );
+
+  const recommended = useMemo(
+    () =>
+      withDownloads
+        .filter((it) => it.featured)
+        .sort((a, b) => b.year - a.year)
+        .slice(0, 4),
+    [withDownloads],
+  );
+
+  const mostDownloaded = useMemo(
+    () => [...withDownloads].sort((a, b) => (b.downloads ?? 0) - (a.downloads ?? 0)).slice(0, 4),
+    [withDownloads],
+  );
+
+  const showHighlights = tab === 'all' && !hasActiveFilter;
+
   const resetFilters = () => {
     setSearch('');
     setSectorGroups([]);
@@ -160,6 +192,89 @@ export default function ImpactoryLibrary() {
 
       {/* Tabs content (controlled by hero tabs) */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
+
+        {showHighlights && (
+          <div className="mt-5 space-y-6">
+            {/* Direkomendasikan */}
+            <section className="space-y-3">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <h2 className="flex items-center gap-2 text-lg font-semibold">
+                    <Sparkles className="h-4 w-4 text-accent" />
+                    Direkomendasikan
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    Pilihan editor untuk memperkuat proposal & program Anda.
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                {recommended.map((it) => (
+                  <LibraryCard key={`rec-${it.id}`} item={it} onOpen={() => setActiveItem(it)} />
+                ))}
+              </div>
+            </section>
+
+            {/* Paling Diunduh */}
+            <section className="space-y-3">
+              <div className="flex items-end justify-between gap-3">
+                <div>
+                  <h2 className="flex items-center gap-2 text-lg font-semibold">
+                    <TrendingUp className="h-4 w-4 text-accent" />
+                    Paling Diunduh
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    Item terlaris pekan ini berdasarkan unduhan & pembukaan.
+                  </p>
+                </div>
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {mostDownloaded.map((it, idx) => (
+                  <Card
+                    key={`top-${it.id}`}
+                    className="group relative flex h-full flex-col gap-2 p-4 shadow-card transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-elegant"
+                  >
+                    <div className="absolute right-3 top-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/15 text-[11px] font-bold text-accent">
+                      {idx + 1}
+                    </div>
+                    <Badge variant="outline" className="w-fit text-[10px]">
+                      {KIND_LABEL[it.kind]}
+                    </Badge>
+                    <button
+                      type="button"
+                      onClick={() => setActiveItem(it)}
+                      className="line-clamp-2 pr-7 text-left text-sm font-semibold leading-snug hover:text-accent focus:outline-none"
+                    >
+                      {it.title}
+                    </button>
+                    <p className="line-clamp-1 text-xs text-muted-foreground">{it.source}</p>
+                    <div className="mt-auto flex items-center justify-between pt-1 text-xs">
+                      <span className="inline-flex items-center gap-1 font-medium text-accent">
+                        <Download className="h-3 w-3" />
+                        {(it.downloads ?? 0).toLocaleString('id-ID')}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setActiveItem(it)}
+                        className="text-xs font-medium text-muted-foreground hover:text-accent"
+                      >
+                        Lihat →
+                      </button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </section>
+
+            <div className="flex items-center gap-3">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs uppercase tracking-wide text-muted-foreground">
+                Jelajahi semua
+              </span>
+              <div className="h-px flex-1 bg-border" />
+            </div>
+          </div>
+        )}
 
         {KINDS.map((k) => (
           <TabsContent key={k} value={k} className="mt-5">
