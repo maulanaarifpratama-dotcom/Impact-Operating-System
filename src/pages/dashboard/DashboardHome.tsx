@@ -4,6 +4,14 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/providers/AuthProvider';
 import { PRODUCTS } from '@/lib/brand';
 import { Sparkles, Hammer, ArrowUpRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+const stageBadgeClass: Record<string, string> = {
+  building: 'border-accent/40 bg-accent/15 text-accent',
+  next: 'border-primary/30 bg-primary/10 text-primary',
+  planned: 'border-border bg-muted text-muted-foreground',
+  future: 'border-border bg-muted text-muted-foreground',
+};
 
 export default function DashboardHome() {
   const { profile, user } = useAuth();
@@ -51,7 +59,10 @@ export default function DashboardHome() {
                   <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-hero text-white">
                     <p.icon className="h-5 w-5" />
                   </div>
-                  <Badge variant="outline">{p.releaseLabel}</Badge>
+                  <Badge variant="outline" className={cn('font-medium', stageBadgeClass[p.releaseStage])}>
+                    {p.releaseStage === 'building' && <Sparkles className="mr-1 h-3 w-3" />}
+                    {p.releaseLabel}
+                  </Badge>
                 </div>
                 <h3 className="mt-4 flex items-center gap-1.5 font-semibold">
                   {p.name}
