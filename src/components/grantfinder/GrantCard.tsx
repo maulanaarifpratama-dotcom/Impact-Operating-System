@@ -1,4 +1,4 @@
-import { Bookmark, BookmarkCheck, CalendarClock, Coins, MapPin, Sparkles } from 'lucide-react';
+import { ArrowRight, Bookmark, BookmarkCheck, CalendarClock, Coins, Sparkles } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -6,8 +6,7 @@ import { cn } from '@/lib/utils';
 import {
   type Grant,
   type OrgProfile,
-  ORIGIN_LABEL,
-  GEO_LABEL,
+  SECTOR_LABEL,
   STATUS_LABEL,
   STATUS_TONE,
   URGENCY_TONE,
@@ -26,12 +25,19 @@ interface GrantCardProps {
   onToggleSave: () => void;
 }
 
-const originTone: Record<Grant['origin'], string> = {
-  lokal: 'bg-accent/10 text-accent border-accent/30',
-  internasional: 'bg-primary/10 text-primary border-primary/20',
-  multilateral: 'bg-warning/15 text-warning border-warning/30',
-  korporat: 'bg-secondary text-secondary-foreground border-border',
-};
+/** Indicative IDR→USD rate for display only (not live). */
+const USD_RATE = 16_000;
+
+function formatUsdRange(minIdr: number, maxIdr: number): string {
+  const minUsd = Math.round(minIdr / USD_RATE / 1000) * 1000;
+  const maxUsd = Math.round(maxIdr / USD_RATE / 1000) * 1000;
+  const fmt = (v: number) => {
+    if (v >= 1_000_000) return `$${(v / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+    if (v >= 1_000) return `$${Math.round(v / 1000)}K`;
+    return `$${v}`;
+  };
+  return minUsd === maxUsd ? fmt(minUsd) : `${fmt(minUsd)} – ${fmt(maxUsd)}`;
+}
 
 function deadlineLabel(iso: string): string {
   const d = daysUntil(iso);
@@ -47,12 +53,16 @@ export function GrantCard({ grant, profile, saved, onOpen, onToggleSave }: Grant
   const score = profile ? matchScore(grant, profile) : null;
   const tier = score !== null ? matchTier(score) : null;
   const urgency = deadlineUrgency(grant.deadline);
+  const showUsd = grant.origin === 'internasional' || grant.origin === 'multilateral';
 
   return (
-    <Card className="group relative flex flex-col gap-4 overflow-hidden p-5 shadow-card transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-elegant">
+    <Card className="group relative flex flex-col gap-3.5 overflow-hidden p-5 shadow-card transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-elegant">
+      {/* Header: Donor + judul + bookmark */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1 space-y-1">
-          <p className="truncate text-xs font-medium text-muted-foreground">{grant.donor}</p>
+          <p className="truncate text-xs font-semibold uppercase tracking-wide text-accent">
+            {grant.donor}
+          </p>
           <button
             type="button"
             onClick={onOpen}
@@ -72,10 +82,18 @@ export function GrantCard({ grant, profile, saved, onOpen, onToggleSave }: Grant
         </Button>
       </div>
 
+      {/* Badge sektor (utama) + match tier + status */}
       <div className="flex flex-wrap gap-1.5">
-        <Badge variant="outline" className={cn('text-[11px]', originTone[grant.origin])}>
-          {ORIGIN_LABEL[grant.origin]}
-        </Badge>
+        {grant.sectors.slice(0, 3).map((s) => (
+          <Badge key={s} variant="outline" className="border-accent/30 bg-accent/10 text-accent text-[11px]">
+            {SECTOR_LABEL[s]}
+          </Badge>
+        ))}
+        {grant.sectors.length > 3 && (
+          <Badge variant="outline" className="text-[11px]">
+            +{grant.sectors.length - 3}
+          </Badge>
+        )}
         {tier && (
           <Badge variant="outline" className={cn('gap-1 text-[11px]', tier.tone)}>
             <Sparkles className="h-3 w-3" />
@@ -89,48 +107,39 @@ export function GrantCard({ grant, profile, saved, onOpen, onToggleSave }: Grant
         )}
       </div>
 
-      <p className="line-clamp-2 text-sm text-muted-foreground">{grant.summary}</p>
-
-      <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-3">
-        <div className="flex items-center gap-1.5 text-muted-foreground">
-          <Coins className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate font-medium text-foreground">
-            {formatAmountRange(grant.amountMinIdr, grant.amountMaxIdr)}
-          </span>
-        </div>
-        <div className="flex items-center gap-1.5 text-muted-foreground">
-          <MapPin className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate">{grant.geography.map((g) => GEO_LABEL[g] ?? g).join(', ')}</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <CalendarClock className={cn('h-3.5 w-3.5 shrink-0', urgency === 'urgent' && 'text-destructive')} />
-          <Badge variant="outline" className={cn('text-[10px] font-normal', URGENCY_TONE[urgency])}>
+      {/* Meta utama: Deadline + Besaran dana */}
+      <div className="grid grid-cols-2 gap-3 rounded-lg border border-border bg-muted/30 p-3">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <CalendarClock className={cn('h-3 w-3', urgency === 'urgent' && 'text-destructive')} />
+            Deadline
+          </div>
+          <Badge variant="outline" className={cn('text-[11px] font-medium', URGENCY_TONE[urgency])}>
             {deadlineLabel(grant.deadline)}
           </Badge>
         </div>
-      </div>
-
-      <div className="flex items-center justify-between border-t border-border pt-3">
-        <div className="flex flex-wrap gap-1">
-          {grant.sdgs.slice(0, 4).map((n) => (
-            <span
-              key={n}
-              className="inline-flex h-5 min-w-[20px] items-center justify-center rounded bg-muted px-1.5 text-[10px] font-semibold text-muted-foreground"
-              title={`SDG ${n}`}
-            >
-              {n}
-            </span>
-          ))}
-          {grant.sdgs.length > 4 && (
-            <span className="inline-flex h-5 items-center justify-center rounded px-1 text-[10px] text-muted-foreground">
-              +{grant.sdgs.length - 4}
-            </span>
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <Coins className="h-3 w-3" />
+            Besaran dana
+          </div>
+          <p className="text-sm font-semibold leading-tight">
+            {formatAmountRange(grant.amountMinIdr, grant.amountMaxIdr)}
+          </p>
+          {showUsd && (
+            <p className="text-[10px] text-muted-foreground">≈ {formatUsdRange(grant.amountMinIdr, grant.amountMaxIdr)} USD</p>
           )}
         </div>
-        <Button size="sm" variant="ghost" className="h-7 text-accent hover:bg-accent/10 hover:text-accent" onClick={onOpen}>
-          Lihat detail →
-        </Button>
       </div>
+
+      {/* CTA Lihat Detail (teal) */}
+      <Button
+        onClick={onOpen}
+        className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
+      >
+        Lihat Detail
+        <ArrowRight className="ml-1.5 h-4 w-4" />
+      </Button>
     </Card>
   );
 }
