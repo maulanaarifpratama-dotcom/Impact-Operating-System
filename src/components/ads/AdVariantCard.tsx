@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Check, Copy, RefreshCw } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -36,11 +36,11 @@ export function AdVariantCard({ variant, index, platform, brief }: Props) {
   const [seedOffset, setSeedOffset] = useState(0);
   const limits = PLATFORM_LIMITS[platform];
 
-  // sync when parent regenerates everything (new variant id)
-  if (variant.id !== current.id && seedOffset === 0) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
+  // sync when parent regenerates everything (new variant prop)
+  useEffect(() => {
     setCurrent(variant);
-  }
+    setSeedOffset(0);
+  }, [variant]);
 
   const fullText = [
     current.headline,
