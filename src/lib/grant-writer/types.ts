@@ -259,20 +259,13 @@ export const QUICK_STEPS: QuickStepMeta[] = [
   },
 ];
 
+export type QuickOrgType = 'yayasan' | 'lsm' | 'umkm_sosial';
+
 export interface QuickOrganizationData {
   orgName: string;
-  orgType:
-    | 'yayasan'
-    | 'perkumpulan'
-    | 'koperasi'
-    | 'komunitas'
-    | 'pt'
-    | 'lainnya';
+  orgType: QuickOrgType;
+  sdgFocus: number[]; // SDG numbers 1-17
   yearFounded?: number;
-  website?: string;
-  contactPerson: string;
-  contactEmail: string;
-  orgProfile: string; // 1-3 paragraf profil
 }
 
 export interface QuickProgramData {
@@ -300,11 +293,28 @@ export interface QuickWizardData {
   budget?: Partial<QuickBudgetData>;
 }
 
-export const ORG_TYPES: { value: QuickOrganizationData['orgType']; label: string }[] = [
+export const ORG_TYPES: { value: QuickOrgType; label: string }[] = [
   { value: 'yayasan', label: 'Yayasan' },
-  { value: 'perkumpulan', label: 'Perkumpulan' },
-  { value: 'koperasi', label: 'Koperasi' },
-  { value: 'komunitas', label: 'Komunitas / Akar Rumput' },
-  { value: 'pt', label: 'PT / Social Enterprise' },
-  { value: 'lainnya', label: 'Lainnya' },
+  { value: 'lsm', label: 'LSM' },
+  { value: 'umkm_sosial', label: 'UMKM Sosial' },
+];
+
+export const SDG_GOALS: { num: number; title: string; color: string }[] = [
+  { num: 1, title: 'Tanpa Kemiskinan', color: '#E5243B' },
+  { num: 2, title: 'Tanpa Kelaparan', color: '#DDA63A' },
+  { num: 3, title: 'Kehidupan Sehat & Sejahtera', color: '#4C9F38' },
+  { num: 4, title: 'Pendidikan Berkualitas', color: '#C5192D' },
+  { num: 5, title: 'Kesetaraan Gender', color: '#FF3A21' },
+  { num: 6, title: 'Air Bersih & Sanitasi Layak', color: '#26BDE2' },
+  { num: 7, title: 'Energi Bersih & Terjangkau', color: '#FCC30B' },
+  { num: 8, title: 'Pekerjaan Layak & Pertumbuhan Ekonomi', color: '#A21942' },
+  { num: 9, title: 'Industri, Inovasi & Infrastruktur', color: '#FD6925' },
+  { num: 10, title: 'Berkurangnya Kesenjangan', color: '#DD1367' },
+  { num: 11, title: 'Kota & Komunitas Berkelanjutan', color: '#FD9D24' },
+  { num: 12, title: 'Konsumsi & Produksi Bertanggung Jawab', color: '#BF8B2E' },
+  { num: 13, title: 'Penanganan Perubahan Iklim', color: '#3F7E44' },
+  { num: 14, title: 'Ekosistem Lautan', color: '#0A97D9' },
+  { num: 15, title: 'Ekosistem Daratan', color: '#56C02B' },
+  { num: 16, title: 'Perdamaian, Keadilan & Kelembagaan Tangguh', color: '#00689D' },
+  { num: 17, title: 'Kemitraan untuk Mencapai Tujuan', color: '#19486A' },
 ];
