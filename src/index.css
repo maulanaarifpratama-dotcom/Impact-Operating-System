@@ -138,6 +138,3 @@
 @supports (font-variation-settings: normal) {
   body { font-family: 'Inter var', 'Inter', system-ui, sans-serif; }
 }
-
-  }
-}
