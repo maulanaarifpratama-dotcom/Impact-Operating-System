@@ -111,11 +111,11 @@ export default function GrantWriterProposal() {
     };
   }, [projectId]);
 
-  const html = useMemo(() => (doc ? renderMarkdown(doc.markdown ?? '') : ''), [doc]);
+  const html = useMemo(() => (doc ? renderMarkdown(doc.proposal_markdown ?? '') : ''), [doc]);
 
   const handleDownload = () => {
     if (!doc) return;
-    const blob = new Blob([doc.markdown ?? ''], { type: 'text/markdown;charset=utf-8' });
+    const blob = new Blob([doc.proposal_markdown ?? ''], { type: 'text/markdown;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;

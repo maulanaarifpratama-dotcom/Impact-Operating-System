@@ -91,9 +91,13 @@ export default function GrantWriterWizard() {
 
       const { error: docErr } = await supabase.from('gw_lfa_documents').insert({
         project_id: projectId,
+        organization_id: project.organization_id,
+        generated_by: project.created_by,
         version: nextVersion,
         matrix: matrix as never,
-        markdown,
+        proposal_markdown: markdown,
+        donor_standard: matrix.meta.donorStandard,
+        is_current: true,
       });
       if (docErr) throw docErr;
 
