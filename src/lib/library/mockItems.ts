@@ -540,7 +540,7 @@ export const MOCK_LIBRARY: LibraryItem[] = [
     year: 2024,
     summary:
       'Pemetaan ekosistem social enterprise & UMKM sosial Indonesia: model bisnis, akses pembiayaan blended, dan tantangan scaling.',
-    sectors: ['ekonomi', 'pemberdayaan' as never].filter(Boolean) as never,
+    sectors: ['ekonomi'],
     sdgs: [1, 8, 10, 17],
     format: 'pdf',
     url: 'https://angin.id/research/social-enterprise',
