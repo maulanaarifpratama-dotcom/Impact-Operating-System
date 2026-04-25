@@ -22,7 +22,6 @@ import {
   Target,
   X,
 } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import {
   type ApplicationStatus,
   type Grant,
@@ -399,7 +398,3 @@ export default function Grantfinder() {
     </div>
   );
 }
-
-// helper kept here to avoid circular import; not exported
-// (cn already imported above for class merging in JSX usages above)
-void cn;
