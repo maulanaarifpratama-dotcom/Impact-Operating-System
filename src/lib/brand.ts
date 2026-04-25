@@ -50,8 +50,8 @@ export const PRODUCTS: ProductMeta[] = [
     longDescription:
       'Akses kurasi data SDGs Indonesia, riset sektor, dan template laporan yang terbukti diterima funder.',
     icon: BookOpen,
-    releaseLabel: 'Q3 2026',
-    releaseStage: 'next',
+    releaseLabel: 'MVP Aktif',
+    releaseStage: 'building',
     href: '/dashboard/impactory-library',
   },
   {
