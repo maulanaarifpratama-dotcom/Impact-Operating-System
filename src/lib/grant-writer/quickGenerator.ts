@@ -1,5 +1,5 @@
 import type { QuickWizardData } from './types';
-import { ORG_TYPES } from './types';
+import { ORG_TYPES, SDG_GOALS } from './types';
 
 const fmtIdr = (n: number) =>
   n
@@ -15,6 +15,12 @@ export function renderQuickProposalMarkdown(data: QuickWizardData): string {
   const p = data.program ?? {};
   const b = data.budget ?? {};
   const orgTypeLabel = ORG_TYPES.find((t) => t.value === o.orgType)?.label ?? '—';
+  const sdgList = (o.sdgFocus ?? [])
+    .map((n) => {
+      const g = SDG_GOALS.find((s) => s.num === n);
+      return g ? `SDG ${g.num} — ${g.title}` : `SDG ${n}`;
+    })
+    .join(', ');
 
   return `# ${p.programTitle ?? 'Proposal Program'}
 
@@ -29,11 +35,9 @@ export function renderQuickProposalMarkdown(data: QuickWizardData): string {
 
 ## 1. Tentang Organisasi
 
-**${o.orgName ?? '—'}** (${orgTypeLabel}${o.yearFounded ? `, didirikan ${o.yearFounded}` : ''}) ${o.website ? `— ${o.website}` : ''}
+**${o.orgName ?? '—'}** — ${orgTypeLabel}${o.yearFounded ? `, didirikan ${o.yearFounded}` : ''}
 
-${o.orgProfile ?? '_Profil organisasi belum diisi._'}
-
-**Kontak:** ${o.contactPerson ?? '—'}${o.contactEmail ? ` (${o.contactEmail})` : ''}
+**Fokus SDGs:** ${sdgList || '_Belum dipilih_'}
 
 ## 2. Latar Belakang
 
@@ -81,9 +85,8 @@ export function quickCompleteness(data: QuickWizardData): {
   const checks: { ok: boolean; label: string }[] = [
     { ok: !!o.orgName, label: 'Nama organisasi' },
     { ok: !!o.orgType, label: 'Jenis organisasi' },
-    { ok: !!o.contactPerson, label: 'Kontak person' },
-    { ok: !!o.contactEmail, label: 'Email kontak' },
-    { ok: !!o.orgProfile, label: 'Profil organisasi' },
+    { ok: (o.sdgFocus?.length ?? 0) > 0, label: 'Fokus SDGs' },
+    { ok: !!o.yearFounded, label: 'Tahun berdiri' },
     { ok: !!p.programTitle, label: 'Judul program' },
     { ok: !!p.sector, label: 'Sektor' },
     { ok: !!p.background, label: 'Latar belakang' },

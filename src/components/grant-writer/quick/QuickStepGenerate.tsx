@@ -35,7 +35,12 @@ export function QuickStepGenerate({ data }: Props) {
           title="Organisasi"
           rows={[
             ['Nama', o.orgName],
-            ['Kontak', o.contactPerson],
+            [
+              'Fokus SDGs',
+              o.sdgFocus && o.sdgFocus.length > 0
+                ? o.sdgFocus.map((n) => `SDG ${n}`).join(', ')
+                : undefined,
+            ],
           ]}
         />
         <SummaryCard
