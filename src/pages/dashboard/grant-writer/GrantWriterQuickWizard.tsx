@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -51,6 +51,15 @@ export default function GrantWriterQuickWizard() {
     () => QUICK_STEPS.find((s) => s.index === currentStep) ?? QUICK_STEPS[0],
     [currentStep],
   );
+
+  // If project is in LFA mode, redirect to the full wizard.
+  useEffect(() => {
+    if (!project) return;
+    const wd = (project.wizard_data ?? {}) as Record<string, unknown>;
+    if (wd._mode && wd._mode !== 'quick') {
+      navigate(`/dashboard/grant-writer/${project.id}`, { replace: true });
+    }
+  }, [project, navigate]);
 
   if (loading) {
     return (
