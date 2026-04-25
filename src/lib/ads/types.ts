@@ -32,33 +32,38 @@ export type AdObjective = 'donasi' | 'awareness' | 'recruit_relawan' | 'event_si
 export const OBJECTIVE_LABEL: Record<AdObjective, string> = {
   donasi: 'Galang donasi',
   awareness: 'Edukasi & awareness',
-  recruit_relawan: 'Rekrut relawan',
+  recruit_relawan: 'Volunteer (rekrut relawan)',
   event_signup: 'Pendaftaran event',
   sales_umkm: 'Penjualan UMKM sosial',
 };
 
-export type AdTone = 'urgent' | 'inspiratif' | 'hangat' | 'formal' | 'percakapan';
+export type AdTone = 'emosional' | 'profesional' | 'casual';
 
 export const TONE_LABEL: Record<AdTone, string> = {
-  urgent: 'Urgent',
-  inspiratif: 'Inspiratif',
-  hangat: 'Hangat',
-  formal: 'Formal',
-  percakapan: 'Percakapan',
+  emosional: 'Emosional',
+  profesional: 'Profesional',
+  casual: 'Casual',
+};
+
+export const TONE_DESC: Record<AdTone, string> = {
+  emosional: 'Menyentuh hati, menggugah empati & urgensi.',
+  profesional: 'Tegas, terstruktur, kredibel — cocok untuk donor formal.',
+  casual: 'Ringan, percakapan sehari-hari, dekat dengan audiens muda.',
 };
 
 export interface AdBrief {
   /** Nama kampanye / produk / program. */
   campaign: string;
-  /** Deskripsi singkat: apa yang ditawarkan / masalah yang diselesaikan. */
-  description: string;
+  /** Pesan utama: inti yang ingin disampaikan. */
+  message: string;
   /** Target audiens singkat. */
   audience: string;
   /** Lokasi / geografi (opsional). */
   region?: string;
   objective: AdObjective;
   tone: AdTone;
-  platform: AdPlatform;
+  /** Platform yang dipilih (multi-select). */
+  platforms: AdPlatform[];
 }
 
 export interface AdVariant {

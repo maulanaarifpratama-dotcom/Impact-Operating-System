@@ -14,11 +14,19 @@ const CTA_BY_OBJECTIVE: Record<AdBrief['objective'], string[]> = {
 };
 
 const TONE_OPENERS: Record<AdBrief['tone'], string[]> = {
-  urgent: ['Hanya hari ini', 'Waktu hampir habis', 'Jangan tunggu lagi', 'Kesempatan terakhir'],
-  inspiratif: ['Bersama, kita bisa', 'Setiap langkah berarti', 'Ubah cerita ini', 'Mulai dari Anda'],
-  hangat: ['Halo, sahabat', 'Cerita kecil yang besar', 'Mari berbagi', 'Sebuah pelukan untuk'],
-  formal: ['Kami mengundang Anda', 'Bergabunglah bersama kami', 'Dengan hormat', 'Kami menghadirkan'],
-  percakapan: ['Eh, tahu nggak?', 'Cerita sebentar yuk', 'Ini menarik banget', 'Lo perlu lihat ini'],
+  emosional: [
+    'Bersama, kita bisa',
+    'Setiap langkah berarti',
+    'Cerita ini belum selesai',
+    'Sebuah harapan untuk',
+  ],
+  profesional: [
+    'Kami mengundang Anda',
+    'Bergabunglah bersama kami',
+    'Dengan hormat',
+    'Kami menghadirkan',
+  ],
+  casual: ['Eh, tahu nggak?', 'Cerita sebentar yuk', 'Ini menarik banget', 'Lo perlu lihat ini'],
 };
 
 const PLATFORM_HEADLINE: Record<AdPlatform, (campaign: string, opener: string) => string[]> = {
@@ -42,24 +50,21 @@ const PLATFORM_HEADLINE: Record<AdPlatform, (campaign: string, opener: string) =
   ],
 };
 
-const PLATFORM_BODY: Record<
-  AdPlatform,
-  (b: AdBrief) => string[]
-> = {
+const PLATFORM_BODY: Record<AdPlatform, (b: AdBrief) => string[]> = {
   meta: (b) => [
-    `${b.description} Untuk ${b.audience}${b.region ? ` di ${b.region}` : ''}. Setiap dukungan Anda jadi langkah nyata.`,
-    `Bersama ${b.audience}, kami ingin ${b.description.toLowerCase()} Klik di bawah dan jadi bagian dari perubahan.`,
-    `${b.description} Bantu kami menjangkau lebih banyak ${b.audience}${b.region ? ` di ${b.region}` : ''}.`,
+    `${b.message} Untuk ${b.audience}${b.region ? ` di ${b.region}` : ''}. Setiap dukungan Anda jadi langkah nyata.`,
+    `Bersama ${b.audience}, kami ingin ${b.message.toLowerCase()} Klik di bawah dan jadi bagian dari perubahan.`,
+    `${b.message} Bantu kami menjangkau lebih banyak ${b.audience}${b.region ? ` di ${b.region}` : ''}.`,
   ],
   google: (b) => [
-    `${b.description} Cocok untuk ${b.audience}. Pelajari & dukung sekarang.`,
-    `Resmi & transparan. ${b.description} Mulai dari sekarang.`,
-    `${b.description} ${b.region ? `Fokus di ${b.region}. ` : ''}Klik untuk info.`,
+    `${b.message} Cocok untuk ${b.audience}. Pelajari & dukung sekarang.`,
+    `Resmi & transparan. ${b.message} Mulai dari sekarang.`,
+    `${b.message} ${b.region ? `Fokus di ${b.region}. ` : ''}Klik untuk info.`,
   ],
   tiktok: (b) => [
-    `${b.description} Buat ${b.audience.toLowerCase()} yang peduli ✨ Swipe up sekarang.`,
-    `Cerita kecil tapi ngena. ${b.description} Lo harus tau ini 🔥`,
-    `${b.description} Yuk jadi bagian dari ${b.audience.toLowerCase()} yang ngambil aksi 💪`,
+    `${b.message} Buat ${b.audience.toLowerCase()} yang peduli ✨ Swipe up sekarang.`,
+    `Cerita kecil tapi ngena. ${b.message} Lo harus tau ini 🔥`,
+    `${b.message} Yuk jadi bagian dari ${b.audience.toLowerCase()} yang ngambil aksi 💪`,
   ],
 };
 
@@ -76,13 +81,15 @@ function pickRotating<T>(arr: T[], i: number): T {
 }
 
 /**
- * Produces 3 deterministic variants for the given brief.
- * Same input → same output, so user can iterate confidently.
+ * Produces 3 deterministic variants for a single platform.
  */
-export function generateAdVariants(brief: AdBrief): AdVariant[] {
+export function generateAdVariantsForPlatform(
+  brief: AdBrief,
+  platform: AdPlatform,
+): AdVariant[] {
   const openers = TONE_OPENERS[brief.tone];
-  const headlines = PLATFORM_HEADLINE[brief.platform];
-  const bodies = PLATFORM_BODY[brief.platform](brief);
+  const headlines = PLATFORM_HEADLINE[platform];
+  const bodies = PLATFORM_BODY[platform](brief);
   const ctas = CTA_BY_OBJECTIVE[brief.objective];
   const hashtags = HASHTAGS_BY_OBJECTIVE[brief.objective];
 
@@ -90,11 +97,26 @@ export function generateAdVariants(brief: AdBrief): AdVariant[] {
     const opener = pickRotating(openers, i);
     const headlineList = headlines(brief.campaign || 'Kampanye Anda', opener);
     return {
-      id: `var-${i + 1}`,
+      id: `${platform}-var-${i + 1}`,
       headline: pickRotating(headlineList, i),
       body: bodies[i] ?? bodies[0],
       cta: pickRotating(ctas, i),
-      hashtags: brief.platform === 'tiktok' || brief.platform === 'meta' ? hashtags : undefined,
+      hashtags: platform === 'tiktok' || platform === 'meta' ? hashtags : undefined,
     };
   });
+}
+
+export interface PlatformResult {
+  platform: AdPlatform;
+  variants: AdVariant[];
+}
+
+/**
+ * Produces variants for all selected platforms.
+ */
+export function generateAdVariants(brief: AdBrief): PlatformResult[] {
+  return brief.platforms.map((p) => ({
+    platform: p,
+    variants: generateAdVariantsForPlatform(brief, p),
+  }));
 }
