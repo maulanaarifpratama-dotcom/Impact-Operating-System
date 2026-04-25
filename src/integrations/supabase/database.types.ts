@@ -351,6 +351,40 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['gw_proposals']['Insert']>;
         Relationships: [];
       };
+      gw_chat_messages: {
+        Row: {
+          id: string;
+          project_id: string;
+          organization_id: string;
+          user_id: string;
+          role: 'user' | 'assistant' | 'system' | 'tool';
+          content: string;
+          tool_name: string | null;
+          tool_input: Json | null;
+          tool_output: Json | null;
+          status: 'pending' | 'streaming' | 'complete' | 'error';
+          model: string | null;
+          prompt_tokens: number | null;
+          completion_tokens: number | null;
+          created_at: string;
+        };
+        Insert: {
+          project_id: string;
+          organization_id: string;
+          user_id: string;
+          role: 'user' | 'assistant' | 'system' | 'tool';
+          content: string;
+          tool_name?: string | null;
+          tool_input?: Json | null;
+          tool_output?: Json | null;
+          status?: 'pending' | 'streaming' | 'complete' | 'error';
+          model?: string | null;
+          prompt_tokens?: number | null;
+          completion_tokens?: number | null;
+        };
+        Update: Partial<Database['public']['Tables']['gw_chat_messages']['Insert']>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
