@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster as Sonner } from '@/components/ui/sonner';
 import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -39,6 +39,12 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+
+            {/* Top-level aliases for product pages (redirect to /dashboard/*) */}
+            <Route path="/grant-writer" element={<Navigate to="/dashboard/grant-writer" replace />} />
+            <Route path="/grantfinder" element={<Navigate to="/dashboard/grantfinder" replace />} />
+            <Route path="/library" element={<Navigate to="/dashboard/impactory-library" replace />} />
+            <Route path="/ads" element={<Navigate to="/dashboard/impactory-ads" replace />} />
 
             {/* Protected */}
             <Route
