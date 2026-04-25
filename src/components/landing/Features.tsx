@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+import { ArrowUpRight } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PRODUCTS } from '@/lib/brand';
@@ -23,19 +25,26 @@ export function Features() {
 
         <div className="mt-12 grid gap-5 md:grid-cols-2">
           {PRODUCTS.map((p) => (
-            <Card
+            <Link
               key={p.key}
-              className="group relative overflow-hidden border-border/70 p-7 shadow-card transition-all hover:-translate-y-0.5 hover:shadow-elegant"
+              to={p.href}
+              className="group block rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+              aria-label={`Buka halaman ${p.name}`}
             >
-              <div className="flex items-start justify-between gap-4">
-                <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-hero text-white shadow-elegant">
-                  <p.icon className="h-6 w-6" />
+              <Card className="relative h-full overflow-hidden border-border/70 p-7 shadow-card transition-all group-hover:-translate-y-0.5 group-hover:border-accent/40 group-hover:shadow-elegant">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-hero text-white shadow-elegant">
+                    <p.icon className="h-6 w-6" />
+                  </div>
+                  <Badge className={cn('font-medium', stageStyles[p.releaseStage])}>{p.releaseLabel}</Badge>
                 </div>
-                <Badge className={cn('font-medium', stageStyles[p.releaseStage])}>{p.releaseLabel}</Badge>
-              </div>
-              <h3 className="mt-5 text-xl font-semibold tracking-tight">{p.name}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{p.longDescription}</p>
-            </Card>
+                <h3 className="mt-5 flex items-center gap-1.5 text-xl font-semibold tracking-tight">
+                  {p.name}
+                  <ArrowUpRight className="h-4 w-4 -translate-y-0.5 text-muted-foreground transition-all group-hover:translate-x-0.5 group-hover:-translate-y-1 group-hover:text-accent" />
+                </h3>
+                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{p.longDescription}</p>
+              </Card>
+            </Link>
           ))}
         </div>
       </div>
