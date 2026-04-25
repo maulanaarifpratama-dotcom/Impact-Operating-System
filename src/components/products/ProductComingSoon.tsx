@@ -69,7 +69,7 @@ export function ProductComingSoon({
     try {
       const { error } = await supabase.from('waitlist').insert({
         email,
-        product: product.key,
+        interest: product.key,
         source: 'dashboard_product_page',
       });
       if (error && !error.message.toLowerCase().includes('duplicate')) {
