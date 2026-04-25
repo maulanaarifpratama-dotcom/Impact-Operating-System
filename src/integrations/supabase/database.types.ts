@@ -39,6 +39,7 @@ export interface Database {
           onboarded_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
+        Relationships: [];
       };
       organizations: {
         Row: {
@@ -61,6 +62,7 @@ export interface Database {
           description?: string | null;
         };
         Update: Partial<Database['public']['Tables']['organizations']['Insert']>;
+        Relationships: [];
       };
       organization_members: {
         Row: {
@@ -78,6 +80,7 @@ export interface Database {
           invited_by?: string | null;
         };
         Update: Partial<Database['public']['Tables']['organization_members']['Insert']>;
+        Relationships: [];
       };
       subscriptions: {
         Row: {
@@ -104,6 +107,7 @@ export interface Database {
           provider_subscription_id?: string | null;
         };
         Update: Partial<Database['public']['Tables']['subscriptions']['Insert']>;
+        Relationships: [];
       };
       invoices: {
         Row: {
@@ -125,6 +129,7 @@ export interface Database {
           paid_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['invoices']['Insert']>;
+        Relationships: [];
       };
       usage_counters: {
         Row: {
@@ -145,6 +150,7 @@ export interface Database {
           count?: number;
         };
         Update: Partial<Database['public']['Tables']['usage_counters']['Insert']>;
+        Relationships: [];
       };
       ai_generations: {
         Row: {
@@ -170,6 +176,7 @@ export interface Database {
           metadata?: Json | null;
         };
         Update: Partial<Database['public']['Tables']['ai_generations']['Insert']>;
+        Relationships: [];
       };
       audit_logs: {
         Row: {
@@ -193,6 +200,7 @@ export interface Database {
           ip_address?: string | null;
         };
         Update: Partial<Database['public']['Tables']['audit_logs']['Insert']>;
+        Relationships: [];
       };
       notifications: {
         Row: {
@@ -214,6 +222,7 @@ export interface Database {
           read_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['notifications']['Insert']>;
+        Relationships: [];
       };
       admin_users: {
         Row: {
@@ -223,6 +232,7 @@ export interface Database {
         };
         Insert: { user_id: string; role?: 'super_admin' | 'support' };
         Update: Partial<Database['public']['Tables']['admin_users']['Insert']>;
+        Relationships: [];
       };
       waitlist: {
         Row: {
@@ -244,6 +254,7 @@ export interface Database {
           source?: string | null;
         };
         Update: Partial<Database['public']['Tables']['waitlist']['Insert']>;
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
