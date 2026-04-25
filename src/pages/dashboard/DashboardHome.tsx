@@ -35,11 +35,11 @@ export default function DashboardHome() {
             <Sparkles className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="font-semibold">3 produk aktif, 1 menyusul.</h2>
+            <h2 className="font-semibold">4 produk aktif (MVP).</h2>
             <p className="mt-1 text-sm text-foreground/80">
-              <strong>Grant Writer</strong> (LFA & Quick), <strong>Grantfinder</strong> (28+ hibah + matching), dan{' '}
-              <strong>Impactory Library</strong> (data SDGs, riset, template, studi kasus) sudah bisa dipakai.
-              Berikutnya: Impactory Ads.
+              <strong>Grant Writer</strong> (LFA & Quick), <strong>Grantfinder</strong> (28+ hibah + matching),{' '}
+              <strong>Impactory Library</strong> (41 item: data SDGs, riset, template, panduan, studi kasus), dan{' '}
+              <strong>Impactory Ads</strong> (generator copy iklan Meta/Google/TikTok) sudah bisa dipakai.
             </p>
           </div>
         </div>
