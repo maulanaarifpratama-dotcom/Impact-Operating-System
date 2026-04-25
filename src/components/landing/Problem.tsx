@@ -1,0 +1,49 @@
+import { Card } from '@/components/ui/card';
+import { Clock, FileWarning, TrendingDown } from 'lucide-react';
+
+const problems = [
+  {
+    icon: Clock,
+    title: 'Proposal hibah makan waktu berminggu-minggu',
+    body: 'Yayasan kecil sering kalah dari kompetitor karena tidak punya tim full-time untuk menulis proposal lengkap dengan LFA.',
+  },
+  {
+    icon: FileWarning,
+    title: 'Funder ditolak karena format & data tidak sesuai',
+    body: '70% proposal lokal gagal di tahap screening karena tidak mengikuti standar internasional yang dipakai donor besar.',
+  },
+  {
+    icon: TrendingDown,
+    title: 'Kampanye fundraising tidak konversi',
+    body: 'Copy ad generic, audience targeting salah, budget habis tanpa hasil. Konsultan mahal, agency tidak paham konteks sosial.',
+  },
+];
+
+export function Problem() {
+  return (
+    <section id="problem" className="py-20 md:py-28">
+      <div className="container">
+        <div className="mx-auto max-w-2xl text-center">
+          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+            Membangun dampak di Indonesia itu <span className="text-destructive">susah</span>.
+          </h2>
+          <p className="mt-4 text-lg text-muted-foreground">
+            Bukan karena Anda tidak kompeten — tapi karena infrastruktur untuk pembangun dampak tidak pernah ada.
+          </p>
+        </div>
+
+        <div className="mt-12 grid gap-5 md:grid-cols-3">
+          {problems.map((p) => (
+            <Card key={p.title} className="border-border/70 p-6 shadow-card transition-shadow hover:shadow-elegant">
+              <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                <p.icon className="h-5 w-5" />
+              </div>
+              <h3 className="mt-4 text-lg font-semibold leading-snug">{p.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{p.body}</p>
+            </Card>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
