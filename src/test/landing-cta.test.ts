@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
+import { DEMO_MODE } from "@/lib/demo-mode";
 
 /**
  * Demo-mode guard: while auth flow is not ready, no CTA on the
@@ -29,20 +30,26 @@ function collectFiles(dir: string): string[] {
 
 const landingFiles = [...collectFiles(LANDING_DIR), INDEX_PAGE];
 
-// Match: to="/signup", to='/signup', href="/signup..." (but NOT /signup-something-else like /signup-success — we still want to flag any /signup* path).
+// Match: to="/signup", to='/signup', href="/signup..." (any /signup* path).
 const SIGNUP_LINK = /(?:to|href)\s*=\s*["'`]\/signup\b/;
 
-describe("landing CTAs (demo mode)", () => {
+describe.runIf(DEMO_MODE)("landing CTAs (demo mode)", () => {
   it.each(landingFiles.map((f) => [f]))(
-    "%s must not link to /signup",
+    "%s must not hardcode a link to /signup",
     (file) => {
       const src = readFileSync(file, "utf8");
       const match = src.match(SIGNUP_LINK);
       expect(
         match,
-        `Found a link to /signup in ${file}. ` +
-          `Demo mode is active — point CTAs to /dashboard/grant-writer instead.`,
+        `Found a hardcoded link to /signup in ${file}. ` +
+          `Demo mode is active — use signupHref() from @/lib/demo-mode instead.`,
       ).toBeNull();
     },
   );
+});
+
+describe.skipIf(DEMO_MODE)("landing CTAs (live mode)", () => {
+  it("demo mode is off — signup CTAs may point to /signup", () => {
+    expect(DEMO_MODE).toBe(false);
+  });
 });
