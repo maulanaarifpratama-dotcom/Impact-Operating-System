@@ -4,7 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
-import { signupHref } from '@/lib/demo-mode';
+import { signupHrefForRole } from '@/lib/demo-mode';
 
 const plans = [
   {
@@ -19,7 +19,8 @@ const plans = [
       'Email support',
     ],
     cta: 'Mulai gratis',
-    href: signupHref(),
+    // Free tier targets individual changemakers exploring the product.
+    href: signupHrefForRole('changemaker'),
   },
   {
     name: 'Starter',
@@ -34,7 +35,8 @@ const plans = [
       'Export PDF & DOCX',
     ],
     cta: 'Pilih Starter',
-    href: signupHref(),
+    // Starter is positioned for UMKM sosial / yayasan kecil yang aktif.
+    href: signupHrefForRole('umkm_owner'),
     highlight: true,
   },
   {
@@ -51,7 +53,8 @@ const plans = [
       'API access',
     ],
     cta: 'Pilih Premium',
-    href: signupHref(),
+    // Premium is positioned for yayasan/NGO serius — LFA penuh.
+    href: signupHrefForRole('foundation_lead'),
   },
 ];
 
