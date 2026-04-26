@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, FileText, Loader2, ArrowRight, Zap, Layers } from 'lucide-react';
+import { Plus, FileText, Loader2, ArrowRight, Zap, Layers, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +32,38 @@ const STATUS_LABEL: Record<GwProjectStatus, string> = {
 };
 
 type WizardMode = 'quick' | 'lfa';
+const VALID_MODES: WizardMode[] = ['quick', 'lfa'];
+const VALID_ROLES = [
+  'foundation_lead',
+  'umkm_owner',
+  'changemaker',
+  'consultant',
+  'other',
+] as const;
+type RoleParam = (typeof VALID_ROLES)[number];
+
+const ROLE_COPY: Record<RoleParam, { suggestedMode: WizardMode; hint: string }> = {
+  foundation_lead: {
+    suggestedMode: 'lfa',
+    hint: 'Untuk yayasan/NGO — kami sarankan mode LFA Lengkap (standar UN/OECD-DAC).',
+  },
+  consultant: {
+    suggestedMode: 'lfa',
+    hint: 'Untuk konsultan/fasilitator — mode LFA Lengkap memberi struktur penuh untuk klien.',
+  },
+  umkm_owner: {
+    suggestedMode: 'quick',
+    hint: 'Untuk UMKM sosial — mode Quick paling cepat ke proposal donor lokal/private.',
+  },
+  changemaker: {
+    suggestedMode: 'quick',
+    hint: 'Untuk changemaker individu — mode Quick cukup untuk hibah ringan.',
+  },
+  other: {
+    suggestedMode: 'quick',
+    hint: 'Pilih mode yang paling sesuai dengan kebutuhan proposal Anda.',
+  },
+};
 
 function getProjectMode(p: Project): WizardMode {
   const wd = (p.wizard_data ?? {}) as Record<string, unknown>;
@@ -49,6 +81,9 @@ export default function GrantWriterIndex() {
   const [title, setTitle] = useState('');
   const [mode, setMode] = useState<WizardMode>('quick');
   const [creating, setCreating] = useState(false);
+  const [roleHint, setRoleHint] = useState<string | null>(null);
+  const [paramWarning, setParamWarning] = useState<string | null>(null);
+  const deepLinkHandled = useRef(false);
 
   const load = async () => {
     setLoading(true);
@@ -70,25 +105,48 @@ export default function GrantWriterIndex() {
 
   // Demo-mode deep link from landing CTAs:
   //   /dashboard/grant-writer?role=foundation_lead&mode=lfa
-  // Preselect the wizard mode and auto-open the "create project" dialog
-  // so the user lands directly in the right onboarding context.
+  //
+  // Rules:
+  //   - Auto-open the "create project" dialog ONLY when both `role` and
+  //     `mode` are present and valid. Anything else stays on the index
+  //     page so the user can pick deliberately.
+  //   - If a param is present but invalid, surface a soft warning instead
+  //     of silently ignoring it.
+  //   - Always strip the params after handling so reloads behave normally.
   useEffect(() => {
+    if (deepLinkHandled.current) return;
     const roleParam = searchParams.get('role');
     const modeParam = searchParams.get('mode');
     if (!roleParam && !modeParam) return;
+    deepLinkHandled.current = true;
 
-    if (modeParam === 'quick' || modeParam === 'lfa') {
-      setMode(modeParam);
+    const isValidRole = roleParam !== null && (VALID_ROLES as readonly string[]).includes(roleParam);
+    const isValidMode = modeParam !== null && (VALID_MODES as string[]).includes(modeParam);
+
+    if (isValidRole && isValidMode) {
+      const role = roleParam as RoleParam;
+      setMode(modeParam as WizardMode);
+      setRoleHint(ROLE_COPY[role].hint);
+      setCreateOpen(true);
+    } else {
+      setParamWarning(
+        'Tautan onboarding tidak lengkap atau tidak dikenali. Pilih mode di bawah untuk melanjutkan.',
+      );
     }
-    setCreateOpen(true);
 
-    // Strip the params so reloads don't re-trigger the dialog.
     const next = new URLSearchParams(searchParams);
     next.delete('role');
     next.delete('mode');
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const openCreateWithMode = (m: WizardMode) => {
+    setMode(m);
+    setRoleHint(null);
+    setParamWarning(null);
+    setCreateOpen(true);
+  };
 
   const handleCreate = async () => {
     if (!user || !title.trim()) return;
