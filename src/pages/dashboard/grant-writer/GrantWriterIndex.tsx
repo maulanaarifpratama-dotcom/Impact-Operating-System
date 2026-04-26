@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, FileText, Loader2, ArrowRight, Zap, Layers } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -42,6 +42,7 @@ export default function GrantWriterIndex() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
@@ -65,6 +66,28 @@ export default function GrantWriterIndex() {
 
   useEffect(() => {
     void load();
+  }, []);
+
+  // Demo-mode deep link from landing CTAs:
+  //   /dashboard/grant-writer?role=foundation_lead&mode=lfa
+  // Preselect the wizard mode and auto-open the "create project" dialog
+  // so the user lands directly in the right onboarding context.
+  useEffect(() => {
+    const roleParam = searchParams.get('role');
+    const modeParam = searchParams.get('mode');
+    if (!roleParam && !modeParam) return;
+
+    if (modeParam === 'quick' || modeParam === 'lfa') {
+      setMode(modeParam);
+    }
+    setCreateOpen(true);
+
+    // Strip the params so reloads don't re-trigger the dialog.
+    const next = new URLSearchParams(searchParams);
+    next.delete('role');
+    next.delete('mode');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleCreate = async () => {
