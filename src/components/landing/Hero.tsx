@@ -1,8 +1,14 @@
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { ArrowRight, ShieldCheck, Sparkles } from 'lucide-react';
-import { signupHref } from '@/lib/demo-mode';
+import { ArrowRight, Building2, ShieldCheck, Sparkles, Store, User } from 'lucide-react';
+import { signupHref, signupHrefForRole, type DemoRole } from '@/lib/demo-mode';
+
+const ROLE_SHORTCUTS: { role: DemoRole; label: string; icon: typeof Building2 }[] = [
+  { role: 'foundation_lead', label: 'Yayasan / NGO', icon: Building2 },
+  { role: 'umkm_owner', label: 'UMKM sosial', icon: Store },
+  { role: 'changemaker', label: 'Changemaker', icon: User },
+];
 
 export function Hero() {
   return (
@@ -40,6 +46,28 @@ export function Hero() {
             <Button asChild size="lg" variant="outline">
               <a href="#waitlist">Gabung waitlist</a>
             </Button>
+          </div>
+
+          <div className="mt-6 flex flex-col items-center gap-2.5">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground">
+              Atau mulai sesuai peran Anda
+            </span>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              {ROLE_SHORTCUTS.map(({ role, label, icon: Icon }) => (
+                <Button
+                  key={role}
+                  asChild
+                  variant="outline"
+                  size="sm"
+                  className="rounded-full border-accent/30 bg-background/70 text-foreground hover:bg-accent-soft hover:text-accent"
+                >
+                  <Link to={signupHrefForRole(role)}>
+                    <Icon className="mr-1.5 h-3.5 w-3.5" />
+                    {label}
+                  </Link>
+                </Button>
+              ))}
+            </div>
           </div>
 
           <div className="mx-auto mt-10 inline-flex max-w-2xl items-center gap-3 rounded-full border border-border/70 bg-background/70 px-4 py-2.5 text-xs text-muted-foreground backdrop-blur md:text-sm">
