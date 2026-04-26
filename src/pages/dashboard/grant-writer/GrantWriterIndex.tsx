@@ -333,7 +333,13 @@ export default function GrantWriterIndex() {
         </div>
       )}
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) setRoleHint(null);
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Buat proyek baru</DialogTitle>
@@ -342,6 +348,11 @@ export default function GrantWriterIndex() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {roleHint && (
+              <p className="rounded-md border border-accent/30 bg-accent-soft px-3 py-2 text-xs text-accent">
+                {roleHint}
+              </p>
+            )}
             <div className="grid gap-3 sm:grid-cols-2">
               <ModeOption
                 active={mode === 'quick'}
