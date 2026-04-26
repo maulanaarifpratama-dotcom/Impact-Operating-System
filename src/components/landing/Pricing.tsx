@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Check } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { cn } from '@/lib/utils';
+import { signupHref } from '@/lib/demo-mode';
 
 const plans = [
   {
@@ -18,7 +19,7 @@ const plans = [
       'Email support',
     ],
     cta: 'Mulai gratis',
-    href: '/dashboard/grant-writer',
+    href: signupHref(),
   },
   {
     name: 'Starter',
@@ -33,7 +34,7 @@ const plans = [
       'Export PDF & DOCX',
     ],
     cta: 'Pilih Starter',
-    href: '/dashboard/grant-writer',
+    href: signupHref(),
     highlight: true,
   },
   {
@@ -50,7 +51,7 @@ const plans = [
       'API access',
     ],
     cta: 'Pilih Premium',
-    href: '/dashboard/grant-writer',
+    href: signupHref(),
   },
 ];
 
