@@ -18,7 +18,7 @@ const plans = [
       'Email support',
     ],
     cta: 'Mulai gratis',
-    href: '/signup',
+    href: '/dashboard/grant-writer',
   },
   {
     name: 'Starter',
@@ -33,7 +33,7 @@ const plans = [
       'Export PDF & DOCX',
     ],
     cta: 'Pilih Starter',
-    href: '/signup?plan=starter',
+    href: '/dashboard/grant-writer',
     highlight: true,
   },
   {
@@ -50,7 +50,7 @@ const plans = [
       'API access',
     ],
     cta: 'Pilih Premium',
-    href: '/signup?plan=premium',
+    href: '/dashboard/grant-writer',
   },
 ];
 

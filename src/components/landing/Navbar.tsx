@@ -54,7 +54,7 @@ export function Navbar() {
             <Link to="/login">Masuk</Link>
           </Button>
           <Button asChild size="sm" className="bg-gradient-hero text-white shadow-elegant hover:opacity-95">
-            <Link to="/signup">Daftar gratis</Link>
+            <Link to="/dashboard/grant-writer">Daftar gratis</Link>
           </Button>
         </div>
 
@@ -86,7 +86,7 @@ export function Navbar() {
                 <Link to="/login">Masuk</Link>
               </Button>
               <Button asChild className="flex-1 bg-gradient-hero text-white">
-                <Link to="/signup">Daftar</Link>
+                <Link to="/dashboard/grant-writer">Daftar</Link>
               </Button>
             </div>
           </div>
