@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, FileText, Loader2, ArrowRight, Zap, Layers } from 'lucide-react';
+import { Plus, FileText, Loader2, ArrowRight, Zap, Layers, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -32,6 +32,38 @@ const STATUS_LABEL: Record<GwProjectStatus, string> = {
 };
 
 type WizardMode = 'quick' | 'lfa';
+const VALID_MODES: WizardMode[] = ['quick', 'lfa'];
+const VALID_ROLES = [
+  'foundation_lead',
+  'umkm_owner',
+  'changemaker',
+  'consultant',
+  'other',
+] as const;
+type RoleParam = (typeof VALID_ROLES)[number];
+
+const ROLE_COPY: Record<RoleParam, { suggestedMode: WizardMode; hint: string }> = {
+  foundation_lead: {
+    suggestedMode: 'lfa',
+    hint: 'Untuk yayasan/NGO — kami sarankan mode LFA Lengkap (standar UN/OECD-DAC).',
+  },
+  consultant: {
+    suggestedMode: 'lfa',
+    hint: 'Untuk konsultan/fasilitator — mode LFA Lengkap memberi struktur penuh untuk klien.',
+  },
+  umkm_owner: {
+    suggestedMode: 'quick',
+    hint: 'Untuk UMKM sosial — mode Quick paling cepat ke proposal donor lokal/private.',
+  },
+  changemaker: {
+    suggestedMode: 'quick',
+    hint: 'Untuk changemaker individu — mode Quick cukup untuk hibah ringan.',
+  },
+  other: {
+    suggestedMode: 'quick',
+    hint: 'Pilih mode yang paling sesuai dengan kebutuhan proposal Anda.',
+  },
+};
 
 function getProjectMode(p: Project): WizardMode {
   const wd = (p.wizard_data ?? {}) as Record<string, unknown>;
@@ -49,6 +81,9 @@ export default function GrantWriterIndex() {
   const [title, setTitle] = useState('');
   const [mode, setMode] = useState<WizardMode>('quick');
   const [creating, setCreating] = useState(false);
+  const [roleHint, setRoleHint] = useState<string | null>(null);
+  const [paramWarning, setParamWarning] = useState<string | null>(null);
+  const deepLinkHandled = useRef(false);
 
   const load = async () => {
     setLoading(true);
@@ -70,25 +105,48 @@ export default function GrantWriterIndex() {
 
   // Demo-mode deep link from landing CTAs:
   //   /dashboard/grant-writer?role=foundation_lead&mode=lfa
-  // Preselect the wizard mode and auto-open the "create project" dialog
-  // so the user lands directly in the right onboarding context.
+  //
+  // Rules:
+  //   - Auto-open the "create project" dialog ONLY when both `role` and
+  //     `mode` are present and valid. Anything else stays on the index
+  //     page so the user can pick deliberately.
+  //   - If a param is present but invalid, surface a soft warning instead
+  //     of silently ignoring it.
+  //   - Always strip the params after handling so reloads behave normally.
   useEffect(() => {
+    if (deepLinkHandled.current) return;
     const roleParam = searchParams.get('role');
     const modeParam = searchParams.get('mode');
     if (!roleParam && !modeParam) return;
+    deepLinkHandled.current = true;
 
-    if (modeParam === 'quick' || modeParam === 'lfa') {
-      setMode(modeParam);
+    const isValidRole = roleParam !== null && (VALID_ROLES as readonly string[]).includes(roleParam);
+    const isValidMode = modeParam !== null && (VALID_MODES as string[]).includes(modeParam);
+
+    if (isValidRole && isValidMode) {
+      const role = roleParam as RoleParam;
+      setMode(modeParam as WizardMode);
+      setRoleHint(ROLE_COPY[role].hint);
+      setCreateOpen(true);
+    } else {
+      setParamWarning(
+        'Tautan onboarding tidak lengkap atau tidak dikenali. Pilih mode di bawah untuk melanjutkan.',
+      );
     }
-    setCreateOpen(true);
 
-    // Strip the params so reloads don't re-trigger the dialog.
     const next = new URLSearchParams(searchParams);
     next.delete('role');
     next.delete('mode');
     setSearchParams(next, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const openCreateWithMode = (m: WizardMode) => {
+    setMode(m);
+    setRoleHint(null);
+    setParamWarning(null);
+    setCreateOpen(true);
+  };
 
   const handleCreate = async () => {
     if (!user || !title.trim()) return;
@@ -127,6 +185,7 @@ export default function GrantWriterIndex() {
       setCreateOpen(false);
       setTitle('');
       setMode('quick');
+      setRoleHint(null);
     }
   };
 
@@ -145,6 +204,46 @@ export default function GrantWriterIndex() {
         </Button>
       </div>
 
+      {paramWarning && (
+        <div
+          role="status"
+          className="flex items-start gap-2.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="flex-1">{paramWarning}</div>
+          <button
+            type="button"
+            onClick={() => setParamWarning(null)}
+            className="text-xs font-medium uppercase tracking-wide opacity-70 hover:opacity-100"
+          >
+            Tutup
+          </button>
+        </div>
+      )}
+
+      {/* Mode picker — always visible so users know the two onboarding paths
+          even when they did not arrive via a role-aware deep link. */}
+      <Card>
+        <CardContent className="grid gap-3 p-4 sm:grid-cols-2">
+          <ModeOption
+            active={false}
+            onClick={() => openCreateWithMode('quick')}
+            icon={<Zap className="h-4 w-4" />}
+            title="Mulai mode Quick"
+            subtitle="4 langkah · cocok untuk donor lokal/private"
+            meta="≈ 15 menit"
+          />
+          <ModeOption
+            active={false}
+            onClick={() => openCreateWithMode('lfa')}
+            icon={<Layers className="h-4 w-4" />}
+            title="Mulai mode LFA Lengkap"
+            subtitle="7 langkah · standar UN/OECD-DAC, World Bank, USAID"
+            meta="≈ 1–2 jam"
+          />
+        </CardContent>
+      </Card>
+
       {loading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat proyek…
@@ -158,8 +257,8 @@ export default function GrantWriterIndex() {
             <div>
               <h3 className="text-lg font-semibold">Belum ada proyek</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Buat proyek pertama Anda — pilih mode <strong>Quick</strong> (4 langkah) atau{' '}
-                <strong>LFA Lengkap</strong> (7 langkah).
+                Buat proyek pertama Anda menggunakan salah satu mode di atas, atau klik
+                tombol di bawah untuk membuka dialog lengkap.
               </p>
             </div>
             <Button onClick={() => setCreateOpen(true)}>
@@ -234,7 +333,13 @@ export default function GrantWriterIndex() {
         </div>
       )}
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog
+        open={createOpen}
+        onOpenChange={(open) => {
+          setCreateOpen(open);
+          if (!open) setRoleHint(null);
+        }}
+      >
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Buat proyek baru</DialogTitle>
@@ -243,6 +348,11 @@ export default function GrantWriterIndex() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            {roleHint && (
+              <p className="rounded-md border border-accent/30 bg-accent-soft px-3 py-2 text-xs text-accent">
+                {roleHint}
+              </p>
+            )}
             <div className="grid gap-3 sm:grid-cols-2">
               <ModeOption
                 active={mode === 'quick'}
