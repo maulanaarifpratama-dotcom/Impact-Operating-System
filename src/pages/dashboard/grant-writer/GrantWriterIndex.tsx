@@ -185,6 +185,7 @@ export default function GrantWriterIndex() {
       setCreateOpen(false);
       setTitle('');
       setMode('quick');
+      setRoleHint(null);
     }
   };
 
@@ -203,6 +204,46 @@ export default function GrantWriterIndex() {
         </Button>
       </div>
 
+      {paramWarning && (
+        <div
+          role="status"
+          className="flex items-start gap-2.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div className="flex-1">{paramWarning}</div>
+          <button
+            type="button"
+            onClick={() => setParamWarning(null)}
+            className="text-xs font-medium uppercase tracking-wide opacity-70 hover:opacity-100"
+          >
+            Tutup
+          </button>
+        </div>
+      )}
+
+      {/* Mode picker — always visible so users know the two onboarding paths
+          even when they did not arrive via a role-aware deep link. */}
+      <Card>
+        <CardContent className="grid gap-3 p-4 sm:grid-cols-2">
+          <ModeOption
+            active={false}
+            onClick={() => openCreateWithMode('quick')}
+            icon={<Zap className="h-4 w-4" />}
+            title="Mulai mode Quick"
+            subtitle="4 langkah · cocok untuk donor lokal/private"
+            meta="≈ 15 menit"
+          />
+          <ModeOption
+            active={false}
+            onClick={() => openCreateWithMode('lfa')}
+            icon={<Layers className="h-4 w-4" />}
+            title="Mulai mode LFA Lengkap"
+            subtitle="7 langkah · standar UN/OECD-DAC, World Bank, USAID"
+            meta="≈ 1–2 jam"
+          />
+        </CardContent>
+      </Card>
+
       {loading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat proyek…
@@ -216,8 +257,8 @@ export default function GrantWriterIndex() {
             <div>
               <h3 className="text-lg font-semibold">Belum ada proyek</h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Buat proyek pertama Anda — pilih mode <strong>Quick</strong> (4 langkah) atau{' '}
-                <strong>LFA Lengkap</strong> (7 langkah).
+                Buat proyek pertama Anda menggunakan salah satu mode di atas, atau klik
+                tombol di bawah untuk membuka dialog lengkap.
               </p>
             </div>
             <Button onClick={() => setCreateOpen(true)}>
