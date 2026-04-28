@@ -135,6 +135,85 @@
   .text-balance { text-wrap: balance; }
 }
 
+/* =========================================================================
+ * Typography scale — modular 1.25, single source of truth
+ * Use these utility classes instead of raw text-3xl/4xl/etc in components.
+ * Mobile values ramp up at md: breakpoint for headings.
+ * ========================================================================= */
+@layer utilities {
+  .text-display {
+    @apply font-bold tracking-tight;
+    font-size: 2.5rem;      /* 40px */
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+  @screen md { .text-display { font-size: 3.75rem; line-height: 1.05; } }   /* 60px */
+  @screen lg { .text-display { font-size: 4.5rem;  line-height: 1.05; } }   /* 72px */
+
+  .text-h1 {
+    @apply font-bold tracking-tight;
+    font-size: 2rem;        /* 32px */
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+  @screen md { .text-h1 { font-size: 3rem; line-height: 1.166; } }          /* 48/56 */
+
+  .text-h2 {
+    @apply font-semibold tracking-tight;
+    font-size: 1.5rem;      /* 24px */
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+  }
+  @screen md { .text-h2 { font-size: 2.25rem; line-height: 1.222; } }       /* 36/44 */
+
+  .text-h3 {
+    @apply font-semibold tracking-tight;
+    font-size: 1.25rem;     /* 20px */
+    line-height: 1.4;
+  }
+  @screen md { .text-h3 { font-size: 1.5rem; line-height: 1.333; } }        /* 24/32 */
+
+  .text-h4 {
+    @apply font-semibold tracking-tight;
+    font-size: 1.125rem;    /* 18px */
+    line-height: 1.444;
+  }
+  @screen md { .text-h4 { font-size: 1.25rem; line-height: 1.4; } }         /* 20/28 */
+
+  .text-subheading {
+    @apply font-medium;
+    font-size: 1.125rem;    /* 18px */
+    line-height: 1.555;     /* 28 */
+    color: hsl(var(--muted-foreground));
+  }
+
+  .text-body {
+    @apply font-normal;
+    font-size: 1rem;        /* 16px */
+    line-height: 1.5;       /* 24 */
+  }
+
+  .text-body-sm {
+    @apply font-normal;
+    font-size: 0.875rem;    /* 14px */
+    line-height: 1.5;       /* 21 */
+  }
+
+  .text-caption {
+    @apply font-medium;
+    font-size: 0.8125rem;   /* 13px */
+    line-height: 1.385;     /* 18 */
+    color: hsl(var(--muted-foreground));
+  }
+
+  .text-overline {
+    @apply font-semibold uppercase;
+    font-size: 0.75rem;     /* 12px */
+    line-height: 1.333;
+    letter-spacing: 0.08em;
+  }
+}
+
 @supports (font-variation-settings: normal) {
   body { font-family: 'Inter var', 'Inter', system-ui, sans-serif; }
 }
