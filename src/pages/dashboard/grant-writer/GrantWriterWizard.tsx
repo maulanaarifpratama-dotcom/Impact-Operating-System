@@ -25,6 +25,9 @@ import { StepIndicators } from '@/components/grant-writer/steps/StepIndicators';
 import { StepRisks } from '@/components/grant-writer/steps/StepRisks';
 import { useWizardProject } from '@/lib/grant-writer/useWizardProject';
 import { WIZARD_STEPS } from '@/lib/grant-writer/types';
+// NOTE: rule-based generator is kept as a local fallback when the
+// 'grant-writer-generate' edge function is unavailable (e.g. local dev
+// without Foundry secrets). In production this fallback is rarely hit.
 import { generateLfaMatrix, renderProposalMarkdown } from '@/lib/grant-writer/generator';
 import { GrantWriterChat } from '@/components/grant-writer/chat/GrantWriterChat';
 
@@ -42,10 +45,8 @@ export default function GrantWriterWizard() {
     setStep,
     saveNow,
   } = useWizardProject(projectId);
-
   const [generating, setGenerating] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
-
   const currentStep = project?.current_step ?? 1;
   const stepMeta = useMemo(
     () => WIZARD_STEPS.find((s) => s.index === currentStep) ?? WIZARD_STEPS[0],
@@ -64,7 +65,8 @@ export default function GrantWriterWizard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-muted-foreground">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat wizard…
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+        Memuat wizard…
       </div>
     );
   }
@@ -83,17 +85,40 @@ export default function GrantWriterWizard() {
   }
 
   const goPrev = () => currentStep > 1 && setStep(currentStep - 1);
-  const goNext = () => currentStep < WIZARD_STEPS.length && setStep(currentStep + 1);
+  const goNext = () =>
+    currentStep < WIZARD_STEPS.length && setStep(currentStep + 1);
 
   const handleGenerate = async () => {
     if (!projectId) return;
     setGenerating(true);
     try {
       await saveNow();
+
+      // 1. Try the Foundry-powered edge function first.
+      const { data: fnData, error: fnError } = await supabase.functions.invoke(
+        'grant-writer-generate',
+        { body: { projectId } },
+      );
+
+      if (!fnError && fnData?.document) {
+        toast({
+          title: 'Proposal berhasil dibuat dengan AI',
+          description: `Versi ${fnData.version} tersimpan. Membuka pratinjau…`,
+        });
+        navigate(`/dashboard/grant-writer/${projectId}/proposal`);
+        return;
+      }
+
+      // 2. Fallback: local rule-based generator. Used when the edge function
+      //    is not deployed yet, or when Foundry secrets are missing in dev.
+      console.warn(
+        '[grant-writer] Foundry edge function unavailable, using local fallback.',
+        fnError,
+      );
+
       const matrix = generateLfaMatrix(data);
       const markdown = renderProposalMarkdown(data, matrix);
 
-      // Get next version number
       const { data: existing } = await supabase
         .from('gw_lfa_documents')
         .select('version')
@@ -112,6 +137,7 @@ export default function GrantWriterWizard() {
         donor_standard: matrix.meta.donorStandard,
         is_current: true,
       });
+
       if (docErr) throw docErr;
 
       await supabase
@@ -120,8 +146,8 @@ export default function GrantWriterWizard() {
         .eq('id', projectId);
 
       toast({
-        title: 'Proposal berhasil dibuat',
-        description: `Versi ${nextVersion} tersimpan. Membuka pratinjau…`,
+        title: 'Proposal berhasil dibuat (mode fallback)',
+        description: `Versi ${nextVersion} tersimpan. Aktifkan Foundry untuk hasil AI.`,
       });
       navigate(`/dashboard/grant-writer/${projectId}/proposal`);
     } catch (err: any) {
@@ -171,9 +197,11 @@ export default function GrantWriterWizard() {
             </Button>
             <h1 className="truncate text-h2">{project.title}</h1>
             <p className="text-sm text-muted-foreground">
-              Langkah {currentStep} dari {WIZARD_STEPS.length} · {stepMeta.label}
+              Langkah {currentStep} dari {WIZARD_STEPS.length} ·{' '}
+              {stepMeta.label}
             </p>
           </div>
+
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             {saving ? (
               <span className="flex items-center gap-1">
