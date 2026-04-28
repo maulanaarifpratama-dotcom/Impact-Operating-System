@@ -169,7 +169,7 @@ export default function GrantWriterQuickWizard() {
               </Link>
             </Button>
             <div className="flex items-center gap-2">
-              <h1 className="truncate text-2xl font-semibold tracking-tight">
+              <h1 className="truncate text-h2">
                 {project.title}
               </h1>
               <Badge variant="secondary" className="gap-1">

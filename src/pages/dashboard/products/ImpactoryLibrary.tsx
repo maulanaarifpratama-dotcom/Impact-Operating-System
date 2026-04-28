@@ -142,7 +142,7 @@ export default function ImpactoryLibrary() {
                 MVP — {MOCK_LIBRARY.length} item terkurasi
                 {featuredCount > 0 && <> · {featuredCount} pilihan editor</>}
               </Badge>
-              <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Library</h1>
+              <h1 className="text-h1">Library</h1>
             </div>
           </div>
 
@@ -199,7 +199,7 @@ export default function ImpactoryLibrary() {
             <section className="space-y-3">
               <div className="flex items-end justify-between gap-3">
                 <div>
-                  <h2 className="flex items-center gap-2 text-lg font-semibold">
+                  <h2 className="flex items-center gap-2 text-h4">
                     <Sparkles className="h-4 w-4 text-accent" />
                     Direkomendasikan
                   </h2>

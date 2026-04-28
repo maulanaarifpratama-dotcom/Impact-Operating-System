@@ -63,8 +63,8 @@ export function Pricing() {
     <section id="pricing" className="bg-secondary/40 py-20 md:py-28">
       <div className="container">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">Harga yang masuk akal</h2>
-          <p className="mt-4 text-lg text-muted-foreground">
+          <h2 className="text-h2">Harga yang masuk akal</h2>
+          <p className="mt-4 text-subheading">
             Dirancang untuk yayasan dan UMKM Indonesia — bukan startup Silicon Valley.
           </p>
         </div>
@@ -86,14 +86,14 @@ export function Pricing() {
                 </Badge>
               )}
               <div>
-                <h3 className="text-lg font-semibold">{plan.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">{plan.description}</p>
+                <h3 className="text-h4">{plan.name}</h3>
+                <p className="mt-1 text-body-sm text-muted-foreground">{plan.description}</p>
               </div>
               <div className="mt-5">
-                <span className="text-4xl font-bold tracking-tight">{plan.price}</span>
-                <span className="ml-2 text-sm text-muted-foreground">{plan.period}</span>
+                <span className="text-h1">{plan.price}</span>
+                <span className="ml-2 text-body-sm text-muted-foreground">{plan.period}</span>
               </div>
-              <ul className="mt-6 flex-1 space-y-3 text-sm">
+              <ul className="mt-6 flex-1 space-y-3 text-body-sm">
                 {plan.features.map((f) => (
                   <li key={f} className="flex items-start gap-2.5">
                     <span className="mt-0.5 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent-soft text-accent">

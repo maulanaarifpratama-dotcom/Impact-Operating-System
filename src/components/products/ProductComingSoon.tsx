@@ -113,8 +113,8 @@ export function ProductComingSoon({
               <Sparkles className="mr-1 h-3 w-3" />
               {heroEyebrow ?? `Rilis ${product.releaseLabel}`}
             </Badge>
-            <h1 className="text-3xl font-bold tracking-tight md:text-4xl">{product.name}</h1>
-            <p className="text-base text-muted-foreground md:text-lg">{product.longDescription}</p>
+            <h1 className="text-h1">{product.name}</h1>
+            <p className="text-subheading">{product.longDescription}</p>
           </div>
         </div>
       </Card>
@@ -171,7 +171,7 @@ export function ProductComingSoon({
       <section>
         <div className="mb-4 flex items-end justify-between">
           <div>
-            <h2 className="text-xl font-semibold tracking-tight">Apa yang akan Anda dapatkan</h2>
+            <h2 className="text-h3">Apa yang akan Anda dapatkan</h2>
             <p className="text-sm text-muted-foreground">Fitur inti yang sedang kami siapkan.</p>
           </div>
         </div>
@@ -193,7 +193,7 @@ export function ProductComingSoon({
 
       {/* Roadmap */}
       <section>
-        <h2 className="text-xl font-semibold tracking-tight">Roadmap</h2>
+        <h2 className="text-h3">Roadmap</h2>
         <p className="text-sm text-muted-foreground">Tahapan menuju peluncuran.</p>
         <Card className="mt-4 divide-y divide-border p-0 shadow-card">
           {roadmap.map((item) => (

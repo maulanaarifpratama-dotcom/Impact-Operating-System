@@ -28,12 +28,12 @@ export function Hero() {
             Sedang dibangun · Bergabung dengan early access
           </Badge>
 
-          <h1 className="text-balance text-4xl font-bold leading-[1.1] tracking-tight text-foreground md:text-6xl lg:text-7xl">
+          <h1 className="text-balance text-display text-foreground">
             AI untuk pembangun{' '}
             <span className="bg-gradient-hero bg-clip-text text-transparent">dampak Indonesia</span>
           </h1>
 
-          <p className="mt-6 text-balance text-lg text-muted-foreground md:text-xl">
+          <p className="mt-6 text-balance text-subheading">
             Dari proposal hibah hingga kampanye fundraising — Impactory bantu yayasan, UMKM sosial, dan
             changemaker bekerja 10x lebih cepat dengan AI yang paham konteks Indonesia.
           </p>
@@ -50,7 +50,7 @@ export function Hero() {
           </div>
 
           <div className="mt-6 flex flex-col items-center gap-2.5">
-            <span className="text-xs uppercase tracking-wide text-muted-foreground">
+            <span className="text-overline text-muted-foreground">
               Atau mulai sesuai peran Anda
             </span>
             <div className="flex flex-wrap items-center justify-center gap-2">
@@ -71,7 +71,7 @@ export function Hero() {
             </div>
           </div>
 
-          <div className="mx-auto mt-10 inline-flex max-w-2xl items-center gap-3 rounded-full border border-border/70 bg-background/70 px-4 py-2.5 text-xs text-muted-foreground backdrop-blur md:text-sm">
+          <div className="mx-auto mt-10 inline-flex max-w-2xl items-center gap-3 rounded-full border border-border/70 bg-background/70 px-4 py-2.5 text-caption backdrop-blur">
             <ShieldCheck className="h-4 w-4 shrink-0 text-accent" />
             <span className="text-balance">
               Dibangun oleh digital marketer dengan{' '}

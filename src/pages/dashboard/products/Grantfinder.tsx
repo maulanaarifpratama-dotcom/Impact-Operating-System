@@ -205,7 +205,7 @@ export default function Grantfinder() {
               <Sparkles className="mr-1 h-3 w-3" />
               MVP — {MOCK_GRANTS.length} hibah aktif
             </Badge>
-            <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Grantfinder</h1>
+            <h1 className="text-h1">Grantfinder</h1>
             <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
               Temukan hibah dari donor lokal & internasional yang paling cocok untuk misi organisasi Anda.
             </p>

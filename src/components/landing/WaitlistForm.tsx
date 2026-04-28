@@ -60,8 +60,8 @@ export function WaitlistForm() {
               <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-accent-soft text-accent">
                 <CheckCircle2 className="h-7 w-7" />
               </div>
-              <h3 className="mt-5 text-2xl font-bold">Terima kasih!</h3>
-              <p className="mt-2 max-w-sm text-muted-foreground">
+              <h3 className="mt-5 text-h3">Terima kasih!</h3>
+              <p className="mt-2 max-w-sm text-body text-muted-foreground">
                 Anda sudah masuk waitlist Impactory. Kami akan kirim undangan early access ke email Anda.
               </p>
               <Button variant="ghost" className="mt-6" onClick={() => setSubmitted(false)}>
@@ -71,8 +71,8 @@ export function WaitlistForm() {
           ) : (
             <>
               <div className="text-center">
-                <h3 className="text-2xl font-bold tracking-tight md:text-3xl">Gabung waitlist Impactory</h3>
-                <p className="mt-2 text-muted-foreground">
+                <h3 className="text-h2">Gabung waitlist Impactory</h3>
+                <p className="mt-2 text-body text-muted-foreground">
                   Dapatkan akses pertama ke Grant Writer (Juni 2026) dan diskon early bird.
                 </p>
               </div>
@@ -119,7 +119,7 @@ export function WaitlistForm() {
                     'Gabung waitlist'
                   )}
                 </Button>
-                <p className="text-center text-xs text-muted-foreground">
+                <p className="text-center text-caption">
                   Kami tidak akan spam. Unsubscribe kapan saja.
                 </p>
               </form>

@@ -106,7 +106,7 @@ export default function ImpactoryAds() {
               <Sparkles className="mr-1 h-3 w-3" />
               MVP — Generator copy iklan
             </Badge>
-            <h1 className="text-3xl font-bold tracking-tight md:text-4xl">Ads</h1>
+            <h1 className="text-h1">Ads</h1>
             <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
               Buat varian copy siap pakai untuk Meta, Google, dan TikTok — dirancang untuk kampanye
               fundraising, advokasi, dan UMKM sosial.

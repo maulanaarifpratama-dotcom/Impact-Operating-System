@@ -24,10 +24,10 @@ export function Problem() {
     <section id="problem" className="py-20 md:py-28">
       <div className="container">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+          <h2 className="text-h2">
             Membangun dampak di Indonesia itu <span className="text-destructive">susah</span>.
           </h2>
-          <p className="mt-4 text-lg text-muted-foreground">
+          <p className="mt-4 text-subheading">
             Bukan karena Anda tidak kompeten — tapi karena infrastruktur untuk pembangun dampak tidak pernah ada.
           </p>
         </div>
@@ -38,8 +38,8 @@ export function Problem() {
               <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
                 <p.icon className="h-5 w-5" />
               </div>
-              <h3 className="mt-4 text-lg font-semibold leading-snug">{p.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{p.body}</p>
+              <h3 className="mt-4 text-h4">{p.title}</h3>
+              <p className="mt-2 text-body-sm text-muted-foreground">{p.body}</p>
             </Card>
           ))}
         </div>
