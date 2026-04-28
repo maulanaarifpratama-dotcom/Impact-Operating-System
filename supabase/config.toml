@@ -1,0 +1,15 @@
+# Supabase project configuration for Impactory.
+# This is consumed by the Supabase CLI when running:
+#   supabase functions deploy --project-ref <YOUR_REF>
+#
+# Edge functions in this project:
+#   grant-writer-generate   → Foundry-powered LFA + proposal generator
+#   (more coming: grant-writer-chat, grantfinder-search, library-rag, ads-generate, embed)
+
+project_id = "impactory"
+
+[functions.grant-writer-generate]
+verify_jwt = true
+# This function calls Azure AI Foundry which can take 10-30s for long
+# proposals. Increase the default timeout to be safe.
+import_map = "./functions/import_map.json"
