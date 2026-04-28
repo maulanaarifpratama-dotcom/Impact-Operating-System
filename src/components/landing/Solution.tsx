@@ -12,10 +12,10 @@ export function Solution() {
     <section className="bg-gradient-hero py-20 text-white md:py-28">
       <div className="container">
         <div className="mx-auto max-w-3xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">
+          <h2 className="text-h2 text-white">
             Satu platform untuk seluruh siklus dampak Anda
           </h2>
-          <p className="mt-4 text-lg text-white/80">
+          <p className="mt-4 text-subheading text-white/80">
             Dari ide → proposal → funding → kampanye → laporan. Impactory adalah operating system untuk
             organisasi sosial dan UMKM dampak di Indonesia.
           </p>
@@ -27,8 +27,8 @@ export function Solution() {
               key={s.label}
               className="border-white/10 bg-white/5 p-6 text-center backdrop-blur-sm"
             >
-              <div className="text-4xl font-bold tracking-tight text-white md:text-5xl">{s.value}</div>
-              <div className="mt-2 text-sm text-white/75">{s.label}</div>
+              <div className="text-h1 text-white">{s.value}</div>
+              <div className="mt-2 text-body-sm text-white/75">{s.label}</div>
             </Card>
           ))}
         </div>
