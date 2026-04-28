@@ -16,13 +16,14 @@ export function Hero() {
       {/* background flourish */}
       <div aria-hidden className="absolute inset-0 -z-10">
         <div className="absolute inset-0 bg-gradient-subtle" />
-        <div className="absolute -top-40 left-1/2 h-[600px] w-[900px] -translate-x-1/2 rounded-full bg-accent/10 blur-3xl" />
-        <div className="absolute -bottom-32 right-0 h-[400px] w-[600px] rounded-full bg-primary/10 blur-3xl" />
+        {/* Soft ambient glows — kept faint and pushed off-canvas so they never overlay the headline */}
+        <div className="absolute -top-64 -left-40 h-[420px] w-[420px] rounded-full bg-accent/[0.06] blur-3xl md:-top-80 md:h-[600px] md:w-[600px]" />
+        <div className="absolute -bottom-48 -right-40 h-[360px] w-[360px] rounded-full bg-primary/[0.06] blur-3xl md:h-[520px] md:w-[520px]" />
       </div>
 
-      <div className="container py-20 md:py-32 lg:py-36">
+      <div className="container pt-8 pb-16 md:pt-16 md:pb-24 lg:pt-20 lg:pb-28">
         <div className="mx-auto max-w-3xl text-center">
-          <Badge variant="outline" className="mb-6 inline-flex items-center gap-1.5 border-accent/40 bg-accent-soft px-3 py-1 text-accent">
+          <Badge variant="outline" className="mb-5 inline-flex items-center gap-1.5 border-accent/40 bg-accent-soft px-3 py-1 text-accent">
             <Sparkles className="h-3.5 w-3.5" />
             Sedang dibangun · Bergabung dengan early access
           </Badge>
