@@ -142,7 +142,7 @@ export default function GrantWriterProposal() {
               <ArrowLeft className="mr-1 h-4 w-4" /> Kembali ke wizard
             </Link>
           </Button>
-          <h1 className="text-2xl font-semibold tracking-tight">
+          <h1 className="text-h2">
             {project?.title ?? 'Proposal'}
           </h1>
           {doc && (
@@ -168,7 +168,7 @@ export default function GrantWriterProposal() {
               <FileText className="h-8 w-8 text-accent" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold">Belum ada proposal</h3>
+              <h3 className="text-h4">Belum ada proposal</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 Selesaikan wizard 7 langkah lalu klik "Buat Proposal" untuk menghasilkan
                 dokumen donor-ready.

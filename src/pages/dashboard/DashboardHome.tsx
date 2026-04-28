@@ -20,7 +20,7 @@ export default function DashboardHome() {
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+        <h1 className="text-h2">
           Selamat datang, {name} 👋
         </h1>
         <p className="mt-1.5 text-muted-foreground">
@@ -46,7 +46,7 @@ export default function DashboardHome() {
       </Card>
 
       <section>
-        <h2 className="text-lg font-semibold">Roadmap produk</h2>
+        <h2 className="text-h4">Roadmap produk</h2>
         <p className="text-sm text-muted-foreground">Empat produk yang akan dirilis bertahap.</p>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           {PRODUCTS.map((p) => (

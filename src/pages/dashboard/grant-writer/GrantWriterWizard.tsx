@@ -169,7 +169,7 @@ export default function GrantWriterWizard() {
                 <ArrowLeft className="mr-1 h-4 w-4" /> Semua proyek
               </Link>
             </Button>
-            <h1 className="truncate text-2xl font-semibold tracking-tight">{project.title}</h1>
+            <h1 className="truncate text-h2">{project.title}</h1>
             <p className="text-sm text-muted-foreground">
               Langkah {currentStep} dari {WIZARD_STEPS.length} · {stepMeta.label}
             </p>

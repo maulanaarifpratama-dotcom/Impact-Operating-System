@@ -193,7 +193,7 @@ export default function GrantWriterIndex() {
     <div className="space-y-6">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Grant Writer</h1>
+          <h1 className="text-h2">Grant Writer</h1>
           <p className="text-sm text-muted-foreground">
             Bangun Logical Framework Approach (LFA) sesuai standar UN/OECD-DAC dari nol sampai
             proposal donor-ready.
@@ -255,7 +255,7 @@ export default function GrantWriterIndex() {
               <FileText className="h-8 w-8 text-accent" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold">Belum ada proyek</h3>
+              <h3 className="text-h4">Belum ada proyek</h3>
               <p className="mt-1 text-sm text-muted-foreground">
                 Buat proyek pertama Anda menggunakan salah satu mode di atas, atau klik
                 tombol di bawah untuk membuka dialog lengkap.
