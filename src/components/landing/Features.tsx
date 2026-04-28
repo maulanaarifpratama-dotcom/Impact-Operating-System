@@ -17,8 +17,8 @@ export function Features() {
     <section id="features" className="py-20 md:py-28">
       <div className="container">
         <div className="mx-auto max-w-2xl text-center">
-          <h2 className="text-3xl font-bold tracking-tight md:text-4xl">Empat produk, satu misi</h2>
-          <p className="mt-4 text-lg text-muted-foreground">
+          <h2 className="text-h2">Empat produk, satu misi</h2>
+          <p className="mt-4 text-subheading">
             Dibangun bertahap. Mulai dari Grant Writer, lalu berkembang menjadi ekosistem lengkap.
           </p>
         </div>
@@ -38,11 +38,11 @@ export function Features() {
                   </div>
                   <Badge className={cn('font-medium', stageStyles[p.releaseStage])}>{p.releaseLabel}</Badge>
                 </div>
-                <h3 className="mt-5 flex items-center gap-1.5 text-xl font-semibold tracking-tight">
+                <h3 className="mt-5 flex items-center gap-1.5 text-h4">
                   {p.name}
                   <ArrowUpRight className="h-4 w-4 -translate-y-0.5 text-muted-foreground transition-all group-hover:translate-x-0.5 group-hover:-translate-y-1 group-hover:text-accent" />
                 </h3>
-                <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{p.longDescription}</p>
+                <p className="mt-2 text-body-sm text-muted-foreground">{p.longDescription}</p>
               </Card>
             </Link>
           ))}
