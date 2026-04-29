@@ -73,7 +73,8 @@ export function WaitlistForm() {
               <div className="text-center">
                 <h3 className="text-h2">Gabung waitlist Impactory</h3>
                 <p className="mt-2 text-body text-muted-foreground">
-                  Dapatkan akses pertama ke Grant Writer (Juni 2026) dan diskon early bird.
+                  Akses pertama ke Grant Writer saat rilis Juni 2026, plus diskon 50% untuk 3 bulan
+                  pertama paket Starter.
                 </p>
               </div>
 
@@ -120,7 +121,8 @@ export function WaitlistForm() {
                   )}
                 </Button>
                 <p className="text-center text-caption">
-                  Kami tidak akan spam. Unsubscribe kapan saja.
+                  Maksimal 2 email per bulan, isinya update produk dan insight pendanaan.
+                  Unsubscribe kapan saja.
                 </p>
               </form>
             </>
