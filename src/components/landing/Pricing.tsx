@@ -296,33 +296,31 @@ export function Pricing() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {comparison.map((section) => (
-                        <>
-                          <TableRow key={section.group} className="bg-muted/40 hover:bg-muted/40">
-                            <TableCell
-                              colSpan={4}
-                              className="text-overline text-muted-foreground"
-                            >
-                              {section.group}
+                      {comparison.flatMap((section) => [
+                        <TableRow
+                          key={`group-${section.group}`}
+                          className="bg-muted/40 hover:bg-muted/40"
+                        >
+                          <TableCell
+                            colSpan={4}
+                            className="text-overline text-muted-foreground"
+                          >
+                            {section.group}
+                          </TableCell>
+                        </TableRow>,
+                        ...section.rows.map((row) => (
+                          <TableRow key={`row-${section.group}-${row.label}`}>
+                            <TableCell className="text-body-sm text-foreground/90">
+                              {row.label}
                             </TableCell>
-                          </TableRow>
-                          {section.rows.map((row) => (
-                            <TableRow key={`${section.group}-${row.label}`}>
-                              <TableCell className="text-body-sm text-foreground/90">
-                                {row.label}
+                            {row.values.map((v, i) => (
+                              <TableCell key={i} className="text-center text-body-sm">
+                                <CellRender value={v} />
                               </TableCell>
-                              {row.values.map((v, i) => (
-                                <TableCell
-                                  key={i}
-                                  className="text-center text-body-sm"
-                                >
-                                  <CellRender value={v} />
-                                </TableCell>
-                              ))}
-                            </TableRow>
-                          ))}
-                        </>
-                      ))}
+                            ))}
+                          </TableRow>
+                        )),
+                      ])}
                     </TableBody>
                   </Table>
                 </div>
