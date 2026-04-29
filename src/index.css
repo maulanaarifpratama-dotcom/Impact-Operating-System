@@ -230,10 +230,16 @@
   html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
-  }
-  html, body {
+    /* Prevent horizontal scroll on the document scroller only.
+     * Do NOT apply overflow rules to <body> — it must not become a
+     * second scroll container, otherwise precision touchpad
+     * (two-finger) gestures get blocked on desktop browsers. */
     overflow-x: hidden;
-    overscroll-behavior-y: none;
+  }
+  body {
+    /* Body grows naturally with content. No fixed height, no overflow
+     * rules — let the html element be the sole scroll container. */
+    min-height: 100vh;
   }
   /* Sections on landing must always paint, even if an enter-animation
    * library never marks them visible. */
