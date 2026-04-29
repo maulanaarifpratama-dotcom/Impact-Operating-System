@@ -217,3 +217,29 @@
 @supports (font-variation-settings: normal) {
   body { font-family: 'Inter var', 'Inter', system-ui, sans-serif; }
 }
+
+/* =========================================================================
+ * Defensive render & scroll rules
+ * - Guarantee landing sections never get stuck invisible from a stray
+ *   opacity:0 / transform left over by an animation that failed to fire
+ *   (e.g. IntersectionObserver missing after programmatic scroll on iOS).
+ * - Keep iOS Safari & Chrome Android scrollable: avoid implicit overflow
+ *   clipping on root, and force smooth-scroll + safe overscroll behavior.
+ * ========================================================================= */
+@layer utilities {
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+  html, body {
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+  }
+  /* Sections on landing must always paint, even if an enter-animation
+   * library never marks them visible. */
+  main > section {
+    opacity: 1 !important;
+    transform: none !important;
+    visibility: visible !important;
+  }
+}
