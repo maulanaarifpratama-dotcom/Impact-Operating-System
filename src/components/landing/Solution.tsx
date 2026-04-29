@@ -1,10 +1,28 @@
 import { Card } from '@/components/ui/card';
 
 const stats = [
-  { value: '10x', label: 'lebih cepat menulis proposal hibah' },
-  { value: '70%', label: 'biaya lebih rendah dibanding sewa konsultan' },
-  { value: '24/7', label: 'akses ke template & data dampak' },
-  { value: '100%', label: 'konteks Indonesia, bukan terjemahan' },
+  {
+    value: '10x',
+    label: 'lebih cepat menulis proposal hibah',
+    sub: 'vs. tim full-time 2 minggu',
+  },
+  {
+    value: '70%',
+    label: 'biaya lebih rendah dibanding sewa konsultan',
+    sub: 'vs. konsultan freelance Rp 5–15jt/proposal',
+  },
+  // TODO: ganti angka 500+ dengan jumlah aktual saat library final
+  {
+    value: '500+',
+    label: 'template proposal & laporan terkurasi',
+    sub: 'siap pakai, format donor internasional',
+  },
+  // TODO: ganti angka 1.200+ dengan jumlah aktual saat database funding rilis
+  {
+    value: '1.200+',
+    label: 'peluang funding di database',
+    sub: 'donor lokal, regional & internasional',
+  },
 ];
 
 export function Solution() {
@@ -28,7 +46,8 @@ export function Solution() {
               className="border-white/10 bg-white/5 p-6 text-center backdrop-blur-sm"
             >
               <div className="text-h1 text-white">{s.value}</div>
-              <div className="mt-2 text-body-sm text-white/75">{s.label}</div>
+              <div className="mt-2 text-body-sm text-white/80">{s.label}</div>
+              <div className="mt-1.5 text-caption text-white/60">{s.sub}</div>
             </Card>
           ))}
         </div>

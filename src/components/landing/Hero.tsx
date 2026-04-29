@@ -38,8 +38,8 @@ export function Hero() {
             </span>
           </h1>
           <p className="mt-6 text-balance text-subheading">
-            Dari proposal hibah hingga kampanye fundraising — Impactory bantu yayasan, UMKM sosial,
-            dan changemaker bekerja 10x lebih cepat dengan AI yang paham konteks Indonesia.
+            Tulis proposal hibah, temukan funder, dan jalankan kampanye fundraising — dalam satu
+            platform yang paham realita Indonesia.
           </p>
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Button asChild size="lg" className="bg-gradient-hero text-white shadow-elegant hover:opacity-95">
@@ -76,9 +76,9 @@ export function Hero() {
           <div className="mx-auto mt-10 inline-flex max-w-2xl items-center gap-3 rounded-full border border-border/70 bg-background/70 px-4 py-2.5 text-caption backdrop-blur">
             <ShieldCheck className="h-4 w-4 shrink-0 text-accent" />
             <span className="text-balance">
-              Dibangun oleh digital marketer dengan{' '}
-              <span className="font-semibold text-foreground">&gt;Rp&nbsp;20&nbsp;miliar</span>{' '}
-              pengalaman ad spend di NGO &amp; brand Indonesia.
+              Dibangun oleh praktisi digital marketing dengan track record{' '}
+              <span className="font-semibold text-foreground">Rp&nbsp;20+&nbsp;miliar</span>{' '}
+              ad spend untuk NGO dan brand Indonesia.
             </span>
           </div>
         </div>

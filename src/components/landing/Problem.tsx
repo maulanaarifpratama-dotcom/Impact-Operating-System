@@ -25,10 +25,12 @@ export function Problem() {
       <div className="container">
         <div className="mx-auto max-w-2xl text-center">
           <h2 className="text-h2">
-            Membangun dampak di Indonesia itu <span className="text-destructive">susah</span>.
+            Tools untuk pembangun dampak dibuat untuk{' '}
+            <span className="text-destructive">pasar Barat</span> — bukan realita Indonesia.
           </h2>
           <p className="mt-4 text-subheading">
-            Bukan karena Anda tidak kompeten — tapi karena infrastruktur untuk pembangun dampak tidak pernah ada.
+            Anda kompeten. Tapi infrastruktur yang Anda butuhkan untuk bersaing belum pernah
+            dibangun — sampai sekarang.
           </p>
         </div>
 
