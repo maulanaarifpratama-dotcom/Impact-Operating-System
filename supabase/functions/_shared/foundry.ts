@@ -2,11 +2,13 @@
 // Azure AI Foundry / Azure OpenAI client for edge functions.
 //
 // Reads secrets from Deno.env (set in Supabase Dashboard > Edge Functions > Secrets):
-//   AZURE_FOUNDRY_ENDPOINT         e.g. https://impactory-ai.openai.azure.com
-//   AZURE_FOUNDRY_API_KEY          your Azure resource key
-//   AZURE_FOUNDRY_CHAT_DEPLOYMENT  deployment name for chat (e.g. gpt-5-5)
-//   AZURE_FOUNDRY_EMBED_DEPLOYMENT deployment name for embeddings (e.g. text-embedding-3-small)
-//   AZURE_FOUNDRY_API_VERSION      e.g. 2024-10-21 (or any version your deployment supports)
+//   AZURE_FOUNDRY_ENDPOINT          e.g. https://impactory-ai.openai.azure.com
+//   AZURE_FOUNDRY_API_KEY           your Azure resource key
+//   AZURE_FOUNDRY_CHAT_DEPLOYMENT   deployment name for chat (e.g. gpt-5-5)
+//     (legacy alias: AZURE_FOUNDRY_DEPLOYMENT)
+//   AZURE_FOUNDRY_EMBED_DEPLOYMENT  deployment name for embeddings
+//     (legacy alias: AZURE_FOUNDRY_EMBEDDING_DEPLOYMENT)
+//   AZURE_FOUNDRY_API_VERSION       e.g. 2024-10-21 (or any version your deployment supports)
 //
 // Why this file exists: the frontend is a Vite SPA, so it MUST NOT see the
 // Azure key. All Foundry traffic is proxied through Supabase edge functions
@@ -57,12 +59,32 @@ export class FoundryConfigError extends Error {
   }
 }
 
+/**
+ * Read an env var, falling back through legacy aliases.
+ * Returns the first non-empty value found, or undefined.
+ */
+function readEnv(...names: string[]): string | undefined {
+  for (const n of names) {
+    const v = Deno.env.get(n);
+    if (v && v.trim().length > 0) return v;
+  }
+  return undefined;
+}
+
 function getConfig() {
-  const endpoint = Deno.env.get('AZURE_FOUNDRY_ENDPOINT');
-  const apiKey = Deno.env.get('AZURE_FOUNDRY_API_KEY');
-  const chatDeployment = Deno.env.get('AZURE_FOUNDRY_CHAT_DEPLOYMENT');
-  const embedDeployment = Deno.env.get('AZURE_FOUNDRY_EMBED_DEPLOYMENT');
-  const apiVersion = Deno.env.get('AZURE_FOUNDRY_API_VERSION') ?? '2024-10-21';
+  const endpoint = readEnv('AZURE_FOUNDRY_ENDPOINT');
+  const apiKey = readEnv('AZURE_FOUNDRY_API_KEY');
+  // Accept both the canonical name and the legacy alias used in
+  // earlier versions of the dashboard config.
+  const chatDeployment = readEnv(
+    'AZURE_FOUNDRY_CHAT_DEPLOYMENT',
+    'AZURE_FOUNDRY_DEPLOYMENT',
+  );
+  const embedDeployment = readEnv(
+    'AZURE_FOUNDRY_EMBED_DEPLOYMENT',
+    'AZURE_FOUNDRY_EMBEDDING_DEPLOYMENT',
+  );
+  const apiVersion = readEnv('AZURE_FOUNDRY_API_VERSION') ?? '2024-10-21';
 
   if (!endpoint) throw new FoundryConfigError('AZURE_FOUNDRY_ENDPOINT');
   if (!apiKey) throw new FoundryConfigError('AZURE_FOUNDRY_API_KEY');
@@ -144,8 +166,8 @@ export async function* chatCompletionStream(
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
-    buffer += decoder.decode(value, { stream: true });
 
+    buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split('\n');
     buffer = lines.pop() ?? '';
 
@@ -173,7 +195,7 @@ export async function* chatCompletionStream(
 
 /**
  * Generate embeddings for an array of input strings.
- * Uses AZURE_FOUNDRY_EMBED_DEPLOYMENT.
+ * Uses AZURE_FOUNDRY_EMBED_DEPLOYMENT (or legacy AZURE_FOUNDRY_EMBEDDING_DEPLOYMENT).
  */
 export async function embed(input: string | string[]): Promise<EmbeddingResponse> {
   const cfg = getConfig();
@@ -212,6 +234,7 @@ export async function chatJson<T = unknown>(req: Omit<ChatCompletionRequest, 're
     ...req,
     response_format: { type: 'json_object' },
   });
+
   const raw = res.choices[0]?.message?.content ?? '{}';
   let data: T;
   try {
