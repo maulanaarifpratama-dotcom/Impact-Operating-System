@@ -29,6 +29,7 @@ import {
   Sparkles,
   Target,
   X,
+  Loader2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import {
@@ -46,6 +47,7 @@ import { useApplications, useOrgProfile } from '@/lib/grantfinder/storage';
 import { GrantCard } from '@/components/grantfinder/GrantCard';
 import { GrantDetailDialog } from '@/components/grantfinder/GrantDetailDialog';
 import { OrgProfileForm } from '@/components/grantfinder/OrgProfileForm';
+import { aiGrantSearch } from '@/lib/grantfinder/aiSearch';
 
 type SortKey = 'match' | 'deadline' | 'amount';
 
@@ -79,6 +81,9 @@ export default function Grantfinder() {
   const [sort, setSort] = useState<SortKey>(profile ? 'match' : 'deadline');
   const [activeGrant, setActiveGrant] = useState<Grant | null>(null);
 
+  const [aiResults, setAiResults] = useState<{ grants: Grant[]; summary: string } | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+
   const urgentCount = useMemo(
     () =>
       MOCK_GRANTS.filter((g) => {
@@ -98,7 +103,7 @@ export default function Grantfinder() {
     return set;
   }, [sectorGroups]);
 
-  const filtered = useMemo(() => {
+  const localFiltered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const minIdr = amountRange[0] * 1_000_000;
     const maxIdr = amountRange[1] * 1_000_000;
@@ -138,6 +143,8 @@ export default function Grantfinder() {
     });
   }, [search, activeSectors, region, deadlineFrom, deadlineTo, amountRange, sort, profile]);
 
+  const filtered = aiResults ? aiResults.grants : localFiltered;
+
   const trackedGrants = useMemo(() => {
     const map = new Map(MOCK_GRANTS.map((g) => [g.id, g]));
     return apps
@@ -162,6 +169,43 @@ export default function Grantfinder() {
     setDeadlineFrom(undefined);
     setDeadlineTo(undefined);
     setAmountRange([AMOUNT_MIN_JT, AMOUNT_MAX_JT]);
+    setAiResults(null);
+  };
+
+  const handleSearchClick = async () => {
+    if (!search && sectorGroups.length === 0 && region === 'all') {
+      setAiResults(null);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const res = await aiGrantSearch({
+        query: search,
+        filters: {
+          sector: Array.from(activeSectors ?? []),
+          country: region !== 'all' ? [region] : undefined,
+          min_amount_usd: amountRange[0] * 1_000_000 / 15000,
+          max_amount_usd: amountRange[1] * 1_000_000 / 15000,
+        },
+      });
+
+      if (res.used && !res.error && res.results) {
+        setAiResults({ grants: res.results as Grant[], summary: res.summary });
+        toast({
+          title: 'Pencarian AI Berhasil',
+          description: 'Menemukan ' + res.results.length + ' hibah.',
+        });
+      } else {
+        toast({
+          title: 'Koneksi ke Azure Foundry Gagal',
+          description: 'Menggunakan fallback pencarian lokal. Error: ' + (res.error || 'Unknown'),
+          variant: 'destructive',
+        });
+        setAiResults(null);
+      }
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const toggleSectorGroup = (key: SectorGroup) =>
@@ -269,13 +313,16 @@ export default function Grantfinder() {
                 <Input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void handleSearchClick();
+                  }}
                   placeholder="Cari donor, judul program, atau kata kunci..."
                   className="h-14 rounded-xl border-2 border-border bg-card pl-12 pr-4 text-base shadow-sm transition-all placeholder:text-muted-foreground/70 focus-visible:border-accent focus-visible:ring-2 focus-visible:ring-accent/20 md:text-lg"
                 />
                 {search && (
                   <button
                     type="button"
-                    onClick={() => setSearch('')}
+                    onClick={() => { setSearch(''); setAiResults(null); }}
                     aria-label="Bersihkan pencarian"
                     className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                   >
@@ -283,6 +330,14 @@ export default function Grantfinder() {
                   </button>
                 )}
               </div>
+              <Button
+                onClick={handleSearchClick}
+                disabled={isSearching}
+                className="h-14 rounded-xl px-6"
+              >
+                {isSearching ? <Loader2 className="mr-2 h-5 w-5 animate-spin" /> : <Sparkles className="mr-2 h-5 w-5" />}
+                Cari AI
+              </Button>
               <Select value={sort} onValueChange={(v) => setSort(v as SortKey)}>
                 <SelectTrigger className="h-14 rounded-xl border-2 sm:w-[200px]">
                   <SelectValue />
@@ -403,10 +458,20 @@ export default function Grantfinder() {
 
             {/* HASIL */}
             <div className="space-y-3">
+              {aiResults?.summary && (
+                <div className="rounded-xl border border-accent/30 bg-accent/5 p-4 text-sm text-accent-foreground shadow-sm">
+                  <div className="mb-1 flex items-center gap-1.5 font-semibold text-accent">
+                    <Sparkles className="h-4 w-4" /> Ringkasan AI
+                  </div>
+                  {aiResults.summary}
+                </div>
+              )}
+
               <div className="flex items-center justify-between text-xs text-muted-foreground">
                 <span>
                   Menampilkan <strong className="text-foreground">{filtered.length}</strong> dari{' '}
                   {MOCK_GRANTS.length} hibah
+                  {aiResults ? ' (Hasil AI)' : ' (Filter Lokal)'}
                 </span>
               </div>
 

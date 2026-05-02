@@ -29,34 +29,36 @@ export interface AIGrantSearchResult {
 
 export async function aiGrantSearch(input: AIGrantSearchInput): Promise<AIGrantSearchResult> {
   try {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData.session?.access_token;
-    if (!token) return { used: false, results: [], summary: '' };
-
-    const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
-    if (!SUPABASE_URL) return { used: false, results: [], summary: '' };
-
-    const url = SUPABASE_URL.replace(/\/$/, '') + '/functions/v1/grantfinder-search';
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + token,
-      },
-      body: JSON.stringify({
+    const { data, error } = await supabase.functions.invoke('grantfinder-search', {
+      body: {
         query: input.query,
         filters: input.filters ?? {},
         match_count: input.matchCount ?? 10,
-      }),
+      },
     });
-    if (!resp.ok) {
-      return { used: false, results: [], summary: '', error: 'http ' + resp.status };
+
+    if (error) {
+      let errorMessage = error.message;
+      if (error.context instanceof Response) {
+        try {
+          const cloned = error.context.clone();
+          const errBody = await cloned.json();
+          if (errBody?.error) errorMessage = errBody.error;
+        } catch (e) {
+          // ignore
+        }
+      }
+      return { used: false, results: [], summary: '', error: errorMessage };
     }
-    const json = await resp.json();
+    
+    if (data?.error) {
+       return { used: false, results: [], summary: '', error: data.error };
+    }
+
     return {
       used: true,
-      results: json.results ?? [],
-      summary: json.summary ?? '',
+      results: data?.results ?? [],
+      summary: data?.summary ?? '',
     };
   } catch (e) {
     return { used: false, results: [], summary: '', error: (e as Error).message };

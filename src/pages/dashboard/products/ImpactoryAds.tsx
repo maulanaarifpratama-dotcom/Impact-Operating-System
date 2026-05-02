@@ -26,7 +26,9 @@ import {
   TONE_DESC,
   TONE_LABEL,
 } from '@/lib/ads/types';
-import { generateAdVariants, type PlatformResult } from '@/lib/ads/generator';
+import { generateAdVariants, generateAdVariantsForPlatform, type PlatformResult } from '@/lib/ads/generator';
+import { generateAds } from '@/lib/ads/ai';
+import { useToast } from '@/hooks/use-toast';
 import { AdVariantCard } from '@/components/ads/AdVariantCard';
 
 const PLATFORMS: AdPlatform[] = ['meta', 'google', 'tiktok'];
@@ -51,6 +53,7 @@ const SAMPLE_BRIEF: AdBrief = {
 };
 
 export default function ImpactoryAds() {
+  const { toast } = useToast();
   const [brief, setBrief] = useState<AdBrief>({
     campaign: '',
     message: '',
@@ -61,6 +64,7 @@ export default function ImpactoryAds() {
     platforms: ['meta'],
   });
   const [results, setResults] = useState<PlatformResult[] | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   const update = <K extends keyof AdBrief>(key: K, value: AdBrief[K]) =>
     setBrief((p) => ({ ...p, [key]: value }));
@@ -79,9 +83,62 @@ export default function ImpactoryAds() {
     brief.audience.trim() &&
     brief.platforms.length > 0;
 
-  const onGenerate = () => {
+  const onGenerate = async () => {
     if (!canGenerate) return;
-    setResults(generateAdVariants(brief));
+    setIsGenerating(true);
+    try {
+      const newResults: PlatformResult[] = [];
+      let hadError = false;
+      let hadFallback = false;
+
+      for (const p of brief.platforms) {
+        const { used, variants, error, fallback } = await generateAds({
+          audience: brief.audience,
+          goal: brief.objective,
+          platform: p,
+          tone: brief.tone,
+          key_points: [brief.message, ...(brief.region ? [`Fokus area: ${brief.region}`] : [])],
+          variant_count: 3
+        });
+
+        if (error || !used) {
+          hadError = true;
+          console.error(`[ads] Edge function failed for ${p}:`, error);
+          newResults.push({
+            platform: p,
+            variants: generateAdVariantsForPlatform(brief, p)
+          });
+        } else {
+          if (fallback) hadFallback = true;
+          newResults.push({
+            platform: p,
+            variants: variants.map((v, i) => ({ ...v, id: `${p}-ai-${i}-${Date.now()}` })) as any
+          });
+        }
+      }
+
+      setResults(newResults);
+
+      if (hadError) {
+        toast({
+          title: 'Koneksi ke Azure Foundry Gagal',
+          description: 'Menggunakan fallback template lokal untuk varian iklan.',
+          variant: 'destructive',
+        });
+      } else if (hadFallback) {
+        toast({
+          title: 'Mode Fallback AI',
+          description: 'Edge function berhasil tapi Foundry mengembalikan template statis.',
+        });
+      } else {
+        toast({
+          title: 'Varian Iklan Berhasil Dibuat',
+          description: 'Dihasilkan oleh AI',
+        });
+      }
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const onLoadSample = () => {
@@ -266,12 +323,21 @@ export default function ImpactoryAds() {
 
             <Button
               onClick={onGenerate}
-              disabled={!canGenerate}
+              disabled={!canGenerate || isGenerating}
               size="lg"
               className="w-full bg-accent text-accent-foreground hover:bg-accent/90"
             >
-              <Sparkles className="mr-2 h-4 w-4" />
-              Generate Ad Copy
+              {isGenerating ? (
+                <>
+                  <Wand2 className="mr-2 h-4 w-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4" />
+                  Generate Ad Copy
+                </>
+              )}
             </Button>
           </Card>
         </aside>
@@ -303,8 +369,8 @@ export default function ImpactoryAds() {
                   <strong className="text-foreground">{results.length * 3}</strong> varian · tone{' '}
                   {TONE_LABEL[brief.tone]} · {OBJECTIVE_LABEL[brief.objective]}
                 </p>
-                <Button size="sm" variant="ghost" onClick={onGenerate} className="text-xs">
-                  <Sparkles className="mr-1 h-3.5 w-3.5" />
+                <Button size="sm" variant="ghost" onClick={onGenerate} disabled={isGenerating} className="text-xs">
+                  {isGenerating ? <Wand2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1 h-3.5 w-3.5" />}
                   Regenerate
                 </Button>
               </div>

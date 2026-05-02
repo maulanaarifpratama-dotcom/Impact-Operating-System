@@ -100,7 +100,7 @@ export default function GrantWriterWizard() {
         { body: { projectId } },
       );
 
-      if (!fnError && fnData?.document) {
+      if (!fnError && !fnData?.error && fnData?.document) {
         toast({
           title: 'Proposal berhasil dibuat dengan AI',
           description: `Versi ${fnData.version} tersimpan. Membuka pratinjau…`,
@@ -110,7 +110,7 @@ export default function GrantWriterWizard() {
       }
 
       // Edge function failed, notify user
-      let errorMessage = fnError?.message || 'Gagal menghubungi Edge Function.';
+      let errorMessage = fnError?.message || fnData?.error || 'Gagal menghubungi Edge Function.';
       if (fnError && 'context' in fnError && fnError.context instanceof Response) {
         try {
           const cloned = fnError.context.clone();
