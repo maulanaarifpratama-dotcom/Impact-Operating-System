@@ -218,7 +218,7 @@ Deno.serve(async (req: Request) => {
     await ctx.supabaseAdmin.from('ai_generations').insert({
       organization_id: project.organization_id,
       user_id: ctx.userId,
-      product: 'grant_writer',
+      feature: 'grant_writer_generate',
       model,
       prompt_tokens: usage.prompt_tokens,
       completion_tokens: usage.completion_tokens,

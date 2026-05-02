@@ -88,33 +88,15 @@ serve(async (req) => {
       .filter(Boolean)
       .join('\n');
 
-    let output: any;
-    try {
-      output = await foundryJSON([
-        {
-          role: 'system',
-          content:
-            'Kamu adalah copywriter ahli iklan sosial media untuk sektor sosial Indonesia. ' +
-            'Selalu jawab dalam JSON valid sesuai schema yang diberikan. Bahasa Indonesia.',
-        },
-        { role: 'user', content: userPrompt },
-      ]);
-    } catch (err) {
-      // Fallback variants when Foundry is not configured
-      output = {
-        variants: Array.from({ length: variantCount }).map((_, i) => ({
-          headline: 'Bersama Bisa Lebih Banyak (varian ' + (i + 1) + ')',
-          body:
-            'Dukung program ' + body.goal + ' kami untuk ' + body.audience + '. Setiap kontribusi membuat perbedaan nyata.',
-          cta: 'Pelajari Selengkapnya',
-          hashtags: ['#impactory', '#kebaikanbersama', '#indonesiabisa'],
-          platform: body.platform,
-          why_it_works: '[Mock] Foundry belum dikonfigurasi — gunakan template ini sebagai placeholder.',
-        })),
-        _fallback: true,
-        _error: (err as Error).message,
-      };
-    }
+    const output = await foundryJSON<any>([
+      {
+        role: 'system',
+        content:
+          'Kamu adalah copywriter ahli iklan sosial media untuk sektor sosial Indonesia. ' +
+          'Selalu jawab dalam JSON valid sesuai schema yang diberikan. Bahasa Indonesia.',
+      },
+      { role: 'user', content: userPrompt },
+    ]);
 
     const variants = (output.variants ?? []).slice(0, variantCount);
 
@@ -130,10 +112,10 @@ serve(async (req) => {
       organization_id,
       user_id: user.id,
       feature: 'ads_generate',
-      metadata: { brief_id: briefId, count: variants.length, fallback: !!output._fallback },
+      metadata: { brief_id: briefId, count: variants.length },
     });
 
-    return json({ brief_id: briefId, variants, fallback: !!output._fallback });
+    return json({ brief_id: briefId, variants });
   } catch (err) {
     return json({ error: (err as Error).message }, 500);
   }
