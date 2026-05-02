@@ -9,7 +9,7 @@
  * To re-enable the real signup flow, flip this to `false`. No other code or
  * tests need to be touched manually.
  */
-export const DEMO_MODE = true;
+export const DEMO_MODE = false;
 
 /** Real signup route, used when demo mode is off. */
 export const REAL_SIGNUP_HREF = '/signup';
