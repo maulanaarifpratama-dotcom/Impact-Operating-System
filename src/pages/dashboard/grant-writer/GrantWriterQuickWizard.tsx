@@ -107,13 +107,25 @@ export default function GrantWriterQuickWizard() {
       }
 
       // Edge function failed, notify user
+      let errorMessage = fnError?.message || 'Gagal menghubungi Edge Function.';
+      if (fnError && 'context' in fnError && fnError.context instanceof Response) {
+        try {
+          const cloned = fnError.context.clone();
+          const errBody = await cloned.json();
+          if (errBody?.error) errorMessage = errBody.error;
+        } catch (e) {
+          // keep original message if parsing fails
+        }
+      }
+
       console.error(
         '[grant-writer] Foundry edge function failed, using local fallback.',
         fnError,
+        errorMessage
       );
       toast({
         title: 'Koneksi ke Azure Foundry Gagal',
-        description: fnError?.message || 'Gagal menghubungi Edge Function. Menggunakan fallback lokal yang dilabeli.',
+        description: errorMessage,
         variant: 'destructive',
       });
 

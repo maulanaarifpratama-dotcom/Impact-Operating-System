@@ -149,7 +149,7 @@ Deno.serve(async (req: Request) => {
         },
       ],
       temperature: 0.4,
-      max_tokens: 8000,
+      max_tokens: 4000,
     });
 
     if (!result?.matrix || !result?.proposal_markdown) {
