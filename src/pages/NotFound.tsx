@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ArrowLeft, Home, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import Logo from "@/components/Logo";
+import { Logo } from "@/components/Logo";
 
 /**
  * Catch-all 404 rendered by React Router for any unmatched path.
