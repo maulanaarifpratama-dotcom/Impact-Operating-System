@@ -244,3 +244,66 @@ export async function chatJson<T = unknown>(req: Omit<ChatCompletionRequest, 're
   }
   return { data, usage: res.usage, model: res.model };
 }
+
+// ---------------------------------------------------------------------------
+// Convenience wrappers used by most Edge Functions.
+// ---------------------------------------------------------------------------
+
+/**
+ * Chat completion that returns the first assistant message text.
+ * Alias used by ads-generate, grantfinder-search, library-rag, etc.
+ */
+export async function foundryChat(
+  messages: ChatMessage[],
+  opts?: Pick<ChatCompletionRequest, 'temperature' | 'max_tokens'>,
+): Promise<string> {
+  const res = await chatCompletion({ messages, ...opts });
+  return res.choices[0]?.message?.content ?? '';
+}
+
+/**
+ * Chat completion that returns a parsed JSON object.
+ * Alias used by ads-generate and other functions that need structured output.
+ */
+export async function foundryJSON<T = unknown>(
+  messages: ChatMessage[],
+  opts?: Pick<ChatCompletionRequest, 'temperature' | 'max_tokens'>,
+): Promise<T> {
+  const res = await chatCompletion({
+    messages,
+    response_format: { type: 'json_object' },
+    ...opts,
+  });
+  const raw = res.choices[0]?.message?.content ?? '{}';
+  try {
+    return JSON.parse(raw) as T;
+  } catch (err) {
+    throw new Error(`Foundry returned invalid JSON: ${(err as Error).message}\n--- raw ---\n${raw.slice(0, 800)}`);
+  }
+}
+
+/**
+ * Generate a single embedding vector for the given text.
+ * Alias used by grantfinder-search, library-rag, library-ingest.
+ */
+export async function foundryEmbed(text: string): Promise<number[]> {
+  const res = await embed(text);
+  const vec = res.data[0]?.embedding;
+  if (!vec) throw new Error('Foundry embed returned no vector');
+  return vec;
+}
+
+/**
+ * Return a streaming async generator of string tokens.
+ * Alias used by grant-writer-chat (before it was rewritten to use chatCompletionStream directly).
+ */
+export async function* foundryStream(
+  messages: ChatMessage[],
+  opts?: Pick<ChatCompletionRequest, 'temperature' | 'max_tokens'>,
+): AsyncGenerator<string> {
+  for await (const chunk of chatCompletionStream({ messages, ...opts })) {
+    if (chunk.delta) yield chunk.delta;
+    if (chunk.done) return;
+  }
+}
+

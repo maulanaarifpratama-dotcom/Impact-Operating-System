@@ -83,3 +83,48 @@ export async function assertOrgMember(
   if (error) throw new AuthError(`Org check failed: ${error.message}`, 500);
   if (!data) throw new AuthError('You are not a member of this organization', 403);
 }
+
+// ---------------------------------------------------------------------------
+// Convenience helpers used by most Edge Functions.
+// ---------------------------------------------------------------------------
+
+/**
+ * Authenticate the caller and return the user + their primary org id,
+ * plus the RLS-scoped supabase client.
+ */
+export async function getUserAndOrg(req: Request): Promise<{
+  user: { id: string; email: string | null };
+  organization_id: string;
+  supabase: SupabaseClient;
+}> {
+  const ctx = await authenticate(req);
+
+  // Get the user's primary org (first one found)
+  const { data: member, error } = await ctx.supabase
+    .from('organization_members')
+    .select('organization_id')
+    .eq('user_id', ctx.userId)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw new AuthError(`Org lookup failed: ${error.message}`, 500);
+  if (!member) throw new AuthError('User is not a member of any organization', 403);
+
+  return {
+    user: { id: ctx.userId, email: ctx.email },
+    organization_id: member.organization_id,
+    supabase: ctx.supabase,
+  };
+}
+
+/**
+ * Return a Supabase admin client (service role, bypasses RLS).
+ * Use only for auditing/logging writes that legitimately bypass RLS.
+ */
+export function adminClient(): SupabaseClient {
+  const url = Deno.env.get('SUPABASE_URL');
+  const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!url || !key) throw new Error('Missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+  return createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
