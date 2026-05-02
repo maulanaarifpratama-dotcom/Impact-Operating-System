@@ -38,29 +38,30 @@ async function streamFromEdge(opts: {
 }): Promise<{ usedEdge: boolean; text: string }> {
   const { data: sessionData } = await supabase.auth.getSession();
   const token = sessionData.session?.access_token;
-  if (!token) return { usedEdge: false, text: '' };
+  if (!token) throw new Error('Missing session token');
 
   const SUPABASE_URL = (import.meta as any).env?.VITE_SUPABASE_URL as string | undefined;
-  if (!SUPABASE_URL) return { usedEdge: false, text: '' };
+  const SUPABASE_ANON_KEY = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY as string | undefined;
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('Missing Supabase environment variables');
 
   const url = SUPABASE_URL.replace(/\/$/, '') + '/functions/v1/grant-writer-chat';
 
-  let resp: Response;
-  try {
-    resp = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + token,
-      },
-      body: JSON.stringify({ project_id: opts.projectId, message: opts.message }),
-      signal: opts.signal,
-    });
-  } catch {
-    return { usedEdge: false, text: '' };
-  }
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ' + token,
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ project_id: opts.projectId, message: opts.message }),
+    signal: opts.signal,
+  });
 
-  if (!resp.ok || !resp.body) return { usedEdge: false, text: '' };
+  if (!resp.ok) {
+    const errText = await resp.text();
+    throw new Error(`Edge Function error ${resp.status}: ${errText}`);
+  }
+  if (!resp.body) throw new Error('Edge Function returned no body');
 
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
@@ -208,31 +209,42 @@ export function GrantWriterChat({
 
       try {
         let acc = '';
+        let edgeResult: { usedEdge: boolean; text: string } | null = null;
         // 1) Try real AI via edge function
-        const edge = await streamFromEdge({
-          projectId,
-          message: text,
-          signal: ctrl.signal,
-          onToken: (chunk) => {
-            acc += chunk;
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantId ? { ...m, content: acc, status: 'streaming' } : m,
-              ),
-            );
-          },
-        });
+        try {
+          edgeResult = await streamFromEdge({
+            projectId,
+            message: text,
+            signal: ctrl.signal,
+            onToken: (chunk) => {
+              acc += chunk;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantId ? { ...m, content: acc, status: 'streaming' } : m,
+                ),
+              );
+            },
+          });
+        } catch (edgeErr) {
+          console.error('[grant-writer-chat] Edge function failed:', edgeErr);
+          toast({
+            title: 'Koneksi ke Grant Writer AI gagal',
+            description: String(edgeErr),
+            variant: 'destructive',
+          });
+        }
 
-        if (edge.usedEdge && edge.text) {
+        if (edgeResult?.usedEdge && edgeResult?.text) {
           setUsedLiveAI(true);
           setMessages((prev) =>
             prev.map((m) =>
-              m.id === assistantId ? { ...m, content: edge.text, status: 'complete' } : m,
+              m.id === assistantId ? { ...m, content: edgeResult!.text, status: 'complete' } : m,
             ),
           );
           // Edge function already persisted both messages; nothing to do here.
         } else {
           // 2) Fallback to mock assistant (offline / pre-Foundry mode)
+          setUsedLiveAI(false);
           void persistMessage({ role: 'user', content: text });
           const collectedTools: ChatToolCall[] = [];
           await runMockAssistant({
@@ -325,11 +337,11 @@ export function GrantWriterChat({
         <div className="flex items-center gap-1.5">
           {usedLiveAI ? (
             <Badge variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-              Live
+              AI Aktif
             </Badge>
           ) : (
             <Badge variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400">
-              Mock
+              Fallback Mock
             </Badge>
           )}
           {messages.length > 0 && (
@@ -376,7 +388,7 @@ export function GrantWriterChat({
         <p className="mt-1.5 px-1 text-[10px] text-muted-foreground">
           {usedLiveAI
             ? 'Powered by Azure AI Foundry · history disimpan ke Supabase per proyek'
-            : 'Mock AI aktif (Foundry belum dikonfigurasi) · history disimpan ke Supabase per proyek'}
+            : 'Fallback lokal aktif karena Edge Function gagal · history disimpan ke Supabase per proyek'}
         </p>
       </div>
     </div>
