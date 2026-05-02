@@ -109,15 +109,21 @@ export default function GrantWriterWizard() {
         return;
       }
 
-      // 2. Fallback: local rule-based generator. Used when the edge function
-      //    is not deployed yet, or when Foundry secrets are missing in dev.
-      console.warn(
-        '[grant-writer] Foundry edge function unavailable, using local fallback.',
+      // Edge function failed, notify user
+      console.error(
+        '[grant-writer] Foundry edge function failed, using local fallback.',
         fnError,
       );
+      toast({
+        title: 'Koneksi ke Azure Foundry Gagal',
+        description: fnError?.message || 'Gagal menghubungi Edge Function. Menggunakan fallback lokal yang dilabeli.',
+        variant: 'destructive',
+      });
 
+      // 2. Fallback: local rule-based generator. Used when the edge function
+      //    is not deployed yet, or when Foundry secrets are missing in dev.
       const matrix = generateLfaMatrix(data);
-      const markdown = renderProposalMarkdown(data, matrix);
+      const markdown = `> **CATATAN FALLBACK LOKAL**: Koneksi ke Azure Foundry gagal. Dokumen ini dihasilkan menggunakan templat lokal statis (mock). Untuk hasil AI, pastikan Edge Function \`grant-writer-generate\` aktif.\n\n` + renderProposalMarkdown(data, matrix);
 
       const { data: existing } = await supabase
         .from('gw_lfa_documents')
@@ -276,7 +282,7 @@ export default function GrantWriterWizard() {
                 ) : (
                   <Sparkles className="mr-1 h-4 w-4" />
                 )}
-                Buat Proposal
+                {generating ? 'Menghubungi Azure Foundry...' : 'Buat Proposal'}
               </Button>
             ) : (
               <Button onClick={goNext}>

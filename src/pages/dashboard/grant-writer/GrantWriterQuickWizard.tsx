@@ -90,7 +90,34 @@ export default function GrantWriterQuickWizard() {
     setGenerating(true);
     try {
       await saveNow();
-      const markdown = renderQuickProposalMarkdown(data);
+      
+      // 1. Try the Foundry-powered edge function first.
+      const { data: fnData, error: fnError } = await supabase.functions.invoke(
+        'grant-writer-generate',
+        { body: { projectId } },
+      );
+
+      if (!fnError && fnData?.document) {
+        toast({
+          title: 'Proposal berhasil dibuat dengan AI',
+          description: `Versi ${fnData.version} tersimpan. Membuka pratinjau…`,
+        });
+        navigate(`/dashboard/grant-writer/${projectId}/proposal`);
+        return;
+      }
+
+      // Edge function failed, notify user
+      console.error(
+        '[grant-writer] Foundry edge function failed, using local fallback.',
+        fnError,
+      );
+      toast({
+        title: 'Koneksi ke Azure Foundry Gagal',
+        description: fnError?.message || 'Gagal menghubungi Edge Function. Menggunakan fallback lokal yang dilabeli.',
+        variant: 'destructive',
+      });
+
+      const markdown = `> **CATATAN FALLBACK LOKAL**: Koneksi ke Azure Foundry gagal. Dokumen ini dihasilkan menggunakan templat lokal statis (mock). Untuk hasil AI, pastikan Edge Function \`grant-writer-generate\` aktif.\n\n` + renderQuickProposalMarkdown(data);
 
       const { data: existing } = await supabase
         .from('gw_lfa_documents')
@@ -253,7 +280,7 @@ export default function GrantWriterQuickWizard() {
                 ) : (
                   <Sparkles className="mr-1 h-4 w-4" />
                 )}
-                Buat Proposal
+                {generating ? 'Menghubungi Azure Foundry...' : 'Buat Proposal'}
               </Button>
             ) : (
               <Button onClick={goNext}>
