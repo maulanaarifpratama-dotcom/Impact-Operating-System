@@ -133,6 +133,18 @@ export default function GrantWriterWizard() {
         .limit(1);
       const nextVersion = (existing?.[0]?.version ?? 0) + 1;
 
+      // Unset existing current documents first to avoid unique constraint idx_gw_lfa_current
+      const { error: unsetErr } = await supabase
+        .from('gw_lfa_documents')
+        .update({ is_current: false })
+        .eq('project_id', projectId)
+        .eq('is_current', true);
+        
+      if (unsetErr) {
+        console.error('[grant-writer] Failed to unset previous current document:', unsetErr);
+        throw new Error(`Gagal memperbarui status dokumen lama: ${unsetErr.message}`);
+      }
+
       const { error: docErr } = await supabase.from('gw_lfa_documents').insert({
         project_id: projectId,
         organization_id: project.organization_id,
@@ -144,7 +156,12 @@ export default function GrantWriterWizard() {
         is_current: true,
       });
 
-      if (docErr) throw docErr;
+      if (docErr) {
+        if (docErr.message?.includes('duplicate key value') || docErr.code === '23505') {
+          throw new Error(`Konflik duplikasi dokumen aktif: ${docErr.message}`);
+        }
+        throw new Error(`Gagal menyimpan proposal fallback: ${docErr.message}`);
+      }
 
       await supabase
         .from('gw_projects')

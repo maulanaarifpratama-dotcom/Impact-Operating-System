@@ -172,6 +172,18 @@ Deno.serve(async (req: Request) => {
       .limit(1);
     const nextVersion = ((existing?.[0]?.version as number | undefined) ?? 0) + 1;
 
+    // 4.5. Explicitly unset is_current on existing documents to avoid unique constraint idx_gw_lfa_current
+    const { error: unsetErr } = await ctx.supabase
+      .from('gw_lfa_documents')
+      .update({ is_current: false })
+      .eq('project_id', body.projectId)
+      .eq('is_current', true);
+    
+    if (unsetErr) {
+      console.error('Failed to unset previous current document:', unsetErr);
+      throw new Error(`Failed to update existing documents: ${unsetErr.message}`);
+    }
+
     // 5. Insert the new document
     const { data: doc, error: dErr } = await ctx.supabase
       .from('gw_lfa_documents')
@@ -189,7 +201,12 @@ Deno.serve(async (req: Request) => {
       .select()
       .single();
 
-    if (dErr) throw new Error(`Failed to save LFA document: ${dErr.message}`);
+    if (dErr) {
+      if (dErr.message?.includes('duplicate key value') || dErr.code === '23505') {
+        throw new Error(`Duplicate current LFA conflict for project: ${dErr.message}`);
+      }
+      throw new Error(`Failed to save new LFA document: ${dErr.message}`);
+    }
 
     // 6. Mark project completed
     await ctx.supabase
