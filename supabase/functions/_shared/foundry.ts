@@ -229,24 +229,44 @@ export async function embed(input: string | string[]): Promise<EmbeddingResponse
  * Convenience: a chat call that REQUIRES a JSON response.
  */
 export async function chatJson<T = unknown>(req: Omit<ChatCompletionRequest, 'response_format'>): Promise<{
-    data: T;
-    usage: ChatCompletionResponse['usage'];
-    model: string;
+  data: T;
+  usage: ChatCompletionResponse['usage'];
+  model: string;
 }> {
-    const res = await chatCompletion({
-          ...req,
-          response_format: { type: 'json_object' },
+  const res = await chatCompletion({
+    ...req,
+    response_format: { type: 'json_object' },
+  });
+  const choice = res.choices[0];
+  const raw = choice?.message?.content ?? '';
+  const finishReason = choice?.finish_reason ?? 'unknown';
+  // Defensive diagnostics — never logs secrets, only response shape.
+  if (!raw || raw.trim().length === 0) {
+    console.error('[foundry] chatJson empty content', {
+      model: res.model,
+      finish_reason: finishReason,
+      raw_length: raw.length,
+      prompt_tokens: res.usage?.prompt_tokens,
+      completion_tokens: res.usage?.completion_tokens,
     });
-    const raw = res.choices[0]?.message?.content ?? '{}';
-    let data: T;
-    try {
-          data = JSON.parse(raw) as T;
-    } catch (err) {
-          throw new Error(`Foundry returned invalid JSON: ${(err as Error).message}\n--- raw ---\n${raw.slice(0, 800)}`);
-    }
-    return { data, usage: res.usage, model: res.model };
+    throw new Error(
+      `Foundry returned empty content (finish_reason=${finishReason}, model=${res.model}, completion_tokens=${res.usage?.completion_tokens ?? 0}). ` +
+      'This usually means the completion budget was consumed by reasoning before any visible output was emitted. Increase max_tokens for this call.',
+    );
+  }
+  let data: T;
+  try {
+    data = JSON.parse(raw) as T;
+  } catch (err) {
+    console.error('[foundry] chatJson invalid JSON', {
+      model: res.model,
+      finish_reason: finishReason,
+      raw_length: raw.length,
+    });
+    throw new Error(`Foundry returned invalid JSON: ${(err as Error).message}\n--- raw ---\n${raw.slice(0, 800)}`);
+  }
+  return { data, usage: res.usage, model: res.model };
 }
-
 // ---------------------------------------------------------------------------
 // Convenience wrappers used by most Edge Functions.
 // ---------------------------------------------------------------------------
@@ -260,20 +280,34 @@ export async function foundryChat(
 }
 
 export async function foundryJSON<T = unknown>(
-    messages: ChatMessage[],
-    opts?: Pick<ChatCompletionRequest, 'temperature' | 'max_tokens'>,
-  ): Promise<T> {
-    const res = await chatCompletion({
-          messages,
-          response_format: { type: 'json_object' },
-          ...opts,
+  messages: ChatMessage[],
+  opts?: Pick<ChatCompletionRequest, 'temperature' | 'max_tokens'>,
+): Promise<T> {
+  const res = await chatCompletion({
+    messages,
+    response_format: { type: 'json_object' },
+    ...opts,
+  });
+  const choice = res.choices[0];
+  const raw = choice?.message?.content ?? '';
+  const finishReason = choice?.finish_reason ?? 'unknown';
+  if (!raw || raw.trim().length === 0) {
+    console.error('[foundry] foundryJSON empty content', {
+      model: res.model,
+      finish_reason: finishReason,
+      raw_length: raw.length,
+      completion_tokens: res.usage?.completion_tokens,
     });
-    const raw = res.choices[0]?.message?.content ?? '{}';
-    try {
-          return JSON.parse(raw) as T;
-    } catch (err) {
-          throw new Error(`Foundry returned invalid JSON: ${(err as Error).message}\n--- raw ---\n${raw.slice(0, 800)}`);
-    }
+    throw new Error(
+      `Foundry returned empty content (finish_reason=${finishReason}, model=${res.model}, completion_tokens=${res.usage?.completion_tokens ?? 0}). ` +
+      'This usually means the completion budget was consumed by reasoning before any visible output was emitted. Increase max_tokens for this call.',
+    );
+  }
+  try {
+    return JSON.parse(raw) as T;
+  } catch (err) {
+    throw new Error(`Foundry returned invalid JSON: ${(err as Error).message}\n--- raw ---\n${raw.slice(0, 800)}`);
+  }
 }
 
 export async function foundryEmbed(text: string): Promise<number[]> {
