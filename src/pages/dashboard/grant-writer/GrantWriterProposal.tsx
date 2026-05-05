@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Download, FileText, Loader2, Sparkles } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Loader2, Printer, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -125,6 +125,19 @@ export default function GrantWriterProposal() {
     toast({ title: 'Diunduh', description: 'File Markdown tersimpan.' });
   };
 
+  const handlePrintPdf = () => {
+    if (!doc) return;
+    const originalTitle = document.title;
+    const printTitle = `${project?.title ?? 'proposal'}-v${doc.version}`;
+    document.title = printTitle;
+    const restore = () => {
+      document.title = originalTitle;
+      window.removeEventListener('afterprint', restore);
+    };
+    window.addEventListener('afterprint', restore);
+    window.print();
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24 text-muted-foreground">
@@ -134,8 +147,17 @@ export default function GrantWriterProposal() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <div className="space-y-6 print-root">
+      <style>{`
+        @media print {
+          body * { visibility: hidden !important; }
+          .print-root, .print-root * { visibility: visible !important; }
+          .print-root .no-print, .print-root .no-print * { visibility: hidden !important; display: none !important; }
+          .print-root { position: absolute; left: 0; top: 0; width: 100%; }
+          @page { margin: 16mm; }
+        }
+      `}</style>
+      <div className="flex flex-wrap items-start justify-between gap-3 no-print">
         <div>
           <Button variant="ghost" size="sm" asChild className="-ml-2 mb-1">
             <Link to={`/dashboard/grant-writer/${projectId}`}>
@@ -156,6 +178,9 @@ export default function GrantWriterProposal() {
             <Badge variant="secondary">LFA · UN/OECD-DAC</Badge>
             <Button variant="outline" onClick={handleDownload}>
               <Download className="mr-1 h-4 w-4" /> Unduh Markdown
+            </Button>
+            <Button variant="default" onClick={handlePrintPdf}>
+              <Printer className="mr-1 h-4 w-4" /> Unduh PDF
             </Button>
           </div>
         )}
