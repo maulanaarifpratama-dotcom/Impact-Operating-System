@@ -190,11 +190,25 @@ export default function Grantfinder() {
       });
 
       if (res.used && !res.error && res.results) {
-        setAiResults({ grants: res.results as Grant[], summary: res.summary });
-        toast({
-          title: 'Pencarian AI Berhasil',
-          description: 'Menemukan ' + res.results.length + ' hibah.',
-        });
+        if (res.results.length === 0) {
+          // AI search succeeded, but the live grants_catalog table on the
+          // server returned zero matches. The Catalog tab in this UI is
+          // backed by local MOCK_GRANTS, NOT by grants_catalog. To avoid
+          // misleading the user with "0 dari 28 (Hasil AI)", we keep the
+          // local mock catalog visible and surface an honest info toast.
+          setAiResults(null);
+          toast({
+            title: 'Belum ada hibah real di server',
+            description:
+              'Katalog hibah di database server masih kosong. Menampilkan katalog contoh lokal untuk sementara.',
+          });
+        } else {
+          setAiResults({ grants: res.results as Grant[], summary: res.summary });
+          toast({
+            title: 'Pencarian AI Berhasil',
+            description: 'Menemukan ' + res.results.length + ' hibah.',
+          });
+        }
       } else {
         toast({
           title: 'Koneksi ke Azure Foundry Gagal',
