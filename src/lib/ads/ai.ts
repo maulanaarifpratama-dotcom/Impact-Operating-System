@@ -1,15 +1,14 @@
 // src/lib/ads/ai.ts
 // Client helper for the ads-generate edge function.
-
 import { supabase } from '@/integrations/supabase/client';
 
 export interface AdsBrief {
   brief_id?: string;
+  campaign?: string;
   audience: string;
   goal: string;
   platform: string;
   tone?: string;
-  brand_voice?: string;
   key_points?: string[];
   variant_count?: number;
 }
@@ -36,7 +35,6 @@ export async function generateAds(brief: AdsBrief): Promise<AdsResult> {
     const { data, error } = await supabase.functions.invoke('ads-generate', {
       body: brief,
     });
-
     if (error) {
       let errorMessage = error.message;
       if (error.context instanceof Response) {
@@ -50,11 +48,9 @@ export async function generateAds(brief: AdsBrief): Promise<AdsResult> {
       }
       return { used: false, variants: [], error: errorMessage };
     }
-    
     if (data?.error) {
-       return { used: false, variants: [], error: data.error };
+      return { used: false, variants: [], error: data.error };
     }
-
     return {
       used: true,
       brief_id: data?.brief_id,
