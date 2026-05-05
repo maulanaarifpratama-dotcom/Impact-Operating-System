@@ -103,6 +103,7 @@ export default function ImpactoryAds() {
       for (const p of brief.platforms) {
         const { used, variants, error } = await generateAds({
           campaign: brief.campaign,
+          product_or_cause: brief.campaign,
           audience: brief.audience,
           goal: brief.objective,
           platform: p,
