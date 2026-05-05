@@ -148,8 +148,12 @@ Deno.serve(async (req: Request) => {
           content: `Generate the LFA matrix and donor-ready proposal for this project.\\n\\n${JSON.stringify(userPayload, null, 2)}`,
         },
       ],
+      // gpt-5.5 / o-series reasoning deployments consume tokens for hidden
+      // reasoning before producing visible content. The full LFA matrix +
+      // proposal markdown can be ~6-10k visible tokens, so we budget more
+      // headroom here. Other features keep the smaller default.
       temperature: 0.4,
-      max_tokens: 4000,
+      max_tokens: 16000,
     });
 
     if (!result?.matrix || !result?.proposal_markdown) {
