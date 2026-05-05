@@ -1,13 +1,12 @@
 // supabase/functions/ads-generate/index.ts
 // Generates social-media ad copy variants for a given brief.
-//   Input:  { brief_id?, audience, goal, platform, tone, brand_voice, key_points }
-//   Output: { variants: Array<{ headline, body, cta, hashtags, platform }> }
+// Input: { brief_id?, audience, goal, platform, tone, key_points, campaign?, variant_count? }
+// Output: { variants: Array<{ headline, body, cta, hashtags, platform }> }
 //
-// =========================================================================
-// TODO (USER): set Foundry secrets, then deploy:
-//   supabase functions deploy ads-generate
-// =========================================================================
-
+// NOTE: The live ads_briefs schema uses { campaign_name, audience, objective (enum),
+// platforms (text[]), tone, key_message, product_or_cause, ... }. The frontend speaks
+// in { goal, platform, key_points } so this function maps frontend -> DB on insert.
+// We DO NOT add new DB columns. We DO NOT persist brand_voice (column does not exist).
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { getUserAndOrg, adminClient } from '../_shared/auth.ts';
@@ -15,13 +14,32 @@ import { foundryJSON } from '../_shared/foundry.ts';
 
 interface AdsInput {
   brief_id?: string;
+  campaign?: string;
   audience: string;
-  goal: string;          // e.g. 'awareness', 'donation', 'volunteer signup'
-  platform: string;      // e.g. 'instagram', 'facebook', 'tiktok', 'linkedin', 'whatsapp'
-  tone?: string;         // e.g. 'inspiratif', 'urgent', 'hangat', 'profesional'
-  brand_voice?: string;
+  goal: string;       // frontend objective code: e.g. 'donasi','awareness','recruit_relawan','event_signup','sales_umkm'
+  platform: string;   // frontend platform code: e.g. 'meta','google','tiktok','instagram','facebook','linkedin','whatsapp'
+  tone?: string;
   key_points?: string[];
   variant_count?: number;
+}
+
+// Map frontend objective code to the ads_objective enum stored in the DB.
+// Unknown values fall back to 'awareness' so the insert never fails on enum.
+function mapObjective(goal: string): string {
+  const g = (goal || '').toLowerCase();
+  const map: Record<string, string> = {
+    donasi: 'donation',
+    donation: 'donation',
+    awareness: 'awareness',
+    traffic: 'traffic',
+    conversions: 'conversions',
+    leads: 'leads',
+    engagement: 'engagement',
+    recruit_relawan: 'leads',
+    event_signup: 'engagement',
+    sales_umkm: 'conversions',
+  };
+  return map[g] ?? 'awareness';
 }
 
 serve(async (req) => {
@@ -31,30 +49,38 @@ serve(async (req) => {
   try {
     const { user, organization_id } = await getUserAndOrg(req);
     const body = (await req.json()) as AdsInput;
+
     if (!body.audience || !body.goal || !body.platform) {
       return json({ error: 'audience, goal, and platform are required' }, 400);
     }
     const variantCount = Math.min(Math.max(body.variant_count ?? 3, 1), 6);
 
     const admin = adminClient();
+    const objective = mapObjective(body.goal);
+    const platforms = [String(body.platform)];
+    const keyMessage = (body.key_points && body.key_points[0]) ? String(body.key_points[0]) : '';
+    const campaignName = (body.campaign && body.campaign.trim().length > 0)
+      ? body.campaign.trim()
+      : 'Untitled campaign';
 
-    // Persist or update the brief row
+    // Persist or update the brief row using the LIVE schema columns only.
     let briefId = body.brief_id;
     if (!briefId) {
       const { data: brief, error: be } = await admin
         .from('ads_briefs')
         .insert({
           organization_id,
-          user_id: user.id,
+          created_by: user.id,
+          campaign_name: campaignName,
           audience: body.audience,
-          goal: body.goal,
-          platform: body.platform,
+          objective,
+          platforms,
           tone: body.tone ?? null,
-          brand_voice: body.brand_voice ?? null,
-          key_points: body.key_points ?? [],
+          key_message: keyMessage,
         })
         .select('id')
         .single();
+
       if (be) return json({ error: be.message }, 500);
       briefId = brief!.id;
     }
@@ -78,9 +104,8 @@ serve(async (req) => {
       'Tujuan: ' + body.goal,
       'Platform: ' + body.platform,
       body.tone ? 'Tone: ' + body.tone : '',
-      body.brand_voice ? 'Brand voice: ' + body.brand_voice : '',
       body.key_points && body.key_points.length
-        ? 'Poin kunci: ' + body.key_points.map((k) => '- ' + k).join('\n')
+        ? 'Poin kunci:\n' + body.key_points.map((k) => '- ' + k).join('\n')
         : '',
       'Output JSON valid sesuai schema: ' + schemaHint,
       'Hashtag harus lokal Indonesia & relevan. CTA singkat dan jelas.',
@@ -108,6 +133,7 @@ serve(async (req) => {
       variants,
       raw_output: output,
     });
+
     await admin.from('ai_generations').insert({
       organization_id,
       user_id: user.id,
