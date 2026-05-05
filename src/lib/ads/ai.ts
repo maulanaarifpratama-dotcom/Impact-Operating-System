@@ -5,6 +5,7 @@ import { supabase } from '@/integrations/supabase/client';
 export interface AdsBrief {
   brief_id?: string;
   campaign?: string;
+  product_or_cause: string;
   audience: string;
   goal: string;
   platform: string;
