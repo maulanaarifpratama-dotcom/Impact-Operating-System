@@ -1,12 +1,13 @@
 // supabase/functions/ads-generate/index.ts
 // Generates social-media ad copy variants for a given brief.
-// Input: { brief_id?, audience, goal, platform, tone, key_points, campaign?, variant_count? }
+// Input: { brief_id?, audience, goal, platform, tone, key_points, campaign?, product_or_cause, variant_count? }
 // Output: { variants: Array<{ headline, body, cta, hashtags, platform }> }
 //
 // NOTE: The live ads_briefs schema uses { campaign_name, audience, objective (enum),
-// platforms (text[]), tone, key_message, product_or_cause, ... }. The frontend speaks
-// in { goal, platform, key_points } so this function maps frontend -> DB on insert.
-// We DO NOT add new DB columns. We DO NOT persist brand_voice (column does not exist).
+// platforms (text[]), tone, key_message, product_or_cause (NOT NULL), ... }. The
+// frontend speaks in { goal, platform, key_points } so this function maps frontend
+// -> DB on insert. We DO NOT add new DB columns. We DO NOT persist brand_voice
+// (column does not exist).
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { getUserAndOrg, adminClient } from '../_shared/auth.ts';
@@ -15,6 +16,7 @@ import { foundryJSON } from '../_shared/foundry.ts';
 interface AdsInput {
   brief_id?: string;
   campaign?: string;
+  product_or_cause?: string;
   audience: string;
   goal: string;       // frontend objective code: e.g. 'donasi','awareness','recruit_relawan','event_signup','sales_umkm'
   platform: string;   // frontend platform code: e.g. 'meta','google','tiktok','instagram','facebook','linkedin','whatsapp'
@@ -53,15 +55,25 @@ serve(async (req) => {
     if (!body.audience || !body.goal || !body.platform) {
       return json({ error: 'audience, goal, and platform are required' }, 400);
     }
+
+    // product_or_cause is NOT NULL in ads_briefs. Validate before any
+    // Foundry call or DB insert so we never partially persist a brief.
+    const productOrCause = (body.product_or_cause ?? '').trim();
+    if (!body.brief_id && productOrCause.length === 0) {
+      return json({ error: 'Produk atau isu kampanye wajib diisi.' }, 400);
+    }
+
     const variantCount = Math.min(Math.max(body.variant_count ?? 3, 1), 6);
 
     const admin = adminClient();
     const objective = mapObjective(body.goal);
     const platforms = [String(body.platform)];
     const keyMessage = (body.key_points && body.key_points[0]) ? String(body.key_points[0]) : '';
+    // Campaign name falls back to product_or_cause so the brief always has a
+    // meaningful label even if the user only filled the product/cause field.
     const campaignName = (body.campaign && body.campaign.trim().length > 0)
       ? body.campaign.trim()
-      : 'Untitled campaign';
+      : productOrCause;
 
     // Persist or update the brief row using the LIVE schema columns only.
     let briefId = body.brief_id;
@@ -72,6 +84,7 @@ serve(async (req) => {
           organization_id,
           created_by: user.id,
           campaign_name: campaignName,
+          product_or_cause: productOrCause,
           audience: body.audience,
           objective,
           platforms,
@@ -100,6 +113,7 @@ serve(async (req) => {
 
     const userPrompt = [
       'Buat ' + variantCount + ' varian iklan sosial media untuk NGO/yayasan/social enterprise di Indonesia.',
+      'Produk/Isu: ' + productOrCause,
       'Audiens: ' + body.audience,
       'Tujuan: ' + body.goal,
       'Platform: ' + body.platform,
