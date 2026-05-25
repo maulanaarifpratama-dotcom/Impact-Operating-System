@@ -4,13 +4,10 @@ import { Logo } from '@/components/Logo';
 import { Button } from '@/components/ui/button';
 import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { signupHref } from '@/lib/demo-mode';
-
 const links = [
   { href: '#problem', label: 'Masalah' },
-  { href: '#features', label: 'Produk' },
-  { href: '#pricing', label: 'Harga' },
-  { href: '#waitlist', label: 'Waitlist' },
+  { href: '#growth-system', label: 'G.R.O.W.T.H.' },
+  { href: '#modules', label: 'Produk' },
 ];
 
 export function Navbar() {
@@ -54,8 +51,8 @@ export function Navbar() {
           <Button asChild variant="ghost" size="sm">
             <Link to="/login">Masuk</Link>
           </Button>
-          <Button asChild size="sm" className="bg-gradient-hero text-white shadow-elegant hover:opacity-95">
-            <Link to={signupHref()}>Daftar gratis</Link>
+          <Button asChild size="sm" className="shadow-elegant">
+            <Link to="/dashboard/readiness">Mulai Scorecard</Link>
           </Button>
         </div>
 
@@ -86,8 +83,8 @@ export function Navbar() {
               <Button asChild variant="outline" className="flex-1">
                 <Link to="/login">Masuk</Link>
               </Button>
-              <Button asChild className="flex-1 bg-gradient-hero text-white">
-                <Link to={signupHref()}>Daftar</Link>
+              <Button asChild className="flex-1">
+                <Link to="/dashboard/readiness">Mulai Scorecard</Link>
               </Button>
             </div>
           </div>

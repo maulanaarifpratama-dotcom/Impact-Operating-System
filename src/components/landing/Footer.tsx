@@ -25,16 +25,16 @@ export function Footer() {
           <div>
             <Logo />
             <p className="mt-3 max-w-xs text-sm text-muted-foreground">
-              AI platform untuk yayasan, UMKM sosial, dan changemaker Indonesia.
+              NGO Growth Operating System untuk organisasi sosial yang ingin bekerja lebih rapi, terukur, dan berulang.
             </p>
           </div>
           <div>
             <h4 className="text-sm font-semibold">Produk</h4>
             <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-              <li>Grant Writer <span className="text-xs text-muted-foreground/70">· Juni 2026</span></li>
-              <li>Impactory Library <span className="text-xs text-muted-foreground/70">· Q3 2026</span></li>
-              <li>Grantfinder <span className="text-xs text-muted-foreground/70">· Q4 2026</span></li>
-              <li>Impactory Ads <span className="text-xs text-muted-foreground/70">· 2027</span></li>
+              <li>Readiness Scorecard <span className="text-xs text-muted-foreground/70">· Baseline</span></li>
+              <li>Impact Library <span className="text-xs text-muted-foreground/70">· Asset Engine</span></li>
+              <li>Grant Pipeline <span className="text-xs text-muted-foreground/70">· Workflow</span></li>
+              <li>Grantwriter <span className="text-xs text-muted-foreground/70">· Proposal System</span></li>
             </ul>
           </div>
           <div>
@@ -62,7 +62,7 @@ export function Footer() {
 
         <div className="mt-10 flex flex-col items-center justify-between gap-3 border-t border-border pt-6 text-xs text-muted-foreground md:flex-row">
           <p>© {new Date().getFullYear()} Impactory.id — Dibuat di Indonesia.</p>
-          <p>Membangun infrastruktur untuk pembangun dampak.</p>
+          <p>Membangun execution layer untuk NGO Growth Operating System.</p>
         </div>
       </div>
     </footer>

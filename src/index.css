@@ -5,37 +5,37 @@
 @tailwind utilities;
 
 /* Impactory.id Design System
- * Brand: Navy #1A365D primary, Teal #2B7A78 accent
+ * Modern SaaS Blueprint: deep forest primary, sage support, warm amber accent.
  * All colors HSL. Typography: Inter.
  */
 
 @layer base {
   :root {
     /* Surfaces */
-    --background: 210 20% 98%;       /* #F8FAFC light bg */
-    --foreground: 215 28% 17%;       /* slate-800 */
+    --background: 120 8% 97%;        /* Snow / #F8F9F8 */
+    --foreground: 150 17% 5%;        /* Ink / #0A0E0C */
 
     --card: 0 0% 100%;
-    --card-foreground: 215 28% 17%;
+    --card-foreground: 150 17% 5%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 28% 17%;
+    --popover-foreground: 150 17% 5%;
 
-    /* Brand Navy #1A365D = hsl(212, 56%, 23%) */
-    --primary: 212 56% 23%;
+    /* Deep Forest / #0F3D2E */
+    --primary: 159 61% 15%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 212 56% 35%;
+    --primary-glow: 149 27% 58%;
 
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 212 56% 23%;
+    --secondary: 138 22% 93%;
+    --secondary-foreground: 159 61% 15%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 140 12% 94%;
+    --muted-foreground: 216 8% 35%;
 
-    /* Brand Teal #2B7A78 = hsl(178, 48%, 32%) */
-    --accent: 178 48% 32%;
+    /* Warm Amber / #D97706 */
+    --accent: 32 95% 44%;
     --accent-foreground: 0 0% 100%;
-    --accent-soft: 178 48% 95%;
+    --accent-soft: 36 100% 95%;
 
     --success: 142 71% 36%;
     --success-foreground: 0 0% 100%;
@@ -44,28 +44,28 @@
     --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 214 28% 89%;
-    --input: 214 28% 89%;
-    --ring: 212 56% 23%;
+    --border: 140 7% 92%;
+    --input: 140 7% 92%;
+    --ring: 159 61% 15%;
 
     --radius: 0.625rem;
 
-    /* Sidebar — slate-800 (#1E293B) with teal active highlight */
-    --sidebar-background: 217 33% 17%;          /* #1E293B */
-    --sidebar-foreground: 0 0% 100%;             /* white text */
-    --sidebar-primary: 178 48% 32%;              /* teal active bg */
+    /* Sidebar — deep forest with warm active highlight */
+    --sidebar-background: 159 61% 12%;
+    --sidebar-foreground: 0 0% 100%;
+    --sidebar-primary: 32 95% 44%;
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 178 48% 32%;               /* teal active highlight */
+    --sidebar-accent: 32 95% 44%;
     --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 217 25% 25%;
-    --sidebar-ring: 178 48% 45%;
+    --sidebar-border: 159 35% 22%;
+    --sidebar-ring: 32 95% 50%;
 
     /* Gradients & shadows */
-    --gradient-hero: linear-gradient(135deg, hsl(212 56% 23%) 0%, hsl(178 48% 32%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(210 20% 98%) 0%, hsl(210 40% 96%) 100%);
-    --shadow-elegant: 0 10px 40px -10px hsl(212 56% 23% / 0.15);
-    --shadow-card: 0 1px 3px 0 hsl(215 28% 17% / 0.06), 0 1px 2px 0 hsl(215 28% 17% / 0.04);
-    --shadow-glow: 0 0 50px hsl(178 48% 45% / 0.25);
+    --gradient-hero: linear-gradient(135deg, hsl(159 61% 15%) 0%, hsl(138 22% 50%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(120 8% 97%) 0%, hsl(138 22% 93%) 100%);
+    --shadow-elegant: 0 18px 50px -18px hsl(159 61% 15% / 0.24);
+    --shadow-card: 0 1px 3px 0 hsl(150 17% 5% / 0.06), 0 1px 2px 0 hsl(150 17% 5% / 0.04);
+    --shadow-glow: 0 0 50px hsl(32 95% 44% / 0.18);
   }
 
   .dark {
@@ -102,7 +102,7 @@
     --sidebar-accent-foreground: 210 40% 96%;
     --sidebar-border: 215 30% 16%;
     --sidebar-ring: 178 48% 45%;
-    --gradient-hero: linear-gradient(135deg, hsl(212 56% 18%) 0%, hsl(178 48% 25%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(159 61% 12%) 0%, hsl(138 22% 35%) 100%);
     --gradient-subtle: linear-gradient(180deg, hsl(215 35% 8%) 0%, hsl(215 35% 11%) 100%);
     --shadow-elegant: 0 10px 40px -10px hsl(0 0% 0% / 0.5);
     --shadow-card: 0 1px 3px 0 hsl(0 0% 0% / 0.3);
