@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { id as idLocale } from 'date-fns/locale';
 import { useToast } from '@/hooks/use-toast';
@@ -21,11 +22,15 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertCircle,
+  ArrowRight,
   BellRing,
   Bookmark,
   CalendarIcon,
   Filter,
+  GitBranch,
+  ListChecks,
   Search,
+  ShieldAlert,
   Sparkles,
   Target,
   X,
@@ -65,6 +70,85 @@ const SECTOR_GROUPS: { key: SectorGroup; label: string; maps: GrantSector[] }[] 
 const AMOUNT_MIN_JT = 0;
 const AMOUNT_MAX_JT = 20_000; // 20 M dalam juta
 const AMOUNT_STEP = 50;
+
+const PIPELINE_STAGES = [
+  {
+    title: 'Identified',
+    description: 'Peluang ditemukan, tetapi belum direview.',
+  },
+  {
+    title: 'Shortlisted',
+    description: 'Peluang terlihat cocok dengan misi, sektor, atau wilayah organisasi.',
+  },
+  {
+    title: 'Drafting',
+    description: 'Requirement sudah cukup jelas dan proposal mulai disiapkan.',
+  },
+  {
+    title: 'Submitted',
+    description: 'Proposal sudah dikirim dan masuk tracking.',
+  },
+  {
+    title: 'Result Pending',
+    description: 'Menunggu hasil atau follow-up dari funder.',
+  },
+  {
+    title: 'Awarded / Rejected',
+    description: 'Hasil dicatat agar organisasi belajar dari submission sebelumnya.',
+  },
+];
+
+const PIPELINE_RULES = [
+  {
+    title: 'Source URL wajib',
+    description: 'Jangan masukkan peluang grant tanpa sumber yang bisa dicek.',
+  },
+  {
+    title: 'Deadline harus jelas',
+    description: 'Jika deadline belum pasti, beri label perlu verifikasi.',
+  },
+  {
+    title: 'Eligibility tidak boleh ditebak',
+    description: 'Eligibility harus berasal dari teks resmi funder, bukan asumsi.',
+  },
+  {
+    title: 'Confidence over conviction',
+    description: 'Gunakan confidence score untuk membedakan peluang kuat, sedang, dan lemah.',
+  },
+];
+
+const IDEAL_PIPELINE_FIELDS = [
+  'Source URL',
+  'Deadline',
+  'Eligibility',
+  'Region',
+  'Sector',
+  'Funding amount',
+  'Confidence',
+  'Status',
+  'Next action',
+];
+
+const WORKFLOW_CARDS = [
+  {
+    title: 'Grantwriter / Proposal System',
+    description: 'Gunakan peluang grant yang sudah diverifikasi sebagai konteks awal untuk draft proposal.',
+    cta: 'Buka Grantwriter',
+    href: '/dashboard/grant-writer',
+  },
+  {
+    title: 'Impact Library',
+    description: 'Ambil profil organisasi, proposal lama, laporan impact, dan data program sebagai bahan proposal.',
+    cta: 'Buka Impact Library',
+    href: '/dashboard/impactory-library',
+  },
+  {
+    title: 'Readiness Scorecard',
+    description: 'Cek apakah fondasi organisasi sudah siap sebelum mengejar grant prioritas.',
+    cta: 'Cek Readiness',
+    href: '/dashboard/readiness',
+  },
+];
 
 export default function Grantfinder() {
   const { profile } = useOrgProfile();
@@ -152,6 +236,32 @@ export default function Grantfinder() {
       .filter((x): x is { app: typeof apps[number]; grant: Grant } => !!x.grant)
       .sort((a, b) => (b.app.updatedAt > a.app.updatedAt ? 1 : -1));
   }, [apps]);
+
+  const pipelineHealth = useMemo(
+    () => [
+      {
+        label: 'Peluang teridentifikasi',
+        value: MOCK_GRANTS.length.toString(),
+        helper: 'Bahan awal untuk discovery dan shortlist.',
+      },
+      {
+        label: 'Perlu review',
+        value: trackedGrants.length.toString(),
+        helper: 'Peluang yang belum lengkap source, deadline, atau eligibility.',
+      },
+      {
+        label: 'Deadline dekat',
+        value: urgentCount.toString(),
+        helper: 'Prioritaskan grant dengan deadline terdekat dan fit tertinggi.',
+      },
+      {
+        label: 'Siap ke Grantwriter',
+        value: apps.filter((app) => app.status === 'draft').length.toString(),
+        helper: 'Peluang yang sudah cukup jelas untuk mulai draft proposal.',
+      },
+    ],
+    [apps, trackedGrants.length, urgentCount],
+  );
 
   const isAmountDefault = amountRange[0] === AMOUNT_MIN_JT && amountRange[1] === AMOUNT_MAX_JT;
   const hasActiveFilter =
@@ -263,9 +373,9 @@ export default function Grantfinder() {
               <Sparkles className="mr-1 h-3 w-3" />
               MVP — {MOCK_GRANTS.length} hibah aktif
             </Badge>
-            <h1 className="text-h1">Grantfinder</h1>
+            <h1 className="text-h1">Grant Pipeline</h1>
             <p className="max-w-2xl text-sm text-muted-foreground md:text-base">
-              Temukan hibah dari donor lokal & internasional yang paling cocok untuk misi organisasi Anda.
+              Kelola peluang grant dari discovery, shortlist, eligibility, deadline, sampai next action.
             </p>
           </div>
           {urgentCount > 0 && (
@@ -274,6 +384,80 @@ export default function Grantfinder() {
               <span className="font-medium text-destructive">{urgentCount} deadline ≤14 hari</span>
             </div>
           )}
+        </div>
+      </Card>
+
+      <Card className="border-accent/30 bg-accent-soft/40 p-5 shadow-card">
+        <p className="text-sm leading-6 text-muted-foreground">
+          Grantfinder bukan hanya tempat mencari hibah. Di NGO Growth OS, setiap peluang harus masuk pipeline: jelas
+          sumbernya, jelas eligibility-nya, jelas deadline-nya, dan jelas langkah berikutnya.
+        </p>
+      </Card>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-h4">Pipeline Health / Grant Readiness</h2>
+          <p className="text-sm text-muted-foreground">
+            Ringkasan awal untuk melihat jumlah peluang, prioritas review, dan kesiapan menuju proposal.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          {pipelineHealth.map((item) => (
+            <Card key={item.label} className="p-5 shadow-card">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
+              <p className="mt-2 text-2xl font-semibold">{item.value}</p>
+              <p className="mt-2 text-xs text-muted-foreground">{item.helper}</p>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <GitBranch className="h-5 w-5 text-accent" />
+          <h2 className="text-h4">Pipeline Stages</h2>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {PIPELINE_STAGES.map((stage, index) => (
+            <Card key={stage.title} className="p-4 shadow-card">
+              <Badge variant="outline" className="text-[10px]">Stage {index + 1}</Badge>
+              <h3 className="mt-3 font-semibold">{stage.title}</h3>
+              <p className="mt-2 text-sm text-muted-foreground">{stage.description}</p>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-center gap-2">
+          <ListChecks className="h-5 w-5 text-accent" />
+          <h2 className="text-h4">Rule Grant Pipeline</h2>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+          {PIPELINE_RULES.map((rule) => (
+            <Card key={rule.title} className="p-4 shadow-card">
+              <h3 className="font-semibold">{rule.title}</h3>
+              <p className="mt-2 text-sm text-muted-foreground">{rule.description}</p>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <Card className="border-amber-500/30 bg-amber-500/5 p-5 shadow-card">
+        <div className="flex gap-3">
+          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+          <div>
+            <h2 className="font-semibold">No Fabrication Rule</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Impactory tidak boleh mengarang deadline, eligibility, funding amount, requirement, atau peluang grant.
+              Jika data belum jelas, tandai sebagai perlu verifikasi sebelum dipakai di proposal.
+            </p>
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+              <li>Deadline harus dicek dari sumber resmi.</li>
+              <li>Eligibility harus berasal dari teks funder, bukan asumsi.</li>
+              <li>Funding amount dan requirement tidak boleh ditebak.</li>
+            </ul>
+          </div>
         </div>
       </Card>
 
@@ -366,6 +550,30 @@ export default function Grantfinder() {
               </Select>
             </div>
           </Card>
+
+          <section className="mt-5 space-y-3">
+            <div>
+              <h2 className="text-h4">Peluang Grant</h2>
+              <p className="text-sm text-muted-foreground">
+                Gunakan daftar ini sebagai bahan awal pipeline. Verifikasi source, deadline, eligibility, dan fit sebelum
+                masuk ke tahap draft proposal.
+              </p>
+            </div>
+            <Card className="p-4 shadow-card">
+              <h3 className="font-semibold">Field ideal untuk pipeline grant</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Idealnya setiap peluang grant memiliki source URL, deadline, eligibility, region, sector, funding amount,
+                confidence, status, dan next action. Jika data belum tersedia, tandai sebagai perlu verifikasi.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {IDEAL_PIPELINE_FIELDS.map((field) => (
+                  <Badge key={field} variant="outline" className="text-[11px]">
+                    {field}
+                  </Badge>
+                ))}
+              </div>
+            </Card>
+          </section>
 
           {/* 2 kolom: filter panel kiri, hasil kanan */}
           <div className="mt-4 grid gap-4 lg:grid-cols-[280px_1fr]">
@@ -493,12 +701,27 @@ export default function Grantfinder() {
                 <Card className="flex flex-col items-center gap-3 p-10 text-center">
                   <AlertCircle className="h-8 w-8 text-muted-foreground" />
                   <div>
-                    <p className="font-medium">Tidak ada hibah yang cocok</p>
-                    <p className="text-sm text-muted-foreground">Coba longgarkan filter atau kata kunci.</p>
+                    <p className="font-medium">Pipeline grant belum terisi</p>
+                    <p className="text-sm text-muted-foreground">
+                      Mulai dengan menambahkan atau meninjau peluang grant yang relevan dengan sektor, wilayah, dan
+                      kapasitas organisasi Anda.
+                    </p>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Untuk MVP ini, gunakan daftar peluang yang tersedia sebagai bahan awal. Pastikan setiap peluang
+                      memiliki source, deadline, eligibility, dan next action sebelum masuk ke tahap proposal.
+                    </p>
                   </div>
-                  <Button variant="outline" size="sm" onClick={resetFilters}>
-                    Reset semua filter
-                  </Button>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button variant="outline" size="sm" onClick={resetFilters}>
+                      Reset semua filter
+                    </Button>
+                    <Button asChild variant="outline" size="sm">
+                      <Link to="/dashboard/readiness">Cek Readiness</Link>
+                    </Button>
+                    <Button asChild variant="outline" size="sm">
+                      <Link to="/dashboard/impactory-library">Rapikan Impact Library</Link>
+                    </Button>
+                  </div>
                 </Card>
               ) : (
                 <div className="grid gap-3 xl:grid-cols-2">
@@ -554,6 +777,54 @@ export default function Grantfinder() {
           <OrgProfileForm />
         </TabsContent>
       </Tabs>
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-h4">Dari Pipeline ke Proposal</h2>
+          <p className="text-sm text-muted-foreground">
+            Peluang yang sudah jelas source, deadline, eligibility, dan fit dapat dilanjutkan ke Grantwriter untuk mulai
+            draft proposal. Proposal yang kuat tidak dimulai dari halaman kosong, tapi dari peluang grant yang sudah
+            diverifikasi dan aset organisasi yang rapi.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-3">
+          {WORKFLOW_CARDS.map((card) => (
+            <Card key={card.title} className="flex h-full flex-col p-5 shadow-card">
+              <h3 className="font-semibold">{card.title}</h3>
+              <p className="mt-2 text-sm text-muted-foreground">{card.description}</p>
+              <Button asChild variant="outline" size="sm" className="mt-4 w-fit">
+                <Link to={card.href}>
+                  {card.cta}
+                  <ArrowRight className="ml-2 h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            </Card>
+          ))}
+        </div>
+      </section>
+
+      <Card className="flex flex-col gap-3 p-5 shadow-card md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="font-semibold">Kelola grant sebagai workflow</h2>
+          <p className="text-sm text-muted-foreground">
+            Hubungkan pipeline dengan readiness, asset library, dan sistem proposal.
+          </p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline">
+            <Link to="/dashboard">Kembali ke Dashboard</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to="/dashboard/grant-writer">Buka Grantwriter</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to="/dashboard/impactory-library">Rapikan Impact Library</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to="/dashboard/readiness">Cek Readiness</Link>
+          </Button>
+        </div>
+      </Card>
 
       <GrantDetailDialog
         grant={activeGrant}
