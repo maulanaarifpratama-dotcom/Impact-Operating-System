@@ -7,6 +7,7 @@ import {
   BookOpen,
   Megaphone,
   BarChart3,
+  KeyRound,
   Settings as SettingsIcon,
   LogOut,
   User as UserIcon,
@@ -50,6 +51,7 @@ interface NavItem {
 const NAV_ITEMS: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, exact: true },
   { name: 'Readiness Scorecard', href: '/dashboard/readiness', icon: ClipboardCheck },
+  { name: 'Resource Access', href: '/dashboard/resource-access', icon: KeyRound },
   { name: 'Grant Pipeline', href: '/dashboard/grantfinder', icon: Search },
   { name: 'Grantwriter', href: '/dashboard/grant-writer', icon: FileText },
   { name: 'Impact Library', href: '/dashboard/impactory-library', icon: BookOpen },

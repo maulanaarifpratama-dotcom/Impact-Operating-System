@@ -32,6 +32,12 @@ const ninetyDayPlan = [
 
 const workflowModules = [
   {
+    name: 'Resource Access Tracker',
+    description: 'Pantau TechSoup, Goodstack, Canva, Google, Microsoft, dan Azure agar akses punya owner dan next action.',
+    href: '/dashboard/resource-access',
+    icon: ShieldCheck,
+  },
+  {
     name: 'Grant Pipeline',
     description: 'Kelola peluang grant dari source, eligibility, deadline, confidence, sampai next action.',
     href: '/dashboard/grantfinder',
