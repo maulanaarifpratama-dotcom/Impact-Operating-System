@@ -6,6 +6,7 @@ import {
   Search,
   BookOpen,
   Megaphone,
+  BarChart3,
   Settings as SettingsIcon,
   LogOut,
   User as UserIcon,
@@ -53,6 +54,7 @@ const NAV_ITEMS: NavItem[] = [
   { name: 'Grantwriter', href: '/dashboard/grant-writer', icon: FileText },
   { name: 'Impact Library', href: '/dashboard/impactory-library', icon: BookOpen },
   { name: 'Campaign Builder', href: '/dashboard/impactory-ads', icon: Megaphone },
+  { name: 'Monthly Report', href: '/dashboard/monthly-report', icon: BarChart3 },
 ];
 
 function initials(name?: string | null, email?: string | null) {
