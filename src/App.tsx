@@ -5,6 +5,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
+import { ScrollToTop } from '@/components/ScrollToTop';
 import Index from './pages/Index';
 import NotFound from './pages/NotFound';
 import Login from './pages/auth/Login';
@@ -35,6 +36,7 @@ const App = () => (
         <TooltipProvider>
           <Toaster />
           <Sonner />
+          <ScrollToTop />
           <Routes>
             {/* Public */}
             <Route path="/" element={<Index />} />
