@@ -46,11 +46,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { name: 'Dashboard',   href: '/dashboard',                    icon: LayoutDashboard, exact: true },
-  { name: 'Grant Writer', href: '/dashboard/grant-writer',      icon: FileText },
-  { name: 'Grantfinder', href: '/dashboard/grantfinder',        icon: Search },
-  { name: 'Library',     href: '/dashboard/impactory-library',  icon: BookOpen },
-  { name: 'Ads',         href: '/dashboard/impactory-ads',      icon: Megaphone },
+  { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, exact: true },
+  { name: 'Grant Pipeline', href: '/dashboard/grantfinder', icon: Search },
+  { name: 'Grantwriter', href: '/dashboard/grant-writer', icon: FileText },
+  { name: 'Impact Library', href: '/dashboard/impactory-library', icon: BookOpen },
+  { name: 'Campaign Builder', href: '/dashboard/impactory-ads', icon: Megaphone },
 ];
 
 function initials(name?: string | null, email?: string | null) {
@@ -97,7 +97,7 @@ export function DashboardSidebar() {
         <SidebarGroup>
           {!collapsed && (
             <SidebarGroupLabel className="text-sidebar-foreground/60">
-              Menu
+              NGO Growth OS
             </SidebarGroupLabel>
           )}
           <SidebarGroupContent>
