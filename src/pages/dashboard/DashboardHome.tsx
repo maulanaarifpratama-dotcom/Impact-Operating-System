@@ -58,8 +58,8 @@ const workflowModules = [
   {
     name: 'Monthly Impact Report',
     description: 'Compile laporan bulanan sebagai proof system untuk donor dan funder.',
+    href: '/dashboard/monthly-report',
     icon: BarChart3,
-    comingSoon: true,
   },
   {
     name: 'Donor CRM',
