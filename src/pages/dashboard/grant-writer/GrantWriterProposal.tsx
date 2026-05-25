@@ -207,14 +207,23 @@ export default function GrantWriterProposal() {
           </CardContent>
         </Card>
       ) : (
-        <Card>
-          <CardContent className="py-8">
+        <>
+          <Card className="border-accent/30 bg-accent-soft/40 p-5 shadow-card no-print">
+            <h2 className="font-semibold">Draft untuk direview</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Output ini adalah draft kerja. Cek kembali requirement donor, eligibility, angka program, budget, dan
+              narasi impact sebelum digunakan.
+            </p>
+          </Card>
+          <Card>
+            <CardContent className="py-8">
             <article
               className="prose prose-slate max-w-none prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-xl prose-h2:mt-8 prose-h3:text-base prose-table:my-4 prose-p:leading-relaxed"
               dangerouslySetInnerHTML={{ __html: html }}
             />
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </>
       )}
     </div>
   );
