@@ -12,6 +12,7 @@ import Signup from './pages/auth/Signup';
 import AuthCallback from './pages/auth/Callback';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import DashboardHome from './pages/dashboard/DashboardHome';
+import ReadinessScorecard from './pages/dashboard/ReadinessScorecard';
 import GrantWriterIndex from './pages/dashboard/grant-writer/GrantWriterIndex';
 import GrantWriterWizard from './pages/dashboard/grant-writer/GrantWriterWizard';
 import GrantWriterProposal from './pages/dashboard/grant-writer/GrantWriterProposal';
@@ -66,6 +67,7 @@ const App = () => (
               }
             >
               <Route path="/dashboard" element={<DashboardHome />} />
+              <Route path="/dashboard/readiness" element={<ReadinessScorecard />} />
               {/* /settings/* + other product routes land in Chunk 3-4 */}
             </Route>
 

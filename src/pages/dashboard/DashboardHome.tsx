@@ -106,14 +106,13 @@ export default function DashboardHome() {
         </p>
         <p className="mt-3 text-sm text-white/75">Selamat datang, {name}. Mulai dari baseline sistem, bukan daftar tools.</p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <button
-            type="button"
-            disabled
-            className="inline-flex cursor-not-allowed items-center rounded-md bg-white/20 px-4 py-2 text-sm font-medium text-white/70"
+          <Link
+            to="/dashboard/readiness"
+            className="inline-flex items-center rounded-md bg-white/20 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-white/30"
           >
             Mulai dari Readiness
-            <Badge className="ml-2 border-white/20 bg-white/10 text-[10px] text-white/70 hover:bg-white/10">Segera hadir</Badge>
-          </button>
+            <ArrowRight className="ml-2 h-4 w-4" />
+          </Link>
           <Link
             to="/dashboard/grantfinder"
             className="inline-flex items-center rounded-md bg-white px-4 py-2 text-sm font-medium text-primary transition-colors hover:bg-white/90"
@@ -134,9 +133,12 @@ export default function DashboardHome() {
             <ShieldCheck className="h-5 w-5 text-accent" />
           </div>
           <p className="mt-3 text-sm text-muted-foreground">Diagnosis awal untuk melihat kesiapan sistem NGO Anda.</p>
-          <Badge variant="outline" className="mt-5 border-dashed text-muted-foreground">
-            Scorecard segera hadir
-          </Badge>
+          <Link
+            to="/dashboard/readiness"
+            className="mt-5 inline-flex text-sm font-medium text-accent hover:underline"
+          >
+            Buka Readiness Scorecard
+          </Link>
         </Card>
 
         <Card className="p-5 shadow-card lg:col-span-2">

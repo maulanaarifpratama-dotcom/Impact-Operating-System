@@ -1,6 +1,7 @@
 import { NavLink, useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   LayoutDashboard,
+  ClipboardCheck,
   FileText,
   Search,
   BookOpen,
@@ -47,6 +48,7 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, exact: true },
+  { name: 'Readiness Scorecard', href: '/dashboard/readiness', icon: ClipboardCheck },
   { name: 'Grant Pipeline', href: '/dashboard/grantfinder', icon: Search },
   { name: 'Grantwriter', href: '/dashboard/grant-writer', icon: FileText },
   { name: 'Impact Library', href: '/dashboard/impactory-library', icon: BookOpen },
