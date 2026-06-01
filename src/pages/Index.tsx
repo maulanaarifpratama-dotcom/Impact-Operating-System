@@ -11,22 +11,22 @@ const growthCards = [
   {
     letter: 'G',
     title: 'Grant Readiness',
-    description: 'Fondasi legal, profil organisasi, website, email, dan PIC digital.',
+    description: 'Grant readiness untuk fondasi legal, profil organisasi, website, email, dan PIC digital.',
   },
   {
     letter: 'R',
     title: 'Resource Access',
-    description: 'Akses TechSoup, Goodstack, Canva, Google, Microsoft, dan Azure dengan owner yang jelas.',
+    description: 'Resource Access untuk TechSoup, Goodstack, Canva, Google, Microsoft, Azure, dan resource mapping dengan owner yang jelas.',
   },
   {
     letter: 'O',
     title: 'Operating Library',
-    description: 'Dokumen lama menjadi asset engine untuk proposal, campaign, dan laporan impact.',
+    description: 'Dokumen lama menjadi asset engine untuk proposal workflow, campaign, dan impact documentation.',
   },
   {
     letter: 'W',
     title: 'Workflow Engine',
-    description: 'Grant Pipeline dan Grantwriter membuat proposal tidak selalu mulai dari nol.',
+    description: 'Grant Pipeline dan Grantwriter merapikan proposal workflow agar tidak selalu mulai dari nol.',
   },
   {
     letter: 'T',
@@ -36,21 +36,21 @@ const growthCards = [
   {
     letter: 'H',
     title: 'Harvest & Review',
-    description: 'Dashboard, monthly report, dan review rhythm membuat sistem terus belajar.',
+    description: 'Dashboard, monthly reporting, dan review rhythm membuat sistem terus belajar.',
   },
 ];
 
 const productModules = [
   {
     title: 'Readiness Scorecard',
-    description: 'Ukur kesiapan sistem NGO Anda dalam 8 menit.',
+    description: 'Ukur grant readiness sistem CSO/NGO Anda dalam 8 menit.',
     cta: 'Mulai Scorecard',
     href: '/dashboard/readiness',
     icon: ShieldCheck,
   },
   {
     title: 'Impact Library',
-    description: 'Ubah dokumen lama, laporan, template, dan cerita impact menjadi asset engine.',
+    description: 'Ubah dokumen lama, laporan, template, dan cerita impact menjadi impact documentation engine.',
     cta: 'Buka Library',
     href: '/dashboard/impactory-library',
     icon: LibraryBig,
@@ -58,13 +58,13 @@ const productModules = [
   {
     title: 'Grant Pipeline',
     description: 'Kelola peluang grant dari source, eligibility, deadline, confidence, sampai next action.',
-    cta: 'Lihat Pipeline',
+    cta: 'Lihat Grant Pipeline',
     href: '/dashboard/grantfinder',
     icon: Search,
   },
   {
     title: 'Grantwriter',
-    description: 'Buat draft proposal dan LFA dengan Human Review Required.',
+    description: 'Buat draft proposal dan LFA dengan safe AI dan Human Review Required.',
     cta: 'Buka Grantwriter',
     href: '/dashboard/grant-writer',
     icon: FileText,
@@ -173,7 +173,7 @@ export default function Index() {
           <div aria-hidden className="absolute -right-48 -top-48 h-[520px] w-[520px] rounded-full bg-primary/10 blur-3xl" />
           <div aria-hidden className="absolute -bottom-56 -left-48 h-[520px] w-[520px] rounded-full bg-accent/10 blur-3xl" />
           <div className="container relative py-20 md:py-28">
-            <div className="max-w-4xl">
+                        <div className="max-w-4xl">
               <Badge variant="outline" className="border-primary/20 bg-background/70 text-primary">
                 NGO Growth Operating System
               </Badge>
@@ -181,9 +181,9 @@ export default function Index() {
                 Grant Banyak. Sistem Belum Ada.
               </h1>
               <p className="mt-6 max-w-3xl text-subheading">
-                Impactory.id adalah NGO Growth Operating System untuk membantu organisasi sosial mengubah grant digital,
-                dokumen, proposal, campaign, donor, dan laporan impact menjadi sistem kerja yang rapi, terukur, dan
-                bisa diulang.
+                Impactory.id adalah civic technology resource hub dan NGO Growth Operating System untuk membantu CSO,
+                NGO, organisasi sosial, dan komunitas akar rumput mengubah grant digital, dokumen, proposal workflow,
+                campaign, donor, dan laporan impact menjadi sistem kerja yang rapi, terukur, dan bisa diulang.
               </p>
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
                 <Button asChild size="lg" className="shadow-elegant">
@@ -199,7 +199,7 @@ export default function Index() {
               <div className="mt-8 inline-flex max-w-2xl items-start gap-3 rounded-2xl border border-border bg-card/80 p-4 text-sm text-muted-foreground shadow-card">
                 <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
                 <span>
-                  Dibangun dari pengalaman 20B+ budget digital marketing di NGO, social impact, education, dan campaign growth.
+                  Civic Resource Hub untuk CSO Akar Rumput, dibangun dari pengalaman 20B+ budget digital marketing di NGO, social impact, education, dan campaign growth.
                 </span>
               </div>
             </div>
@@ -208,15 +208,16 @@ export default function Index() {
 
         <section id="problem" className="py-20 md:py-24">
           <div className="container">
-            <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+                        <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
               <div>
                 <Badge variant="outline" className="mb-4">Problem</Badge>
                 <h2 className="text-h2">NGO bukan miskin tools. NGO sering kali miskin sistem.</h2>
               </div>
               <Card className="border-border/70 p-6 shadow-card md:p-8">
                 <p className="text-body text-muted-foreground">
-                  Canva Pro sudah ada. Google Ads Grant sudah aktif. Workspace sudah dipakai. Tapi proposal masih mulai
-                  dari nol, donor masih tercecer, laporan impact dibuat saat diminta, dan campaign sering dimulai dari panik.
+                  Canva Pro sudah ada. Google Ads Grant sudah aktif. Workspace sudah dipakai. Tapi civil society resource access
+                  belum terpetakan, proposal masih mulai dari nol, donor masih tercecer, laporan impact dibuat saat diminta,
+                  dan campaign sering dimulai dari panik.
                 </p>
                 <p className="mt-5 text-h4 text-primary">Tools adalah bahan bakar. Sistem adalah mesin.</p>
               </Card>
@@ -230,7 +231,7 @@ export default function Index() {
               <Badge variant="outline" className="mb-4 border-primary/20 text-primary">Framework</Badge>
               <h2 className="text-h2">G.R.O.W.T.H. System</h2>
               <p className="mt-3 text-subheading">
-                Enam lapisan operasi untuk mengubah grant digital menjadi growth dan impact yang bisa diulang.
+                Enam lapisan operasi untuk mengubah grant digital, resource mapping, proposal workflow, dan monthly reporting menjadi growth dan impact yang bisa diulang.
               </p>
             </div>
             <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -251,7 +252,7 @@ export default function Index() {
           <div className="container">
             <div className="max-w-3xl">
               <Badge variant="outline" className="mb-4">Product Modules</Badge>
-              <h2 className="text-h2">Dari diagnosis sampai laporan impact.</h2>
+              <h2 className="text-h2">Dari grant readiness sampai laporan impact.</h2>
             </div>
             <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {productModules.map((module) => {
@@ -296,7 +297,7 @@ export default function Index() {
           <div className="container">
             <div className="max-w-3xl">
               <Badge className="mb-4 border-white/20 bg-white/10 text-white hover:bg-white/10">Trust Doctrine</Badge>
-              <h2 className="text-h2 text-white">AI mempercepat draft. Manusia memastikan akurasi.</h2>
+              <h2 className="text-h2 text-white">Safe AI mempercepat draft. Manusia memastikan akurasi.</h2>
             </div>
             <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {trustCards.map((card) => (
@@ -310,12 +311,12 @@ export default function Index() {
           </div>
         </section>
 
-        <section className="py-20 md:py-24">
+                <section className="py-20 md:py-24">
           <div className="container">
             <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
               <div>
                 <Badge variant="outline" className="mb-4">90-Day Plan</Badge>
-                <h2 className="text-h2">Bangun sistem NGO Anda dalam 90 hari.</h2>
+                <h2 className="text-h2">Bangun sistem NGO, CSO, dan komunitas akar rumput Anda dalam 90 hari.</h2>
                 <Button asChild className="mt-6">
                   <Link to="/dashboard/readiness">
                     Mulai dari Readiness Scorecard
@@ -342,9 +343,12 @@ export default function Index() {
                 <Badge variant="outline" className="mb-4">Founder Authority</Badge>
                 <h2 className="text-h2">Dibangun dari pengalaman operator.</h2>
                 <p className="mt-4 text-body text-muted-foreground">
-                  Impactory.id lahir dari pengalaman mengelola 20B+ budget digital marketing lintas NGO, social impact,
-                  education, dan brand growth — serta kerja founder-operator di BisaBaik.or.id, Little Champ Daycare,
-                  dan Immersia Konsultan Impact.
+                  Impactory.id dikembangkan sebagai inisiatif civic technology oleh Yayasan Rumah Pembangunan Berkelanjutan
+                  untuk memperkuat akses sumber daya, dokumentasi dampak, dan kapasitas kerja organisasi masyarakat sipil di Indonesia.
+                  Pengembangan awalnya didukung oleh pengalaman operator dari Immersia Konsultan Impact dalam mengelola 20B+ budget
+                  digital marketing lintas NGO, social impact, education, campaign growth, dan sistem kerja digital untuk organisasi sosial.
+                  Dalam fase pilot, Impactory.id dapat digunakan untuk mendampingi CSO dan komunitas terpilih melalui klinik,
+                  template, workflow, dan human-reviewed AI assistance.
                 </p>
               </div>
             </Card>
@@ -353,13 +357,13 @@ export default function Index() {
 
         <section className="py-20 md:py-24">
           <div className="container">
-            <Card className="overflow-hidden border-border/70 bg-gradient-hero p-6 text-white shadow-elegant md:p-10">
+                        <Card className="overflow-hidden border-border/70 bg-gradient-hero p-6 text-white shadow-elegant md:p-10">
               <div className="flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
                 <div>
                   <h2 className="text-h2 text-white">Mulai dari baseline. Bangun sistemnya.</h2>
                   <p className="mt-3 max-w-2xl text-sm leading-6 text-white/80 md:text-base">
-                    Gunakan Readiness Scorecard sebagai titik awal, lalu rapikan pipeline, library, proposal, campaign,
-                    dan laporan impact.
+                    Gunakan Readiness Scorecard sebagai titik awal, lalu rapikan Grant Pipeline, library, proposal workflow,
+                    campaign, impact documentation, dan monthly reporting untuk organisasi sosial.
                   </p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row md:shrink-0">
@@ -367,7 +371,7 @@ export default function Index() {
                     <Link to="/dashboard/readiness">Mulai Readiness Scorecard</Link>
                   </Button>
                   <Button asChild size="lg" className="border border-white/30 bg-white/10 text-white hover:bg-white/20">
-                    <Link to="/dashboard">Masuk Dashboard</Link>
+                    <Link to="/dashboard/grantfinder">Lihat Grant Pipeline</Link>
                   </Button>
                 </div>
               </div>
