@@ -39,7 +39,7 @@ Frontend NEVER sees the Azure key. Every AI call is proxied through edge functio
    - Region: choose one that has the model you want. `swedencentral`, `eastus2`, and `westus3` typically have the freshest models.
    - Pricing tier: Standard S0.
 3. After deployment, open the resource → **Resource Management → Keys and Endpoint**. Copy:
-   - **Endpoint** (e.g. `https://impactory-ai.openai.azure.com/`)
+   - **Endpoint** (e.g. `https://<your-azure-openai-resource>.openai.azure.com/`)
    - **KEY 1** (treat as a password — never paste it in chat or commit it)
 4. Open the **Azure AI Foundry portal** (link from your resource) → **Deployments → Create new deployment**:
    - **Chat model**: pick the latest GPT model your subscription has access to. Give it a deployment name like `gpt-chat`. Note this name — you will use it as `AZURE_FOUNDRY_CHAT_DEPLOYMENT`.
@@ -56,7 +56,7 @@ Frontend NEVER sees the Azure key. Every AI call is proxied through edge functio
 
 | Name | Example value |
 |---|---|
-| `AZURE_FOUNDRY_ENDPOINT` | `https://impactory-ai.openai.azure.com` |
+| `AZURE_FOUNDRY_ENDPOINT` | `https://<your-azure-openai-resource>.openai.azure.com` |
 | `AZURE_FOUNDRY_API_KEY` | (KEY 1 from step 2.3) |
 | `AZURE_FOUNDRY_CHAT_DEPLOYMENT` | `gpt-chat` (the deployment name from step 2.4) |
 | `AZURE_FOUNDRY_EMBED_DEPLOYMENT` | `text-embed` |

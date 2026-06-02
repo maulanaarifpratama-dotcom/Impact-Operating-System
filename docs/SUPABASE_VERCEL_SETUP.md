@@ -29,8 +29,8 @@ that a single push to `main` automatically deploys both the frontend
         \__________________ HTTPS calls __________________/
                               |
                               v
-                Supabase project: supabase-cobalt-compass
-                ref: uncsvkvkaijzydndyutp
+                Supabase project: <your-supabase-project-name>
+                ref: <your-project-ref>
                               |
                               v (server-side)
                      Azure AI Foundry
@@ -51,7 +51,7 @@ that a single push to `main` automatically deploys both the frontend
 | Name | Description | Where to get it |
 |---|---|---|
 | `SUPABASE_ACCESS_TOKEN` | Personal access token for Supabase CLI | https://supabase.com/dashboard/account/tokens |
-| `SUPABASE_PROJECT_ID` | Project ref (`uncsvkvkaijzydndyutp`) | Supabase Dashboard URL |
+| `SUPABASE_PROJECT_ID` | Project ref (`<your-project-ref>`) | Supabase Dashboard URL |
 
 The workflow triggers on:
 - `push` to `main` that touches `supabase/functions/**`, `supabase/config.toml`, or the workflow file itself.
@@ -63,10 +63,10 @@ for each one.
 
 ### 2. Supabase project
 
-- **Project:** `supabase-cobalt-compass`
-- **Ref:** `uncsvkvkaijzydndyutp`
-- **URL:** `https://uncsvkvkaijzydndyutp.supabase.co`
-- **Dashboard:** [Supabase Dashboard](https://supabase.com/dashboard/project/uncsvkvkaijzydndyutp)
+- **Project:** `<your-supabase-project-name>`
+- **Ref:** `<your-project-ref>`
+- **URL:** `https://<your-project-ref>.supabase.co`
+- **Dashboard:** `https://supabase.com/dashboard/project/<your-project-ref>`
 
 #### Edge functions (deployed automatically)
 
@@ -89,7 +89,7 @@ These are the env vars that `Deno.env.get(...)` reads at runtime.
 
 | Name | Used by | Notes |
 |---|---|---|
-| `AZURE_FOUNDRY_ENDPOINT` | `_shared/foundry.ts` | e.g. `https://impactory-ai.openai.azure.com` |
+| `AZURE_FOUNDRY_ENDPOINT` | `_shared/foundry.ts` | e.g. `https://<your-azure-openai-resource>.openai.azure.com` |
 | `AZURE_FOUNDRY_API_KEY` | `_shared/foundry.ts` | Azure resource key |
 | `AZURE_FOUNDRY_CHAT_DEPLOYMENT` | `_shared/foundry.ts` | Chat deployment name (canonical) |
 | `AZURE_FOUNDRY_DEPLOYMENT` | `_shared/foundry.ts` | Legacy alias for chat deployment (still accepted as fallback) |
@@ -115,7 +115,7 @@ defer indefinitely.
 
 | Name | Scope | Sensitive | Notes |
 |---|---|---|---|
-| `VITE_SUPABASE_URL` | Production + Preview | Yes (per Vercel default) | `https://uncsvkvkaijzydndyutp.supabase.co` |
+| `VITE_SUPABASE_URL` | Production + Preview | Yes (per Vercel default) | `https://<your-project-ref>.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | Production + Preview | Yes | Anon (publishable) JWT — protected by RLS |
 
 Because the prefix is `VITE_`, Vite bundles these into the client-side
