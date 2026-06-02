@@ -1,5 +1,5 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
-import { corsHeaders, handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
+import { handleCors, jsonResponse } from '../_shared/cors.ts';
 
 serve(async (req) => {
     const cors = handleCors(req);
@@ -11,19 +11,18 @@ serve(async (req) => {
               const chatDeployment = Deno.env.get('AZURE_FOUNDRY_CHAT_DEPLOYMENT') || Deno.env.get('AZURE_FOUNDRY_DEPLOYMENT') || '';
               const apiVersion = Deno.env.get('AZURE_FOUNDRY_API_VERSION') || '2024-10-21';
 
-      const status = {
-              hasEndpoint: !!endpoint,
-              hasApiKey: !!apiKey,
-              hasChatDeployment: !!chatDeployment,
-              hasApiVersion: !!apiVersion,
-              deploymentName: chatDeployment,
-              apiVersion: apiVersion,
-      };
+      const configured = !!endpoint && !!apiKey && !!chatDeployment;
 
-      if (!endpoint || !apiKey || !chatDeployment) {
+      if (!configured) {
+              console.warn('[foundry-health] missing required Foundry environment variables', {
+                        hasEndpoint: !!endpoint,
+                        hasApiKey: !!apiKey,
+                        hasChatDeployment: !!chatDeployment,
+                        hasApiVersion: !!apiVersion,
+              });
               return jsonResponse({
-                        error: 'Missing required Foundry environment variables',
-                        status,
+                        success: false,
+                        configured: false,
               }, 500);
       }
 
@@ -47,25 +46,25 @@ serve(async (req) => {
 
       if (!res.ok) {
               const errText = await res.text();
+              console.warn('[foundry-health] Foundry health check failed', {
+                        statusCode: res.status,
+                        errorBodyPreview: errText.slice(0, 300),
+              });
               return jsonResponse({
                         success: false,
-                        status,
-                        statusCode: res.status,
-                        errorBody: errText,
+                        configured: true,
               }, 500);
       }
 
-      const data = await res.json();
-              const reply = data?.choices?.[0]?.message?.content ?? '';
-              return jsonResponse({
-                      success: true,
-                      status,
-                      statusCode: res.status,
-                      reply,
-                      usage: data?.usage,
-                      model: data?.model,
-              });
+      return jsonResponse({
+              success: true,
+              configured: true,
+      });
         } catch (err) {
-              return errorResponse(`Server error: ${(err as Error).message}`, 500);
+              console.error('[foundry-health] server error', { message: (err as Error).message });
+              return jsonResponse({
+                        success: false,
+                        configured: false,
+              }, 500);
         }
 });
