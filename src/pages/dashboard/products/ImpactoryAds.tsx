@@ -226,7 +226,7 @@ export default function ImpactoryAds() {
         });
 
         if (error || !used || variants.length === 0) {
-          console.error(`[ads] Edge function failed for ${p}:`, error);
+          console.error(`[ads] Edge function failed for ${p}:`, error || 'unknown error');
           failed.push(p);
           if (error) errorMessages.push(`${p}: ${error}`);
           // Do NOT silently substitute template variants. Push an empty

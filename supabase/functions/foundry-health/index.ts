@@ -14,12 +14,7 @@ serve(async (req) => {
       const configured = !!endpoint && !!apiKey && !!chatDeployment;
 
       if (!configured) {
-              console.warn('[foundry-health] missing required Foundry environment variables', {
-                        hasEndpoint: !!endpoint,
-                        hasApiKey: !!apiKey,
-                        hasChatDeployment: !!chatDeployment,
-                        hasApiVersion: !!apiVersion,
-              });
+              console.warn('[foundry-health] missing required Foundry environment variables');
               return jsonResponse({
                         success: false,
                         configured: false,
@@ -45,11 +40,7 @@ serve(async (req) => {
       });
 
       if (!res.ok) {
-              const errText = await res.text();
-              console.warn('[foundry-health] Foundry health check failed', {
-                        statusCode: res.status,
-                        errorBodyPreview: errText.slice(0, 300),
-              });
+              console.warn('[foundry-health] Foundry health check failed:', res.status);
               return jsonResponse({
                         success: false,
                         configured: true,
@@ -61,7 +52,7 @@ serve(async (req) => {
               configured: true,
       });
         } catch (err) {
-              console.error('[foundry-health] server error', { message: (err as Error).message });
+              console.error('[foundry-health] server error:', (err as Error).message || 'unknown error');
               return jsonResponse({
                         success: false,
                         configured: false,

@@ -120,11 +120,7 @@ export default function GrantWriterQuickWizard() {
         }
       }
 
-      console.error(
-        '[grant-writer-quick] Foundry edge function failed.',
-        fnError,
-        errorMessage,
-      );
+      console.error('[grant-writer-quick] Foundry edge function failed:', errorMessage);
 
       // Surface the failure clearly. Do NOT persist any local/mock
       // markdown to gw_lfa_documents. Do NOT navigate to the proposal

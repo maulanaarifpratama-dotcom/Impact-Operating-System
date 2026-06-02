@@ -128,8 +128,7 @@ export async function chatCompletion(req: ChatCompletionRequest): Promise<ChatCo
   });
 
   if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Foundry chat error ${res.status}: ${errText.slice(0, 500)}`);
+        throw new Error(`Foundry chat error ${res.status}`);
   }
 
   return await res.json();
@@ -162,8 +161,7 @@ export async function* chatCompletionStream(
   });
 
   if (!res.ok || !res.body) {
-        const errText = res.body ? await res.text() : `HTTP ${res.status}`;
-        throw new Error(`Foundry stream error ${res.status}: ${String(errText).slice(0, 500)}`);
+        throw new Error(`Foundry stream error ${res.status}`);
   }
 
   const reader = res.body.getReader();
@@ -218,8 +216,7 @@ export async function embed(input: string | string[]): Promise<EmbeddingResponse
   });
 
   if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`Foundry embed error ${res.status}: ${errText.slice(0, 500)}`);
+        throw new Error(`Foundry embed error ${res.status}`);
   }
 
   return await res.json();
@@ -242,13 +239,7 @@ export async function chatJson<T = unknown>(req: Omit<ChatCompletionRequest, 're
   const finishReason = choice?.finish_reason ?? 'unknown';
   // Defensive diagnostics — never logs secrets, only response shape.
   if (!raw || raw.trim().length === 0) {
-    console.error('[foundry] chatJson empty content', {
-      model: res.model,
-      finish_reason: finishReason,
-      raw_length: raw.length,
-      prompt_tokens: res.usage?.prompt_tokens,
-      completion_tokens: res.usage?.completion_tokens,
-    });
+    console.error('[foundry] chatJson empty content:', finishReason);
     throw new Error(
       `Foundry returned empty content (finish_reason=${finishReason}, model=${res.model}, completion_tokens=${res.usage?.completion_tokens ?? 0}). ` +
       'This usually means the completion budget was consumed by reasoning before any visible output was emitted. Increase max_tokens for this call.',
@@ -258,11 +249,7 @@ export async function chatJson<T = unknown>(req: Omit<ChatCompletionRequest, 're
   try {
     data = JSON.parse(raw) as T;
   } catch (err) {
-    console.error('[foundry] chatJson invalid JSON', {
-      model: res.model,
-      finish_reason: finishReason,
-      raw_length: raw.length,
-    });
+    console.error('[foundry] chatJson invalid JSON:', finishReason);
     throw new Error(`Foundry returned invalid JSON: ${(err as Error).message}\n--- raw ---\n${raw.slice(0, 800)}`);
   }
   return { data, usage: res.usage, model: res.model };
@@ -292,12 +279,7 @@ export async function foundryJSON<T = unknown>(
   const raw = choice?.message?.content ?? '';
   const finishReason = choice?.finish_reason ?? 'unknown';
   if (!raw || raw.trim().length === 0) {
-    console.error('[foundry] foundryJSON empty content', {
-      model: res.model,
-      finish_reason: finishReason,
-      raw_length: raw.length,
-      completion_tokens: res.usage?.completion_tokens,
-    });
+    console.error('[foundry] foundryJSON empty content:', finishReason);
     throw new Error(
       `Foundry returned empty content (finish_reason=${finishReason}, model=${res.model}, completion_tokens=${res.usage?.completion_tokens ?? 0}). ` +
       'This usually means the completion budget was consumed by reasoning before any visible output was emitted. Increase max_tokens for this call.',

@@ -5,11 +5,16 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
 if (!supabaseUrl || !supabaseAnonKey) {
+  const message =
+    '[Impactory] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Set them in .env.local (dev) and Vercel env vars (prod).';
+
+  if (import.meta.env.PROD) {
+    throw new Error(message);
+  }
+
   // Fail loud in dev — this is a misconfiguration, not a runtime bug.
   // eslint-disable-next-line no-console
-  console.error(
-    '[Impactory] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Set them in .env.local (dev) and Vercel env vars (prod).',
-  );
+  console.error(message);
 }
 
 export const supabase = createClient<Database>(

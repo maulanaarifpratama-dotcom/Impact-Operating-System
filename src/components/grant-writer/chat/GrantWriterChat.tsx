@@ -58,8 +58,7 @@ async function streamFromEdge(opts: {
   });
 
   if (!resp.ok) {
-    const errText = await resp.text();
-    throw new Error(`Edge Function error ${resp.status}: ${errText}`);
+    throw new Error(`Edge Function error ${resp.status}`);
   }
   if (!resp.body) throw new Error('Edge Function returned no body');
 
@@ -226,10 +225,11 @@ export function GrantWriterChat({
             },
           });
         } catch (edgeErr) {
-          console.error('[grant-writer-chat] Edge function failed:', edgeErr);
+          const message = (edgeErr as Error).message || 'unknown error';
+          console.error('[grant-writer-chat] Edge function failed:', message);
           toast({
             title: 'Koneksi ke Grant Writer AI gagal',
-            description: String(edgeErr),
+            description: message,
             variant: 'destructive',
           });
         }

@@ -184,7 +184,7 @@ Deno.serve(async (req: Request) => {
       .eq('is_current', true);
     
     if (unsetErr) {
-      console.error('Failed to unset previous current document:', unsetErr);
+      console.error('Failed to unset previous current document:', unsetErr.message || 'unknown error');
       throw new Error(`Failed to update existing documents: ${unsetErr.message}`);
     }
 
@@ -239,7 +239,7 @@ Deno.serve(async (req: Request) => {
     if (err instanceof AuthError) {
       return errorResponse(err.message, err.status);
     }
-    console.error('grant-writer-generate error:', err);
+    console.error('grant-writer-generate error:', (err as Error).message || 'unknown error');
     return errorResponse((err as Error).message ?? 'Internal error', 500);
   }
 });
