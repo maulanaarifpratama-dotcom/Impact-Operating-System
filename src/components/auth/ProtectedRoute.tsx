@@ -31,7 +31,9 @@ export function ProtectedRoute({ children, requireOrg = true }: ProtectedRoutePr
     enabled: !!user?.id,
   });
 
-  if (authLoading || (session && orgLoading)) {
+  const isLoading = authLoading || (!!session && (!user || orgLoading));
+
+  if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
