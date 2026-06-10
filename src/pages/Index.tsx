@@ -173,34 +173,48 @@ export default function Index() {
           <div aria-hidden className="absolute -right-48 -top-48 h-[520px] w-[520px] rounded-full bg-primary/10 blur-3xl" />
           <div aria-hidden className="absolute -bottom-56 -left-48 h-[520px] w-[520px] rounded-full bg-accent/10 blur-3xl" />
           <div className="container relative py-20 md:py-28">
-                        <div className="max-w-4xl">
-              <Badge variant="outline" className="border-primary/20 bg-background/70 text-primary animate-fade-in-up">
-                NGO Growth Operating System
-              </Badge>
-              <h1 className="opacity-0 animate-fade-in-up delay-100 mt-6 max-w-3xl text-display text-foreground">
-                Grant Banyak. Sistem Belum Ada.
-              </h1>
-              <p className="opacity-0 animate-fade-in-up delay-200 mt-6 max-w-3xl text-subheading">
-                Impactory.id adalah civic technology resource hub dan NGO Growth Operating System untuk membantu CSO,
-                NGO, organisasi sosial, dan komunitas akar rumput mengubah grant digital, dokumen, proposal workflow,
-                campaign, donor, dan laporan impact menjadi sistem kerja yang rapi, terukur, dan bisa diulang.
-              </p>
-              <div className="opacity-0 animate-fade-in-up delay-300 mt-8 flex flex-col gap-3 sm:flex-row">
-                <Button asChild size="lg" className="shadow-elegant transition-all duration-300 hover:scale-[1.03] hover:shadow-glow">
-                  <Link to="/dashboard/readiness">
-                    Mulai Readiness Scorecard
-                    <ArrowRight className="ml-1 h-4 w-4" />
-                  </Link>
-                </Button>
-                <Button asChild size="lg" variant="outline" className="transition-all duration-300 hover:bg-secondary/40">
-                  <a href="#growth-system">Lihat G.R.O.W.T.H. System</a>
-                </Button>
+            <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
+              <div className="max-w-3xl lg:col-span-7">
+                <Badge variant="outline" className="border-primary/20 bg-background/70 text-primary animate-fade-in-up">
+                  NGO Growth Operating System
+                </Badge>
+                <h1 className="opacity-0 animate-fade-in-up delay-100 mt-6 text-display text-foreground">
+                  Grant Banyak. Sistem Belum Ada.
+                </h1>
+                <p className="opacity-0 animate-fade-in-up delay-200 mt-6 text-subheading">
+                  Impactory.id adalah civic technology resource hub dan NGO Growth Operating System untuk membantu CSO,
+                  NGO, organisasi sosial, dan komunitas akar rumput mengubah grant digital, dokumen, proposal workflow,
+                  campaign, donor, dan laporan impact menjadi sistem kerja yang rapi, terukur, dan bisa diulang.
+                </p>
+                <div className="opacity-0 animate-fade-in-up delay-300 mt-8 flex flex-col gap-3 sm:flex-row">
+                  <Button asChild size="lg" className="shadow-elegant transition-all duration-300 hover:scale-[1.03] hover:shadow-glow">
+                    <Link to="/dashboard/readiness">
+                      Mulai Readiness Scorecard
+                      <ArrowRight className="ml-1 h-4 w-4" />
+                    </Link>
+                  </Button>
+                  <Button asChild size="lg" variant="outline" className="transition-all duration-300 hover:bg-secondary/40">
+                    <a href="#growth-system">Lihat G.R.O.W.T.H. System</a>
+                  </Button>
+                </div>
+                <div className="opacity-0 animate-fade-in-up delay-400 mt-8 inline-flex max-w-2xl items-start gap-3 rounded-2xl border border-border bg-card/80 p-4 text-sm text-muted-foreground shadow-card transition-all duration-300 hover:shadow-elegant hover:border-primary/25">
+                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent animate-pulse-glow" />
+                  <span>
+                    Civic Resource Hub untuk CSO Akar Rumput, dibangun dari pengalaman 20B+ budget digital marketing di NGO, social impact, education, dan campaign growth.
+                  </span>
+                </div>
               </div>
-              <div className="opacity-0 animate-fade-in-up delay-400 mt-8 inline-flex max-w-2xl items-start gap-3 rounded-2xl border border-border bg-card/80 p-4 text-sm text-muted-foreground shadow-card transition-all duration-300 hover:shadow-elegant hover:border-primary/25">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent animate-pulse-glow" />
-                <span>
-                  Civic Resource Hub untuk CSO Akar Rumput, dibangun dari pengalaman 20B+ budget digital marketing di NGO, social impact, education, dan campaign growth.
-                </span>
+              
+              {/* Premium Dashboard Hero Mockup Image */}
+              <div className="opacity-0 animate-fade-in-up delay-300 lg:col-span-5 relative flex items-center justify-center">
+                <div className="relative group w-full max-w-[480px] aspect-[4/3] rounded-2xl overflow-hidden border border-[#155F66]/30 shadow-elegant bg-[#0B252E] hover:border-[#155F66]/60 hover:shadow-glow transition-all duration-500">
+                  <div className="absolute inset-0 bg-gradient-to-tr from-[#155F66]/10 to-transparent pointer-events-none z-10" />
+                  <img
+                    src="/hero-visual.png"
+                    alt="Impactory NGO Growth Operating System"
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+                  />
+                </div>
               </div>
             </div>
           </div>
