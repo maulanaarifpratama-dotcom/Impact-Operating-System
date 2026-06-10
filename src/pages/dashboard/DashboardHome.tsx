@@ -6,6 +6,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { cn } from '@/lib/utils';
 import {
   ArrowRight,
   BarChart3,
@@ -319,7 +320,7 @@ export default function DashboardHome() {
   // Compute live scores and next actions
   const scoreResult = useMemo(() => {
     const categoryScores = CATEGORIES.map((category, order) => {
-      const score = Array.from({ length: category.itemsCount }).reduce((sum, _, index) => {
+      const score = Array.from({ length: category.itemsCount }).reduce<number>((sum, _, index) => {
         const key = `${category.code}-${index}`;
         return sum + (scores[key] ?? 0);
       }, 0);
@@ -334,7 +335,7 @@ export default function DashboardHome() {
       };
     });
 
-    const total = categoryScores.reduce((sum, category) => sum + category.score, 0);
+    const total = categoryScores.reduce<number>((sum, category) => sum + category.score, 0);
     const hasScores = Object.keys(scores).length > 0;
 
     // Determine Top 3 lowest ratio categories to trigger dynamic action steps
@@ -343,7 +344,7 @@ export default function DashboardHome() {
       .slice(0, 3);
 
     const dynamicActions = hasScores
-      ? lowestCategories.map((cat) => ACTIONS[category.code as GrowthCode] || ACTIONS[cat.code])
+      ? lowestCategories.map((cat) => ACTIONS[cat.code as GrowthCode] || ACTIONS[cat.code])
       : [
           'Jawab pertanyaan audit di halaman G.R.O.W.T.H. Readiness Scorecard.',
           'Identifikasi level operasional baseline Anda sebelum mengaktifkan AI tools.',
