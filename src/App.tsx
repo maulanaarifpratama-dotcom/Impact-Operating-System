@@ -23,6 +23,7 @@ import GrantWriterQuickWizard from './pages/dashboard/grant-writer/GrantWriterQu
 import ImpactoryLibrary from './pages/dashboard/products/ImpactoryLibrary';
 import Grantfinder from './pages/dashboard/products/Grantfinder';
 import ImpactoryAds from './pages/dashboard/products/ImpactoryAds';
+import Onboarding from './pages/auth/Onboarding';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -44,6 +45,14 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route
+              path="/onboarding"
+              element={
+                <ProtectedRoute requireOrg={false}>
+                  <Onboarding />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Top-level aliases for product pages (redirect to /dashboard/*) */}
             <Route path="/grant-writer" element={<Navigate to="/dashboard/grant-writer" replace />} />
