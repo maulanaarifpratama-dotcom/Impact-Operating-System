@@ -321,3 +321,73 @@
 .delay-400 { animation-delay: 400ms; }
 .delay-500 { animation-delay: 500ms; }
 
+/* Custom floating animations for floating UI chips */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@keyframes floatDelayed {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(6px);
+  }
+}
+
+.animate-float {
+  animation: float 4.5s ease-in-out infinite;
+}
+
+.animate-float-delayed {
+  animation: floatDelayed 5s ease-in-out infinite;
+}
+
+/* Subtle background atmosphere keyframes and utilities */
+@keyframes pulseGlowSubtle {
+  0%, 100% {
+    opacity: 0.12;
+    transform: scale(1) translate(0px, 0px);
+  }
+  50% {
+    opacity: 0.22;
+    transform: scale(1.08) translate(8px, -8px);
+  }
+}
+
+@keyframes pulseGlowSubtleDelayed {
+  0%, 100% {
+    opacity: 0.08;
+    transform: scale(1) translate(0px, 0px);
+  }
+  50% {
+    opacity: 0.16;
+    transform: scale(1.06) translate(-8px, 8px);
+  }
+}
+
+.animate-pulse-glow-subtle {
+  animation: pulseGlowSubtle 8s infinite ease-in-out;
+}
+
+.animate-pulse-glow-subtle-delayed {
+  animation: pulseGlowSubtleDelayed 10s infinite ease-in-out;
+}
+
+.bg-grid-pattern {
+  background-size: 32px 32px;
+  background-image: 
+    linear-gradient(to right, hsl(var(--primary) / 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--primary) / 0.05) 1px, transparent 1px);
+}
+
+.mask-radial {
+  mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
+  -webkit-mask-image: radial-gradient(circle at center, black 40%, transparent 80%);
+}
+

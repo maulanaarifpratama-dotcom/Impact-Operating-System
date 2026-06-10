@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, CheckCircle2, FileText, LibraryBig, Megaphone, Search, ShieldCheck } from 'lucide-react';
+import { ArrowRight, BookOpen, CheckCircle2, FileText, LibraryBig, Megaphone, Search, ShieldCheck, Sparkles, TrendingUp } from 'lucide-react';
 import { Navbar } from '@/components/landing/Navbar';
 import { Footer } from '@/components/landing/Footer';
 import { Button } from '@/components/ui/button';
@@ -170,8 +170,14 @@ export default function Index() {
       <Navbar />
       <main>
         <section className="relative overflow-hidden border-b border-border/70 bg-gradient-subtle">
-          <div aria-hidden className="absolute -right-48 -top-48 h-[520px] w-[520px] rounded-full bg-primary/10 blur-3xl" />
-          <div aria-hidden className="absolute -bottom-56 -left-48 h-[520px] w-[520px] rounded-full bg-accent/10 blur-3xl" />
+          {/* Elegant faint grid overlay representing modern SaaS operational operating system blueprint */}
+          <div aria-hidden className="absolute inset-0 bg-grid-pattern mask-radial opacity-60 pointer-events-none" />
+
+          {/* Soft layered, breathing radial glows for hero ambient depth */}
+          <div aria-hidden className="absolute -right-48 -top-48 h-[600px] w-[600px] rounded-full bg-primary/15 blur-[120px] animate-pulse-glow-subtle pointer-events-none" />
+          <div aria-hidden className="absolute -bottom-56 -left-48 h-[600px] w-[600px] rounded-full bg-accent/10 blur-[120px] animate-pulse-glow-subtle-delayed pointer-events-none" />
+          <div aria-hidden className="absolute right-[10%] top-[20%] h-[400px] w-[400px] rounded-full bg-primary/10 blur-[100px] pointer-events-none" />
+          
           <div className="container relative py-20 md:py-28">
             <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
               <div className="max-w-3xl lg:col-span-7">
@@ -187,13 +193,13 @@ export default function Index() {
                   campaign, donor, dan laporan impact menjadi sistem kerja yang rapi, terukur, dan bisa diulang.
                 </p>
                 <div className="opacity-0 animate-fade-in-up delay-300 mt-8 flex flex-col gap-3 sm:flex-row">
-                  <Button asChild size="lg" className="shadow-elegant transition-all duration-300 hover:scale-[1.03] hover:shadow-glow">
+                  <Button asChild size="lg" className="shadow-elegant transition-all duration-300 hover:-translate-y-0.5 hover:scale-[1.02] hover:shadow-glow">
                     <Link to="/dashboard/readiness">
                       Mulai Readiness Scorecard
                       <ArrowRight className="ml-1 h-4 w-4" />
                     </Link>
                   </Button>
-                  <Button asChild size="lg" variant="outline" className="transition-all duration-300 hover:bg-secondary/40">
+                  <Button asChild size="lg" variant="outline" className="transition-all duration-300 hover:-translate-y-0.5 hover:bg-secondary/40 hover:shadow-sm">
                     <a href="#growth-system">Lihat G.R.O.W.T.H. System</a>
                   </Button>
                 </div>
@@ -205,9 +211,56 @@ export default function Index() {
                 </div>
               </div>
               
-              {/* Premium Dashboard Hero Mockup Image */}
-              <div className="opacity-0 animate-fade-in-up delay-300 lg:col-span-5 relative flex items-center justify-center">
-                <div className="relative group w-full max-w-[480px] aspect-[4/3] rounded-2xl overflow-hidden border border-[#155F66]/30 shadow-elegant bg-[#0B252E] hover:border-[#155F66]/60 hover:shadow-glow transition-all duration-500">
+              {/* Premium Dashboard Hero Mockup Image with floating micro-stat chips */}
+              <div className="opacity-0 animate-fade-in-up delay-300 lg:col-span-5 relative flex items-center justify-center py-6">
+                {/* Glowing back-aura behind the hero image card */}
+                <div className="absolute -inset-2 bg-gradient-to-tr from-primary/10 via-accent/5 to-primary/20 rounded-3xl blur-2xl opacity-60 pointer-events-none" />
+                
+                {/* Floating Chip 1: Live 72 active grant opportunities */}
+                <div className="absolute -top-3 -left-4 z-20 opacity-0 animate-fade-in-up delay-400 pointer-events-none">
+                  <div className="animate-float flex items-center gap-2.5 rounded-xl border border-[#155F66]/20 bg-background/95 backdrop-blur-md px-3.5 py-2.5 shadow-elegant text-xs font-semibold text-foreground">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    <span>72 Peluang Grant Aktif</span>
+                  </div>
+                </div>
+
+                {/* Floating Chip 2: SDG Indicator / Partnership alignment */}
+                <div className="absolute -bottom-6 -left-2 z-20 opacity-0 animate-fade-in-up delay-500 pointer-events-none">
+                  <div className="animate-float-delayed flex flex-col gap-1 rounded-xl border border-border/80 bg-background/95 backdrop-blur-md p-3 shadow-elegant text-xs">
+                    <div className="flex items-center gap-2 font-bold text-foreground">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[#155F66]/15 text-[#155F66]">
+                        <ShieldCheck className="h-3 w-3" />
+                      </span>
+                      <span>SDG-Aligned Pipeline</span>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground font-medium pl-7">
+                      Target 17.17 mapped • Ready
+                    </div>
+                  </div>
+                </div>
+
+                {/* Floating Chip 3: AI Confidence Match Progress Score */}
+                <div className="absolute top-12 -right-6 z-20 opacity-0 animate-fade-in-up delay-600 pointer-events-none">
+                  <div className="animate-float flex flex-col gap-1.5 rounded-xl border border-border/80 bg-background/95 backdrop-blur-md p-3 shadow-elegant text-xs">
+                    <div className="flex items-center gap-2 font-bold text-foreground">
+                      <Sparkles className="h-3.5 w-3.5 text-accent animate-pulse" />
+                      <span>AI Match: High Fit</span>
+                    </div>
+                    <div className="h-1.5 w-24 rounded-full bg-secondary overflow-hidden">
+                      <div className="h-full bg-gradient-to-r from-primary to-accent rounded-full animate-shimmer" style={{ width: '94%' }} />
+                    </div>
+                    <div className="flex items-center justify-between text-[9px] text-muted-foreground font-semibold">
+                      <span>Confidence</span>
+                      <span className="text-primary font-bold">94%</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Primary mockup display card with modern layout frame */}
+                <div className="relative group w-full max-w-[480px] aspect-[4/3] rounded-2xl overflow-hidden border border-[#155F66]/30 shadow-elegant bg-[#0B252E] hover:border-[#155F66]/60 hover:shadow-glow transition-all duration-500 hover:-translate-y-1">
                   <div className="absolute inset-0 bg-gradient-to-tr from-[#155F66]/10 to-transparent pointer-events-none z-10" />
                   <img
                     src="/hero-visual.png"
