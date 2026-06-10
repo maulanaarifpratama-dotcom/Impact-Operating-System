@@ -14,7 +14,7 @@ export function ProtectedRoute({ children, requireOrg = true }: ProtectedRoutePr
   const location = useLocation();
 
   // Query organization memberships for the current user
-  const { data: memberships, isLoading: orgLoading } = useQuery({
+  const { data: memberships, isLoading: orgLoading, isError } = useQuery({
     queryKey: ['organization_members', user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
@@ -31,7 +31,11 @@ export function ProtectedRoute({ children, requireOrg = true }: ProtectedRoutePr
     enabled: !!user?.id,
   });
 
-  const isLoading = authLoading || (!!session && (!user || orgLoading));
+  // Safe robust loading check:
+  // We are loading if auth state is initializing, OR
+  // if a session exists but we haven't resolved the user yet, OR
+  // if the memberships query is active or has not returned any data yet.
+  const isLoading = authLoading || (!!session && (!user || orgLoading || (memberships === undefined && !isError)));
 
   if (isLoading) {
     return (
@@ -44,7 +48,7 @@ export function ProtectedRoute({ children, requireOrg = true }: ProtectedRoutePr
     );
   }
 
-  if (!session) {
+  if (!session || !user) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
