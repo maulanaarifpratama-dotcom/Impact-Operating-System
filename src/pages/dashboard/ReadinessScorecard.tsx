@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, RotateCcw } from 'lucide-react';
+import { ArrowRight, RotateCcw, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/providers/AuthProvider';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
 
 type GrowthCode = 'G' | 'R' | 'O' | 'W' | 'T' | 'H';
 
@@ -132,7 +135,42 @@ function itemId(category: GrowthCode, index: number) {
 }
 
 export default function ReadinessScorecard() {
+  const { user } = useAuth();
+
+  const { data: membership, isLoading: isMembershipLoading } = useQuery({
+    queryKey: ['organization_members', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const orgId = membership?.organization_id;
   const [scores, setScores] = useState<Record<string, number>>({});
+
+  // Load persistent scores once orgId is resolved
+  useEffect(() => {
+    if (orgId) {
+      const stored = localStorage.getItem(`impactory_readiness_scores_${orgId}`);
+      if (stored) {
+        try {
+          setScores(JSON.parse(stored));
+        } catch (e) {
+          console.error('[ReadinessScorecard] error parsing stored scores:', e);
+        }
+      } else {
+        setScores({});
+      }
+    }
+  }, [orgId]);
 
   const result = useMemo(() => {
     const categoryScores = CATEGORIES.map((category, order) => {
@@ -163,8 +201,32 @@ export default function ReadinessScorecard() {
   }, [scores]);
 
   const setScore = (id: string, value: number) => {
-    setScores((current) => ({ ...current, [id]: value }));
+    setScores((current) => {
+      const updated = { ...current, [id]: value };
+      if (orgId) {
+        localStorage.setItem(`impactory_readiness_scores_${orgId}`, JSON.stringify(updated));
+      }
+      return updated;
+    });
   };
+
+  const handleReset = () => {
+    setScores({});
+    if (orgId) {
+      localStorage.removeItem(`impactory_readiness_scores_${orgId}`);
+    }
+  };
+
+  if (isMembershipLoading) {
+    return (
+      <div className="flex h-[50vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+          <p className="text-sm text-muted-foreground animate-pulse">Memuat profil organisasi…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -252,7 +314,7 @@ export default function ReadinessScorecard() {
               type="button"
               variant="outline"
               className="mt-4 w-full"
-              onClick={() => setScores({})}
+              onClick={handleReset}
             >
               <RotateCcw className="mr-2 h-4 w-4" /> Reset skor
             </Button>
