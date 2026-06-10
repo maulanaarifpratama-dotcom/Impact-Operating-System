@@ -16,6 +16,7 @@ import DashboardHome from './pages/dashboard/DashboardHome';
 import ReadinessScorecard from './pages/dashboard/ReadinessScorecard';
 import MonthlyImpactReport from './pages/dashboard/MonthlyImpactReport';
 import ResourceAccessTracker from './pages/dashboard/ResourceAccessTracker';
+import DonorCRM from './pages/dashboard/DonorCRM';
 import GrantWriterIndex from './pages/dashboard/grant-writer/GrantWriterIndex';
 import GrantWriterWizard from './pages/dashboard/grant-writer/GrantWriterWizard';
 import GrantWriterProposal from './pages/dashboard/grant-writer/GrantWriterProposal';
@@ -83,6 +84,7 @@ const App = () => (
               <Route path="/dashboard/readiness" element={<ReadinessScorecard />} />
               <Route path="/dashboard/monthly-report" element={<MonthlyImpactReport />} />
               <Route path="/dashboard/resource-access" element={<ResourceAccessTracker />} />
+              <Route path="/dashboard/donor-crm" element={<DonorCRM />} />
               {/* /settings/* + other product routes land in Chunk 3-4 */}
             </Route>
 
