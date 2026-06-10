@@ -57,6 +57,10 @@ export interface LibraryItem {
   tags?: string[];
   /** Mock download/usage count untuk peringkat "Paling Diunduh". */
   downloads?: number;
+  /** Ingestion status from library_documents table */
+  status?: string;
+  /** Consent flag status per document */
+  consent_status?: 'none' | 'implied' | 'written';
 }
 
 export const KIND_TONE: Record<LibraryKind, string> = {

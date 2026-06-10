@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Download, Filter, Search, ShieldAlert, Sparkles, TrendingUp, X } from 'lucide-react';
+import { ArrowRight, BookOpen, Download, Filter, Search, ShieldAlert, Sparkles, TrendingUp, X, Loader2, MessageSquare, Send, Plus, Upload, CheckCircle2, AlertTriangle, AlertCircle, FileText } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Textarea } from '@/components/ui/textarea';
 import {
   Select,
   SelectContent,
@@ -15,7 +16,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { MOCK_LIBRARY } from '@/lib/library/mockItems';
+import { useAuth } from '@/providers/AuthProvider';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { ingestLibraryText, askLibrary, type RagCitation } from '@/lib/library/ai';
+import { toast } from 'sonner';
 import {
   type LibraryItem,
   type LibraryKind,
@@ -119,11 +124,205 @@ const WORKFLOW_CARDS = [
 ];
 
 export default function ImpactoryLibrary() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+
   const [tab, setTab] = useState<LibraryKind | 'all'>('all');
   const [search, setSearch] = useState('');
   const [sectorGroups, setSectorGroups] = useState<SectorGroup[]>([]);
   const [sdg, setSdg] = useState<string>('all');
   const [activeItem, setActiveItem] = useState<LibraryItem | null>(null);
+
+  // Form states for Ingestion
+  const [uploadTitle, setUploadTitle] = useState('');
+  const [uploadText, setUploadText] = useState('');
+  const [uploadUrl, setUploadUrl] = useState('');
+  const [uploadKind, setUploadKind] = useState<LibraryKind>('template');
+  const [uploadConsentStatus, setUploadConsentStatus] = useState<'none' | 'implied' | 'written'>('none');
+  const [uploadYear, setUploadYear] = useState(new Date().getFullYear().toString());
+  const [uploadTags, setUploadTags] = useState('');
+  const [uploadSectors, setUploadSectors] = useState<GrantSector[]>([]);
+  const [uploadSdgs, setUploadSdgs] = useState<number[]>([]);
+  const [isUploading, setIsUploading] = useState(false);
+
+  // Chat states
+  const [chatQuestion, setChatQuestion] = useState('');
+  const [chatHistory, setChatHistory] = useState<{ sender: 'user' | 'assistant'; text: string; citations?: RagCitation[] }[]>([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatActiveDocIds, setChatActiveDocIds] = useState<string[]>([]);
+
+  // Query organization memberships for the current user
+  const { data: membership } = useQuery({
+    queryKey: ['organization_members', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const organizationId = membership?.organization_id;
+
+  // Check if any document is in indexing state
+  const { data: documents, refetch: refetchDocs } = useQuery({
+    queryKey: ['library_documents', organizationId],
+    queryFn: async () => {
+      if (!organizationId) return [];
+      const { data, error } = await (supabase as any)
+        .from('library_documents')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!organizationId,
+  });
+
+  const hasProcessing = useMemo(() => {
+    return documents?.some((doc: any) => doc.status === 'processing' || doc.status === 'uploaded');
+  }, [documents]);
+
+  // If there are indexing files, automatically poll every 4 seconds to show live updates
+  const { data: liveDocs } = useQuery({
+    queryKey: ['library_documents_polled', organizationId, hasProcessing],
+    queryFn: async () => {
+      if (!organizationId) return [];
+      const { data, error } = await (supabase as any)
+        .from('library_documents')
+        .select('*')
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      // Triggers invalidation on main document queries to sync list
+      queryClient.setQueryData(['library_documents', organizationId], data);
+      return data ?? [];
+    },
+    enabled: !!organizationId && hasProcessing,
+    refetchInterval: 4000,
+  });
+
+  // Map backend documents to LibraryItem interface
+  const libraryItems = useMemo<LibraryItem[]>(() => {
+    const list = documents || [];
+    return list.map((doc: any) => {
+      const meta = doc.metadata || {};
+      return {
+        id: doc.id,
+        kind: meta.kind || 'template',
+        title: doc.title,
+        source: doc.source_url || meta.source || 'Upload',
+        year: meta.year || new Date(doc.created_at).getFullYear(),
+        summary: doc.description || meta.summary || '',
+        sectors: meta.sectors || [],
+        sdgs: meta.sdgs || [],
+        region: meta.region || 'Nasional',
+        format: meta.format || (doc.mime_type?.includes('pdf') ? 'pdf' : 'web'),
+        url: doc.source_url || meta.url || '#',
+        readMinutes: meta.readMinutes || 5,
+        featured: !!meta.featured,
+        tags: doc.tags || meta.tags || [],
+        downloads: meta.downloads || 0,
+        status: doc.status,
+        consent_status: meta.consent_status || 'none',
+      };
+    });
+  }, [documents]);
+
+  // Handle doc ingestion submission
+  const handleUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!organizationId) {
+      toast.error('Gagal: ID Organisasi belum diselesaikan');
+      return;
+    }
+    if (!uploadTitle.trim() || !uploadText.trim()) {
+      toast.error('Harap lengkapi Judul dan Isi Dokumen');
+      return;
+    }
+    if (uploadText.trim().length < 50) {
+      toast.error('Isi teks dokumen minimal harus 50 karakter agar dapat dianalisis AI');
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const input = {
+        title: uploadTitle.trim(),
+        text: uploadText.trim(),
+        source_url: uploadUrl.trim() || undefined,
+        tags: uploadTags.split(',').map(t => t.trim()).filter(Boolean),
+        metadata: {
+          kind: uploadKind,
+          consent_status: uploadConsentStatus,
+          year: parseInt(uploadYear) || new Date().getFullYear(),
+          sectors: uploadSectors,
+          sdgs: uploadSdgs,
+          readMinutes: Math.max(1, Math.ceil(uploadText.length / 800) * 2),
+        }
+      };
+
+      const res = await ingestLibraryText(input);
+      if (res.error) {
+        toast.error(`Gagal melakukan ingestion: ${res.error}`);
+      } else {
+        toast.success('Sukses: Dokumen berhasil dikirim dan sedang diindeks secara real-time!');
+        // Reset form
+        setUploadTitle('');
+        setUploadText('');
+        setUploadUrl('');
+        setUploadTags('');
+        setUploadSectors([]);
+        setUploadSdgs([]);
+        // Force refetch to populate instantly
+        queryClient.invalidateQueries({ queryKey: ['library_documents', organizationId] });
+      }
+    } catch (err) {
+      toast.error(`Kesalahan: ${(err as Error).message}`);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Handle Q&A prompt submission
+  const handleAsk = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatQuestion.trim()) return;
+    if (!organizationId) {
+      toast.error('Gagal: ID Organisasi belum diselesaikan');
+      return;
+    }
+
+    const question = chatQuestion.trim();
+    setChatQuestion('');
+    setChatHistory(prev => [...prev, { sender: 'user', text: question }]);
+    setChatLoading(true);
+
+    try {
+      const res = await askLibrary({
+        question,
+        document_ids: chatActiveDocIds.length > 0 ? chatActiveDocIds : undefined,
+      });
+
+      if (res.error) {
+        setChatHistory(prev => [...prev, { sender: 'assistant', text: `Gagal memproses pertanyaan: ${res.error}` }]);
+        toast.error(`AI Error: ${res.error}`);
+      } else {
+        setChatHistory(prev => [...prev, { sender: 'assistant', text: res.answer, citations: res.citations }]);
+      }
+    } catch (err) {
+      setChatHistory(prev => [...prev, { sender: 'assistant', text: `Kesalahan internal: ${(err as Error).message}` }]);
+    } finally {
+      setChatLoading(false);
+    }
+  };
 
   const activeSectors = useMemo(() => {
     if (sectorGroups.length === 0) return null;
@@ -136,7 +335,7 @@ export default function ImpactoryLibrary() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return MOCK_LIBRARY.filter((it) => {
+    return libraryItems.filter((it) => {
       if (tab !== 'all' && it.kind !== tab) return false;
       if (q && !`${it.title} ${it.source} ${it.summary} ${(it.tags ?? []).join(' ')}`.toLowerCase().includes(q))
         return false;
@@ -148,26 +347,26 @@ export default function ImpactoryLibrary() {
       if (!!b.featured !== !!a.featured) return b.featured ? 1 : -1;
       return b.year - a.year;
     });
-  }, [tab, search, activeSectors, sdg]);
+  }, [tab, search, activeSectors, sdg, libraryItems]);
 
   const counts = useMemo(() => {
-    const map: Record<string, number> = { all: MOCK_LIBRARY.length };
-    for (const it of MOCK_LIBRARY) map[it.kind] = (map[it.kind] ?? 0) + 1;
+    const map: Record<string, number> = { all: libraryItems.length };
+    for (const it of libraryItems) map[it.kind] = (map[it.kind] ?? 0) + 1;
     return map;
-  }, []);
+  }, [libraryItems]);
 
-  const featuredCount = useMemo(() => MOCK_LIBRARY.filter((x) => x.featured).length, []);
+  const featuredCount = useMemo(() => libraryItems.filter((x) => x.featured).length, [libraryItems]);
 
   const hasActiveFilter = !!search || sectorGroups.length > 0 || sdg !== 'all';
 
   const libraryHealth = useMemo(
     () => [
-      { label: 'Total resource', value: MOCK_LIBRARY.length.toString(), helper: 'Item referensi dan template tersedia' },
+      { label: 'Total resource', value: libraryItems.length.toString(), helper: 'Aset & referensi di organisasi Anda' },
       { label: 'Kategori aset', value: ASSET_CATEGORIES.length.toString(), helper: 'Kerangka asset engine NGO' },
       { label: 'Siap dipakai untuk proposal', value: featuredCount.toString(), helper: 'Item pilihan editor untuk mulai cepat' },
-      { label: 'Perlu dilengkapi', value: 'Baseline', helper: 'Upload asset organisasi segera hadir' },
+      { label: 'Status Dokumen', value: hasProcessing ? 'Mengindeks...' : 'Semua Sinkron', helper: hasProcessing ? 'Sedang melakukan pemrosesan AI' : 'Semua siap digunakan' },
     ],
-    [featuredCount],
+    [libraryItems.length, featuredCount, hasProcessing],
   );
 
   /**
@@ -176,14 +375,14 @@ export default function ImpactoryLibrary() {
    */
   const withDownloads = useMemo(
     () =>
-      MOCK_LIBRARY.map((it) => {
-        if (typeof it.downloads === 'number') return it;
+      libraryItems.map((it) => {
+        if (typeof it.downloads === 'number' && it.downloads > 0) return it;
         const seed = it.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
         const base = 120 + (seed % 880); // 120–999
         const boost = it.featured ? 600 : 0;
         return { ...it, downloads: base + boost };
       }),
-    [],
+    [libraryItems],
   );
 
   const recommended = useMemo(
@@ -227,7 +426,7 @@ export default function ImpactoryLibrary() {
             <div className="flex-1 space-y-1">
               <Badge className="bg-accent/15 text-accent hover:bg-accent/20 border-accent/30">
                 <Sparkles className="mr-1 h-3 w-3" />
-                Operating Library — {MOCK_LIBRARY.length} item terkurasi
+                Operating Library — {libraryItems.length} item terkurasi
                 {featuredCount > 0 && <> · {featuredCount} pilihan editor</>}
               </Badge>
               <h1 className="text-h1">Impact Library</h1>
@@ -289,6 +488,295 @@ export default function ImpactoryLibrary() {
         </p>
       </Card>
 
+      {/* SECTION: Interactive AI Console (Q&A + Upload Ingestion Flow) */}
+      <Card className="border-accent/20 bg-card p-6 shadow-card">
+        <Tabs defaultValue="qa" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-2 max-w-md bg-muted p-1">
+            <TabsTrigger value="qa" className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              Tanya Library (AI RAG)
+            </TabsTrigger>
+            <TabsTrigger value="upload" className="flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              Unggah Dokumen Baru
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="qa" className="space-y-4">
+            <div className="flex flex-col gap-1">
+              <h3 className="text-base font-semibold flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-accent" />
+                Asisten Pintar Impact Library (RAG)
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Ajukan pertanyaan tentang apa saja di dokumen legal, laporan, profil, atau template Anda. AI akan merespons lengkap dengan referensi.
+              </p>
+            </div>
+
+            {/* Chat History Box */}
+            <div className="border border-border rounded-xl bg-muted/30 p-4 min-h-[220px] max-h-[380px] overflow-y-auto space-y-4">
+              {chatHistory.length === 0 ? (
+                <div className="flex flex-col items-center justify-center text-center h-[200px] space-y-3">
+                  <div className="bg-accent/10 text-accent p-3 rounded-full">
+                    <MessageSquare className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-semibold">Mulai Percakapan</h4>
+                    <p className="text-xs text-muted-foreground max-w-sm mt-1">
+                      Ketik pertanyaan Anda di bawah ini, atau gunakan salah satu saran pencarian cepat berikut:
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2 justify-center max-w-lg">
+                    {[
+                      'Apa saja legalitas utama organisasi kita?',
+                      'Bagaimana pencapaian program pemberdayaan ekonomi tahun lalu?',
+                      'Apa target SDG utama organisasi kita?'
+                    ].map((q) => (
+                      <button
+                        key={q}
+                        onClick={() => {
+                          setChatQuestion(q);
+                        }}
+                        className="text-[11px] bg-card hover:bg-accent hover:text-accent-foreground text-foreground px-2.5 py-1.5 rounded-lg border border-border transition-colors shadow-xs"
+                      >
+                        {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                chatHistory.map((chat, idx) => (
+                  <div
+                    key={idx}
+                    className={cn(
+                      "flex flex-col space-y-1 max-w-[85%] rounded-xl p-3.5 text-sm",
+                      chat.sender === 'user'
+                        ? "bg-accent text-accent-foreground ml-auto"
+                        : "bg-card text-foreground mr-auto border border-border"
+                    )}
+                  >
+                    <span className="text-[10px] uppercase font-bold opacity-70">
+                      {chat.sender === 'user' ? 'Anda' : 'Asisten AI'}
+                    </span>
+                    <p className="whitespace-pre-wrap leading-relaxed">{chat.text}</p>
+                    {chat.citations && chat.citations.length > 0 && (
+                      <div className="mt-2 pt-2 border-t border-border/40 space-y-1.5">
+                        <span className="text-[10px] font-bold text-accent uppercase tracking-wide block">Rujukan Sumber ({chat.citations.length}):</span>
+                        <div className="flex flex-wrap gap-1.5">
+                          {chat.citations.map((cit, cidx) => {
+                            const refDoc = libraryItems.find(item => item.id === cit.document_id);
+                            return (
+                              <button
+                                key={cidx}
+                                onClick={() => {
+                                  if (refDoc) {
+                                    setActiveItem(refDoc);
+                                  } else {
+                                    toast.info(`Sumber: ${cit.document_title}`);
+                                  }
+                                }}
+                                className="inline-flex items-center gap-1 text-[10px] bg-muted hover:bg-accent-soft hover:text-accent border border-border/80 px-2 py-0.5 rounded-md font-medium text-muted-foreground transition-all"
+                                title={cit.excerpt}
+                              >
+                                <FileText className="h-3 w-3" />
+                                {cit.document_title} (Sim: {(cit.similarity * 100).toFixed(0)}%)
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+              {chatLoading && (
+                <div className="flex items-center gap-2 mr-auto bg-card border border-border rounded-xl p-3 text-sm max-w-[85%] shadow-xs animate-pulse">
+                  <Loader2 className="h-4 w-4 animate-spin text-accent" />
+                  <span className="text-xs text-muted-foreground">AI sedang menganalisis & menyusun jawaban...</span>
+                </div>
+              )}
+            </div>
+
+            {/* Input Form */}
+            <form onSubmit={handleAsk} className="flex gap-2">
+              <Input
+                value={chatQuestion}
+                onChange={(e) => setChatQuestion(e.target.value)}
+                placeholder="Tanyakan analisis program, legalitas, atau ringkasan dari library..."
+                className="flex-1 rounded-xl focus-visible:ring-accent"
+                disabled={chatLoading}
+              />
+              <Button type="submit" disabled={chatLoading} className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-xl px-5">
+                <Send className="h-4 w-4" />
+              </Button>
+            </form>
+          </TabsContent>
+
+          <TabsContent value="upload" className="space-y-4">
+            <div className="flex flex-col gap-1">
+              <h3 className="text-base font-semibold flex items-center gap-2">
+                <Upload className="h-4 w-4 text-accent" />
+                Ingest & Sinkronisasi Dokumen Baru (AI Powered)
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Tulis teks atau masukkan URL dokumen untuk diproses, dipecah menjadi chunks, dan di-embed ke database vektor secara otomatis.
+              </p>
+            </div>
+
+            <form onSubmit={handleUpload} className="space-y-4 pt-2">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="title" className="text-xs font-semibold uppercase tracking-wider">Judul Dokumen <span className="text-destructive">*</span></Label>
+                  <Input
+                    id="title"
+                    value={uploadTitle}
+                    onChange={(e) => setUploadTitle(e.target.value)}
+                    placeholder="Contoh: Laporan Dampak Program Air Bersih 2025"
+                    required
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="sourceUrl" className="text-xs font-semibold uppercase tracking-wider">URL Sumber (Opsional)</Label>
+                  <Input
+                    id="sourceUrl"
+                    value={uploadUrl}
+                    onChange={(e) => setUploadUrl(e.target.value)}
+                    placeholder="Contoh: https://impactory.id/reports/air-2025"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="text" className="text-xs font-semibold uppercase tracking-wider">Isi Dokumen (Teks Polos) <span className="text-destructive">*</span></Label>
+                <Textarea
+                  id="text"
+                  value={uploadText}
+                  onChange={(e) => setUploadText(e.target.value)}
+                  placeholder="Tempel dokumen proposal, cerita penerima manfaat, atau laporan Anda di sini (minimal 50 karakter)..."
+                  className="min-h-[140px] font-sans"
+                  required
+                />
+                <span className="text-[10px] text-muted-foreground float-right block">
+                  Jumlah Karakter: {uploadText.length} (Minimal 50)
+                </span>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3 pt-2">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider">Tipe Aset</Label>
+                  <Select value={uploadKind} onValueChange={(v) => setUploadKind(v as LibraryKind)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih Tipe Aset" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="template">Template</SelectItem>
+                      <SelectItem value="data_sdg">Data SDGs</SelectItem>
+                      <SelectItem value="riset">Riset & Whitepaper</SelectItem>
+                      <SelectItem value="case_study">Studi Kasus</SelectItem>
+                      <SelectItem value="panduan">Panduan</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider">Izin Penggunaan (Consent)</Label>
+                  <Select value={uploadConsentStatus} onValueChange={(v) => setUploadConsentStatus(v as any)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih Tingkat Izin" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Belum Ada Izin (Sangat Sensitif)</SelectItem>
+                      <SelectItem value="implied">Izin Tersirat (Implied Consent)</SelectItem>
+                      <SelectItem value="written">Izin Tertulis (Written Consent)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label htmlFor="year" className="text-xs font-semibold uppercase tracking-wider">Tahun Publikasi/Data</Label>
+                  <Input
+                    id="year"
+                    type="number"
+                    value={uploadYear}
+                    onChange={(e) => setUploadYear(e.target.value)}
+                    placeholder="Contoh: 2025"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2 pt-2">
+                <Label className="text-xs font-semibold uppercase tracking-wider block">Sektor Terkait (Opsional)</Label>
+                <div className="flex flex-wrap gap-3 p-3 border border-border rounded-xl bg-muted/10">
+                  {SECTOR_GROUPS.map((s) => (
+                    <label
+                      key={s.key}
+                      className="flex cursor-pointer items-center gap-2 text-sm text-foreground hover:text-accent transition-colors"
+                    >
+                      <Checkbox
+                        checked={uploadSectors.some(sect => s.maps.includes(sect))}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            setUploadSectors(prev => [...Array.from(new Set([...prev, ...s.maps]))]);
+                          } else {
+                            setUploadSectors(prev => prev.filter(sect => !s.maps.includes(sect)));
+                          }
+                        }}
+                      />
+                      <span className="text-xs">{s.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2 pt-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="tags" className="text-xs font-semibold uppercase tracking-wider">Tag Tambahan (Pisahkan dengan Koma)</Label>
+                  <Input
+                    id="tags"
+                    value={uploadTags}
+                    onChange={(e) => setUploadTags(e.target.value)}
+                    placeholder="Contoh: air bersih, kebersihan, kemitraan, sani"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="sdgs" className="text-xs font-semibold uppercase tracking-wider">SDGs Terkait (Opsional)</Label>
+                  <Input
+                    id="sdgs"
+                    placeholder="Masukkan angka SDG dipisahkan koma, contoh: 3, 6, 17"
+                    onChange={(e) => {
+                      const nums = e.target.value.split(',')
+                        .map(n => parseInt(n.trim()))
+                        .filter(n => !isNaN(n) && n >= 1 && n <= 17);
+                      setUploadSdgs(nums);
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 border-t border-border pt-4">
+                <Button
+                  type="submit"
+                  disabled={isUploading}
+                  className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-xl px-6 font-semibold flex items-center gap-2 shadow-md transition-all hover:shadow-elegant"
+                >
+                  {isUploading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Mengekstrak & Mengindeks...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="h-4 w-4" />
+                      Mulai Ingest & Sinkronisasi AI
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </TabsContent>
+        </Tabs>
+      </Card>
+
       <section className="space-y-3">
         <div>
           <h2 className="text-h4">Library Health / Asset Readiness</h2>
@@ -305,7 +793,7 @@ export default function ImpactoryLibrary() {
             </Card>
           ))}
         </div>
-        {MOCK_LIBRARY.length === 0 && (
+        {libraryItems.length === 0 && (
           <Card className="flex flex-col gap-3 border-dashed p-6">
             <div>
               <h3 className="font-semibold">Library baseline belum dibuat</h3>
@@ -315,7 +803,7 @@ export default function ImpactoryLibrary() {
               </p>
             </div>
             <Button type="button" variant="outline" disabled className="w-fit">
-              Upload Asset — segera hadir
+              Upload Asset — gunakan formulir di atas untuk mengunggah dokumen pertama Anda
             </Button>
           </Card>
         )}

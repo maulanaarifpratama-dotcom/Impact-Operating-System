@@ -34,6 +34,32 @@ export function LibraryCard({ item, onOpen }: LibraryCardProps) {
               Pilihan editor
             </Badge>
           )}
+          {item.status && item.status !== 'ready' && item.status !== 'indexed' && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[11px]",
+                (item.status === 'processing' || item.status === 'uploaded') && "border-amber-500/30 bg-amber-500/15 text-amber-600 animate-pulse",
+                item.status === 'failed' && "border-destructive/30 bg-destructive/15 text-destructive",
+                (item.status === 'partial') && "border-blue-500/30 bg-blue-500/15 text-blue-600"
+              )}
+            >
+              {item.status === 'processing' || item.status === 'uploaded' ? 'Mengindeks...' : item.status === 'failed' ? 'Gagal' : item.status}
+            </Badge>
+          )}
+          {item.consent_status && (
+            <Badge
+              variant="outline"
+              className={cn(
+                "text-[11px]",
+                item.consent_status === 'written' && "border-emerald-500/30 bg-emerald-500/10 text-emerald-600",
+                item.consent_status === 'implied' && "border-amber-500/30 bg-amber-500/10 text-amber-600",
+                item.consent_status === 'none' && "border-destructive/30 bg-destructive/10 text-destructive"
+              )}
+            >
+              Izin: {item.consent_status === 'written' ? 'Tertulis' : item.consent_status === 'implied' ? 'Tersirat' : 'Belum Ada'}
+            </Badge>
+          )}
         </div>
         <span className="text-[11px] font-medium text-muted-foreground">{item.year}</span>
       </div>

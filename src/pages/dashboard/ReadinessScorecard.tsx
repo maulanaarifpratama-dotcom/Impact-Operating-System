@@ -66,8 +66,7 @@ const CATEGORIES: ScoreCategory[] = [
       'Daftar peluang grant aktif tersedia',
       'Setiap grant memiliki source URL/deadline/eligibility',
       'Prioritas grant ditentukan berdasarkan fit',
-      'Draft proposal tidak selalu mulai dari nol',
-      'Ada proses review sebelum submit',
+      'Draft proposal tidak selalu mulai dari nol dan memiliki proses review sebelum submit',
     ],
   },
   {
@@ -79,6 +78,7 @@ const CATEGORIES: ScoreCategory[] = [
       'Landing page/CTA campaign tersedia',
       'Donor/contact list tersimpan terstruktur',
       'Follow-up donor dilakukan setelah campaign',
+      'Materi visual campaign tersedia',
     ],
   },
   {

@@ -48,8 +48,8 @@ const CATEGORIES: ScoreCategory[] = [
   { code: 'G', title: 'G — Grant Readiness', itemsCount: 5 },
   { code: 'R', title: 'R — Resource Access', itemsCount: 5 },
   { code: 'O', title: 'O — Operating Library', itemsCount: 5 },
-  { code: 'W', title: 'W — Workflow Engine', itemsCount: 5 },
-  { code: 'T', title: 'T — Traction Engine', itemsCount: 4 },
+  { code: 'W', title: 'W — Workflow Engine', itemsCount: 4 },
+  { code: 'T', title: 'T — Traction Engine', itemsCount: 5 },
   { code: 'H', title: 'H — Harvest & Review', itemsCount: 4 },
 ];
 
