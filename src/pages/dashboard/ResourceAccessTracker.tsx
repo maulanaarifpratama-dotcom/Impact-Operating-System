@@ -398,7 +398,7 @@ export default function ResourceAccessTracker() {
   const googleItem = platformsMap['google'];
   const googleIsApproved = googleItem?.status === 'approved';
 
-  if (isMembershipLoading || isPlatformsLoading) {
+  if (isMembershipLoading || (!!organizationId && isPlatformsLoading)) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">

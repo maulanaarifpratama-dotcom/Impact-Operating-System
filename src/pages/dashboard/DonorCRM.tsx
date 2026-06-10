@@ -622,7 +622,7 @@ export default function DonorCRM() {
     addDonorMutation.mutate(payload);
   };
 
-  if (isMembershipLoading || isDonorsLoading) {
+  if (isMembershipLoading || (!!organizationId && isDonorsLoading)) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">

@@ -547,7 +547,7 @@ export default function ImpactDashboard() {
   }, [readinessScore]);
 
   // Is any data loading
-  const isGlobalLoading = isMembershipLoading || isDonorsLoading || isDonationsLoading || isAdsBriefsLoading || isAdsGenerationsLoading || isProgramsLoading || isProgramMetricsLoading || isGwProjectsLoading || isReadinessLoading;
+  const isGlobalLoading = isMembershipLoading || (!!organizationId && (isDonorsLoading || isDonationsLoading || isAdsBriefsLoading || isAdsGenerationsLoading || isProgramsLoading || isProgramMetricsLoading || isGwProjectsLoading || isReadinessLoading));
 
   // Handles copying share link
   const handleShare = () => {

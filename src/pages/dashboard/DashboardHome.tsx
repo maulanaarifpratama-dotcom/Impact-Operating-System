@@ -539,7 +539,7 @@ export default function DashboardHome() {
       })
     : null;
 
-  if (isMembershipLoading || isOrgLoading || isScoresLoading || isProgressLoading) {
+  if (isMembershipLoading || (!!orgId && (isOrgLoading || isScoresLoading || isProgressLoading))) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">

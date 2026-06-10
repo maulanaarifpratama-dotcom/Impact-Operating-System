@@ -63,7 +63,7 @@ export default function Settings() {
 
   // --- Fetch active organization ---
   const { data: membership, isLoading: loadingMemberships } = useQuery({
-    queryKey: ['organization_members', user?.id],
+    queryKey: ['organization_members_settings', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
       const { data, error } = await supabase
@@ -220,7 +220,7 @@ export default function Settings() {
     toast.info('Fitur Undang Anggota baru akan segera hadir! Hubungi Administrator untuk penambahan akun.');
   };
 
-  const loadingAny = loadingMemberships || loadingOrg;
+  const loadingAny = loadingMemberships || (!!orgId && loadingOrg);
 
   if (loadingAny) {
     return (

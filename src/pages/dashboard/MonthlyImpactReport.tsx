@@ -397,7 +397,7 @@ export default function MonthlyImpactReport() {
     toast.success(`Berhasil memuat arsip laporan periode ${period}!`);
   };
 
-  const isGlobalLoading = isMembershipLoading || isDonationsLoading || isProgramsLoading || isProgramMetricsLoading || isReadinessLoading;
+  const isGlobalLoading = isMembershipLoading || (!!orgId && (isDonationsLoading || isProgramsLoading || isProgramMetricsLoading || isReadinessLoading));
 
   if (isGlobalLoading) {
     return (

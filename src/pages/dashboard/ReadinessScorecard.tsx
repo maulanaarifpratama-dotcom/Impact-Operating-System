@@ -283,7 +283,7 @@ export default function ReadinessScorecard() {
     }
   };
 
-  if (isMembershipLoading || isScoresLoading) {
+  if (isMembershipLoading || (!!orgId && isScoresLoading)) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">

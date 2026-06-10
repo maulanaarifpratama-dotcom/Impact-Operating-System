@@ -304,7 +304,7 @@ export default function MonthlyOperatingReview() {
     toast.success('Draf review taktis berbasis AI berhasil disematkan!');
   };
 
-  const isGlobalLoading = isMembershipLoading || isSessionsLoading;
+  const isGlobalLoading = isMembershipLoading || (!!orgId && isSessionsLoading);
 
   if (isGlobalLoading) {
     return (
