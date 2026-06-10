@@ -27,6 +27,7 @@ import Grantfinder from './pages/dashboard/products/Grantfinder';
 import ImpactoryAds from './pages/dashboard/products/ImpactoryAds';
 import Onboarding from './pages/auth/Onboarding';
 import Settings from './pages/dashboard/Settings';
+import MonthlyOperatingReview from './pages/dashboard/MonthlyOperatingReview';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -73,7 +74,8 @@ const App = () => (
             >
               <Route path="/dashboard" element={<DashboardHome />} />
               <Route path="/dashboard/readiness" element={<ReadinessScorecard />} />
-              <Route path="/dashboard/monthly-report" element={<MonthlyImpactReport />} />
+               <Route path="/dashboard/monthly-report" element={<MonthlyImpactReport />} />
+              <Route path="/dashboard/operating-review" element={<MonthlyOperatingReview />} />
               <Route path="/dashboard/resource-access" element={<ResourceAccessTracker />} />
               <Route path="/dashboard/donor-crm" element={<DonorCRM />} />
               <Route path="/dashboard/impact" element={<ImpactDashboard />} />

@@ -37,13 +37,7 @@ export function ProtectedRoute({ children, requireOrg = true }: ProtectedRoutePr
   // if the memberships query is active or has not returned any data yet.
   const isLoading = authLoading || (!!session && (!user || orgLoading || (memberships === undefined && !isError)));
 
-  console.log('ProtectedRoute debug:', {
-    userId: user?.id,
-    session: !!session,
-    memberships,
-    orgLoading,
-    isLoading
-  });
+
 
   if (isLoading) {
     return (

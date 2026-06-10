@@ -14,6 +14,7 @@ import {
   LogOut,
   User as UserIcon,
   ChevronsUpDown,
+  CalendarRange,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo } from '@/components/Logo';
@@ -61,6 +62,7 @@ const NAV_ITEMS: NavItem[] = [
   { name: 'Campaign Builder', href: '/dashboard/impactory-ads', icon: Megaphone },
   { name: 'Impact Dashboard', href: '/dashboard/impact', icon: BarChart2 },
   { name: 'Monthly Report', href: '/dashboard/monthly-report', icon: BarChart3 },
+  { name: 'Operating Review', href: '/dashboard/operating-review', icon: CalendarRange },
 ];
 
 function initials(name?: string | null, email?: string | null) {
