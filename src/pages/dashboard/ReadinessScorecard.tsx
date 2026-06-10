@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { useAuth } from '@/providers/AuthProvider';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 
 type GrowthCode = 'G' | 'R' | 'O' | 'W' | 'T' | 'H';
 
@@ -156,21 +157,33 @@ export default function ReadinessScorecard() {
   const orgId = membership?.organization_id;
   const [scores, setScores] = useState<Record<string, number>>({});
 
-  // Load persistent scores once orgId is resolved
-  useEffect(() => {
-    if (orgId) {
-      const stored = localStorage.getItem(`impactory_readiness_scores_${orgId}`);
-      if (stored) {
-        try {
-          setScores(JSON.parse(stored));
-        } catch (e) {
-          console.error('[ReadinessScorecard] error parsing stored scores:', e);
-        }
-      } else {
-        setScores({});
+  // Load persistent scores from Supabase
+  const { data: dbScores, isLoading: isScoresLoading, refetch: refetchScores } = useQuery({
+    queryKey: ['readiness_scores', orgId],
+    queryFn: async () => {
+      if (!orgId) return null;
+      const { data, error } = await supabase
+        .from('readiness_scores')
+        .select('*')
+        .eq('organization_id', orgId)
+        .maybeSingle();
+      if (error) {
+        console.error('[ReadinessScorecard] error fetching scores:', error);
+        throw error;
       }
+      return data;
+    },
+    enabled: !!orgId,
+  });
+
+  // Synchronize database scores into local state
+  useEffect(() => {
+    if (dbScores?.details) {
+      setScores(dbScores.details as Record<string, number>);
+    } else {
+      setScores({});
     }
-  }, [orgId]);
+  }, [dbScores]);
 
   const result = useMemo(() => {
     const categoryScores = CATEGORIES.map((category, order) => {
@@ -200,24 +213,70 @@ export default function ReadinessScorecard() {
     };
   }, [scores]);
 
-  const setScore = (id: string, value: number) => {
-    setScores((current) => {
-      const updated = { ...current, [id]: value };
-      if (orgId) {
-        localStorage.setItem(`impactory_readiness_scores_${orgId}`, JSON.stringify(updated));
-      }
-      return updated;
-    });
-  };
+  const setScore = async (id: string, value: number) => {
+    if (!orgId || !user?.id) return;
 
-  const handleReset = () => {
-    setScores({});
-    if (orgId) {
-      localStorage.removeItem(`impactory_readiness_scores_${orgId}`);
+    // 1. Calculate the updated local scores state
+    const updatedScores = { ...scores, [id]: value };
+    setScores(updatedScores); // Optimistic UI update
+
+    // 2. Calculate category sums for the db columns
+    const catScores: Record<string, number> = {};
+    CATEGORIES.forEach((category) => {
+      catScores[category.code] = category.items.reduce((sum, _, index) => {
+        const key = itemId(category.code, index);
+        return sum + (updatedScores[key] ?? 0);
+      }, 0);
+    });
+
+    try {
+      // 3. Upsert to Supabase
+      const { error } = await supabase
+        .from('readiness_scores')
+        .upsert({
+          organization_id: orgId,
+          scored_by: user.id,
+          score_g: catScores['G'] || 0,
+          score_r: catScores['R'] || 0,
+          score_o: catScores['O'] || 0,
+          score_w: catScores['W'] || 0,
+          score_t: catScores['T'] || 0,
+          score_h: catScores['H'] || 0,
+          details: updatedScores,
+        }, { onConflict: 'organization_id' });
+
+      if (error) {
+        console.error('[ReadinessScorecard] error saving scores:', error);
+        toast.error('Gagal menyimpan skor ke server');
+      } else {
+        void refetchScores();
+      }
+    } catch (e) {
+      console.error('[ReadinessScorecard] exception saving scores:', e);
     }
   };
 
-  if (isMembershipLoading) {
+  const handleReset = async () => {
+    if (!orgId) return;
+    setScores({}); // Optimistic UI reset
+    try {
+      const { error } = await supabase
+        .from('readiness_scores')
+        .delete()
+        .eq('organization_id', orgId);
+      if (error) {
+        console.error('[ReadinessScorecard] error deleting scores:', error);
+        toast.error('Gagal menghapus skor di server');
+      } else {
+        void refetchScores();
+        toast.success('Baseline berhasil di-reset');
+      }
+    } catch (e) {
+      console.error('[ReadinessScorecard] exception resetting scores:', e);
+    }
+  };
+
+  if (isMembershipLoading || isScoresLoading) {
     return (
       <div className="flex h-[50vh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">

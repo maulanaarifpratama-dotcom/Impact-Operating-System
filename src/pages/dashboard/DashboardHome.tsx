@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/providers/AuthProvider';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from 'sonner';
 import {
   ArrowRight,
   BarChart3,
@@ -23,6 +24,15 @@ import {
   Square,
   Building2,
 } from 'lucide-react';
+
+const SECTION_PHASE_MAP: Record<string, string> = {
+  p1: 'g',
+  p2: 'r',
+  p3: 'o',
+  p4: 't',
+  p5: 'w',
+  p6: 'h',
+};
 
 type GrowthCode = 'G' | 'R' | 'O' | 'W' | 'T' | 'H';
 
@@ -248,32 +258,63 @@ export default function DashboardHome() {
     enabled: !!orgId,
   });
 
-  // Load persistent G.R.O.W.T.H. scores
-  useEffect(() => {
-    if (orgId) {
-      const storedScores = localStorage.getItem(`impactory_readiness_scores_${orgId}`);
-      if (storedScores) {
-        try {
-          setScores(JSON.parse(storedScores));
-        } catch (e) {
-          console.error('[DashboardHome] error parsing stored scores:', e);
-        }
-      } else {
-        setScores({});
-      }
+  // Query readiness scores from Supabase
+  const { data: dbScores, isLoading: isScoresLoading } = useQuery({
+    queryKey: ['readiness_scores', orgId],
+    queryFn: async () => {
+      if (!orgId) return null;
+      const { data, error } = await supabase
+        .from('readiness_scores')
+        .select('*')
+        .eq('organization_id', orgId)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!orgId,
+  });
 
-      const storedPlan = localStorage.getItem(`impactory_ninety_day_${orgId}`);
-      if (storedPlan) {
-        try {
-          setPlanTasks(JSON.parse(storedPlan));
-        } catch (e) {
-          console.error('[DashboardHome] error parsing stored 90-day plan:', e);
-        }
-      } else {
-        setPlanTasks({});
-      }
+  // Query 90-day plan progress from Supabase
+  const { data: dbProgress, isLoading: isProgressLoading, refetch: refetchProgress } = useQuery({
+    queryKey: ['day_plan_progress', orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from('day_plan_progress')
+        .select('*')
+        .eq('organization_id', orgId);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!orgId,
+  });
+
+  // Synchronize scores from database into local state
+  useEffect(() => {
+    if (dbScores?.details) {
+      setScores(dbScores.details as Record<string, number>);
+    } else {
+      setScores({});
     }
-  }, [orgId]);
+  }, [dbScores]);
+
+  // Synchronize 90-day plan checklists from database into local state
+  useEffect(() => {
+    if (dbProgress) {
+      const mapped: Record<string, boolean> = {};
+      dbProgress.forEach((item) => {
+        const sectionId = Object.keys(SECTION_PHASE_MAP).find(
+          (k) => SECTION_PHASE_MAP[k] === item.phase
+        );
+        if (sectionId) {
+          mapped[`${sectionId}-${item.item_key}`] = item.is_completed;
+        }
+      });
+      setPlanTasks(mapped);
+    } else {
+      setPlanTasks({});
+    }
+  }, [dbProgress]);
 
   // Compute live scores and next actions
   const scoreResult = useMemo(() => {
@@ -331,20 +372,50 @@ export default function DashboardHome() {
     };
   }, [planTasks]);
 
-  const handleToggleTask = (sectionId: string, task: string) => {
-    if (!orgId) return;
+  const handleToggleTask = async (sectionId: string, task: string) => {
+    if (!orgId || !user?.id) return;
+
+    const phase = SECTION_PHASE_MAP[sectionId];
+    if (!phase) return;
+
     const key = `${sectionId}-${task}`;
-    setPlanTasks((current) => {
-      const updated = { ...current, [key]: !current[key] };
-      localStorage.setItem(`impactory_ninety_day_${orgId}`, JSON.stringify(updated));
-      return updated;
-    });
+    const nextState = !planTasks[key];
+
+    // 1. Optimistic UI update
+    setPlanTasks((current) => ({ ...current, [key]: nextState }));
+
+    try {
+      // 2. Upsert status to Supabase
+      const { error } = await supabase
+        .from('day_plan_progress')
+        .upsert({
+          organization_id: orgId,
+          phase,
+          item_key: task,
+          is_completed: nextState,
+          completed_by: user.id,
+          completed_at: nextState ? new Date().toISOString() : null,
+        }, { onConflict: 'organization_id,phase,item_key' });
+
+      if (error) {
+        console.error('[DashboardHome] error saving progress:', error);
+        toast.error('Gagal memperbarui status tugas');
+        // Revert on failure
+        setPlanTasks((current) => ({ ...current, [key]: !nextState }));
+      } else {
+        void refetchProgress();
+      }
+    } catch (e) {
+      console.error('[DashboardHome] exception saving progress:', e);
+      // Revert on failure
+      setPlanTasks((current) => ({ ...current, [key]: !nextState }));
+    }
   };
 
   const name = profile?.full_name || user?.email?.split('@')[0] || 'rekan dampak';
   const orgName = organization?.name || 'Organisasi Anda';
 
-  if (isMembershipLoading || isOrgLoading) {
+  if (isMembershipLoading || isOrgLoading || isScoresLoading || isProgressLoading) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">

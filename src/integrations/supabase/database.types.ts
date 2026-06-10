@@ -385,6 +385,67 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['gw_chat_messages']['Insert']>;
         Relationships: [];
       };
+      readiness_scores: {
+        Row: {
+          id: string;
+          organization_id: string;
+          scored_by: string | null;
+          score_g: number;
+          score_r: number;
+          score_o: number;
+          score_w: number;
+          score_t: number;
+          score_h: number;
+          total_score: number;
+          details: Json;
+          notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          scored_by?: string | null;
+          score_g?: number;
+          score_r?: number;
+          score_o?: number;
+          score_w?: number;
+          score_t?: number;
+          score_h?: number;
+          details?: Json;
+          notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['readiness_scores']['Insert']>;
+        Relationships: [];
+      };
+      day_plan_progress: {
+        Row: {
+          id: string;
+          organization_id: string;
+          phase: string;
+          item_key: string;
+          is_completed: boolean;
+          completed_by: string | null;
+          completed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          phase: string;
+          item_key: string;
+          is_completed?: boolean;
+          completed_by?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['day_plan_progress']['Insert']>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
