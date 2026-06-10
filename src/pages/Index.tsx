@@ -174,30 +174,30 @@ export default function Index() {
           <div aria-hidden className="absolute -bottom-56 -left-48 h-[520px] w-[520px] rounded-full bg-accent/10 blur-3xl" />
           <div className="container relative py-20 md:py-28">
                         <div className="max-w-4xl">
-              <Badge variant="outline" className="border-primary/20 bg-background/70 text-primary">
+              <Badge variant="outline" className="border-primary/20 bg-background/70 text-primary animate-fade-in-up">
                 NGO Growth Operating System
               </Badge>
-              <h1 className="mt-6 max-w-3xl text-display text-foreground">
+              <h1 className="opacity-0 animate-fade-in-up delay-100 mt-6 max-w-3xl text-display text-foreground">
                 Grant Banyak. Sistem Belum Ada.
               </h1>
-              <p className="mt-6 max-w-3xl text-subheading">
+              <p className="opacity-0 animate-fade-in-up delay-200 mt-6 max-w-3xl text-subheading">
                 Impactory.id adalah civic technology resource hub dan NGO Growth Operating System untuk membantu CSO,
                 NGO, organisasi sosial, dan komunitas akar rumput mengubah grant digital, dokumen, proposal workflow,
                 campaign, donor, dan laporan impact menjadi sistem kerja yang rapi, terukur, dan bisa diulang.
               </p>
-              <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Button asChild size="lg" className="shadow-elegant">
+              <div className="opacity-0 animate-fade-in-up delay-300 mt-8 flex flex-col gap-3 sm:flex-row">
+                <Button asChild size="lg" className="shadow-elegant transition-all duration-300 hover:scale-[1.03] hover:shadow-glow">
                   <Link to="/dashboard/readiness">
                     Mulai Readiness Scorecard
                     <ArrowRight className="ml-1 h-4 w-4" />
                   </Link>
                 </Button>
-                <Button asChild size="lg" variant="outline">
+                <Button asChild size="lg" variant="outline" className="transition-all duration-300 hover:bg-secondary/40">
                   <a href="#growth-system">Lihat G.R.O.W.T.H. System</a>
                 </Button>
               </div>
-              <div className="mt-8 inline-flex max-w-2xl items-start gap-3 rounded-2xl border border-border bg-card/80 p-4 text-sm text-muted-foreground shadow-card">
-                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+              <div className="opacity-0 animate-fade-in-up delay-400 mt-8 inline-flex max-w-2xl items-start gap-3 rounded-2xl border border-border bg-card/80 p-4 text-sm text-muted-foreground shadow-card transition-all duration-300 hover:shadow-elegant hover:border-primary/25">
+                <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-accent animate-pulse-glow" />
                 <span>
                   Civic Resource Hub untuk CSO Akar Rumput, dibangun dari pengalaman 20B+ budget digital marketing di NGO, social impact, education, dan campaign growth.
                 </span>
@@ -236,12 +236,13 @@ export default function Index() {
             </div>
             <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               {growthCards.map((card) => (
-                <Card key={card.letter} className="border-border/70 p-6 shadow-card">
-                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                <Card key={card.letter} className="group relative overflow-hidden border-border/70 p-6 shadow-card transition-all duration-300 hover:-translate-y-1.5 hover:shadow-elegant hover:border-primary/20 hover:bg-gradient-to-br hover:from-white hover:to-secondary/25">
+                  <div className="absolute top-0 left-0 h-1 w-0 bg-primary group-hover:w-full transition-all duration-300" />
+                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
                     {card.letter}
                   </div>
-                  <h3 className="mt-4 text-h4">{card.title}</h3>
-                  <p className="mt-2 text-body-sm text-muted-foreground">{card.description}</p>
+                  <h3 className="mt-4 text-h4 transition-colors duration-300 group-hover:text-primary">{card.title}</h3>
+                  <p className="mt-2 text-body-sm text-muted-foreground leading-relaxed">{card.description}</p>
                 </Card>
               ))}
             </div>
@@ -258,16 +259,23 @@ export default function Index() {
               {productModules.map((module) => {
                 const Icon = module.icon;
                 const card = (
-                  <Card className="flex h-full flex-col border-border/70 p-6 shadow-card transition-all group-hover:-translate-y-0.5 group-hover:border-accent/40">
+                  <Card className="relative overflow-hidden flex h-full flex-col border-border/70 p-6 shadow-card transition-all duration-300 group-hover:-translate-y-1.5 group-hover:shadow-elegant group-hover:border-primary/20 group-hover:bg-gradient-to-br group-hover:from-white group-hover:to-secondary/25">
+                    <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-300" />
                     <div className="flex items-start justify-between gap-3">
-                      <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-accent">
+                      <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-accent-soft text-accent transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
                         <Icon className="h-5 w-5" />
                       </div>
-                      {module.disabled ? <Badge variant="outline">Segera hadir</Badge> : <ArrowRight className="h-4 w-4 text-muted-foreground" />}
+                      {module.disabled ? (
+                        <Badge variant="outline" className="border-muted-foreground/20 bg-muted/40 text-muted-foreground">Segera hadir</Badge>
+                      ) : (
+                        <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform duration-300 group-hover:translate-x-1 group-hover:text-primary" />
+                      )}
                     </div>
-                    <h3 className="mt-5 text-h4">{module.title}</h3>
-                    <p className="mt-2 flex-1 text-body-sm text-muted-foreground">{module.description}</p>
-                    <span className="mt-5 text-sm font-medium text-primary">{module.cta}</span>
+                    <h3 className="mt-5 text-h4 transition-colors duration-300 group-hover:text-primary">{module.title}</h3>
+                    <p className="mt-2 flex-1 text-body-sm text-muted-foreground leading-relaxed">{module.description}</p>
+                    <span className="mt-5 text-sm font-semibold text-primary transition-colors duration-300 group-hover:text-primary-dark">
+                      {module.cta}
+                    </span>
                   </Card>
                 );
 
@@ -301,9 +309,10 @@ export default function Index() {
             </div>
             <div className="mt-10 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               {trustCards.map((card) => (
-                <Card key={card.title} className="border-white/10 bg-white/5 p-5 text-white shadow-none">
-                  <CheckCircle2 className="h-4 w-4 text-accent" />
-                  <h3 className="mt-4 font-semibold">{card.title}</h3>
+                <Card key={card.title} className="group relative overflow-hidden border-white/10 bg-white/5 p-5 text-white shadow-none transition-all duration-300 hover:bg-white/10 hover:border-white/20 hover:-translate-y-1">
+                  <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-300" />
+                  <CheckCircle2 className="h-4 w-4 text-accent transition-transform duration-300 group-hover:scale-110" />
+                  <h3 className="mt-4 font-semibold transition-colors duration-300 group-hover:text-accent">{card.title}</h3>
                   <p className="mt-2 text-sm leading-6 text-white/75">{card.description}</p>
                 </Card>
               ))}
@@ -326,9 +335,10 @@ export default function Index() {
               </div>
               <div className="grid gap-3 md:grid-cols-2">
                 {ninetyDayPlan.map((item) => (
-                  <Card key={item.day} className="border-border/70 p-5 shadow-card">
-                    <p className="text-overline text-muted-foreground">{item.day}</p>
-                    <h3 className="mt-2 font-semibold">{item.phase}</h3>
+                  <Card key={item.day} className="group relative overflow-hidden border-border/70 p-5 shadow-card transition-all duration-300 hover:-translate-y-1 hover:shadow-elegant hover:border-primary/20 hover:bg-gradient-to-br hover:from-white hover:to-secondary/25">
+                    <div className="absolute top-0 left-0 h-1 w-0 bg-primary group-hover:w-full transition-all duration-300" />
+                    <p className="text-overline text-muted-foreground font-semibold tracking-wider transition-colors duration-300 group-hover:text-primary">{item.day}</p>
+                    <h3 className="mt-2 font-semibold text-foreground transition-colors duration-300 group-hover:text-primary-dark">{item.phase}</h3>
                   </Card>
                 ))}
               </div>

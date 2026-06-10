@@ -551,9 +551,9 @@ export default function DashboardHome() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8 animate-fade-in">
+    <div className="mx-auto max-w-6xl space-y-8 animate-fade-in-up">
       {/* Welcome Banner */}
-      <section className="relative overflow-hidden rounded-2xl border border-[#155F66]/30 bg-[#0F3D4F] p-6 text-white shadow-elegant md:p-8">
+      <section className="relative overflow-hidden rounded-2xl border border-[#155F66]/30 bg-[#0F3D4F] p-6 text-white shadow-elegant md:p-8 animate-fade-in-up">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-32 -left-32 h-64 w-64 rounded-full bg-accent/25 blur-3xl animate-pulse" />
           <div className="absolute -bottom-32 -right-32 h-64 w-64 rounded-full bg-emerald-500/15 blur-3xl" />
@@ -564,19 +564,19 @@ export default function DashboardHome() {
             <Badge className="border-white/30 bg-white/15 text-white hover:bg-white/15">
               NGO Growth OS Command Center
             </Badge>
-            <Badge className="border-accent/40 bg-[#F59E0B]/20 text-[#F59E0B] font-medium">
+            <Badge className="border-accent/40 bg-[#F59E0B]/20 text-[#F59E0B] font-medium animate-pulse-glow">
               Multi-tenant Active
             </Badge>
           </div>
 
-          <h1 className="mt-5 text-3xl font-semibold tracking-tight md:text-4xl">
+          <h1 className="mt-5 text-3xl font-semibold tracking-tight md:text-4xl animate-fade-in-up delay-100">
             Bangun NGO Growth Operating System Anda
           </h1>
-          <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/85 md:text-base">
+          <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/85 md:text-base animate-fade-in-up delay-200">
             Mulai dari baseline sistem, bukan daftar tools.
           </p>
 
-          <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-4 border-t border-white/10 pt-5 text-sm">
+          <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-4 border-t border-white/10 pt-5 text-sm animate-fade-in-up delay-300">
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4 text-accent" />
               <span className="font-semibold text-white">{orgName}</span>
@@ -587,16 +587,16 @@ export default function DashboardHome() {
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-3">
+          <div className="mt-6 flex flex-wrap gap-3 animate-fade-in-up delay-400">
             <Link
               to="/dashboard/readiness"
-              className="inline-flex items-center rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-all hover:bg-accent/95 hover:shadow-elegant"
+              className="inline-flex items-center rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-all duration-300 hover:bg-accent/95 hover:shadow-elegant hover:scale-[1.02] active:scale-[0.98]"
             >
               Mulai dari Readiness →
             </Link>
             <Link
               to="/dashboard/grantfinder"
-              className="inline-flex items-center rounded-md bg-white/15 px-4 py-2 text-sm font-medium text-white transition-all hover:bg-white/25 hover:shadow-sm"
+              className="inline-flex items-center rounded-md bg-white/15 px-4 py-2 text-sm font-medium text-white transition-all duration-300 hover:bg-white/25 hover:shadow-sm hover:scale-[1.02] active:scale-[0.98]"
             >
               Lihat Grant Pipeline →
             </Link>
@@ -607,7 +607,8 @@ export default function DashboardHome() {
       {/* Main Section Grid */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* GROWTH Score Card */}
-        <Card className="flex flex-col justify-between border-border bg-card p-5 shadow-card hover:shadow-elegant transition-shadow duration-300">
+        <Card className="group relative overflow-hidden flex flex-col justify-between border-border bg-card p-5 shadow-card hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 hover:border-[#155F66]/30">
+          <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-500" />
           <div>
             <div className="flex items-start justify-between gap-3">
               <div>
@@ -616,7 +617,7 @@ export default function DashboardHome() {
                   {scoreResult.hasScores ? `${scoreResult.total} / 140` : 'Belum Dibuat'}
                 </h2>
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
                 <ShieldCheck className="h-5 w-5" />
               </div>
             </div>
@@ -634,12 +635,12 @@ export default function DashboardHome() {
             )}
 
             {!scoreResult.hasScores ? (
-              <div className="mt-4 rounded-lg bg-amber-500/10 p-3.5 border border-amber-500/20">
+              <div className="mt-4 rounded-lg bg-amber-500/10 p-3.5 border border-amber-500/20 animate-pulse-glow">
                 <p className="text-sm font-bold text-amber-500">Baseline belum dibuat</p>
                 <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
                   Lakukan audit kesiapan operasional pertama Anda untuk melihat kekuatan sistem NGO Anda.
                 </p>
-                <Button asChild variant="outline" className="mt-3 w-full border-amber-500/30 text-amber-500 hover:bg-amber-500/10">
+                <Button asChild variant="outline" className="mt-3 w-full border-amber-500/30 text-amber-500 hover:bg-amber-500/10 transition-transform duration-200 active:scale-[0.98]">
                   <Link to="/dashboard/readiness">Buka Readiness Scorecard</Link>
                 </Button>
               </div>
@@ -654,14 +655,14 @@ export default function DashboardHome() {
                 <div className="space-y-2.5 pt-1">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Kesiapan Per Layer</p>
                   {scoreResult.categoryScores.map((cat) => (
-                    <div key={cat.code} className="space-y-1">
+                    <div key={cat.code} className="group/cat space-y-1 rounded-lg p-1.5 transition-all duration-200 hover:bg-muted/30">
                       <div className="flex justify-between text-[11px] font-medium">
-                        <span className="text-foreground">{cat.code} — {cat.title}</span>
+                        <span className="text-foreground transition-colors duration-200 group-hover/cat:text-accent">{cat.code} — {cat.title}</span>
                         <span className="text-muted-foreground">{cat.score} / {cat.max}</span>
                       </div>
                       <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
                         <div
-                          className="h-full bg-accent transition-all duration-300"
+                          className="h-full bg-gradient-to-r from-accent to-[#155F66] transition-all duration-500 group-hover/cat:from-[#155F66] group-hover/cat:to-accent"
                           style={{ width: `${cat.percentage}%` }}
                         />
                       </div>
@@ -675,7 +676,7 @@ export default function DashboardHome() {
                       <span>Terakhir Diperbarui:</span>
                       <span className="font-semibold text-foreground">{lastUpdatedStr}</span>
                     </div>
-                    <div className="flex justify-between items-center text-emerald-500 font-medium">
+                    <div className="flex justify-between items-center text-emerald-500 font-medium animate-pulse-glow">
                       <span>Progres Dibanding Baseline:</span>
                       <span className="bg-emerald-500/10 px-1.5 py-0.5 rounded text-[10px]">
                         +{scoreResult.total > 20 ? 15 : 5} pts peningkatan
@@ -691,7 +692,7 @@ export default function DashboardHome() {
             <div className="mt-5 border-t border-border pt-4">
               <Link
                 to="/dashboard/readiness"
-                className="inline-flex items-center text-sm font-semibold text-accent hover:text-accent/95 hover:underline"
+                className="inline-flex items-center text-sm font-semibold text-accent hover:text-accent/95 hover:underline transition-transform duration-200 hover:translate-x-0.5"
               >
                 Perbarui Readiness Scorecard
                 <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
@@ -701,11 +702,12 @@ export default function DashboardHome() {
         </Card>
 
         {/* Dynamic Next Actions */}
-        <Card className="p-5 shadow-card border-border bg-card lg:col-span-2 flex flex-col justify-between">
+        <Card className="group/priorities relative overflow-hidden p-5 shadow-card border-border bg-card lg:col-span-2 flex flex-col justify-between transition-all duration-300 hover:shadow-elegant">
+          <div className="absolute top-0 left-0 h-1 w-0 bg-primary group-hover/priorities:w-full transition-all duration-500" />
           <div>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold tracking-tight">Rekomendasi Prioritas Utama</h2>
-              <Badge variant="outline" className="border-accent/30 bg-accent-soft/30 text-accent font-medium">
+              <Badge variant="outline" className="border-accent/30 bg-accent-soft/30 text-accent font-medium animate-pulse-glow">
                 Dinamis Sesuai Gap
               </Badge>
             </div>
@@ -719,23 +721,23 @@ export default function DashboardHome() {
               {scoreResult.nextActions.map((action, idx) => (
                 <div
                   key={action.title}
-                  className="flex flex-col justify-between overflow-hidden rounded-xl border border-border bg-muted/20 p-4 shadow-sm transition-all hover:bg-muted/30"
+                  className="group/act flex flex-col justify-between overflow-hidden rounded-xl border border-border bg-muted/20 p-4 shadow-sm transition-all duration-300 hover:bg-muted/40 hover:-translate-y-1 hover:shadow-md hover:border-accent/20"
                 >
                   <div>
                     <div className="flex items-center gap-2 mb-3">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/15 text-accent text-xs font-bold">
+                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/15 text-accent text-xs font-bold transition-transform duration-300 group-hover/act:scale-110">
                         {idx + 1}
                       </div>
-                      <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider bg-background border border-border">
+                      <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider bg-background border border-border transition-colors group-hover/act:border-accent/30 group-hover/act:text-accent">
                         Layer {action.code}
                       </Badge>
                     </div>
-                    <h3 className="text-xs font-bold text-foreground leading-snug mb-1">{action.title}</h3>
+                    <h3 className="text-xs font-bold text-foreground leading-snug mb-1 transition-colors group-hover/act:text-accent">{action.title}</h3>
                     <p className="text-[11px] text-muted-foreground leading-relaxed mb-4">{action.desc}</p>
                   </div>
                   <Link
                     to={action.link}
-                    className="inline-flex items-center text-[11px] font-bold text-accent hover:text-accent/85 hover:underline mt-auto"
+                    className="inline-flex items-center text-[11px] font-bold text-accent hover:text-accent/85 hover:underline mt-auto transition-transform duration-200 group-hover/act:translate-x-0.5"
                   >
                     {action.linkText}
                   </Link>
@@ -754,12 +756,13 @@ export default function DashboardHome() {
       </div>
 
       {/* Redesigned 90-Day Plan Checklist Section */}
-      <Card className="border-border bg-card p-6 shadow-card hover:shadow-elegant transition-shadow duration-300">
+      <Card className="group relative overflow-hidden border-border bg-card p-6 shadow-card hover:shadow-elegant transition-all duration-300">
+        <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-500" />
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-border pb-5">
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-bold tracking-tight">Interactive 90-Day Plan</h2>
-              <Badge className="bg-accent/15 text-accent hover:bg-accent/20 border-accent/20">
+              <Badge className="bg-accent/15 text-accent hover:bg-accent/20 border-accent/20 animate-pulse-glow">
                 Operating Rhythm
               </Badge>
             </div>
@@ -769,14 +772,14 @@ export default function DashboardHome() {
           </div>
 
           {/* Premium Progress circle or bar */}
-          <div className="flex items-center gap-4 bg-muted/30 border border-border px-4 py-2.5 rounded-xl">
+          <div className="flex items-center gap-4 bg-muted/30 border border-border px-4 py-2.5 rounded-xl transition-all duration-300 hover:bg-muted/50">
             <div className="flex flex-col text-right">
               <span className="text-xs text-muted-foreground font-medium">Progress Penyelesaian</span>
               <span className="text-sm font-bold text-foreground">
                 {planStats.completed} dari {planStats.total} tugas ({planStats.percentage}%)
               </span>
             </div>
-            <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-accent text-xs font-bold border border-accent/20">
+            <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-accent-soft text-accent text-xs font-bold border border-accent/20 animate-pulse-glow">
               {planStats.percentage}%
             </div>
           </div>
@@ -802,10 +805,10 @@ export default function DashboardHome() {
               <div
                 key={section.id}
                 className={cn(
-                  'flex flex-col justify-between overflow-hidden rounded-xl border transition-all duration-200 bg-[#0F3D4F]/5 p-4',
+                  'flex flex-col justify-between overflow-hidden rounded-xl border transition-all duration-300 bg-[#0F3D4F]/5 p-4',
                   isExpanded
-                    ? 'border-[#155F66]/40 shadow-sm ring-1 ring-[#155F66]/10 bg-card'
-                    : 'border-border hover:border-border-hover'
+                    ? 'border-[#155F66]/40 shadow-elegant ring-1 ring-[#155F66]/10 bg-card'
+                    : 'border-border hover:border-primary/20 hover:bg-muted/5'
                 )}
               >
                 <div>
@@ -818,11 +821,11 @@ export default function DashboardHome() {
                     </div>
                     <Badge
                       className={cn(
-                        'text-[10px] font-bold border',
+                        'text-[10px] font-bold border transition-all duration-300',
                         isPhaseDone
-                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10'
+                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 shadow-sm'
                           : section.status === 'In Progress'
-                          ? 'border-amber-500/30 bg-amber-500/10 text-amber-500 hover:bg-amber-500/10'
+                          ? 'border-amber-500/30 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 shadow-sm'
                           : 'border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
                       )}
                     >
@@ -850,7 +853,7 @@ export default function DashboardHome() {
                     </div>
                   </div>
 
-                  <div className="mt-2.5 text-[11px] font-semibold text-muted-foreground flex items-center gap-1 bg-muted/40 p-1.5 rounded border border-border">
+                  <div className="mt-2.5 text-[11px] font-semibold text-muted-foreground flex items-center gap-1 bg-muted/40 p-1.5 rounded border border-border transition-colors duration-200 hover:bg-muted/60">
                     <span className="text-[9px] font-bold uppercase tracking-wider text-accent">Fokus Layer:</span>
                     <span className="text-foreground">{section.layer}</span>
                   </div>
@@ -860,7 +863,7 @@ export default function DashboardHome() {
                   <Button
                     type="button"
                     variant="outline"
-                    className="w-full h-8 text-xs font-semibold justify-between border-border"
+                    className="w-full h-8 text-xs font-semibold justify-between border-border transition-transform duration-200 active:scale-[0.98]"
                     onClick={() => setExpandedSection(isExpanded ? null : section.id)}
                   >
                     <span>{isExpanded ? 'Sembunyikan Checklist' : 'Lihat Checklist'}</span>
@@ -868,7 +871,7 @@ export default function DashboardHome() {
                   </Button>
 
                   {isExpanded && (
-                    <div className="mt-3 border-t border-border pt-4 space-y-2 animate-slide-down">
+                    <div className="mt-3 border-t border-border pt-4 space-y-2 animate-fade-in">
                       {section.tasks.map((task) => {
                         const isTaskChecked = !!planTasks[`${section.id}-${task}`];
 
@@ -878,20 +881,20 @@ export default function DashboardHome() {
                             type="button"
                             onClick={() => handleToggleTask(section.id, task)}
                             className={cn(
-                              'flex w-full items-start gap-2.5 rounded-lg border p-2.5 text-left text-[11px] font-medium transition-all focus:outline-none focus:ring-1 focus:ring-accent',
+                              'group/task flex w-full items-start gap-2.5 rounded-lg border p-2.5 text-left text-[11px] font-medium transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-accent active:scale-[0.98]',
                               isTaskChecked
-                                ? 'border-emerald-500/20 bg-emerald-500/[0.02] text-muted-foreground'
-                                : 'border-border bg-muted/10 text-foreground hover:bg-muted/20'
+                                ? 'border-emerald-500/20 bg-emerald-500/[0.01] text-muted-foreground/80'
+                                : 'border-border bg-muted/10 text-foreground hover:bg-muted/20 hover:border-primary/20'
                             )}
                           >
-                            <div className="mt-0.5 shrink-0 text-accent transition-transform hover:scale-110">
+                            <div className="mt-0.5 shrink-0 text-accent transition-all duration-200 group-hover/task:scale-110">
                               {isTaskChecked ? (
-                                <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                <CheckCircle2 className="h-4 w-4 text-emerald-500 animate-fade-in" />
                               ) : (
-                                <div className="h-3.5 w-3.5 rounded border border-muted-foreground/40 bg-background" />
+                                <div className="h-3.5 w-3.5 rounded border border-muted-foreground/40 bg-background transition-colors group-hover/task:border-accent" />
                               )}
                             </div>
-                            <span className={cn('leading-normal', isTaskChecked && 'line-through text-muted-foreground/55')}>
+                            <span className={cn('leading-normal transition-colors duration-200', isTaskChecked && 'line-through text-muted-foreground/50')}>
                               {task}
                             </span>
                           </button>
@@ -903,7 +906,7 @@ export default function DashboardHome() {
                   {isPhaseDone && (
                     <Button
                       type="button"
-                      className="w-full h-8 text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 gap-1"
+                      className="w-full h-8 text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 gap-1 transition-transform duration-200 active:scale-[0.98]"
                       onClick={() => handleCompletePhase(section.id)}
                     >
                       <CheckCircle2 className="h-3.5 w-3.5" />
@@ -930,20 +933,23 @@ export default function DashboardHome() {
           {workflowModules.map((module) => {
             const Icon = module.icon;
             const card = (
-              <Card className="relative overflow-hidden h-full p-5 shadow-card transition-all duration-300 group hover:-translate-y-1 hover:border-accent/40 hover:shadow-elegant bg-card">
-                <div className="absolute top-0 left-0 h-1 w-full bg-gradient-to-r from-accent/20 to-[#155F66]/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+              <Card className="relative overflow-hidden h-full p-5 shadow-card transition-all duration-300 group-hover:-translate-y-1.5 group-hover:border-accent/20 group-hover:shadow-elegant bg-card">
+                <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-300" />
                 <div className="flex items-start justify-between gap-3">
-                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#0F3D4F] to-[#155F66] text-white">
+                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#0F3D4F] to-[#155F66] text-white transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
                     <Icon className="h-5 w-5" />
                   </div>
-                  <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-500 font-semibold text-[10px]">
+                  <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-500 font-semibold text-[10px] shadow-sm transition-all duration-300 group-hover:bg-emerald-500/25">
                     {module.status}
                   </Badge>
                 </div>
-                <h3 className="mt-4 font-bold text-sm tracking-tight text-foreground group-hover:text-accent transition-colors">
+                <h3 className="mt-4 font-bold text-sm tracking-tight text-foreground group-hover:text-accent transition-colors duration-300">
                   {module.name}
                 </h3>
                 <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{module.description}</p>
+                <div className="mt-4 flex items-center text-xs font-bold text-accent opacity-0 group-hover:opacity-100 transition-all duration-300">
+                  Buka Modul <ArrowRight className="ml-1 h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-1" />
+                </div>
               </Card>
             );
 
@@ -952,7 +958,7 @@ export default function DashboardHome() {
                 <Link
                   key={module.name}
                   to={module.href}
-                  className="group block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2"
+                  className="group block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 transition-transform duration-200 active:scale-[0.99]"
                   aria-label={`Buka ${module.name}`}
                 >
                   {card}
@@ -970,7 +976,7 @@ export default function DashboardHome() {
       </section>
 
       {/* Trust Doctrine Section */}
-      <section className="space-y-4">
+      <section className="space-y-4 animate-fade-in-up delay-100">
         <div>
           <h2 className="text-xl font-bold tracking-tight text-foreground">Doktrin Kepercayaan (Trust Doctrine)</h2>
           <p className="text-sm text-muted-foreground">
@@ -980,10 +986,10 @@ export default function DashboardHome() {
 
         <div className="grid gap-4 md:grid-cols-3">
           {doctrineCards.map((card) => (
-            <Card key={card.title} className="relative overflow-hidden border-dashed bg-card/60 p-5 hover:bg-card hover:border-accent/40 transition-colors">
-              <div className="absolute top-0 left-0 h-1 w-8 bg-accent" />
-              <Sparkles className="h-4 w-4 text-accent animate-pulse" />
-              <h3 className="mt-3 font-bold text-sm text-foreground">{card.title}</h3>
+            <Card key={card.title} className="group relative overflow-hidden border-dashed bg-card/60 p-5 hover:bg-card hover:border-accent/40 hover:shadow-sm transition-all duration-300 hover:-translate-y-1">
+              <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-300" />
+              <Sparkles className="h-4 w-4 text-accent transition-transform duration-300 group-hover:scale-110" />
+              <h3 className="mt-3 font-bold text-sm text-foreground transition-colors group-hover:text-accent">{card.title}</h3>
               <p className="mt-2 text-xs leading-relaxed text-muted-foreground">{card.description}</p>
             </Card>
           ))}
