@@ -7,6 +7,7 @@ import {
   BookOpen,
   Megaphone,
   BarChart3,
+  BarChart2,
   KeyRound,
   Users,
   Settings as SettingsIcon,
@@ -58,6 +59,7 @@ const NAV_ITEMS: NavItem[] = [
   { name: 'Grantwriter', href: '/dashboard/grant-writer', icon: FileText },
   { name: 'Impact Library', href: '/dashboard/impactory-library', icon: BookOpen },
   { name: 'Campaign Builder', href: '/dashboard/impactory-ads', icon: Megaphone },
+  { name: 'Impact Dashboard', href: '/dashboard/impact', icon: BarChart2 },
   { name: 'Monthly Report', href: '/dashboard/monthly-report', icon: BarChart3 },
 ];
 
