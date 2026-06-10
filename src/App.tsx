@@ -26,6 +26,7 @@ import ImpactoryLibrary from './pages/dashboard/products/ImpactoryLibrary';
 import Grantfinder from './pages/dashboard/products/Grantfinder';
 import ImpactoryAds from './pages/dashboard/products/ImpactoryAds';
 import Onboarding from './pages/auth/Onboarding';
+import Settings from './pages/dashboard/Settings';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -62,18 +63,7 @@ const App = () => (
             <Route path="/library" element={<Navigate to="/dashboard/impactory-library" replace />} />
             <Route path="/ads" element={<Navigate to="/dashboard/impactory-ads" replace />} />
 
-            {/* Public product pages (MVP demo — no auth required) */}
-            <Route element={<DashboardLayout />}>
-              <Route path="/dashboard/grant-writer" element={<GrantWriterIndex />} />
-              <Route path="/dashboard/grant-writer/:projectId" element={<GrantWriterWizard />} />
-              <Route path="/dashboard/grant-writer/quick/:projectId" element={<GrantWriterQuickWizard />} />
-              <Route path="/dashboard/grant-writer/:projectId/proposal" element={<GrantWriterProposal />} />
-              <Route path="/dashboard/impactory-library" element={<ImpactoryLibrary />} />
-              <Route path="/dashboard/grantfinder" element={<Grantfinder />} />
-              <Route path="/dashboard/impactory-ads" element={<ImpactoryAds />} />
-            </Route>
-
-            {/* Protected (dashboard home & future account routes) */}
+            {/* Protected (all dashboard modules & settings require auth + organization) */}
             <Route
               element={
                 <ProtectedRoute>
@@ -87,7 +77,19 @@ const App = () => (
               <Route path="/dashboard/resource-access" element={<ResourceAccessTracker />} />
               <Route path="/dashboard/donor-crm" element={<DonorCRM />} />
               <Route path="/dashboard/impact" element={<ImpactDashboard />} />
-              {/* /settings/* + other product routes land in Chunk 3-4 */}
+              
+              {/* Product Modules under ProtectedRoute */}
+              <Route path="/dashboard/grant-writer" element={<GrantWriterIndex />} />
+              <Route path="/dashboard/grant-writer/:projectId" element={<GrantWriterWizard />} />
+              <Route path="/dashboard/grant-writer/quick/:projectId" element={<GrantWriterQuickWizard />} />
+              <Route path="/dashboard/grant-writer/:projectId/proposal" element={<GrantWriterProposal />} />
+              <Route path="/dashboard/impactory-library" element={<ImpactoryLibrary />} />
+              <Route path="/dashboard/grantfinder" element={<Grantfinder />} />
+              <Route path="/dashboard/impactory-ads" element={<ImpactoryAds />} />
+
+              {/* Settings Route */}
+              <Route path="/dashboard/settings" element={<Settings />} />
+              <Route path="/dashboard/settings/profile" element={<Settings />} />
             </Route>
 
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

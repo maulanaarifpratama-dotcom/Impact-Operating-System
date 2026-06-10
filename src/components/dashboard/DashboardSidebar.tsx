@@ -140,8 +140,8 @@ export function DashboardSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild tooltip="Settings" isActive={path.startsWith('/settings')}>
-                  <NavLink to="/settings" className={linkClass(path.startsWith('/settings'))}>
+                <SidebarMenuButton asChild tooltip="Settings" isActive={path.startsWith('/dashboard/settings')}>
+                  <NavLink to="/dashboard/settings" className={linkClass(path.startsWith('/dashboard/settings'))}>
                     <SettingsIcon className="h-4 w-4 shrink-0" />
                     {!collapsed && <span>Settings</span>}
                   </NavLink>
@@ -198,12 +198,12 @@ export function DashboardSidebar() {
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
-              <Link to="/settings/profile" className="cursor-pointer">
+              <Link to="/dashboard/settings/profile" className="cursor-pointer">
                 <UserIcon className="mr-2 h-4 w-4" /> Profil
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <Link to="/settings" className="cursor-pointer">
+              <Link to="/dashboard/settings" className="cursor-pointer">
                 <SettingsIcon className="mr-2 h-4 w-4" /> Settings
               </Link>
             </DropdownMenuItem>

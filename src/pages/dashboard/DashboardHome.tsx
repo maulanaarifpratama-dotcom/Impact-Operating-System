@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import {
   ArrowRight,
   BarChart3,
+  BarChart2,
   BookOpen,
   CheckCircle2,
   FileText,
@@ -184,6 +185,13 @@ const workflowModules = [
     status: 'Live',
   },
   {
+    name: 'Donor CRM',
+    description: 'Kelola basis kontak donor, riwayat donasi, dan tahapan donor journey secara terpusat.',
+    href: '/dashboard/donor-crm',
+    icon: Users,
+    status: 'Live',
+  },
+  {
     name: 'Grant Pipeline',
     description: 'Kelola peluang grant dari source, eligibility, deadline, confidence, sampai next action.',
     href: '/dashboard/grantfinder',
@@ -209,6 +217,13 @@ const workflowModules = [
     description: 'Bangun campaign brief dan copy untuk fundraising, advokasi, dan growth.',
     href: '/dashboard/impactory-ads',
     icon: Megaphone,
+    status: 'Live',
+  },
+  {
+    name: 'Impact Dashboard',
+    description: 'Tampilkan transparansi capaian program, statistik donasi, dan tingkat kesiapan organisasi.',
+    href: '/dashboard/impact',
+    icon: BarChart2,
     status: 'Live',
   },
   {
