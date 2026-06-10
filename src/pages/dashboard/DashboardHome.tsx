@@ -307,7 +307,13 @@ export default function DashboardHome() {
     enabled: !!user?.id,
   });
 
-  const orgId = membership?.organization_id;
+  const orgId = useMemo(() => {
+    if (!membership) return undefined;
+    if (Array.isArray(membership)) {
+      return membership[0]?.organization_id;
+    }
+    return (membership as any)?.organization_id;
+  }, [membership]);
 
   // Query organization details
   const { data: organization, isLoading: isOrgLoading } = useQuery({

@@ -202,7 +202,13 @@ export default function ResourceAccessTracker() {
     enabled: !!user?.id,
   });
 
-  const organizationId = membership?.organization_id;
+  const organizationId = useMemo(() => {
+    if (!membership) return undefined;
+    if (Array.isArray(membership)) {
+      return membership[0]?.organization_id;
+    }
+    return (membership as any)?.organization_id;
+  }, [membership]);
 
   // 2. Fetch platform access records
   const { data: dbPlatforms, isLoading: isPlatformsLoading, refetch } = useQuery({

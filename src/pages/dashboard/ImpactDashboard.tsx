@@ -99,7 +99,13 @@ export default function ImpactDashboard() {
     enabled: !!user?.id,
   });
 
-  const organizationId = membership?.organization_id;
+  const organizationId = useMemo(() => {
+    if (!membership) return undefined;
+    if (Array.isArray(membership)) {
+      return membership[0]?.organization_id;
+    }
+    return (membership as any)?.organization_id;
+  }, [membership]);
 
   // 2. Fetch all required tables (Multi-Tenant, Scoped by organizationId)
   const { data: donors = [], isLoading: isDonorsLoading } = useQuery({

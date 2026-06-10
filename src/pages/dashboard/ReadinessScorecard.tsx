@@ -154,7 +154,14 @@ export default function ReadinessScorecard() {
     enabled: !!user?.id,
   });
 
-  const orgId = membership?.organization_id;
+  const orgId = useMemo(() => {
+    if (!membership) return undefined;
+    if (Array.isArray(membership)) {
+      return membership[0]?.organization_id;
+    }
+    return (membership as any)?.organization_id;
+  }, [membership]);
+
   const [scores, setScores] = useState<Record<string, number>>({});
 
   // Load persistent scores from Supabase

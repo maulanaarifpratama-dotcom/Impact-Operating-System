@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '@/providers/AuthProvider';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -78,7 +78,13 @@ export default function Settings() {
     enabled: !!user?.id,
   });
 
-  const orgId = membership?.organization_id;
+  const orgId = useMemo(() => {
+    if (!membership) return undefined;
+    if (Array.isArray(membership)) {
+      return membership[0]?.organization_id;
+    }
+    return (membership as any)?.organization_id;
+  }, [membership]);
 
   const { data: organization, isLoading: loadingOrg, refetch: refetchOrg } = useQuery({
     queryKey: ['organization', orgId],
