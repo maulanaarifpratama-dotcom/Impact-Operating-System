@@ -26,7 +26,7 @@ serve(async (req) => {
   if (cors) return cors;
 
   try {
-    const { user, organization_id } = await getUserAndOrg(req);
+    const { user, organization_id, supabase } = await getUserAndOrg(req);
     const body = (await req.json()) as RagInput;
     const question = (body.question ?? '').trim();
     if (!question) return json({ error: 'question is required' }, 400);
@@ -48,12 +48,11 @@ serve(async (req) => {
     }
 
     // 2) Vector search via RPC
-    const { data: chunks, error: rpcErr } = await admin.rpc('match_library_chunks', {
-      query_embedding: embedding,
-      match_threshold: 0.55,
-      match_count: matchCount,
-      filter_organization_id: organization_id,
-      filter_document_ids: body.document_ids ?? null,
+    const { data: chunks, error: rpcErr } = await supabase.rpc('match_library_chunks', {
+      _org_id: organization_id,
+      _query_embedding: embedding,
+      _match_count: matchCount,
+      _min_similarity: 0.55,
     });
     if (rpcErr) return json({ error: rpcErr.message }, 500);
     if (!chunks || chunks.length === 0) {
