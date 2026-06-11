@@ -24,7 +24,7 @@ async function authHeader(orgId?: string): Promise<Record<string, string> | null
     Authorization: 'Bearer ' + t, 
     'Content-Type': 'application/json' 
   };
-  if (orgId) {
+  if (orgId && orgId !== 'undefined' && orgId !== 'null') {
     headers['x-organization-id'] = orgId;
   }
   return headers;

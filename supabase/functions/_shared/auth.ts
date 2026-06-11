@@ -101,7 +101,7 @@ export async function getUserAndOrg(req: Request): Promise<{
 
   // Check if an explicit organization ID is passed via headers
   const headerOrgId = req.headers.get('x-organization-id') || req.headers.get('X-Organization-Id');
-  if (headerOrgId) {
+  if (headerOrgId && headerOrgId !== 'undefined' && headerOrgId !== 'null') {
     // Assert the user is a member of this organization
     await assertOrgMember(ctx, headerOrgId);
     return {
