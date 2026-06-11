@@ -1,4 +1,4 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BookOpen, Download, Filter, Search, ShieldAlert, Sparkles, TrendingUp, X, Loader2, MessageSquare, Send, Plus, Upload, CheckCircle2, AlertTriangle, AlertCircle, FileText } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -201,43 +201,12 @@ export default function ImpactoryLibrary() {
       return data ?? [];
     },
     enabled: !!organizationId,
+    refetchInterval: 5000, // Safe, standard 5-second polling fallback (no WebSockets / unmount memory leaks)
   });
 
   const hasProcessing = useMemo(() => {
     return documents?.some((doc: any) => doc.status === 'processing' || doc.status === 'uploaded');
   }, [documents]);
-
-  // Supabase Realtime Subscription and Polling Fallback
-  useEffect(() => {
-    if (!organizationId) return;
-
-    // 1. Supabase Realtime Subscription
-    const channel = supabase
-      .channel('library-docs-realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'library_documents',
-          filter: `organization_id=eq.${organizationId}`,
-        },
-        () => {
-          queryClient.invalidateQueries({ queryKey: ['library_documents', organizationId] });
-        }
-      )
-      .subscribe();
-
-    // 2. Fallback Polling every 5 seconds (as requested)
-    const interval = setInterval(() => {
-      queryClient.invalidateQueries({ queryKey: ['library_documents', organizationId] });
-    }, 5000);
-
-    return () => {
-      supabase.removeChannel(channel);
-      clearInterval(interval);
-    };
-  }, [organizationId, queryClient]);
 
   // Map backend documents to LibraryItem interface
   const libraryItems = useMemo<LibraryItem[]>(() => {
