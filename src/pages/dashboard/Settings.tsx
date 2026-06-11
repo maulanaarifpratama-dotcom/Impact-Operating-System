@@ -157,40 +157,6 @@ export default function Settings() {
     },
   });
 
-  const [isReconnecting, setIsReconnecting] = useState(false);
-
-  const handleReconnectOneDrive = async () => {
-    if (!isAdminOrOwner) {
-      toast.error('Gagal: Hanya Owner atau Admin yang dapat memperbarui integrasi');
-      return;
-    }
-    setIsReconnecting(true);
-    try {
-      // Simulate/Trigger a secure connection handshake
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      
-      // Update integration status to active in database
-      if (onedriveIntegration) {
-        const { error } = await supabase
-          .from('system_integrations')
-          .update({
-            status: 'active',
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', onedriveIntegration.id);
-        if (error) throw error;
-      }
-
-      await refetchIntegration();
-      toast.success('Koneksi Microsoft OneDrive berhasil diperbarui dan disinkronisasi!');
-    } catch (err: any) {
-      console.error('[Settings] Error reconnecting OneDrive:', err);
-      toast.error('Gagal menyambungkan OneDrive: ' + err.message);
-    } finally {
-      setIsReconnecting(false);
-    }
-  };
-
   // --- Tab 3: Fetch Team Members & Manage Roles ---
   const { data: teamMembers, isLoading: loadingTeam, refetch: refetchTeam } = useQuery({
     queryKey: ['team_members_settings', orgId],
@@ -556,66 +522,52 @@ export default function Settings() {
             </CardHeader>
             <CardContent className="space-y-6">
               <div className="p-5 border border-slate-100 rounded-2xl bg-slate-50/40 flex flex-col md:flex-row gap-5 justify-between items-start md:items-center">
-                <div className="flex gap-4 items-start">
-                  <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0 font-bold">
+                <div className="flex gap-4 items-start w-full">
+                  <div className="h-12 w-12 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600 shrink-0 font-bold text-lg">
                     OD
                   </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
+                  <div className="space-y-1.5 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="font-bold text-slate-800 text-sm">Microsoft OneDrive Integration</h4>
                       {onedriveIntegration?.status === 'active' ? (
-                        <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold px-2 py-0">
+                        <Badge className="bg-emerald-50 text-emerald-700 hover:bg-emerald-50 border border-emerald-100 font-semibold px-2 py-0.5 text-xs">
                           Aktif & Sinkron
                         </Badge>
                       ) : (
-                        <Badge className="bg-rose-50 text-rose-700 hover:bg-rose-50 border border-rose-100 font-semibold px-2 py-0">
+                        <Badge className="bg-rose-50 text-rose-700 hover:bg-rose-50 border border-rose-100 font-semibold px-2 py-0.5 text-xs">
                           Terputus
                         </Badge>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed max-w-xl">
+                    <p className="text-xs text-muted-foreground leading-relaxed">
                       Status ini menunjukkan status koneksi folder internal server cloud Microsoft dengan database Impactory.id untuk direktori `library_documents`.
                     </p>
                   </div>
                 </div>
-
-                <Button
-                  onClick={handleReconnectOneDrive}
-                  disabled={isReconnecting || !isAdminOrOwner}
-                  className="bg-orange-600 hover:bg-orange-700 text-white font-semibold flex items-center gap-2 shrink-0 self-start md:self-auto"
-                >
-                  {isReconnecting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      Menyambungkan…
-                    </>
-                  ) : (
-                    <>
-                      <RefreshCw className="h-4 w-4" />
-                      Hubungkan Ulang OneDrive
-                    </>
-                  )}
-                </Button>
               </div>
 
               {onedriveIntegration?.status === 'active' && (
-                <div className="grid gap-4 md:grid-cols-3 border border-slate-100 rounded-xl p-4 text-xs">
+                <div className="grid gap-4 md:grid-cols-2 border border-slate-100 rounded-xl p-4 text-xs">
                   <div className="space-y-1">
                     <span className="text-slate-500 font-medium">Akun Microsoft Tersambung</span>
                     <p className="font-bold text-slate-700">{onedriveIntegration.account_email}</p>
                   </div>
                   <div className="space-y-1">
-                    <span className="text-slate-500 font-medium">Tenant Tenant AD</span>
+                    <span className="text-slate-500 font-medium">Tenant Domain AD</span>
                     <p className="font-bold text-slate-700">{onedriveIntegration.metadata?.tenant || 'bisabaikorid.onmicrosoft.com'}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <span className="text-slate-500 font-medium">Drive ID Terarsip</span>
-                    <p className="font-bold text-slate-700 font-mono text-[10px] truncate max-w-[200px]" title={onedriveIntegration.drive_id}>
-                      {onedriveIntegration.drive_id}
-                    </p>
                   </div>
                 </div>
               )}
+
+              <div className="p-4 bg-orange-50/50 border border-orange-100/60 rounded-xl flex items-start gap-3 text-xs text-orange-800">
+                <ShieldCheck className="h-5 w-5 text-orange-500 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-semibold text-orange-900">Catatan Integrasi</p>
+                  <p className="leading-relaxed">
+                    Storage cloud dikelola secara terpusat oleh tim Impactory.id.
+                  </p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
