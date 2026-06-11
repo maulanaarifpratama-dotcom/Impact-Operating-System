@@ -29,8 +29,7 @@ import Onboarding from './pages/auth/Onboarding';
 import Settings from './pages/dashboard/Settings';
 import MonthlyOperatingReview from './pages/dashboard/MonthlyOperatingReview';
 
-import { MsalProvider } from '@azure/msal-react';
-import msalInstance from '@/lib/msalConfig';
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,8 +38,7 @@ const queryClient = new QueryClient({
 });
 
 const App = () => (
-  <MsalProvider instance={msalInstance}>
-    <QueryClientProvider client={queryClient}>
+  <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <AuthProvider>
           <TooltipProvider>
@@ -105,7 +103,6 @@ const App = () => (
       </AuthProvider>
     </BrowserRouter>
   </QueryClientProvider>
-  </MsalProvider>
 );
 
 export default App;

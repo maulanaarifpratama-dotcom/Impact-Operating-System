@@ -22,9 +22,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { ingestLibraryText, askLibrary, type RagCitation } from '@/lib/library/ai';
 import { toast } from 'sonner';
 
-import { useMsal, useIsAuthenticated } from '@azure/msal-react';
-import { loginRequest } from '@/lib/msalConfig';
-import { uploadFile as uploadToOneDrive } from '@/lib/oneDriveService';
 import { cn } from '@/lib/utils';
 import { Cloud } from 'lucide-react';
 import {
@@ -133,23 +130,7 @@ export default function ImpactoryLibrary() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  const { instance: msalInstance } = useMsal();
-  const isMsalAuthenticated = useIsAuthenticated();
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [isMsalLoggingIn, setIsMsalLoggingIn] = useState(false);
-
-  const handleMsalLogin = async () => {
-    setIsMsalLoggingIn(true);
-    try {
-      await msalInstance.loginPopup(loginRequest);
-      toast.success('Berhasil terhubung dengan Microsoft Account!');
-    } catch (err: any) {
-      console.error('MSAL Login failed:', err);
-      toast.error(`Koneksi Microsoft Gagal: ${err.message || err}`);
-    } finally {
-      setIsMsalLoggingIn(false);
-    }
-  };
 
   const [tab, setTab] = useState<LibraryKind | 'all'>('all');
   const [search, setSearch] = useState('');
@@ -279,19 +260,27 @@ export default function ImpactoryLibrary() {
     }
 
     if (selectedFile) {
-      // 1. OneDrive Binary Upload Flow (Phase 1)
-      if (!isMsalAuthenticated) {
-        toast.error('Harap hubungkan akun Microsoft OneDrive Anda terlebih dahulu.');
-        return;
-      }
-
+      // 1. OneDrive Binary Upload Flow (Secure App-Only Backend Flow)
       setIsUploading(true);
       try {
-        // Generate a new document UUID
+        // Generate a new document UUID on the client side
         const documentId = crypto.randomUUID();
 
-        // Upload physical file to central OneDrive
-        const uploadResult = await uploadToOneDrive(selectedFile, organizationId, documentId);
+        // Prepare multipart form data
+        const formData = new FormData();
+        formData.append('file', selectedFile);
+        formData.append('organizationId', organizationId);
+        formData.append('documentId', documentId);
+        formData.append('fileName', selectedFile.name);
+
+        // Invoke the Supabase Edge Function
+        const { data: uploadResult, error: funcErr } = await supabase.functions.invoke('onedrive-upload', {
+          body: formData,
+        });
+
+        if (funcErr || !uploadResult) {
+          throw new Error(funcErr?.message || 'Gagal memanggil fungsi onedrive-upload.');
+        }
 
         // Save metadata record to library_documents table
         const { error: dbErr } = await (supabase as any)
@@ -303,7 +292,7 @@ export default function ImpactoryLibrary() {
             title: uploadTitle.trim(),
             source_url: uploadResult.webUrl,
             tags: uploadTags.split(',').map(t => t.trim()).filter(Boolean),
-            status: 'ready', // Set directly to ready for Phase 1 (metadata-only storage representation)
+            status: 'ready', // Set directly to ready for Phase 1
             char_count: 0,
             original_file_name: selectedFile.name,
             storage_provider: 'onedrive',
@@ -725,33 +714,14 @@ export default function ImpactoryLibrary() {
             </div>
 
             <form onSubmit={handleUpload} className="space-y-4 pt-2">
-              {/* Microsoft OneDrive Integration File Picker */}
+               {/* Microsoft OneDrive Integration File Picker */}
               <div className="border border-accent/20 bg-accent-soft/10 rounded-xl p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Cloud className="h-5 w-5 text-accent" />
-                    <div>
-                      <h4 className="text-sm font-semibold">Integrasi Storage OneDrive</h4>
-                      <p className="text-[11px] text-muted-foreground">Unggah file fisik Anda langsung ke storage OneDrive organisasi.</p>
-                    </div>
+                <div className="flex items-center gap-2">
+                  <Cloud className="h-5 w-5 text-accent" />
+                  <div>
+                    <h4 className="text-sm font-semibold">Integrasi Storage OneDrive</h4>
+                    <p className="text-[11px] text-muted-foreground">Unggah file fisik Anda langsung ke storage OneDrive organisasi tanpa login.</p>
                   </div>
-                  {isMsalAuthenticated ? (
-                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
-                      Terhubung
-                    </Badge>
-                  ) : (
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={handleMsalLogin} 
-                      disabled={isMsalLoggingIn}
-                      className="h-7 text-xs border-accent/30 text-accent hover:bg-accent-soft/20"
-                    >
-                      {isMsalLoggingIn && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
-                      Hubungkan Microsoft
-                    </Button>
-                  )}
                 </div>
 
                 <div className="space-y-1.5">
