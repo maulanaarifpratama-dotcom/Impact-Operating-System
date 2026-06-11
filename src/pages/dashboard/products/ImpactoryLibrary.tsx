@@ -291,7 +291,7 @@ export default function ImpactoryLibrary() {
             uploaded_by: user?.id,
             title: uploadTitle.trim(),
             source_url: uploadResult.webUrl,
-            status: 'ready', // Set directly to ready for Phase 1
+            status: 'indexed', // Set directly to indexed for Phase 1
             original_file_name: selectedFile.name,
             storage_provider: 'onedrive',
             storage_path: uploadResult.storagePath,
