@@ -16,7 +16,7 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { getUserAndOrg, adminClient } from '../_shared/auth.ts';
-import { foundryEmbed } from '../_shared/foundry.ts';
+import { foundryEmbed, embed } from '../_shared/foundry.ts';
 
 interface IngestInput {
   title: string;
@@ -56,8 +56,17 @@ function chunkText(text: string): string[] {
       }
     }
     chunks.push(slice.trim());
-    i += slice.length - CHUNK_OVERLAP;
-    if (i < 0) i = slice.length;
+    
+    if (end === clean.length) {
+      break;
+    }
+
+    const nextI = i + slice.length - CHUNK_OVERLAP;
+    if (nextI <= i) {
+      i = end;
+    } else {
+      i = nextI;
+    }
   }
   return chunks.filter((c) => c.length > 0);
 }
@@ -104,34 +113,54 @@ serve(async (req) => {
     const chunks = chunkText(body.text);
     let inserted = 0;
     const errors: string[] = [];
-    for (let idx = 0; idx < chunks.length; idx++) {
-      const c = chunks[idx];
-      try {
-        const emb = await foundryEmbed(c);
-        const { error: ce } = await admin.from('library_chunks').insert({
+
+    try {
+      // Batch embed all chunks in a single API call to Azure OpenAI / Foundry
+      const embedRes = await embed(chunks);
+      const embeddings = embedRes.data;
+
+      // Map chunks to database inserts
+      const insertPayloads = chunks.map((c, idx) => {
+        const embObj = embeddings.find((e) => e.index === idx) || embeddings[idx];
+        return {
           document_id: doc.id,
           organization_id,
           chunk_index: idx,
           content: c,
-          embedding: emb,
+          embedding: embObj?.embedding,
           token_count: Math.ceil(c.length / 4),
-        });
-        if (ce) errors.push('chunk ' + idx + ': ' + ce.message);
-        else inserted++;
-      } catch (e) {
-        errors.push('chunk ' + idx + ': ' + (e as Error).message);
+        };
+      });
+
+      // Batch insert all chunks to the database in a single query
+      const { error: chunkErr } = await admin.from('library_chunks').insert(insertPayloads);
+      if (chunkErr) {
+        errors.push('Failed to insert chunks: ' + chunkErr.message);
+      } else {
+        inserted = chunks.length;
       }
+    } catch (e) {
+      errors.push('Batch embedding or insertion failed: ' + (e as Error).message);
     }
+
+    const finalMetadata = {
+      ...mergedMetadata,
+      chunk_count: inserted,
+    };
 
     await admin
       .from('library_documents')
-      .update({ status: errors.length > 0 ? 'partial' : 'ready', chunk_count: inserted })
+      .update({
+        status: inserted > 0 ? 'indexed' : 'failed',
+        metadata: finalMetadata,
+        status_message: errors.length > 0 ? errors.join('; ') : null,
+      })
       .eq('id', doc.id);
 
     await admin.from('ai_generations').insert({
       organization_id,
       user_id: user.id,
-      feature: 'library_ingest',
+      product: 'impactory_library',
       metadata: { document_id: doc.id, chunks: inserted },
     });
 
