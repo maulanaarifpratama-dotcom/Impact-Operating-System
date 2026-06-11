@@ -21,6 +21,12 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ingestLibraryText, askLibrary, type RagCitation } from '@/lib/library/ai';
 import { toast } from 'sonner';
+
+import { useMsal, useIsAuthenticated } from '@azure/msal-react';
+import { loginRequest } from '@/lib/msalConfig';
+import { uploadFile as uploadToOneDrive } from '@/lib/oneDriveService';
+import { cn } from '@/lib/utils';
+import { Cloud } from 'lucide-react';
 import {
   type LibraryItem,
   type LibraryKind,
@@ -126,6 +132,24 @@ const WORKFLOW_CARDS = [
 export default function ImpactoryLibrary() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  const { instance: msalInstance } = useMsal();
+  const isMsalAuthenticated = useIsAuthenticated();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isMsalLoggingIn, setIsMsalLoggingIn] = useState(false);
+
+  const handleMsalLogin = async () => {
+    setIsMsalLoggingIn(true);
+    try {
+      await msalInstance.loginPopup(loginRequest);
+      toast.success('Berhasil terhubung dengan Microsoft Account!');
+    } catch (err: any) {
+      console.error('MSAL Login failed:', err);
+      toast.error(`Koneksi Microsoft Gagal: ${err.message || err}`);
+    } finally {
+      setIsMsalLoggingIn(false);
+    }
+  };
 
   const [tab, setTab] = useState<LibraryKind | 'all'>('all');
   const [search, setSearch] = useState('');
@@ -253,6 +277,77 @@ export default function ImpactoryLibrary() {
       toast.error('Harap lengkapi Judul dan Isi Dokumen');
       return;
     }
+
+    if (selectedFile) {
+      // 1. OneDrive Binary Upload Flow (Phase 1)
+      if (!isMsalAuthenticated) {
+        toast.error('Harap hubungkan akun Microsoft OneDrive Anda terlebih dahulu.');
+        return;
+      }
+
+      setIsUploading(true);
+      try {
+        // Generate a new document UUID
+        const documentId = crypto.randomUUID();
+
+        // Upload physical file to central OneDrive
+        const uploadResult = await uploadToOneDrive(selectedFile, organizationId, documentId);
+
+        // Save metadata record to library_documents table
+        const { error: dbErr } = await (supabase as any)
+          .from('library_documents')
+          .insert({
+            id: documentId,
+            organization_id: organizationId,
+            user_id: user?.id,
+            title: uploadTitle.trim(),
+            source_url: uploadResult.webUrl,
+            tags: uploadTags.split(',').map(t => t.trim()).filter(Boolean),
+            status: 'ready', // Set directly to ready for Phase 1 (metadata-only storage representation)
+            char_count: 0,
+            original_file_name: selectedFile.name,
+            storage_provider: 'onedrive',
+            storage_path: uploadResult.storagePath,
+            storage_item_id: uploadResult.storageItemId,
+            drive_id: uploadResult.driveId,
+            web_url: uploadResult.webUrl,
+            size_bytes: uploadResult.sizeBytes,
+            mime_type: uploadResult.mimeType,
+            metadata: {
+              kind: uploadKind,
+              consent_status: uploadConsentStatus,
+              year: parseInt(uploadYear) || new Date().getFullYear(),
+              sectors: uploadSectors,
+              sdgs: uploadSdgs,
+              readMinutes: 5,
+            }
+          });
+
+        if (dbErr) {
+          throw new Error(`Gagal menyimpan data metadata dokumen ke database: ${dbErr.message}`);
+        }
+
+        toast.success('Sukses: File berhasil diunggah ke OneDrive dan tercatat di library!');
+        
+        // Reset state
+        setSelectedFile(null);
+        setUploadTitle('');
+        setUploadText('');
+        setUploadUrl('');
+        setUploadTags('');
+        setUploadSectors([]);
+        setUploadSdgs([]);
+        queryClient.invalidateQueries({ queryKey: ['library_documents', organizationId] });
+      } catch (err: any) {
+        console.error('OneDrive upload flow error:', err);
+        toast.error(`Gagal mengunggah ke OneDrive: ${err.message || err}`);
+      } finally {
+        setIsUploading(false);
+      }
+      return;
+    }
+
+    // 2. Standard Text Ingestion Flow
     if (uploadText.trim().length < 50) {
       toast.error('Isi teks dokumen minimal harus 50 karakter agar dapat dianalisis AI');
       return;
@@ -630,6 +725,62 @@ export default function ImpactoryLibrary() {
             </div>
 
             <form onSubmit={handleUpload} className="space-y-4 pt-2">
+              {/* Microsoft OneDrive Integration File Picker */}
+              <div className="border border-accent/20 bg-accent-soft/10 rounded-xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Cloud className="h-5 w-5 text-accent" />
+                    <div>
+                      <h4 className="text-sm font-semibold">Integrasi Storage OneDrive</h4>
+                      <p className="text-[11px] text-muted-foreground">Unggah file fisik Anda langsung ke storage OneDrive organisasi.</p>
+                    </div>
+                  </div>
+                  {isMsalAuthenticated ? (
+                    <Badge variant="outline" className="bg-emerald-500/10 text-emerald-500 border-emerald-500/20">
+                      Terhubung
+                    </Badge>
+                  ) : (
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={handleMsalLogin} 
+                      disabled={isMsalLoggingIn}
+                      className="h-7 text-xs border-accent/30 text-accent hover:bg-accent-soft/20"
+                    >
+                      {isMsalLoggingIn && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                      Hubungkan Microsoft
+                    </Button>
+                  )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold uppercase tracking-wider">Pilih File untuk OneDrive (Opsional)</Label>
+                  <Input 
+                    type="file" 
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      setSelectedFile(file);
+                      if (file) {
+                        const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+                        setUploadTitle(nameWithoutExt);
+                        setUploadText(`[OneDrive File] File "${file.name}" selected for direct secure upload to organization central OneDrive.`);
+                      } else {
+                        setUploadTitle('');
+                        setUploadText('');
+                      }
+                    }}
+                    className="cursor-pointer file:text-accent file:font-semibold"
+                  />
+                  {selectedFile && (
+                    <p className="text-[11px] text-emerald-400 flex items-center gap-1 mt-1">
+                      <CheckCircle2 className="h-3 w-3" />
+                      File terpilih: {selectedFile.name} ({(selectedFile.size / 1024).toFixed(1)} KB) - File akan diunggah langsung ke OneDrive.
+                    </p>
+                  )}
+                </div>
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="title" className="text-xs font-semibold uppercase tracking-wider">Judul Dokumen <span className="text-destructive">*</span></Label>
@@ -658,12 +809,13 @@ export default function ImpactoryLibrary() {
                   id="text"
                   value={uploadText}
                   onChange={(e) => setUploadText(e.target.value)}
-                  placeholder="Tempel dokumen proposal, cerita penerima manfaat, atau laporan Anda di sini (minimal 50 karakter)..."
+                  placeholder={selectedFile ? "File OneDrive terpilih. Isi dokumen fisik disimpan langsung di cloud storage." : "Tempel dokumen proposal, cerita penerima manfaat, atau laporan Anda di sini (minimal 50 karakter)..."}
                   className="min-h-[140px] font-sans"
-                  required
+                  required={!selectedFile}
+                  disabled={!!selectedFile}
                 />
                 <span className="text-[10px] text-muted-foreground float-right block">
-                  Jumlah Karakter: {uploadText.length} (Minimal 50)
+                  Jumlah Karakter: {uploadText.length} {selectedFile ? "" : "(Minimal 50)"}
                 </span>
               </div>
 
