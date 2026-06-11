@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, BookOpen, Download, Filter, Search, ShieldAlert, Sparkles, TrendingUp, X, Loader2, MessageSquare, Send, Plus, Upload, CheckCircle2, AlertTriangle, AlertCircle, FileText } from 'lucide-react';
 import { Card } from '@/components/ui/card';
@@ -207,24 +207,37 @@ export default function ImpactoryLibrary() {
     return documents?.some((doc: any) => doc.status === 'processing' || doc.status === 'uploaded');
   }, [documents]);
 
-  // If there are indexing files, automatically poll every 4 seconds to show live updates
-  const { data: liveDocs } = useQuery({
-    queryKey: ['library_documents_polled', organizationId, hasProcessing],
-    queryFn: async () => {
-      if (!organizationId) return [];
-      const { data, error } = await (supabase as any)
-        .from('library_documents')
-        .select('*')
-        .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      // Triggers invalidation on main document queries to sync list
-      queryClient.setQueryData(['library_documents', organizationId], data);
-      return data ?? [];
-    },
-    enabled: !!organizationId && hasProcessing,
-    refetchInterval: 4000,
-  });
+  // Supabase Realtime Subscription and Polling Fallback
+  useEffect(() => {
+    if (!organizationId) return;
+
+    // 1. Supabase Realtime Subscription
+    const channel = supabase
+      .channel('library-docs-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'library_documents',
+          filter: `organization_id=eq.${organizationId}`,
+        },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['library_documents', organizationId] });
+        }
+      )
+      .subscribe();
+
+    // 2. Fallback Polling every 5 seconds (as requested)
+    const interval = setInterval(() => {
+      queryClient.invalidateQueries({ queryKey: ['library_documents', organizationId] });
+    }, 5000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [organizationId, queryClient]);
 
   // Map backend documents to LibraryItem interface
   const libraryItems = useMemo<LibraryItem[]>(() => {
