@@ -21,6 +21,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { ingestLibraryText, askLibrary, type RagCitation } from '@/lib/library/ai';
 import { toast } from 'sonner';
+import * as pdfjsLib from 'pdfjs-dist';
+// @ts-ignore
+import pdfWorker from 'pdfjs-dist/build/pdf.worker.mjs?worker';
+
+pdfjsLib.GlobalWorkerOptions.workerPort = new pdfWorker();
 
 import { cn } from '@/lib/utils';
 import { Cloud } from 'lucide-react';
@@ -149,6 +154,7 @@ export default function ImpactoryLibrary() {
   const [uploadSectors, setUploadSectors] = useState<GrantSector[]>([]);
   const [uploadSdgs, setUploadSdgs] = useState<number[]>([]);
   const [isUploading, setIsUploading] = useState(false);
+  const [isExtractingPdf, setIsExtractingPdf] = useState(false);
 
   // Chat states
   const [chatQuestion, setChatQuestion] = useState('');
@@ -740,6 +746,9 @@ export default function ImpactoryLibrary() {
                                        file.name.endsWith('.json') || 
                                        file.name.endsWith('.csv');
                         
+                        const isPdf = file.name.toLowerCase().endsWith('.pdf') ||
+                                      file.type === 'application/pdf';
+                        
                         if (isText) {
                           try {
                             const content = await file.text();
@@ -747,6 +756,40 @@ export default function ImpactoryLibrary() {
                           } catch (err) {
                             console.error('Gagal membaca isi file teks:', err);
                             setUploadText(`[OneDrive File] File "${file.name}" selected for direct secure upload.`);
+                          }
+                        } else if (isPdf) {
+                          setIsExtractingPdf(true);
+                          setUploadText('Mengekstrak teks dari PDF... Harap tunggu.');
+                          try {
+                            const arrayBuffer = await file.arrayBuffer();
+                            const typedArray = new Uint8Array(arrayBuffer);
+                            const loadingTask = pdfjsLib.getDocument({ data: typedArray });
+                            const pdf = await loadingTask.promise;
+                            let fullText = '';
+                            for (let i = 1; i <= pdf.numPages; i++) {
+                              const page = await pdf.getPage(i);
+                              const textContent = await page.getTextContent();
+                              const pageText = textContent.items
+                                .map((item: any) => item.str)
+                                .join(' ');
+                              fullText += pageText + '\n';
+                            }
+                            
+                            if (fullText.trim().length === 0) {
+                              toast.error('Gagal: Teks tidak ditemukan atau PDF berupa gambar scan (tidak didukung).');
+                              setUploadText('');
+                              setSelectedFile(null);
+                            } else {
+                              setUploadText(fullText);
+                              toast.success(`Berhasil mengekstrak ${pdf.numPages} halaman teks dari PDF!`);
+                            }
+                          } catch (err: any) {
+                            console.error('Gagal mengekstrak PDF:', err);
+                            toast.error(`Gagal mengekstrak teks PDF: ${err.message || err}`);
+                            setUploadText('');
+                            setSelectedFile(null);
+                          } finally {
+                            setIsExtractingPdf(false);
                           }
                         } else {
                           setUploadText(`[OneDrive File] File "${file.name}" selected for direct secure upload. Harap tempel isi teks atau ringkasan dokumen biner ini di bawah agar dapat di-index AI.`);
@@ -899,10 +942,15 @@ export default function ImpactoryLibrary() {
               <div className="flex justify-end gap-2 border-t border-border pt-4">
                 <Button
                   type="submit"
-                  disabled={isUploading}
+                  disabled={isUploading || isExtractingPdf}
                   className="bg-accent text-accent-foreground hover:bg-accent/90 rounded-xl px-6 font-semibold flex items-center gap-2 shadow-md transition-all hover:shadow-elegant"
                 >
-                  {isUploading ? (
+                  {isExtractingPdf ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Mengekstrak PDF...
+                    </>
+                  ) : isUploading ? (
                     <>
                       <Loader2 className="h-4 w-4 animate-spin" />
                       Mengekstrak & Mengindeks...
