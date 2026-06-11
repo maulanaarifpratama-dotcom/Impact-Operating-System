@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { Navigate, useLocation } from 'react-router-dom';
+import { useMemo, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/providers/AuthProvider';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -13,6 +13,7 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children, requireOrg = true }: ProtectedRouteProps) {
   const { session, loading: authLoading, user } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
 
   // Query organization memberships for the current user
   const { data: memberships, isLoading: orgLoading, isError } = useQuery({
@@ -32,11 +33,29 @@ export function ProtectedRoute({ children, requireOrg = true }: ProtectedRoutePr
     enabled: !!user?.id,
   });
 
-  // Safe robust loading check:
-  // We are loading if auth state is initializing, OR
-  // if a session exists but we haven't resolved the user yet, OR
-  // if the memberships query is active or has not returned any data yet.
+  // Safe multi-format check: handles both array of memberships and single objects
+  const hasOrg = useMemo(() => {
+    if (!memberships) return false;
+    if (Array.isArray(memberships)) {
+      return memberships.length > 0;
+    }
+    return !!(memberships as any)?.organization_id;
+  }, [memberships]);
+
   const isLoading = authLoading || (!!session && (!user || orgLoading || (memberships === undefined && !isError)));
+
+  // Redirect effect
+  useEffect(() => {
+    if (isLoading || isError) return;
+
+    if (!session || !user) {
+      navigate('/login', { state: { from: location.pathname }, replace: true });
+    } else if (requireOrg && !hasOrg) {
+      navigate('/onboarding', { replace: true });
+    } else if (!requireOrg && hasOrg) {
+      navigate('/dashboard', { replace: true });
+    }
+  }, [isLoading, isError, session, user, requireOrg, hasOrg, navigate, location.pathname]);
 
   if (isLoading) {
     return (
@@ -69,28 +88,16 @@ export function ProtectedRoute({ children, requireOrg = true }: ProtectedRoutePr
     );
   }
 
-  if (!session || !user) {
-    return <Navigate to="/login" state={{ from: location.pathname }} replace />;
-  }
-
-  // Safe multi-format check: handles both array of memberships and single objects
-  const hasOrg = useMemo(() => {
-    if (!memberships) return false;
-    if (Array.isArray(memberships)) {
-      return memberships.length > 0;
-    }
-    return !!(memberships as any)?.organization_id;
-  }, [memberships]);
-
-  if (requireOrg && !hasOrg) {
-    // If we require an organization and user doesn't have one, redirect to onboarding
-    return <Navigate to="/onboarding" replace />;
-  }
-
-  if (!requireOrg && hasOrg) {
-    // If we do NOT require an organization (e.g. on /onboarding page) but user already has one,
-    // redirect them to the main dashboard
-    return <Navigate to="/dashboard" replace />;
+  const needsRedirect = !session || !user || (requireOrg && !hasOrg) || (!requireOrg && hasOrg);
+  if (needsRedirect) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-3">
+          <Loader2 className="h-8 w-8 animate-spin text-accent" />
+          <p className="text-xs text-muted-foreground animate-pulse">Mengalihkan halaman…</p>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;
