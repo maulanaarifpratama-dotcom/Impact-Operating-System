@@ -293,7 +293,6 @@ export default function ImpactoryLibrary() {
             source_url: uploadResult.webUrl,
             tags: uploadTags.split(',').map(t => t.trim()).filter(Boolean),
             status: 'ready', // Set directly to ready for Phase 1
-            char_count: 0,
             original_file_name: selectedFile.name,
             storage_provider: 'onedrive',
             storage_path: uploadResult.storagePath,
