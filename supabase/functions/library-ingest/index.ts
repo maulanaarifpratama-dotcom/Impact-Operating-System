@@ -75,6 +75,7 @@ serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
 
+  let docId: string | null = null;
   try {
     const { user, organization_id } = await getUserAndOrg(req);
     const body = (await req.json()) as IngestInput;
@@ -109,6 +110,7 @@ serve(async (req) => {
       .select('id')
       .single();
     if (docErr || !doc) return json({ error: docErr?.message ?? 'insert failed' }, 500);
+    docId = doc.id;
 
     const chunks = chunkText(body.text);
     let inserted = 0;
@@ -157,15 +159,31 @@ serve(async (req) => {
       })
       .eq('id', doc.id);
 
-    await admin.from('ai_generations').insert({
-      organization_id,
-      user_id: user.id,
-      product: 'impactory_library',
-      metadata: { document_id: doc.id, chunks: inserted },
-    });
+    if (inserted > 0) {
+      await admin.from('ai_generations').insert({
+        organization_id,
+        user_id: user.id,
+        product: 'impactory_library',
+        metadata: { document_id: doc.id, chunks: inserted },
+      });
+    }
 
     return json({ document_id: doc.id, chunks_inserted: inserted, errors });
   } catch (err) {
+    if (docId) {
+      try {
+        const admin = adminClient();
+        await admin
+          .from('library_documents')
+          .update({
+            status: 'failed',
+            status_message: 'Internal processing error: ' + (err as Error).message,
+          })
+          .eq('id', docId);
+      } catch (updateErr) {
+        console.error('Failed to update document status in outer catch:', updateErr);
+      }
+    }
     return json({ error: 'Terjadi kesalahan internal saat memproses pengindeksan dokumen.' }, 500);
   }
 });

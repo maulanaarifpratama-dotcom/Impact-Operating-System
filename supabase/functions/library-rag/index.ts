@@ -29,7 +29,27 @@ serve(async (req) => {
     const { user, organization_id, supabase } = await getUserAndOrg(req);
     const body = (await req.json()) as RagInput;
     const question = (body.question ?? '').trim();
-    if (!question) return json({ error: 'question is required' }, 400);
+    if (!question) {
+      return json({ error: 'Pertanyaan tidak boleh kosong. Silakan tuliskan pertanyaan Anda.' }, 400);
+    }
+
+    // Check if organization has any documents at all in their Library.
+    // This avoids generating unnecessary embeddings (saving token costs and API overhead)
+    // when the user has not uploaded any documents yet.
+    const { count, error: countErr } = await supabase
+      .from('library_documents')
+      .select('*', { count: 'exact', head: true })
+      .eq('organization_id', organization_id);
+
+    if (countErr) {
+      console.error('Failed to pre-check library documents count:', countErr.message);
+    } else if (count === 0) {
+      return json({
+        answer: 'Belum ada dokumen di Library Anda. Silakan unggah dokumen terlebih dahulu untuk memulai tanya jawab.',
+        citations: [],
+        used_ai: false,
+      });
+    }
 
     const matchCount = Math.min(Math.max(body.match_count ?? 6, 1), 12);
     const admin = adminClient();
@@ -48,9 +68,12 @@ serve(async (req) => {
     }
 
     // 2) Vector search via RPC
-    // We keep _min_similarity at 0.35 because Indonesian text embeddings scoring
-    // typically yields slightly lower similarity values than English equivalents
-    // due to translation token alignments, but still provides high quality retrieval.
+    // PRODUCTION CHOICE: We keep _min_similarity at 0.35 (instead of 0.55).
+    // Indonesian text embeddings typically yield slightly lower cosine similarity scores than 
+    // their English counterparts due to translation token distribution, vocabulary alignments, 
+    // and semantic space dense mappings in the multilingual model. Setting it to 0.35 prevents 
+    // false-negative omissions of highly relevant Indonesian context documents while still 
+    // filtering out irrelevant, low-scoring chunks.
     const { data: chunks, error: rpcErr } = await supabase.rpc('match_library_chunks', {
       _org_id: organization_id,
       _query_embedding: embedding,
