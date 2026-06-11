@@ -52,8 +52,9 @@ serve(async (req) => {
       _org_id: organization_id,
       _query_embedding: embedding,
       _match_count: matchCount,
-      _min_similarity: 0.55,
+      _min_similarity: 0.3,
     });
+    console.log('chunks found:', chunks?.length, 'rpc error:', rpcErr);
     if (rpcErr) return json({ error: rpcErr.message }, 500);
     if (!chunks || chunks.length === 0) {
       return json({
