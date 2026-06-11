@@ -288,10 +288,9 @@ export default function ImpactoryLibrary() {
           .insert({
             id: documentId,
             organization_id: organizationId,
-            user_id: user?.id,
+            uploaded_by: user?.id,
             title: uploadTitle.trim(),
             source_url: uploadResult.webUrl,
-            tags: uploadTags.split(',').map(t => t.trim()).filter(Boolean),
             status: 'ready', // Set directly to ready for Phase 1
             original_file_name: selectedFile.name,
             storage_provider: 'onedrive',
@@ -308,6 +307,7 @@ export default function ImpactoryLibrary() {
               sectors: uploadSectors,
               sdgs: uploadSdgs,
               readMinutes: 5,
+              tags: uploadTags.split(',').map(t => t.trim()).filter(Boolean),
             }
           });
 
