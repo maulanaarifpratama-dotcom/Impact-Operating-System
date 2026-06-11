@@ -29,6 +29,14 @@ export interface IngestInput {
   source_url?: string;
   tags?: string[];
   metadata?: Record<string, unknown>;
+  storage_provider?: string;
+  storage_path?: string;
+  storage_item_id?: string;
+  drive_id?: string;
+  web_url?: string;
+  original_file_name?: string;
+  size_bytes?: number;
+  mime_type?: string;
 }
 
 export interface IngestResult {

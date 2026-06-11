@@ -267,6 +267,11 @@ export default function ImpactoryLibrary() {
         const documentId = crypto.randomUUID();
 
         // Prepare multipart form data
+        if (uploadText.trim().length < 50) {
+          toast.error('Isi teks dokumen minimal harus 50 karakter agar dapat dianalisis AI');
+          return;
+        }
+
         const formData = new FormData();
         formData.append('file', selectedFile);
         formData.append('organizationId', organizationId);
@@ -282,40 +287,35 @@ export default function ImpactoryLibrary() {
           throw new Error(funcErr?.message || 'Gagal memanggil fungsi onedrive-upload.');
         }
 
-        // Save metadata record to library_documents table
-        const { error: dbErr } = await (supabase as any)
-          .from('library_documents')
-          .insert({
-            id: documentId,
-            organization_id: organizationId,
-            uploaded_by: user?.id,
-            title: uploadTitle.trim(),
-            source_url: uploadResult.webUrl,
-            status: 'indexed', // Set directly to indexed for Phase 1
-            original_file_name: selectedFile.name,
-            storage_provider: 'onedrive',
-            storage_path: uploadResult.storagePath,
-            storage_item_id: uploadResult.storageItemId,
-            drive_id: uploadResult.driveId,
-            web_url: uploadResult.webUrl,
-            size_bytes: uploadResult.sizeBytes,
-            mime_type: uploadResult.mimeType,
-            metadata: {
-              kind: uploadKind,
-              consent_status: uploadConsentStatus,
-              year: parseInt(uploadYear) || new Date().getFullYear(),
-              sectors: uploadSectors,
-              sdgs: uploadSdgs,
-              readMinutes: 5,
-              tags: uploadTags.split(',').map(t => t.trim()).filter(Boolean),
-            }
-          });
+        // Call ingestLibraryText to chunk, embed, and register document in library_documents & library_chunks
+        const ingestRes = await ingestLibraryText({
+          title: uploadTitle.trim(),
+          text: uploadText.trim(),
+          source_url: uploadResult.webUrl,
+          tags: uploadTags.split(',').map(t => t.trim()).filter(Boolean),
+          metadata: {
+            kind: uploadKind,
+            consent_status: uploadConsentStatus,
+            year: parseInt(uploadYear) || new Date().getFullYear(),
+            sectors: uploadSectors,
+            sdgs: uploadSdgs,
+            readMinutes: Math.max(1, Math.ceil(uploadText.length / 800) * 2),
+          },
+          storage_provider: 'onedrive',
+          storage_path: uploadResult.storagePath,
+          storage_item_id: uploadResult.storageItemId,
+          drive_id: uploadResult.driveId,
+          web_url: uploadResult.webUrl,
+          size_bytes: uploadResult.sizeBytes,
+          mime_type: uploadResult.mimeType,
+          original_file_name: selectedFile.name,
+        });
 
-        if (dbErr) {
-          throw new Error(`Gagal menyimpan data metadata dokumen ke database: ${dbErr.message}`);
+        if (ingestRes.error) {
+          throw new Error(`Gagal melakukan pengindeksan teks dokumen: ${ingestRes.error}`);
         }
 
-        toast.success('Sukses: File berhasil diunggah ke OneDrive dan tercatat di library!');
+        toast.success('Sukses: File berhasil diunggah ke OneDrive dan diindeks AI secara real-time!');
         
         // Reset state
         setSelectedFile(null);
@@ -727,13 +727,30 @@ export default function ImpactoryLibrary() {
                   <Label className="text-xs font-semibold uppercase tracking-wider">Pilih File untuk OneDrive (Opsional)</Label>
                   <Input 
                     type="file" 
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0] || null;
                       setSelectedFile(file);
                       if (file) {
                         const nameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
                         setUploadTitle(nameWithoutExt);
-                        setUploadText(`[OneDrive File] File "${file.name}" selected for direct secure upload to organization central OneDrive.`);
+                        
+                        const isText = file.type.startsWith('text/') || 
+                                       file.name.endsWith('.txt') || 
+                                       file.name.endsWith('.md') || 
+                                       file.name.endsWith('.json') || 
+                                       file.name.endsWith('.csv');
+                        
+                        if (isText) {
+                          try {
+                            const content = await file.text();
+                            setUploadText(content);
+                          } catch (err) {
+                            console.error('Gagal membaca isi file teks:', err);
+                            setUploadText(`[OneDrive File] File "${file.name}" selected for direct secure upload.`);
+                          }
+                        } else {
+                          setUploadText(`[OneDrive File] File "${file.name}" selected for direct secure upload. Harap tempel isi teks atau ringkasan dokumen biner ini di bawah agar dapat di-index AI.`);
+                        }
                       } else {
                         setUploadTitle('');
                         setUploadText('');
@@ -778,10 +795,9 @@ export default function ImpactoryLibrary() {
                   id="text"
                   value={uploadText}
                   onChange={(e) => setUploadText(e.target.value)}
-                  placeholder={selectedFile ? "File OneDrive terpilih. Isi dokumen fisik disimpan langsung di cloud storage." : "Tempel dokumen proposal, cerita penerima manfaat, atau laporan Anda di sini (minimal 50 karakter)..."}
+                  placeholder={selectedFile ? "Isi teks dokumen biner/fisik terpilih (tempel versi teks polos di sini agar dapat dibaca AI)..." : "Tempel dokumen proposal, cerita penerima manfaat, atau laporan Anda di sini (minimal 50 karakter)..."}
                   className="min-h-[140px] font-sans"
-                  required={!selectedFile}
-                  disabled={!!selectedFile}
+                  required
                 />
                 <span className="text-[10px] text-muted-foreground float-right block">
                   Jumlah Karakter: {uploadText.length} {selectedFile ? "" : "(Minimal 50)"}

@@ -24,6 +24,15 @@ interface IngestInput {
   text: string;
   tags?: string[];
   metadata?: Record<string, unknown>;
+  // OneDrive integration fields
+  storage_provider?: string;
+  storage_path?: string;
+  storage_item_id?: string;
+  drive_id?: string;
+  web_url?: string;
+  original_file_name?: string;
+  size_bytes?: number;
+  mime_type?: string;
 }
 
 const CHUNK_SIZE = 800;
@@ -65,17 +74,28 @@ serve(async (req) => {
     }
 
     const admin = adminClient();
+    const mergedMetadata = {
+      ...(body.metadata ?? {}),
+      tags: body.tags ?? (body.metadata?.tags ?? []),
+    };
+
     const { data: doc, error: docErr } = await admin
       .from('library_documents')
       .insert({
         organization_id,
-        user_id: user.id,
+        uploaded_by: user.id,
         title: body.title,
         source_url: body.source_url ?? null,
-        tags: body.tags ?? [],
-        metadata: body.metadata ?? {},
-        char_count: body.text.length,
+        metadata: mergedMetadata,
         status: 'processing',
+        storage_provider: body.storage_provider ?? null,
+        storage_path: body.storage_path ?? null,
+        storage_item_id: body.storage_item_id ?? null,
+        drive_id: body.drive_id ?? null,
+        web_url: body.web_url ?? null,
+        size_bytes: body.size_bytes ?? null,
+        mime_type: body.mime_type ?? null,
+        original_file_name: body.original_file_name ?? null,
       })
       .select('id')
       .single();
@@ -94,7 +114,7 @@ serve(async (req) => {
           chunk_index: idx,
           content: c,
           embedding: emb,
-          token_estimate: Math.ceil(c.length / 4),
+          token_count: Math.ceil(c.length / 4),
         });
         if (ce) errors.push('chunk ' + idx + ': ' + ce.message);
         else inserted++;
