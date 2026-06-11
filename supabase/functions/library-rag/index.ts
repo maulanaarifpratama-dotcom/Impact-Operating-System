@@ -48,6 +48,9 @@ serve(async (req) => {
     }
 
     // 2) Vector search via RPC
+    // We keep _min_similarity at 0.35 because Indonesian text embeddings scoring
+    // typically yields slightly lower similarity values than English equivalents
+    // due to translation token alignments, but still provides high quality retrieval.
     const { data: chunks, error: rpcErr } = await supabase.rpc('match_library_chunks', {
       _org_id: organization_id,
       _query_embedding: embedding,
@@ -55,8 +58,9 @@ serve(async (req) => {
       _min_similarity: 0.35,
       _user_id: user.id,
     });
-    console.log('chunks found:', chunks?.length, 'rpc error:', rpcErr);
-    if (rpcErr) return json({ error: rpcErr.message }, 500);
+    if (rpcErr) {
+      return json({ error: 'Terjadi kesalahan saat mencari dokumen di Library Anda.' }, 500);
+    }
     if (!chunks || chunks.length === 0) {
       return json({
         answer: 'Tidak ditemukan dokumen yang relevan di Library Anda. Coba upload dokumen dulu di menu Impactory Library.',
@@ -105,7 +109,7 @@ serve(async (req) => {
 
     return json({ answer, citations, used_ai: true });
   } catch (err) {
-    return json({ error: (err as Error).message }, 500);
+    return json({ error: 'Terjadi kesalahan internal saat memproses pertanyaan Anda. Silakan hubungi dukungan jika masalah berlanjut.' }, 500);
   }
 });
 

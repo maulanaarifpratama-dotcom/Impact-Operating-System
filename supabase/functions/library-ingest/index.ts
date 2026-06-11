@@ -166,7 +166,7 @@ serve(async (req) => {
 
     return json({ document_id: doc.id, chunks_inserted: inserted, errors });
   } catch (err) {
-    return json({ error: (err as Error).message }, 500);
+    return json({ error: 'Terjadi kesalahan internal saat memproses pengindeksan dokumen.' }, 500);
   }
 });
 
