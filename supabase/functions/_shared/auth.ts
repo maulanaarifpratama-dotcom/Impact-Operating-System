@@ -99,6 +99,18 @@ export async function getUserAndOrg(req: Request): Promise<{
 }> {
   const ctx = await authenticate(req);
 
+  // Check if an explicit organization ID is passed via headers
+  const headerOrgId = req.headers.get('x-organization-id') || req.headers.get('X-Organization-Id');
+  if (headerOrgId) {
+    // Assert the user is a member of this organization
+    await assertOrgMember(ctx, headerOrgId);
+    return {
+      user: { id: ctx.userId, email: ctx.email },
+      organization_id: headerOrgId,
+      supabase: ctx.supabase,
+    };
+  }
+
   // Get the user's primary org (first one found)
   const { data: member, error } = await ctx.supabase
     .from('organization_members')

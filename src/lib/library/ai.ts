@@ -16,11 +16,18 @@ function getEdgeUrl(name: string): string | null {
   return SUPABASE_URL.replace(/\/$/, '') + '/functions/v1/' + name;
 }
 
-async function authHeader(): Promise<Record<string, string> | null> {
+async function authHeader(orgId?: string): Promise<Record<string, string> | null> {
   const { data } = await supabase.auth.getSession();
   const t = data.session?.access_token;
   if (!t) return null;
-  return { Authorization: 'Bearer ' + t, 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { 
+    Authorization: 'Bearer ' + t, 
+    'Content-Type': 'application/json' 
+  };
+  if (orgId) {
+    headers['x-organization-id'] = orgId;
+  }
+  return headers;
 }
 
 export interface IngestInput {
@@ -37,6 +44,7 @@ export interface IngestInput {
   original_file_name?: string;
   size_bytes?: number;
   mime_type?: string;
+  organization_id?: string;
 }
 
 export interface IngestResult {
@@ -49,7 +57,7 @@ export interface IngestResult {
 
 export async function ingestLibraryText(input: IngestInput): Promise<IngestResult> {
   const url = getEdgeUrl('library-ingest');
-  const headers = await authHeader();
+  const headers = await authHeader(input.organization_id);
   if (!url || !headers) return { used: false, error: 'Not authenticated or VITE_SUPABASE_URL missing' };
   try {
     const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(input) });
@@ -65,6 +73,7 @@ export interface RagInput {
   question: string;
   document_ids?: string[];
   match_count?: number;
+  organization_id?: string;
 }
 
 export interface RagCitation {
@@ -85,7 +94,7 @@ export interface RagResult {
 
 export async function askLibrary(input: RagInput): Promise<RagResult> {
   const url = getEdgeUrl('library-rag');
-  const headers = await authHeader();
+  const headers = await authHeader(input.organization_id);
   if (!url || !headers) {
     return { used: false, answer: '', citations: [], error: 'Not authenticated' };
   }

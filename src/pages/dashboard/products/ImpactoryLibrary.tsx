@@ -297,6 +297,7 @@ export default function ImpactoryLibrary() {
           size_bytes: uploadResult.sizeBytes,
           mime_type: uploadResult.mimeType,
           original_file_name: selectedFile.name,
+          organization_id: organizationId,
         });
 
         if (ingestRes.error) {
@@ -343,7 +344,8 @@ export default function ImpactoryLibrary() {
           sectors: uploadSectors,
           sdgs: uploadSdgs,
           readMinutes: Math.max(1, Math.ceil(uploadText.length / 800) * 2),
-        }
+        },
+        organization_id: organizationId,
       };
 
       const res = await ingestLibraryText(input);
@@ -386,6 +388,7 @@ export default function ImpactoryLibrary() {
       const res = await askLibrary({
         question,
         document_ids: chatActiveDocIds.length > 0 ? chatActiveDocIds : undefined,
+        organization_id: organizationId,
       });
 
       if (res.error) {
