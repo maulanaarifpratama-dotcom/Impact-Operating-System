@@ -9,6 +9,7 @@ import {
   Save,
   Sparkles,
   MessageSquare,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,8 +25,44 @@ import { StepActivities } from '@/components/grant-writer/steps/StepActivities';
 import { StepIndicators } from '@/components/grant-writer/steps/StepIndicators';
 import { StepRisks } from '@/components/grant-writer/steps/StepRisks';
 import { useWizardProject } from '@/lib/grant-writer/useWizardProject';
-import { WIZARD_STEPS } from '@/lib/grant-writer/types';
+import { WIZARD_STEPS, WizardData, IndicatorItem, AssumptionItem } from '@/lib/grant-writer/types';
 import { GrantWriterChat } from '@/components/grant-writer/chat/GrantWriterChat';
+
+export interface LfaProject {
+  id: string;
+  org_id: string;
+  name: string;
+  sector?: string | null;
+  location?: string | null;
+  duration_months?: number | null;
+  start_date?: string | null;
+  beneficiary_count?: number | null;
+  beneficiary_description?: string | null;
+  status?: string | null;
+  donor_feedback?: string | null;
+  linked_grant_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface LfaEntry {
+  id: string;
+  org_id: string;
+  project_id: string;
+  level: 'goal' | 'purpose' | 'output' | 'activity';
+  sequence?: number | null;
+  parent_id?: string | null;
+  description?: string | null;
+  indicator?: string | null;
+  means_of_verification?: string | null;
+  assumption?: string | null;
+  responsible_party?: string | null;
+  timeline_start?: number | null;
+  timeline_end?: number | null;
+  ai_suggestion?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
 
 export default function GrantWriterWizard() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -43,12 +80,245 @@ export default function GrantWriterWizard() {
   } = useWizardProject(projectId);
   const [generating, setGenerating] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [lfaProject, setLfaProject] = useState<LfaProject | null>(null);
+  const [lfaEntries, setLfaEntries] = useState<LfaEntry[]>([]);
+
+  const lfaProjectId = (project?.wizard_data as Record<string, unknown> | undefined)?.lfa_project_id as string | undefined;
+
+  useEffect(() => {
+    if (!lfaProjectId) return;
+    let cancelled = false;
+    (async () => {
+      const { data: pData } = await supabase
+        .from('lfa_projects')
+        .select('*')
+        .eq('id', lfaProjectId)
+        .maybeSingle();
+
+      if (cancelled) return;
+      if (pData) {
+        setLfaProject(pData);
+        const { data: eData } = await supabase
+          .from('lfa_entries')
+          .select('*')
+          .eq('project_id', lfaProjectId)
+          .order('sequence', { ascending: true });
+
+        if (cancelled) return;
+        if (eData) {
+          setLfaEntries(eData);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [lfaProjectId]);
+
+  const injectObjectives = () => {
+    if (!lfaProject) return;
+    
+    const goalEntry = lfaEntries.find(e => e.level === 'goal');
+    const outcomeEntries = lfaEntries.filter(e => e.level === 'purpose');
+    const outputEntries = lfaEntries.filter(e => e.level === 'output');
+
+    setData((prev: WizardData) => {
+      const existingObjectives = prev.objectives ?? {};
+      return {
+        ...prev,
+        objectives: {
+          ...existingObjectives,
+          goal: goalEntry?.description || existingObjectives.goal || '',
+          outcomes: outcomeEntries.map(e => ({
+            id: e.id,
+            text: e.description || ''
+          })),
+          outputs: outputEntries.map(e => ({
+            id: e.id,
+            text: e.description || ''
+          }))
+        }
+      };
+    });
+
+    toast({
+      title: 'Goal & Sasaran Diimpor',
+      description: 'Goal, Outcomes, dan Outputs berhasil diimpor dari LFA.',
+    });
+  };
+
+  const injectActivities = () => {
+    if (!lfaProject) return;
+
+    const activityEntries = lfaEntries.filter(e => e.level === 'activity');
+
+    setData((prev: WizardData) => {
+      return {
+        ...prev,
+        activities: activityEntries.map(e => ({
+          id: e.id,
+          outputId: e.parent_id || '',
+          text: e.description || '',
+          durationWeeks: e.timeline_end && e.timeline_start ? Math.max(1, (e.timeline_end - e.timeline_start) * 4) : undefined,
+          responsible: e.responsible_party || '',
+          resources: ''
+        }))
+      };
+    });
+
+    toast({
+      title: 'Aktivitas Diimpor',
+      description: 'Daftar aktivitas berhasil diimpor dari LFA berdasarkan output terkait.',
+    });
+  };
+
+  const injectIndicators = () => {
+    if (!lfaProject) return;
+
+    const newIndicators: IndicatorItem[] = [];
+
+    lfaEntries.forEach(e => {
+      if (e.indicator || e.means_of_verification) {
+        if (e.level === 'goal') {
+          newIndicators.push({
+            id: Math.random().toString(36).slice(2, 10),
+            level: 'goal',
+            refId: undefined,
+            indicator: e.indicator || '',
+            baseline: '',
+            target: '',
+            meansOfVerification: e.means_of_verification || ''
+          });
+        } else if (e.level === 'purpose') {
+          newIndicators.push({
+            id: Math.random().toString(36).slice(2, 10),
+            level: 'outcome',
+            refId: e.id,
+            indicator: e.indicator || '',
+            baseline: '',
+            target: '',
+            meansOfVerification: e.means_of_verification || ''
+          });
+        } else if (e.level === 'output') {
+          newIndicators.push({
+            id: Math.random().toString(36).slice(2, 10),
+            level: 'output',
+            refId: e.id,
+            indicator: e.indicator || '',
+            baseline: '',
+            target: '',
+            meansOfVerification: e.means_of_verification || ''
+          });
+        }
+      }
+    });
+
+    setData((prev: WizardData) => {
+      return {
+        ...prev,
+        indicators: newIndicators
+      };
+    });
+
+    toast({
+      title: 'Indikator & MoV Diimpor',
+      description: `Berhasil mengimpor ${newIndicators.length} indikator dan MoV dari LFA ke dalam kuesioner.`,
+    });
+  };
+
+  const injectAssumptions = () => {
+    if (!lfaProject) return;
+
+    const newAssumptions: AssumptionItem[] = [];
+
+    lfaEntries.forEach(e => {
+      if (e.assumption) {
+        let mappedLevel: 'goal' | 'outcome' | 'output' | 'activity' = 'output';
+        if (e.level === 'goal') mappedLevel = 'goal';
+        else if (e.level === 'purpose') mappedLevel = 'outcome';
+        else if (e.level === 'output') mappedLevel = 'output';
+        else if (e.level === 'activity') mappedLevel = 'activity';
+
+        newAssumptions.push({
+          id: Math.random().toString(36).slice(2, 10),
+          text: e.assumption || '',
+          level: mappedLevel
+        });
+      }
+    });
+
+    setData((prev: WizardData) => {
+      return {
+        ...prev,
+        assumptions: newAssumptions
+      };
+    });
+
+    toast({
+      title: 'Asumsi Diimpor',
+      description: `Berhasil mengimpor ${newAssumptions.length} asumsi kunci dari LFA ke dalam kuesioner.`,
+    });
+  };
 
   const currentStep = project?.current_step ?? 1;
   const stepMeta = useMemo(
     () => WIZARD_STEPS.find((s) => s.index === currentStep) ?? WIZARD_STEPS[0],
     [currentStep],
   );
+
+  const warnings = useMemo(() => {
+    if (!lfaProject) return [];
+    const list: string[] = [];
+
+    const lfaGoal = lfaEntries.find(e => e.level === 'goal')?.description || '';
+    const lfaOutcomes = lfaEntries.filter(e => e.level === 'purpose');
+    const lfaOutputs = lfaEntries.filter(e => e.level === 'output');
+    const lfaActivities = lfaEntries.filter(e => e.level === 'activity');
+    const lfaIndicatorsCount = lfaEntries.filter(e => e.indicator).length;
+    const lfaAssumptionsCount = lfaEntries.filter(e => e.assumption).length;
+
+    const wizGoal = data?.objectives?.goal || '';
+    const wizOutcomes = data?.objectives?.outcomes || [];
+    const wizOutputs = data?.objectives?.outputs || [];
+    const wizActivities = data?.activities || [];
+    const wizIndicators = data?.indicators || [];
+    const wizAssumptions = data?.assumptions || [];
+
+    if (stepMeta.id === 'objectives') {
+      if (!wizGoal && lfaGoal) {
+        list.push('Goal (Impact) di kuesioner masih kosong, sedangkan di LFA sudah ada.');
+      } else if (wizGoal && lfaGoal && wizGoal.trim() !== lfaGoal.trim()) {
+        list.push('Goal (Impact) berbeda antara kuesioner dan LFA Program.');
+      }
+
+      if (wizOutcomes.length !== lfaOutcomes.length) {
+        list.push(`Jumlah Outcomes (Tujuan) tidak sama (Kuesioner: ${wizOutcomes.length}, LFA: ${lfaOutcomes.length}).`);
+      }
+      if (wizOutputs.length !== lfaOutputs.length) {
+        list.push(`Jumlah Outputs (Hasil) tidak sama (Kuesioner: ${wizOutputs.length}, LFA: ${lfaOutputs.length}).`);
+      }
+    }
+
+    if (stepMeta.id === 'lfa_matrix') {
+      if (wizActivities.length !== lfaActivities.length) {
+        list.push(`Jumlah Aktivitas tidak sama (Kuesioner: ${wizActivities.length}, LFA: ${lfaActivities.length}).`);
+      }
+    }
+
+    if (stepMeta.id === 'indicators') {
+      if (wizIndicators.length !== lfaIndicatorsCount) {
+        list.push(`Jumlah Indikator (OVI) tidak sama (Kuesioner: ${wizIndicators.length}, LFA: ${lfaIndicatorsCount}).`);
+      }
+    }
+
+    if (stepMeta.id === 'risks') {
+      if (wizAssumptions.length !== lfaAssumptionsCount) {
+        list.push(`Jumlah Asumsi Kunci tidak sama (Kuesioner: ${wizAssumptions.length}, LFA: ${lfaAssumptionsCount}).`);
+      }
+    }
+
+    return list;
+  }, [lfaProject, lfaEntries, stepMeta.id, data]);
 
   // If this project was created in Quick mode, redirect to the quick wizard.
   useEffect(() => {
@@ -131,10 +401,11 @@ export default function GrantWriterWizard() {
         description: `Koneksi ke Azure Foundry gagal: ${errorMessage}. Silakan coba lagi atau hubungi admin.`,
         variant: 'destructive',
       });
-    } catch (err: any) {
+    } catch (err) {
+      const error = err as Error;
       toast({
         title: 'Gagal membuat proposal',
-        description: err?.message ?? 'Terjadi kesalahan tak terduga.',
+        description: error.message ?? 'Terjadi kesalahan tak terduga.',
         variant: 'destructive',
       });
     } finally {
@@ -237,6 +508,81 @@ export default function GrantWriterWizard() {
             <CardTitle className="text-lg">{stepMeta.label}</CardTitle>
             <p className="text-sm text-muted-foreground">{stepMeta.description}</p>
           </CardHeader>
+          {lfaProject && (
+            <div className="mx-6 mt-2 mb-4 rounded-lg border border-amber-200 bg-amber-50/50 p-4 dark:border-amber-900/40 dark:bg-amber-950/20">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                    </span>
+                    <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                      LFA Terkait Aktif: <span className="underline">{lfaProject.name}</span>
+                    </h4>
+                  </div>
+                  <p className="mt-1 text-xs text-amber-700/80 dark:text-amber-300/70">
+                    Gunakan data dari LFA Matrix untuk menyelaraskan pengisian kuesioner proposal ini.
+                  </p>
+                </div>
+                
+                {stepMeta.id === 'objectives' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-300 bg-amber-100/50 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-100"
+                    onClick={injectObjectives}
+                  >
+                    Import Goal & Sasaran LFA
+                  </Button>
+                )}
+                {stepMeta.id === 'lfa_matrix' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-300 bg-amber-100/50 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-100"
+                    onClick={injectActivities}
+                  >
+                    Import Kegiatan LFA
+                  </Button>
+                )}
+                {stepMeta.id === 'indicators' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-300 bg-amber-100/50 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-100"
+                    onClick={injectIndicators}
+                  >
+                    Import Indikator LFA
+                  </Button>
+                )}
+                {stepMeta.id === 'risks' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-300 bg-amber-100/50 text-amber-900 hover:bg-amber-100 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-100"
+                    onClick={injectAssumptions}
+                  >
+                    Import Asumsi LFA
+                  </Button>
+                )}
+              </div>
+
+              {warnings.length > 0 && (
+                <div className="mt-3 border-t border-amber-200/50 pt-2 dark:border-amber-900/20">
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-800 dark:text-amber-200">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                    M&E Alignment Warnings ({warnings.length}):
+                  </p>
+                  <ul className="mt-1.5 list-disc pl-5 space-y-1 text-[11px] text-amber-700 dark:text-amber-300/80">
+                    {warnings.map((w, idx) => (
+                      <li key={idx}>{w}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
           <CardContent>{renderStep()}</CardContent>
         </Card>
 

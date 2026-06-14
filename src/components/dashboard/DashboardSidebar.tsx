@@ -15,8 +15,10 @@ import {
   User as UserIcon,
   ChevronsUpDown,
   CalendarRange,
+  Ruler,
   type LucideIcon,
 } from 'lucide-react';
+
 import { Logo } from '@/components/Logo';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -51,19 +53,27 @@ interface NavItem {
   exact?: boolean;
 }
 
-const NAV_ITEMS: NavItem[] = [
+const GROWTH_OS_ITEMS: NavItem[] = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, exact: true },
   { name: 'Readiness Scorecard', href: '/dashboard/readiness', icon: ClipboardCheck },
   { name: 'Resource Access', href: '/dashboard/resource-access', icon: KeyRound },
   { name: 'Donor CRM', href: '/dashboard/donor-crm', icon: Users },
+];
+
+const PROGRAM_DESIGN_ITEMS: NavItem[] = [
   { name: 'Grant Pipeline', href: '/dashboard/grantfinder', icon: Search },
+  { name: 'LFA Builder', href: '/dashboard/lfa-builder', icon: Ruler },
   { name: 'Grantwriter', href: '/dashboard/grant-writer', icon: FileText },
+];
+
+const IMPACT_ITEMS: NavItem[] = [
   { name: 'Impact Library', href: '/dashboard/impactory-library', icon: BookOpen },
   { name: 'Campaign Builder', href: '/dashboard/impactory-ads', icon: Megaphone },
   { name: 'Impact Dashboard', href: '/dashboard/impact', icon: BarChart2 },
   { name: 'Monthly Report', href: '/dashboard/monthly-report', icon: BarChart3 },
   { name: 'Operating Review', href: '/dashboard/operating-review', icon: CalendarRange },
 ];
+
 
 function initials(name?: string | null, email?: string | null) {
   const src = (name || email || '?').trim();
@@ -106,6 +116,7 @@ export function DashboardSidebar() {
       </SidebarHeader>
 
       <SidebarContent className="bg-sidebar">
+        {/* NGO Growth OS Group */}
         <SidebarGroup>
           {!collapsed && (
             <SidebarGroupLabel className="text-sidebar-foreground/60">
@@ -114,7 +125,7 @@ export function DashboardSidebar() {
           )}
           <SidebarGroupContent>
             <SidebarMenu>
-              {NAV_ITEMS.map((item) => {
+              {GROWTH_OS_ITEMS.map((item) => {
                 const active = isActive(item);
                 return (
                   <SidebarMenuItem key={item.href}>
@@ -134,6 +145,67 @@ export function DashboardSidebar() {
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
+
+        {/* PROGRAM DESIGN Group */}
+        <SidebarGroup>
+          {!collapsed && (
+            <SidebarGroupLabel className="text-sidebar-foreground/60">
+              PROGRAM DESIGN
+            </SidebarGroupLabel>
+          )}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {PROGRAM_DESIGN_ITEMS.map((item) => {
+                const active = isActive(item);
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild tooltip={item.name} isActive={active}>
+                      <NavLink
+                        to={item.href}
+                        end={item.exact}
+                        className={linkClass(active)}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{item.name}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* ENGAGEMENT & IMPACT Group */}
+        <SidebarGroup>
+          {!collapsed && (
+            <SidebarGroupLabel className="text-sidebar-foreground/60">
+              ENGAGEMENT & IMPACT
+            </SidebarGroupLabel>
+          )}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {IMPACT_ITEMS.map((item) => {
+                const active = isActive(item);
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild tooltip={item.name} isActive={active}>
+                      <NavLink
+                        to={item.href}
+                        end={item.exact}
+                        className={linkClass(active)}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{item.name}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
 
         <SidebarGroup>
           {!collapsed && (

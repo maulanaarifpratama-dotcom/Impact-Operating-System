@@ -200,6 +200,34 @@ export default function GrantWriterIndex() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const lfaId = searchParams.get('lfa_project_id');
+    if (lfaId) {
+      const fetchLfaProjectName = async () => {
+        try {
+          const { data, error } = await supabase
+            .from('lfa_projects')
+            .select('name')
+            .eq('id', lfaId)
+            .maybeSingle();
+          if (error) throw error;
+          if (data?.name) {
+            setTitle(data.name);
+            setMode('lfa');
+            setCreateOpen(true);
+            toast({
+              title: 'LFA Ditemukan',
+              description: `Menghubungkan program "${data.name}" ke proposal baru Anda.`,
+            });
+          }
+        } catch (e: any) {
+          console.error('Error fetching LFA project:', e);
+        }
+      };
+      void fetchLfaProjectName();
+    }
+  }, [searchParams]);
+
   const openCreateWithMode = (m: WizardMode) => {
     setMode(m);
     setRoleHint(null);
@@ -212,6 +240,8 @@ export default function GrantWriterIndex() {
     setCreating(true);
     try {
       const orgId = await ensureDefaultOrg(user.id, profile?.full_name);
+      const lfaProjectId = searchParams.get('lfa_project_id');
+
       const { data, error } = await supabase
         .from('gw_projects')
         .insert({
@@ -220,11 +250,19 @@ export default function GrantWriterIndex() {
           title: title.trim(),
           status: 'draft',
           current_step: 1,
-          wizard_data: { _mode: mode } as never,
+          wizard_data: { _mode: mode, ...(lfaProjectId ? { lfa_project_id: lfaProjectId } : {}) } as never,
         })
         .select('id')
         .single();
       if (error) throw error;
+
+      if (lfaProjectId) {
+        await supabase
+          .from('lfa_projects')
+          .update({ linked_grant_id: data.id })
+          .eq('id', lfaProjectId);
+      }
+
       toast({
         title: 'Proyek dibuat',
         description:

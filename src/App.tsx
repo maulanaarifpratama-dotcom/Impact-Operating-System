@@ -28,6 +28,9 @@ import ImpactoryAds from './pages/dashboard/products/ImpactoryAds';
 import Onboarding from './pages/auth/Onboarding';
 import Settings from './pages/dashboard/Settings';
 import MonthlyOperatingReview from './pages/dashboard/MonthlyOperatingReview';
+import LFABuilderIndex from './pages/dashboard/lfa-builder/LFABuilderIndex';
+import LFABuilderEditor from './pages/dashboard/lfa-builder/LFABuilderEditor';
+
 
 
 
@@ -90,6 +93,11 @@ const App = () => (
               <Route path="/dashboard/impactory-library" element={<ImpactoryLibrary />} />
               <Route path="/dashboard/grantfinder" element={<Grantfinder />} />
               <Route path="/dashboard/impactory-ads" element={<ImpactoryAds />} />
+              
+              {/* LFA Builder Routes */}
+              <Route path="/dashboard/lfa-builder" element={<LFABuilderIndex />} />
+              <Route path="/dashboard/lfa-builder/:projectId" element={<LFABuilderEditor />} />
+
 
               {/* Settings Route */}
               <Route path="/dashboard/settings" element={<Settings />} />

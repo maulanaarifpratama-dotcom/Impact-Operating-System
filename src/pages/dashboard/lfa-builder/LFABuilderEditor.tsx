@@ -1,0 +1,1334 @@
+import { useEffect, useState, useRef, useCallback } from 'react';
+import { useNavigate, useParams, Link } from 'react-router-dom';
+import {
+  ArrowLeft,
+  Loader2,
+  Check,
+  Save,
+  Download,
+  Send,
+  Plus,
+  Trash2,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+  Sparkles,
+  Layers,
+  Ruler,
+  FolderSync,
+  HelpCircle,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { Progress } from '@/components/ui/progress';
+import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/providers/AuthProvider';
+import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
+interface LfaProject {
+  id: string;
+  name: string;
+  sector: string | null;
+  location: string | null;
+  duration_months: number | null;
+  start_date: string | null;
+  beneficiary_count: number | null;
+  beneficiary_description: string | null;
+  status: string | null;
+  linked_grant_id: string | null;
+}
+
+interface LfaEntry {
+  id: string;
+  project_id: string;
+  org_id: string;
+  level: 'goal' | 'purpose' | 'output' | 'activity';
+  sequence: number;
+  parent_id: string | null;
+  description: string;
+  indicator: string;
+  means_of_verification: string;
+  assumption: string;
+  responsible_party: string | null;
+  timeline_start: number | null;
+  timeline_end: number | null;
+  ai_suggestion: string | null;
+}
+
+export default function LFABuilderEditor() {
+  const { projectId } = useParams<{ projectId: string }>();
+  const { user, profile } = useAuth();
+  const { toast } = useToast();
+  const navigate = useNavigate();
+
+  const [project, setProject] = useState<LfaProject | null>(null);
+  const [goal, setGoal] = useState<LfaEntry | null>(null);
+  const [purpose, setPurpose] = useState<LfaEntry | null>(null);
+  const [outputs, setOutputs] = useState<LfaEntry[]>([]);
+  const [activities, setActivities] = useState<LfaEntry[]>([]);
+  
+  // UI states
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+  const [activeTab, setActiveTab] = useState<'lfa' | 'wbs' | 'budget'>('lfa');
+  const [activeSection, setActiveSection] = useState<'goal' | 'purpose' | 'outputs' | 'activities'>('goal');
+  const [expandedActivities, setExpandedActivities] = useState<Record<string, boolean>>({});
+  const [collapsedOutputs, setExpandedOutputs] = useState<Record<string, boolean>>({});
+
+  // Export PDF and Grantwriter States
+  const [pdfLoading, setPdfLoading] = useState(false);
+  const [linkingLoading, setLinkingLoading] = useState(false);
+  const [linkedProposal, setLinkedProposal] = useState<{ id: string; title: string } | null>(null);
+
+  // Suggestions state
+  const [suggestions, setSuggestions] = useState<Record<string, string>>({});
+  const [showAiSuggestion, setShowAiSuggestion] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (user && projectId) {
+      void loadProjectAndEntries();
+    }
+  }, [user, projectId, loadProjectAndEntries]);
+
+  const loadProjectAndEntries = useCallback(async () => {
+    setLoading(true);
+    try {
+      const orgId = await ensureDefaultOrg(user!.id, profile?.full_name);
+
+      // 1. Fetch LFA project row
+      const { data: pData, error: pErr } = await supabase
+        .from('lfa_projects')
+        .select('*')
+        .eq('id', projectId)
+        .eq('org_id', orgId)
+        .maybeSingle();
+
+      if (pErr) throw pErr;
+      if (!pData) {
+        toast({
+          title: 'Program tidak ditemukan',
+          description: 'LFA Program tidak ada atau Anda tidak memiliki akses.',
+          variant: 'destructive',
+        });
+        navigate('/dashboard/lfa-builder');
+        return;
+      }
+      setProject(pData as LfaProject);
+
+      // Check linked proposal if exists
+      if (pData.linked_grant_id) {
+        const { data: propData } = await supabase
+          .from('gw_projects')
+          .select('id, title')
+          .eq('id', pData.linked_grant_id)
+          .maybeSingle();
+        if (propData) {
+          setLinkedProposal({ id: propData.id, title: propData.title });
+        }
+      } else {
+        // Look for any proposal that has wizard_data with this lfa_project_id
+        const { data: linkedP } = await supabase
+          .from('gw_projects')
+          .select('id, title')
+          .eq('organization_id', orgId)
+          .limit(1); // placeholder check or query to match
+        // We'll wire up robust check in proposal later
+      }
+
+      // 2. Fetch LFA entries
+      const { data: entries, error: eErr } = await supabase
+        .from('lfa_entries')
+        .select('*')
+        .eq('project_id', projectId)
+        .eq('org_id', orgId)
+        .order('sequence', { ascending: true });
+
+      if (eErr) throw eErr;
+
+      const entriesList = (entries || []) as LfaEntry[];
+      
+      // Determine if Goal and Purpose exist. If not, pre-insert them immediately!
+      let goalEntry = entriesList.find((e) => e.level === 'goal') || null;
+      let purposeEntry = entriesList.find((e) => e.level === 'purpose') || null;
+
+      if (!goalEntry) {
+        const { data: g, error: gErr } = await supabase
+          .from('lfa_entries')
+          .insert({
+            project_id: projectId,
+            org_id: orgId,
+            level: 'goal',
+            sequence: 1,
+            description: '',
+            indicator: '',
+            means_of_verification: '',
+            assumption: '',
+          })
+          .select()
+          .single();
+        if (gErr) throw gErr;
+        goalEntry = g as LfaEntry;
+      }
+
+      if (!purposeEntry) {
+        const { data: prp, error: prpErr } = await supabase
+          .from('lfa_entries')
+          .insert({
+            project_id: projectId,
+            org_id: orgId,
+            level: 'purpose',
+            sequence: 1,
+            description: '',
+            indicator: '',
+            means_of_verification: '',
+            assumption: '',
+          })
+          .select()
+          .single();
+        if (prpErr) throw prpErr;
+        purposeEntry = prp as LfaEntry;
+      }
+
+      setGoal(goalEntry);
+      setPurpose(purposeEntry);
+      setOutputs(entriesList.filter((e) => e.level === 'output'));
+      setActivities(entriesList.filter((e) => e.level === 'activity'));
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: 'Gagal memuat logframe',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [user, profile, projectId, navigate, toast]);
+
+  // Generic Save for individual entries
+  const saveEntry = async (entry: LfaEntry) => {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('lfa_entries')
+        .update({
+          description: entry.description,
+          indicator: entry.indicator,
+          means_of_verification: entry.means_of_verification,
+          assumption: entry.assumption,
+          responsible_party: entry.responsible_party,
+          timeline_start: entry.timeline_start,
+          timeline_end: entry.timeline_end,
+          sequence: entry.sequence,
+        })
+        .eq('id', entry.id);
+
+      if (error) throw error;
+      setLastSaved(new Date());
+    } catch (err) {
+      console.error('Autosave failed:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const updateProjectName = async (newName: string) => {
+    if (!project || !newName.trim()) return;
+    setProject((prev) => prev ? { ...prev, name: newName } : null);
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('lfa_projects')
+        .update({ name: newName.trim() })
+        .eq('id', project.id);
+      if (error) throw error;
+      setLastSaved(new Date());
+    } catch (err) {
+      console.error('Project rename failed:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Add Output
+  const handleAddOutput = async () => {
+    if (!project) return;
+    setSaving(true);
+    try {
+      const seq = outputs.length + 1;
+      const { data, error } = await supabase
+        .from('lfa_entries')
+        .insert({
+          project_id: project.id,
+          org_id: project.org_id,
+          level: 'output',
+          sequence: seq,
+          description: '',
+          indicator: '',
+          means_of_verification: '',
+          assumption: '',
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setOutputs((prev) => [...prev, data as LfaEntry]);
+      setLastSaved(new Date());
+      setActiveSection('outputs');
+      toast({
+        title: 'Hasil (Output) ditambahkan',
+        description: `Hasil baru H${seq} ditambahkan di bagian bawah matrix.`,
+      });
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: 'Gagal menambah output',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Delete Entry
+  const handleDeleteEntry = async (id: string, level: 'output' | 'activity') => {
+    if (!confirm(`Hapus ${level === 'output' ? 'Hasil' : 'Kegiatan'} ini? Semua sub-kegiatan di dalamnya juga akan terhapus.`)) return;
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from('lfa_entries')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      if (level === 'output') {
+        setOutputs((prev) => prev.filter((o) => o.id !== id));
+        // Remove cascading activities in local state
+        setActivities((prev) => prev.filter((a) => a.parent_id !== id));
+      } else {
+        setActivities((prev) => prev.filter((a) => a.id !== id));
+      }
+
+      setLastSaved(new Date());
+      toast({
+        title: 'Item Dihapus',
+        description: 'Database berhasil diperbarui.',
+      });
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: 'Gagal menghapus item',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Add Activity
+  const handleAddActivity = async (outputId: string) => {
+    if (!project) return;
+    setSaving(true);
+    try {
+      const outputActivities = activities.filter((a) => a.parent_id === outputId);
+      const seq = outputActivities.length + 1;
+      
+      const { data, error } = await supabase
+        .from('lfa_entries')
+        .insert({
+          project_id: project.id,
+          org_id: project.org_id,
+          level: 'activity',
+          sequence: seq,
+          parent_id: outputId,
+          description: '',
+          indicator: '',
+          means_of_verification: '',
+          assumption: '',
+          responsible_party: '',
+          timeline_start: 1,
+          timeline_end: project.duration_months || 12,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setActivities((prev) => [...prev, data as LfaEntry]);
+      setExpandedActivities((prev) => ({ ...prev, [data.id]: true }));
+      setLastSaved(new Date());
+      setActiveSection('activities');
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: 'Gagal menambah kegiatan',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Reorder Outputs
+  const handleMoveOutput = async (index: number, direction: 'up' | 'down') => {
+    const nextIndex = direction === 'up' ? index - 1 : index + 1;
+    if (nextIndex < 0 || nextIndex >= outputs.length) return;
+
+    const list = [...outputs];
+    const temp = list[index];
+    list[index] = list[nextIndex];
+    list[nextIndex] = temp;
+
+    // Recalculate sequences
+    const updated = list.map((item, idx) => ({
+      ...item,
+      sequence: idx + 1,
+    }));
+
+    setOutputs(updated);
+    setSaving(true);
+
+    try {
+      // Bulk update sequential sequence
+      for (const item of updated) {
+        await supabase
+          .from('lfa_entries')
+          .update({ sequence: item.sequence })
+          .eq('id', item.id);
+      }
+      setLastSaved(new Date());
+    } catch (err) {
+      console.error('Reorder outputs failed:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Reorder Activities inside Output
+  const handleMoveActivity = async (outputId: string, index: number, direction: 'up' | 'down') => {
+    const parentActs = activities.filter((a) => a.parent_id === outputId);
+    const nextIndex = direction === 'up' ? index - 1 : index + 1;
+    if (nextIndex < 0 || nextIndex >= parentActs.length) return;
+
+    const list = [...parentActs];
+    const temp = list[index];
+    list[index] = list[nextIndex];
+    list[nextIndex] = temp;
+
+    // Recalculate sequences
+    const updated = list.map((item, idx) => ({
+      ...item,
+      sequence: idx + 1,
+    }));
+
+    // Merge back into main activities state
+    setActivities((prev) => {
+      const rest = prev.filter((a) => a.parent_id !== outputId);
+      return [...rest, ...updated].sort((a, b) => a.sequence - b.sequence);
+    });
+
+    setSaving(true);
+    try {
+      for (const item of updated) {
+        await supabase
+          .from('lfa_entries')
+          .update({ sequence: item.sequence })
+          .eq('id', item.id);
+      }
+      setLastSaved(new Date());
+    } catch (err) {
+      console.error('Reorder activities failed:', err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleExportPDF = async () => {
+    if (!project) return;
+    setPdfLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('lfa-export-pdf', {
+        body: { projectId: project.id },
+      });
+
+      if (error) throw error;
+
+      if (data?.pdfUrl) {
+        window.open(data.pdfUrl, '_blank');
+      } else {
+        toast({
+          title: 'Export PDF',
+          description: 'PDF berhasil disimulasikan. Hubungkan Edge function untuk rendering landscape.',
+        });
+      }
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: 'Export PDF Gagal',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setPdfLoading(false);
+    }
+  };
+
+  const handleExportToGrantwriter = async () => {
+    if (!project) return;
+    const completeness = calculateCompleteness();
+    if (completeness < 60) {
+      if (!confirm(`Tingkat kelengkapan LFA Anda baru ${completeness}%. Kami merekomendasikan kelengkapan di atas 60% sebelum mengekspor agar proposal AI lebih coherent. Lanjutkan?`)) {
+        return;
+      }
+    }
+
+    navigate(`/dashboard/grant-writer?lfa_project_id=${project.id}`);
+  };
+
+  // Completeness Metrics
+  const calculateCompleteness = () => {
+    let score = 0;
+    if (goal?.description && goal.description.trim().length > 0) score += 25;
+    if (purpose?.description && purpose.description.trim().length > 0) score += 25;
+    if (outputs.length > 0 && outputs.some((o) => o.description.trim().length > 0)) score += 25;
+    if (activities.length > 0 && activities.some((a) => a.description.trim().length > 0)) score += 25;
+    return score;
+  };
+
+  // Logic Validation Engine
+  const runValidation = () => {
+    const warnings: string[] = [];
+    
+    // Goal
+    if (!goal?.description) {
+      warnings.push('Dampak (Goal) belum diisi.');
+    } else {
+      if (!goal.indicator) warnings.push('⚠️ Indikator Goal kosong — tambahkan tolok ukur keberhasilan dampak.');
+      else if (!/\d+/.test(goal.indicator)) warnings.push('⚠️ Indikator Goal terlalu abstrak — usahakan mencantumkan target angka/persentase.');
+      if (!goal.means_of_verification) warnings.push('⚠️ Sumber Verifikasi Dampak (Goal) masih kosong.');
+      if (!goal.assumption) warnings.push('⚠️ Asumsi eksternal Dampak (Goal) masih kosong.');
+    }
+
+    // Purpose
+    if (!purpose?.description) {
+      warnings.push('Tujuan Program (Purpose) belum diisi.');
+    } else {
+      if (!purpose.indicator) warnings.push('⚠️ Indikator Tujuan kosong — tambahkan kriteria keberhasilan pada penerima manfaat.');
+      if (!purpose.means_of_verification) warnings.push('⚠️ Sumber Verifikasi Tujuan masih kosong.');
+      if (!purpose.assumption) warnings.push('⚠️ Asumsi eksternal Tujuan masih kosong.');
+    }
+
+    // Outputs
+    if (outputs.length === 0) {
+      warnings.push('⚠️ Belum ada Hasil (Outputs) yang didefinisikan.');
+    } else {
+      outputs.forEach((o, idx) => {
+        if (!o.description) warnings.push(`⚠️ Deskripsi Hasil H${idx + 1} masih kosong.`);
+        if (!o.indicator) warnings.push(`⚠️ Indikator Hasil H${idx + 1} masih kosong.`);
+      });
+    }
+
+    // Activities
+    if (activities.length === 0) {
+      warnings.push('⚠️ Belum ada Kegiatan (Activities) yang ditambahkan.');
+    } else {
+      activities.forEach((act, idx) => {
+        if (!act.description) warnings.push(`⚠️ Kegiatan ${idx + 1} tidak memiliki deskripsi.`);
+        if (!act.responsible_party) warnings.push(`⚠️ Penanggung jawab (PIC) Kegiatan ${idx + 1} belum ditentukan.`);
+      });
+    }
+
+    return warnings;
+  };
+
+  const validationWarnings = runValidation();
+  const completenessPercent = calculateCompleteness();
+
+  if (loading) {
+    return (
+      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
+        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat data editor LFA...
+      </div>
+    );
+  }
+
+  if (!project) return null;
+
+  return (
+    <div className="mx-auto max-w-7xl space-y-6 py-1">
+      {/* TOP BAR BAR */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-4">
+        <div className="flex items-center gap-3">
+          <Button variant="ghost" size="icon" asChild className="-ml-1">
+            <Link to="/dashboard/lfa-builder">
+              <ArrowLeft className="h-4 w-4" />
+            </Link>
+          </Button>
+          <div className="space-y-1">
+            <input
+              type="text"
+              value={project.name}
+              onChange={(e) => updateProjectName(e.target.value)}
+              className="text-h3 font-bold bg-transparent border-b border-transparent hover:border-slate-300 focus:border-primary focus:outline-none py-0.5 truncate max-w-md md:max-w-xl"
+              title="Klik untuk mengedit nama program"
+            />
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <Badge variant="outline" className="text-[10px] font-medium py-0">
+                {project.sector || 'Sektor Lainnya'}
+              </Badge>
+              <span>• Durasi: {project.duration_months || 12} bulan</span>
+              <span>• Lokasi: {project.location || 'Tidak Ditentukan'}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Action Buttons */}
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center text-xs text-muted-foreground mr-2">
+            {saving ? (
+              <span className="flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin text-primary" /> Menyimpan...
+              </span>
+            ) : lastSaved ? (
+              <span className="flex items-center gap-1">
+                <Check className="h-3.5 w-3.5 text-emerald-500 font-bold" /> Tersimpan {lastSaved.toLocaleTimeString('id-ID')}
+              </span>
+            ) : (
+              <span>Autosave aktif</span>
+            )}
+          </div>
+
+          <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={pdfLoading}>
+            {pdfLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
+            Export PDF
+          </Button>
+
+          <Button size="sm" className="bg-amber-600 hover:bg-amber-500 text-white border-0" onClick={handleExportToGrantwriter}>
+            <Send className="mr-1.5 h-3.5 w-3.5" /> Kirim ke Grantwriter
+          </Button>
+        </div>
+      </div>
+
+      {/* MATRIX SUB TABS & PROGRESS BAR */}
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-slate-50/50 dark:bg-slate-900/10 p-3 rounded-lg border">
+        {/* Tab Headers */}
+        <div className="flex items-center gap-1 text-sm font-semibold">
+          <button
+            onClick={() => setActiveTab('lfa')}
+            className={`px-3 py-1.5 rounded-md transition-all ${
+              activeTab === 'lfa' ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            ① LFA Matrix
+          </button>
+          
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
+                  ② WBS ⬠
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Selesaikan LFA dulu untuk unlock modul WBS</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
+                  ③ Budget ⬠
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Selesaikan LFA dulu untuk unlock modul Budget</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
+                  ④ MEAL ⬠
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Selesaikan LFA dulu untuk unlock modul MEAL</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        </div>
+
+        {/* Progress tracker */}
+        <div className="flex items-center gap-3 w-full md:w-64">
+          <div className="flex-1 space-y-1">
+            <div className="flex justify-between text-xs font-semibold">
+              <span className="text-muted-foreground">Progress Pengisian</span>
+              <span>{completenessPercent}%</span>
+            </div>
+            <Progress value={completenessPercent} className="h-1.5 bg-slate-100" />
+          </div>
+        </div>
+      </div>
+
+      {/* SPLIT LAYOUT PANEL */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        
+        {/* LEFT COMPONENT (65%): Matrix Editor */}
+        <div className="lg:col-span-2 space-y-6">
+          
+          {/* SECTION 1 — DAMPAK (Goal) */}
+          <Card
+            onFocus={() => setActiveSection('goal')}
+            className={`border-l-4 border-l-[#1E293B] shadow-elegant overflow-hidden transition-all duration-300 ${
+              activeSection === 'goal' ? 'ring-1 ring-primary/20 bg-slate-50/10' : ''
+            }`}
+          >
+            <CardHeader className="bg-slate-900 text-white py-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="h-7 w-7 rounded-md bg-white/10 flex items-center justify-center">🎯</span>
+                  <CardTitle className="text-sm font-bold tracking-wide">DAMPAK (Goal)</CardTitle>
+                </div>
+                <Badge variant="outline" className="text-white border-white/20 uppercase tracking-widest text-[9px]">Jangka Panjang</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4 text-xs">
+              <p className="text-[11px] text-muted-foreground leading-5">
+                Perubahan makro/jangka panjang di tingkat masyarakat luas yang ingin dicapai setelah program selesai (mis. peningkatan status kesehatan, kesejahteraan, dll).
+              </p>
+              
+              {goal && (
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-slate-800 dark:text-slate-200">Deskripsi Dampak</Label>
+                    <Textarea
+                      value={goal.description}
+                      onChange={(e) => {
+                        const updated = { ...goal, description: e.target.value };
+                        setGoal(updated);
+                      }}
+                      onBlur={() => void saveEntry(goal)}
+                      placeholder="Tuliskan pernyataan dampak jangka panjang..."
+                      rows={2}
+                    />
+                  </div>
+
+                  {/* 3 inline fields */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 pt-1">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-semibold">Indikator Kunci (KPI)</Label>
+                      <Input
+                        value={goal.indicator}
+                        onChange={(e) => setGoal({ ...goal, indicator: e.target.value })}
+                        onBlur={() => void saveEntry(goal)}
+                        placeholder="Mis. Angka stunting turun 15%"
+                        className="text-xs h-8"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-semibold">Sumber Verifikasi (MoV)</Label>
+                      <Input
+                        value={goal.means_of_verification}
+                        onChange={(e) => setGoal({ ...goal, means_of_verification: e.target.value })}
+                        onBlur={() => void saveEntry(goal)}
+                        placeholder="Mis. Data BPS Kab. Garut"
+                        className="text-xs h-8"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-semibold">Asumsi Eksternal</Label>
+                      <Input
+                        value={goal.assumption}
+                        onChange={(e) => setGoal({ ...goal, assumption: e.target.value })}
+                        onBlur={() => void saveEntry(goal)}
+                        placeholder="Mis. Kebijakan dinkes stabil"
+                        className="text-xs h-8"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Vertical Logic Check */}
+              <div className="border-t pt-3 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+                <span className="text-emerald-500">✅</span>
+                <span>Jika <b>Tujuan Program</b> tercapai ➔ berkontribusi ke <b>Dampak</b> ini secara vertikal.</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* SECTION 2 — TUJUAN PROGRAM (Purpose) */}
+          <Card
+            onFocus={() => setActiveSection('purpose')}
+            className={`border-l-4 border-l-teal-600 shadow-elegant overflow-hidden transition-all duration-300 ${
+              activeSection === 'purpose' ? 'ring-1 ring-primary/20 bg-slate-50/10' : ''
+            }`}
+          >
+            <CardHeader className="bg-teal-700 text-white py-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="h-7 w-7 rounded-md bg-white/10 flex items-center justify-center">🏆</span>
+                  <CardTitle className="text-sm font-bold tracking-wide">TUJUAN PROGRAM (Purpose/Outcome)</CardTitle>
+                </div>
+                <Badge variant="outline" className="text-white border-white/20 uppercase tracking-widest text-[9px]">Hasil Langsung</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-4 text-xs">
+              <p className="text-[11px] text-muted-foreground leading-5">
+                Perubahan perilaku, kapasitas, atau status langsung yang dinikmati penerima manfaat selama program ini berlangsung (mis. peningkatan keterampilan, perubahan pola asuh).
+              </p>
+
+              {purpose && (
+                <div className="space-y-4">
+                  <div className="space-y-1.5">
+                    <Label className="font-semibold text-slate-800 dark:text-slate-200">Deskripsi Tujuan Program</Label>
+                    <Textarea
+                      value={purpose.description}
+                      onChange={(e) => {
+                        const updated = { ...purpose, description: e.target.value };
+                        setPurpose(updated);
+                      }}
+                      onBlur={() => void saveEntry(purpose)}
+                      placeholder="Tuliskan pernyataan tujuan program..."
+                      rows={2}
+                    />
+                  </div>
+
+                  {/* 3 inline fields */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 pt-1">
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-semibold">Indikator Kunci (KPI)</Label>
+                      <Input
+                        value={purpose.indicator}
+                        onChange={(e) => setPurpose({ ...purpose, indicator: e.target.value })}
+                        onBlur={() => void saveEntry(purpose)}
+                        placeholder="Mis. 500 ibu aktif menerapkan menu seimbang"
+                        className="text-xs h-8"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-semibold">Sumber Verifikasi (MoV)</Label>
+                      <Input
+                        value={purpose.means_of_verification}
+                        onChange={(e) => setPurpose({ ...purpose, means_of_verification: e.target.value })}
+                        onBlur={() => void saveEntry(purpose)}
+                        placeholder="Mis. Kuesioner pre-post test & kohort KIA"
+                        className="text-xs h-8"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-semibold">Asumsi Eksternal</Label>
+                      <Input
+                        value={purpose.assumption}
+                        onChange={(e) => setPurpose({ ...purpose, assumption: e.target.value })}
+                        onBlur={() => void saveEntry(purpose)}
+                        placeholder="Mis. Ibu-ibu memiliki waktu luang posyandu"
+                        className="text-xs h-8"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Vertical Logic Check */}
+              <div className="border-t pt-3 flex items-center gap-1.5 text-[10px] font-medium text-muted-foreground">
+                <span className="text-emerald-500">✅</span>
+                <span>Jika semua <b>Hasil (Outputs)</b> terealisasi ➔ <b>Tujuan Program</b> ini tercapai secara vertikal.</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* SECTION 3 — HASIL (Outputs) */}
+          <div className="space-y-4" onFocus={() => setActiveSection('outputs')}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="h-6 w-6 rounded-md bg-amber-100 flex items-center justify-center text-amber-600 font-bold text-xs">H</span>
+                <h3 className="text-sm font-bold tracking-tight">HASIL & DELIVERABLES (Outputs)</h3>
+              </div>
+              <Button size="xs" variant="outline" className="border-amber-500/30 text-amber-700 hover:bg-amber-50 h-7" onClick={handleAddOutput}>
+                <Plus className="mr-1 h-3.5 w-3.5" /> Tambah Hasil
+              </Button>
+            </div>
+
+            {outputs.length === 0 ? (
+              <Card className="border-dashed border p-8 text-center bg-slate-50/40">
+                <CardContent className="flex flex-col items-center gap-2 text-muted-foreground">
+                  <p className="text-xs">Belum ada deliverable/hasil nyata yang terdaftar.</p>
+                  <Button size="xs" onClick={handleAddOutput}>Buat Hasil H1</Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-4">
+                {outputs.map((out, index) => {
+                  const outActivities = activities.filter((a) => a.parent_id === out.id);
+                  const isCollapsed = collapsedOutputs[out.id] ?? false;
+
+                  return (
+                    <Card
+                      key={out.id}
+                      className={`border-l-4 border-l-amber-500 shadow-elegant overflow-hidden transition-all duration-200 ${
+                        activeSection === 'outputs' ? 'bg-amber-50/5' : ''
+                      }`}
+                    >
+                      <CardHeader className="bg-amber-50/50 dark:bg-amber-950/20 py-2.5 px-4 flex flex-row items-center justify-between">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
+                          <span className="h-6 w-8 rounded bg-amber-500 text-white font-bold text-xs flex items-center justify-center">
+                            H{index + 1}
+                          </span>
+                          <span className="font-semibold text-xs truncate max-w-sm">
+                            {out.description ? out.description : 'Hasil Kosong'}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:bg-slate-100"
+                            disabled={index === 0}
+                            onClick={() => void handleMoveOutput(index, 'up')}
+                            title="Pindah Ke Atas"
+                          >
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-muted-foreground hover:bg-slate-100"
+                            disabled={index === outputs.length - 1}
+                            onClick={() => void handleMoveOutput(index, 'down')}
+                            title="Pindah Ke Bawah"
+                          >
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50"
+                            onClick={() => void handleDeleteEntry(out.id, 'output')}
+                            title="Hapus Hasil"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="p-4 space-y-4 text-xs">
+                        <div className="space-y-1.5">
+                          <Label className="font-semibold text-slate-800 dark:text-slate-200">Deskripsi Deliverable/Hasil</Label>
+                          <Textarea
+                            value={out.description}
+                            onChange={(e) => {
+                              const updated = outputs.map((item) =>
+                                item.id === out.id ? { ...item, description: e.target.value } : item
+                              );
+                              setOutputs(updated);
+                            }}
+                            onBlur={() => {
+                              const target = outputs.find((item) => item.id === out.id);
+                              if (target) void saveEntry(target);
+                            }}
+                            placeholder="Deskripsikan output terukur..."
+                            rows={2}
+                          />
+                        </div>
+
+                        {/* Inline fields */}
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 pt-1">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-semibold">Indikator</Label>
+                            <Input
+                              value={out.indicator}
+                              onChange={(e) => {
+                                const updated = outputs.map((item) =>
+                                  item.id === out.id ? { ...item, indicator: e.target.value } : item
+                                );
+                                setOutputs(updated);
+                              }}
+                              onBlur={() => {
+                                const target = outputs.find((item) => item.id === out.id);
+                                if (target) void saveEntry(target);
+                              }}
+                              placeholder="Mis. Terlatihnya 100 kader"
+                              className="text-xs h-8"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-semibold">Sumber Verifikasi (MoV)</Label>
+                            <Input
+                              value={out.means_of_verification}
+                              onChange={(e) => {
+                                const updated = outputs.map((item) =>
+                                  item.id === out.id ? { ...item, means_of_verification: e.target.value } : item
+                                );
+                                setOutputs(updated);
+                              }}
+                              onBlur={() => {
+                                const target = outputs.find((item) => item.id === out.id);
+                                if (target) void saveEntry(target);
+                              }}
+                              placeholder="Mis. Presensi, foto kegiatan"
+                              className="text-xs h-8"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-semibold">Asumsi</Label>
+                            <Input
+                              value={out.assumption}
+                              onChange={(e) => {
+                                const updated = outputs.map((item) =>
+                                  item.id === out.id ? { ...item, assumption: e.target.value } : item
+                                );
+                                setOutputs(updated);
+                              }}
+                              onBlur={() => {
+                                const target = outputs.find((item) => item.id === out.id);
+                                if (target) void saveEntry(target);
+                              }}
+                              placeholder="Mis. Komitmen kader tinggi"
+                              className="text-xs h-8"
+                            />
+                          </div>
+                        </div>
+
+                        {/* NESTED ACTIVITIES SECTION */}
+                        <div className="mt-4 border-t pt-4 space-y-3 bg-slate-50/50 dark:bg-slate-900/10 p-3 rounded-lg border">
+                          <div className="flex items-center justify-between">
+                            <h4 className="font-bold text-[11px] text-slate-700 dark:text-slate-300">
+                              Kegiatan Pendukung untuk H{index + 1}
+                            </h4>
+                            <Button
+                              size="xs"
+                              variant="ghost"
+                              className="text-primary hover:text-primary-focus h-6 px-1.5"
+                              onClick={() => void handleAddActivity(out.id)}
+                            >
+                              <Plus className="mr-1 h-3 w-3" /> Tambah Kegiatan
+                            </Button>
+                          </div>
+
+                          {outActivities.length === 0 ? (
+                            <p className="text-[10px] text-muted-foreground py-2 text-center">
+                              Belum ada tindakan/kegiatan terdaftar untuk hasil ini.
+                            </p>
+                          ) : (
+                            <div className="space-y-2">
+                              {outActivities.map((act, actIdx) => {
+                                const isExpanded = expandedActivities[act.id] ?? false;
+
+                                return (
+                                  <div
+                                    key={act.id}
+                                    onFocus={() => setActiveSection('activities')}
+                                    className="border rounded-md bg-white dark:bg-slate-950 p-2.5 space-y-2 transition-all"
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                                        <span className="font-mono text-[10px] bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded text-slate-600 font-bold shrink-0">
+                                          {index + 1}.{actIdx + 1}
+                                        </span>
+                                        <Input
+                                          value={act.description}
+                                          onChange={(e) => {
+                                            const updated = activities.map((item) =>
+                                              item.id === act.id ? { ...item, description: e.target.value } : item
+                                            );
+                                            setActivities(updated);
+                                          }}
+                                          onBlur={() => {
+                                            const target = activities.find((item) => item.id === act.id);
+                                            if (target) void saveEntry(target);
+                                          }}
+                                          placeholder="Tuliskan aksi kegiatan, misal: Menyusun modul posyandu"
+                                          className="text-xs h-7 border-0 p-0 focus-visible:ring-0 focus-visible:border-b"
+                                        />
+                                      </div>
+
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 text-muted-foreground"
+                                          onClick={() =>
+                                            setExpandedActivities((prev) => ({
+                                              ...prev,
+                                              [act.id]: !isExpanded,
+                                            }))
+                                          }
+                                        >
+                                          {isExpanded ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                        </Button>
+                                        <Button
+                                          variant="ghost"
+                                          size="icon"
+                                          className="h-6 w-6 text-muted-foreground hover:text-red-500"
+                                          onClick={() => void handleDeleteEntry(act.id, 'activity')}
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </div>
+
+                                    {/* Collapsed expandable fields */}
+                                    {isExpanded && (
+                                      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 pt-2 border-t text-[10px]">
+                                        <div className="space-y-1">
+                                          <Label className="text-[9px] font-semibold">Penanggung Jawab (PIC)</Label>
+                                          <Input
+                                            value={act.responsible_party || ''}
+                                            onChange={(e) => {
+                                              const updated = activities.map((item) =>
+                                                item.id === act.id ? { ...item, responsible_party: e.target.value } : item
+                                              );
+                                              setActivities(updated);
+                                            }}
+                                            onBlur={() => {
+                                              const target = activities.find((item) => item.id === act.id);
+                                              if (target) void saveEntry(target);
+                                            }}
+                                            placeholder="Mis. Koordinator MEAL"
+                                            className="text-xs h-7"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <Label className="text-[9px] font-semibold">Mulai (Bulan)</Label>
+                                          <Input
+                                            type="number"
+                                            value={act.timeline_start || ''}
+                                            onChange={(e) => {
+                                              const updated = activities.map((item) =>
+                                                item.id === act.id ? { ...item, timeline_start: parseInt(e.target.value, 10) || null } : item
+                                              );
+                                              setActivities(updated);
+                                            }}
+                                            onBlur={() => {
+                                              const target = activities.find((item) => item.id === act.id);
+                                              if (target) void saveEntry(target);
+                                            }}
+                                            placeholder="Bulan Mulai"
+                                            className="text-xs h-7"
+                                          />
+                                        </div>
+                                        <div className="space-y-1">
+                                          <Label className="text-[9px] font-semibold">Selesai (Bulan)</Label>
+                                          <Input
+                                            type="number"
+                                            value={act.timeline_end || ''}
+                                            onChange={(e) => {
+                                              const updated = activities.map((item) =>
+                                                item.id === act.id ? { ...item, timeline_end: parseInt(e.target.value, 10) || null } : item
+                                              );
+                                              setActivities(updated);
+                                            }}
+                                            onBlur={() => {
+                                              const target = activities.find((item) => item.id === act.id);
+                                              if (target) void saveEntry(target);
+                                            }}
+                                            placeholder="Bulan Selesai"
+                                            className="text-xs h-7"
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* RIGHT PANEL (35%): Context-Aware M&E Guide & Completion Tracker */}
+        <div className="space-y-6">
+          
+          {/* LOGIC VALIDATION REPORT CARD */}
+          <Card className="border border-slate-200 shadow-elegant">
+            <CardHeader className="bg-slate-50 dark:bg-slate-900/50 py-3.5 px-4 flex flex-row items-center gap-2">
+              <span className="h-5 w-5 flex items-center justify-center text-amber-500">⚠️</span>
+              <div>
+                <CardTitle className="text-xs font-bold uppercase tracking-wider">Logic Validation & Integrity</CardTitle>
+                <CardDescription className="text-[9px] mt-0.5">Analisis keselarasan logframe Anda</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 text-xs">
+              {validationWarnings.length === 0 ? (
+                <div className="flex items-center gap-2 text-emerald-600 font-semibold p-2 bg-emerald-50 dark:bg-emerald-950/20 rounded-md">
+                  <span>✅</span>
+                  <span>Logika vertikal terbentuk dengan sangat baik!</span>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-[160px] overflow-y-auto">
+                  {validationWarnings.map((warn, idx) => (
+                    <div key={idx} className="flex gap-2 text-[10px] leading-5 text-amber-700 dark:text-amber-300 p-2 bg-amber-50/60 dark:bg-amber-950/20 rounded">
+                      <span className="shrink-0 mt-0.5">•</span>
+                      <span>{warn}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* DYNAMIC FOCUS-BASED CONTEXT-AWARE GUIDE */}
+          <Card className="border border-slate-200 shadow-elegant">
+            <CardHeader className="bg-slate-50 dark:bg-slate-900/50 py-3.5 px-4 flex items-center gap-2">
+              <HelpCircle className="h-4 w-4 text-primary shrink-0" />
+              <div>
+                <CardTitle className="text-xs font-bold uppercase tracking-wider">Contextual M&E Guide</CardTitle>
+                <CardDescription className="text-[9px] mt-0.5">Membantu menyelaraskan logframe Anda</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 text-xs space-y-3.5">
+              
+              {activeSection === 'goal' && (
+                <>
+                  <div className="space-y-1">
+                    <h5 className="font-bold text-slate-800 dark:text-slate-200 text-xs">🎯 Dampak (Goal)</h5>
+                    <p className="text-muted-foreground leading-5 text-[11px]">
+                      Dampak mengukur kesuksesan jangka panjang. Donor selalu mencari indikator tingkat tinggi yang menggambarkan perubahan kualitas hidup beneficiary.
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-md border space-y-1">
+                    <span className="font-semibold text-emerald-700 text-[10px] uppercase tracking-wider block">👍 CONTOH INDIKATOR YANG BAIK</span>
+                    <p className="italic text-[10px] leading-relaxed">
+                      "Menurunnya prevalensi gizi buruk sebesar 12% pada 5 desa target dalam 2 tahun."
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {activeSection === 'purpose' && (
+                <>
+                  <div className="space-y-1">
+                    <h5 className="font-bold text-teal-700 dark:text-teal-400 text-xs">🏆 Tujuan Program (Purpose)</h5>
+                    <p className="text-muted-foreground leading-5 text-[11px]">
+                      Tujuan program menggambarkan hasil nyata (behavioral change atau systemic shift) yang terjadi setelah project selesai diintervensi.
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-md border space-y-1">
+                    <span className="font-semibold text-emerald-700 text-[10px] uppercase tracking-wider block">👍 CONTOH INDIKATOR YANG BAIK</span>
+                    <p className="italic text-[10px] leading-relaxed">
+                      "80% ibu hamil di Kelurahan X mengonsumsi tablet tambah darah minimal 90 tablet selama kehamilan."
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {activeSection === 'outputs' && (
+                <>
+                  <div className="space-y-1">
+                    <h5 className="font-bold text-amber-600 dark:text-amber-400 text-xs">📦 Hasil (Outputs)</h5>
+                    <p className="text-muted-foreground leading-5 text-[11px]">
+                      Hasil berupa barang/jasa konkret yang dideliver langsung oleh aktivitas proyek. Bersifat objektif, kuantitatif, dan dapat langsung diukur.
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-md border space-y-1">
+                    <span className="font-semibold text-emerald-700 text-[10px] uppercase tracking-wider block">👍 CONTOH INDIKATOR YANG BAIK</span>
+                    <p className="italic text-[10px] leading-relaxed">
+                      "15 unit sarana MCK umum diresmikan dan berfungsi secara penuh di pemukiman padat."
+                    </p>
+                  </div>
+                </>
+              )}
+
+              {activeSection === 'activities' && (
+                <>
+                  <div className="space-y-1">
+                    <h5 className="font-bold text-indigo-600 dark:text-indigo-400 text-xs">🔧 Kegiatan (Activities)</h5>
+                    <p className="text-muted-foreground leading-5 text-[11px]">
+                      Kegiatan adalah tindakan operasional yang dijalankan tim program untuk menghasilkan Output. Tentukan penanggung jawab dan timeline bulan pelaksanaannya.
+                    </p>
+                  </div>
+                  <div className="p-2.5 bg-emerald-50/40 dark:bg-emerald-950/20 rounded-md border space-y-1">
+                    <span className="font-semibold text-emerald-700 text-[10px] uppercase tracking-wider block">👍 CONTOH INDIKATOR YANG BAIK</span>
+                    <p className="italic text-[10px] leading-relaxed">
+                      "Menyelenggarakan 5 kali sosialisasi perilaku hidup bersih dan sehat (PHBS) bersama kader kesehatan puskesmas."
+                    </p>
+                  </div>
+                </>
+              )}
+
+            </CardContent>
+          </Card>
+
+          {/* DYNAMIC COMPLETION TRACKER CHIPS */}
+          <Card className="border border-slate-200 shadow-elegant">
+            <CardHeader className="bg-slate-50 dark:bg-slate-900/50 py-3.5 px-4">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider">LFA Completion Tracker</CardTitle>
+            </CardHeader>
+            <CardContent className="p-4 text-xs space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1">🎯 Dampak (Goal)</span>
+                <Badge variant={goal?.description ? 'default' : 'secondary'} className="text-[10px] py-0">{goal?.description ? 'Terisi' : 'Kosong'}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1">🏆 Tujuan (Purpose)</span>
+                <Badge variant={purpose?.description ? 'default' : 'secondary'} className="text-[10px] py-0">{purpose?.description ? 'Terisi' : 'Kosong'}</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1">📦 Hasil (Outputs)</span>
+                <Badge variant={outputs.length > 0 ? 'default' : 'secondary'} className="text-[10px] py-0">{outputs.length} Terdaftar</Badge>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-1">🔧 Kegiatan (Activities)</span>
+                <Badge variant={activities.length > 0 ? 'default' : 'secondary'} className="text-[10px] py-0">{activities.length} Terdaftar</Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* GRANTWRITER CONNECTION STATUS CARD */}
+          <Card className="border border-slate-200 shadow-elegant">
+            <CardHeader className="bg-slate-50 dark:bg-slate-900/50 py-3.5 px-4 flex flex-row items-center gap-2">
+              <span className="h-5 w-5 flex items-center justify-center text-primary">🔗</span>
+              <div>
+                <CardTitle className="text-xs font-bold uppercase tracking-wider">Grantwriter Integration</CardTitle>
+                <CardDescription className="text-[9px] mt-0.5">Koneksi LFA ke Proposal Anda</CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 text-xs space-y-4">
+              {linkedProposal ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-emerald-600 font-semibold p-2 bg-emerald-50 dark:bg-emerald-950/20 rounded-md border border-emerald-100">
+                    <span>✅ Terhubung ke:</span>
+                    <span className="truncate max-w-[150px]">{linkedProposal.title}</span>
+                  </div>
+                  <Button variant="outline" className="w-full text-xs" asChild>
+                    <Link to={`/dashboard/grant-writer/${linkedProposal.id}`}>Buka Proposal Terkait</Link>
+                  </Button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 p-2 bg-amber-50/60 dark:bg-amber-950/20 rounded-md border border-amber-100 leading-relaxed text-[11px]">
+                    <span>ℹ️ LFA ini belum dihubungkan ke proposal manapun di Grantwriter.</span>
+                  </div>
+                  <Button
+                    onClick={handleExportToGrantwriter}
+                    className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-xs text-white dark:text-slate-950"
+                  >
+                    Hubungkan ke Grantwriter
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+        </div>
+      </div>
+    </div>
+  );
+}

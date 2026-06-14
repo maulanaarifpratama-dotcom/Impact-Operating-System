@@ -89,6 +89,7 @@ Rules:
   Risk Management, Budget Narrative, Sustainability, Monitoring & Evaluation.
 - Do not invent specific numbers that were not provided. Use ranges and
   qualitative framing when data is missing, and explicitly mark assumptions.
+- If "lfa_context" is present in the payload, you MUST strictly align your intervention logic (Goal, Outcomes, Outputs, Activities, Indicators, and Assumptions) with the data inside "lfa_context.entries". Elaborate upon and enrich this exact structure rather than inventing divergent outcomes/outputs.
 - Output ONLY valid JSON. No markdown fences around the JSON.`;
 
 Deno.serve(async (req: Request) => {
@@ -122,6 +123,31 @@ Deno.serve(async (req: Request) => {
       .update({ status: 'generating' })
       .eq('id', body.projectId);
 
+    // Load LFA project and entries if linked
+    const lfaProjectId = (project.wizard_data as Record<string, any>)?.lfa_project_id;
+    let lfaContext = null;
+
+    if (lfaProjectId) {
+      const { data: lfaProj } = await ctx.supabase
+        .from('lfa_projects')
+        .select('*')
+        .eq('id', lfaProjectId)
+        .maybeSingle();
+
+      if (lfaProj) {
+        const { data: lfaEntries } = await ctx.supabase
+          .from('lfa_entries')
+          .select('*')
+          .eq('project_id', lfaProjectId)
+          .order('sequence', { ascending: true });
+
+        lfaContext = {
+          project: lfaProj,
+          entries: lfaEntries || []
+        };
+      }
+    }
+
     // 3. Call Foundry with the wizard data
     const userPayload = {
       project: {
@@ -135,6 +161,7 @@ Deno.serve(async (req: Request) => {
         target_donor: project.target_donor,
       },
       wizard_data: project.wizard_data,
+      ...(lfaContext ? { lfa_context: lfaContext } : {})
     };
 
     const { data: result, usage, model } = await chatJson<{
