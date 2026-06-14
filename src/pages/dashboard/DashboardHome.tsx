@@ -8,6 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
+import { MOCK_GRANTS } from '@/lib/grantfinder/mockGrants';
 import {
   ArrowRight,
   BarChart3,
@@ -289,6 +290,7 @@ export default function DashboardHome() {
   const [scores, setScores] = useState<Record<string, number>>({});
   const [planTasks, setPlanTasks] = useState<Record<string, boolean>>({});
   const [expandedSection, setExpandedSection] = useState<string | null>('p1');
+  const [hasManuallySelected, setHasManuallySelected] = useState(false);
 
   // Query organization memberships for the current user
   const { data: membership, isLoading: isMembershipLoading } = useQuery({
@@ -343,6 +345,21 @@ export default function DashboardHome() {
         .maybeSingle();
       if (error) throw error;
       return data;
+    },
+    enabled: !!orgId,
+  });
+
+  // Query resource access platforms to compute registered platforms count
+  const { data: dbPlatforms, isLoading: isPlatformsLoading } = useQuery({
+    queryKey: ['resource_access_platforms', orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await (supabase as any)
+        .from('resource_access_platforms')
+        .select('*')
+        .eq('organization_id', orgId);
+      if (error) throw error;
+      return data ?? [];
     },
     enabled: !!orgId,
   });
@@ -476,6 +493,22 @@ export default function DashboardHome() {
     });
   }, [planTasks]);
 
+  // Automatically expand the first non-completed phase on load
+  useEffect(() => {
+    if (!hasManuallySelected && phasesProgress && phasesProgress.length > 0) {
+      const firstIncomplete = phasesProgress.find((p) => p.status !== 'Done');
+      if (firstIncomplete) {
+        setExpandedSection(firstIncomplete.id);
+      }
+    }
+  }, [phasesProgress, hasManuallySelected]);
+
+  // Compute registered platforms count using dbPlatforms query data
+  const registeredPlatformsCount = useMemo(() => {
+    if (!dbPlatforms) return 0;
+    return dbPlatforms.filter((p: any) => p.status && p.status !== 'not_started').length;
+  }, [dbPlatforms]);
+
   const handleToggleTask = async (sectionId: string, task: string) => {
     if (!orgId || !user?.id) return;
 
@@ -552,133 +585,127 @@ export default function DashboardHome() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8 animate-fade-in-up">
-      {/* Welcome Banner */}
+      {/* ZONE 1: Status Header */}
       <section className="relative overflow-hidden rounded-2xl border border-[#155F66]/30 bg-[#0F3D4F] p-6 text-white shadow-elegant md:p-8 animate-fade-in-up">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-32 -left-32 h-64 w-64 rounded-full bg-accent/25 blur-3xl animate-pulse" />
           <div className="absolute -bottom-32 -right-32 h-64 w-64 rounded-full bg-emerald-500/15 blur-3xl" />
         </div>
 
-        <div className="relative z-10">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge className="border-white/30 bg-white/15 text-white hover:bg-white/15">
-              NGO Growth OS Command Center
-            </Badge>
-            <Badge className="border-accent/40 bg-[#F59E0B]/20 text-[#F59E0B] font-medium animate-pulse-glow">
-              Multi-tenant Active
-            </Badge>
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge className="border-white/30 bg-white/15 text-white hover:bg-white/15">
+                NGO Growth OS Command Center
+              </Badge>
+              <Badge className="border-accent/40 bg-[#F59E0B]/20 text-[#F59E0B] font-medium animate-pulse-glow">
+                Sistem Aktif
+              </Badge>
+            </div>
+
+            <div>
+              <div className="flex items-center gap-2 text-white/90">
+                <Building2 className="h-4.5 w-4.5 text-accent shrink-0" />
+                <span className="text-sm font-bold tracking-wider uppercase opacity-75">{orgName}</span>
+              </div>
+              <h1 className="mt-1 text-2xl font-extrabold tracking-tight md:text-3xl">
+                Selamat datang kembali, {name}
+              </h1>
+              <p className="mt-2 text-sm leading-relaxed text-white/80 max-w-2xl">
+                Sistem Anda aktif. <span className="font-extrabold text-accent">{registeredPlatformsCount}</span> platform terdaftar, <span className="font-extrabold text-accent">{MOCK_GRANTS.length}</span> peluang grant aktif.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap gap-2.5 pt-1">
+              <Link
+                to="/dashboard/readiness"
+                className="inline-flex h-9 items-center justify-center rounded-md bg-accent px-4 py-1.5 text-xs font-bold text-accent-foreground transition-all duration-300 hover:bg-accent/95 hover:shadow-elegant hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Ubah Baseline Readiness
+              </Link>
+              <Link
+                to="/dashboard/resource-access"
+                className="inline-flex h-9 items-center justify-center rounded-md bg-white/10 px-4 py-1.5 text-xs font-bold text-white transition-all duration-300 hover:bg-white/20 hover:scale-[1.02] active:scale-[0.98]"
+              >
+                Kelola Platform
+              </Link>
+            </div>
           </div>
 
-          <h1 className="mt-5 text-3xl font-semibold tracking-tight md:text-4xl animate-fade-in-up delay-100">
-            Bangun NGO Growth Operating System Anda
-          </h1>
-          <p className="mt-4 max-w-3xl text-sm leading-relaxed text-white/85 md:text-base animate-fade-in-up delay-200">
-            Mulai dari baseline sistem, bukan daftar tools.
-          </p>
-
-          <div className="mt-6 flex flex-col sm:flex-row sm:items-center gap-4 border-t border-white/10 pt-5 text-sm animate-fade-in-up delay-300">
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-accent" />
-              <span className="font-semibold text-white">{orgName}</span>
+          {/* G.R.O.W.T.H Category Progress Chips */}
+          <div className="flex flex-col gap-2 bg-black/20 border border-white/10 p-4 rounded-xl shrink-0 md:max-w-xs w-full">
+            <span className="text-[10px] font-extrabold uppercase tracking-widest text-white/60 mb-1">
+              G.R.O.W.T.H. Score Baseline
+            </span>
+            <div className="grid grid-cols-3 gap-2">
+              {scoreResult.categoryScores.map((cat) => {
+                const isFull = cat.score === cat.max;
+                const isPartial = cat.score > 0 && cat.score < cat.max;
+                return (
+                  <div
+                    key={cat.code}
+                    className={cn(
+                      "flex flex-col items-center justify-center rounded-lg p-2 border text-center transition-all duration-300 shadow-sm",
+                      isFull
+                        ? "bg-emerald-500/20 text-emerald-300 border-emerald-500/40"
+                        : isPartial
+                        ? "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                        : "bg-white/5 text-white/40 border-white/10"
+                    )}
+                    title={`${cat.title}: ${cat.score}/${cat.max}`}
+                  >
+                    <span className="text-xs font-black">{cat.code}</span>
+                    <span className="text-[10px] font-semibold mt-0.5">{cat.score}/{cat.max}</span>
+                  </div>
+                );
+              })}
             </div>
-            <div className="hidden sm:block text-white/40">|</div>
-            <div className="flex items-center gap-1 text-white/80">
-              Selamat datang kembali, <span className="font-medium text-white">{name}</span>.
-            </div>
-          </div>
-
-          <div className="mt-6 flex flex-wrap gap-3 animate-fade-in-up delay-400">
-            <Link
-              to="/dashboard/readiness"
-              className="inline-flex items-center rounded-md bg-accent px-4 py-2 text-sm font-medium text-accent-foreground transition-all duration-300 hover:bg-accent/95 hover:shadow-elegant hover:scale-[1.02] active:scale-[0.98]"
-            >
-              Mulai dari Readiness →
-            </Link>
-            <Link
-              to="/dashboard/grantfinder"
-              className="inline-flex items-center rounded-md bg-white/15 px-4 py-2 text-sm font-medium text-white transition-all duration-300 hover:bg-white/25 hover:shadow-sm hover:scale-[1.02] active:scale-[0.98]"
-            >
-              Lihat Grant Pipeline →
-            </Link>
           </div>
         </div>
       </section>
 
-      {/* Main Section Grid */}
+      {/* Main Section Grid: Status Baseline & ZONE 2 Priorities */}
       <div className="grid gap-6 lg:grid-cols-3">
-        {/* GROWTH Score Card */}
+        {/* GROWTH Status Baseline Card */}
         <Card className="group relative overflow-hidden flex flex-col justify-between border-border bg-card p-5 shadow-card hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 hover:border-[#155F66]/30">
           <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-500" />
-          <div>
+          <div className="space-y-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">G.R.O.W.T.H. Score</p>
-                <h2 className="mt-2 text-2xl font-bold tracking-tight">
-                  {scoreResult.hasScores ? `${scoreResult.total} / 140` : 'Belum Dibuat'}
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Kematangan Sistem</p>
+                <h2 className="mt-1 text-lg font-bold tracking-tight text-foreground">
+                  Status Baseline NGO
                 </h2>
               </div>
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-accent transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
                 <ShieldCheck className="h-5 w-5" />
               </div>
             </div>
 
-            {/* Total progress bar for score */}
-            {scoreResult.hasScores && (
-              <div className="mt-4">
-                <div className="h-2 w-full overflow-hidden rounded-full bg-muted border border-border">
-                  <div
-                     className="h-full bg-gradient-to-r from-accent to-[#155F66] transition-all duration-500"
-                     style={{ width: `${Math.round((scoreResult.total / 140) * 100)}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
             {!scoreResult.hasScores ? (
-              <div className="mt-4 rounded-lg bg-amber-500/10 p-3.5 border border-amber-500/20 animate-pulse-glow">
-                <p className="text-sm font-bold text-amber-500">Baseline belum dibuat</p>
-                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                  Lakukan audit kesiapan operasional pertama Anda untuk melihat kekuatan sistem NGO Anda.
+              <div className="rounded-lg bg-amber-500/10 p-4 border border-amber-500/20 animate-pulse-glow">
+                <p className="text-sm font-bold text-amber-500">Baseline Belum Dibuat</p>
+                <p className="mt-1 text-[11px] text-muted-foreground leading-relaxed">
+                  Lakukan audit kesiapan operasional pertama Anda untuk memetakan kekuatan sistem NGO Anda.
                 </p>
-                <Button asChild variant="outline" className="mt-3 w-full border-amber-500/30 text-amber-500 hover:bg-amber-500/10 transition-transform duration-200 active:scale-[0.98]">
-                  <Link to="/dashboard/readiness">Buka Readiness Scorecard</Link>
-                </Button>
               </div>
             ) : (
-              <div className="mt-4 space-y-3">
-                <div className="rounded-lg bg-muted/40 p-3 border border-border">
-                  <p className="text-sm font-bold text-foreground">{scoreResult.level.title}</p>
-                  <p className="mt-1 text-xs text-muted-foreground leading-relaxed">{scoreResult.level.description}</p>
-                </div>
-
-                {/* Score breakdown per category */}
-                <div className="space-y-2.5 pt-1">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Kesiapan Per Layer</p>
-                  {scoreResult.categoryScores.map((cat) => (
-                    <div key={cat.code} className="group/cat space-y-1 rounded-lg p-1.5 transition-all duration-200 hover:bg-muted/30">
-                      <div className="flex justify-between text-[11px] font-medium">
-                        <span className="text-foreground transition-colors duration-200 group-hover/cat:text-accent">{cat.code} — {cat.title}</span>
-                        <span className="text-muted-foreground">{cat.score} / {cat.max}</span>
-                      </div>
-                      <div className="h-1 w-full overflow-hidden rounded-full bg-muted">
-                        <div
-                          className="h-full bg-gradient-to-r from-accent to-[#155F66] transition-all duration-500 group-hover/cat:from-[#155F66] group-hover/cat:to-accent"
-                          style={{ width: `${cat.percentage}%` }}
-                        />
-                      </div>
-                    </div>
-                  ))}
+              <div className="space-y-3">
+                <div className="rounded-lg bg-muted/40 p-3.5 border border-border">
+                  <p className="text-xs font-bold text-accent uppercase tracking-wider mb-1">Level Saat Ini</p>
+                  <p className="text-sm font-black text-foreground">{scoreResult.level.title}</p>
+                  <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">{scoreResult.level.description}</p>
                 </div>
 
                 {lastUpdatedStr && (
-                  <div className="flex flex-col gap-1 text-[11px] text-muted-foreground border-t border-border pt-3">
+                  <div className="space-y-2 border-t border-border pt-3.5 text-xs">
                     <div className="flex justify-between">
-                      <span>Terakhir Diperbarui:</span>
+                      <span className="text-muted-foreground">Terakhir Diperbarui:</span>
                       <span className="font-semibold text-foreground">{lastUpdatedStr}</span>
                     </div>
-                    <div className="flex justify-between items-center text-emerald-500 font-medium animate-pulse-glow">
-                      <span>Progres Dibanding Baseline:</span>
-                      <span className="bg-emerald-500/10 px-1.5 py-0.5 rounded text-[10px]">
+                    <div className="flex justify-between items-center text-emerald-500 font-medium">
+                      <span>Progres vs Baseline:</span>
+                      <span className="bg-emerald-500/10 px-2 py-0.5 rounded text-[10px] font-bold">
                         +{scoreResult.total > 20 ? 15 : 5} pts peningkatan
                       </span>
                     </div>
@@ -688,22 +715,20 @@ export default function DashboardHome() {
             )}
           </div>
 
-          {scoreResult.hasScores && (
-            <div className="mt-5 border-t border-border pt-4">
-              <Link
-                to="/dashboard/readiness"
-                className="inline-flex items-center text-sm font-semibold text-accent hover:text-accent/95 hover:underline transition-transform duration-200 hover:translate-x-0.5"
-              >
-                Perbarui Readiness Scorecard
-                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-              </Link>
-            </div>
-          )}
+          <div className="mt-5 border-t border-border pt-4">
+            <Link
+              to="/dashboard/readiness"
+              className="inline-flex items-center text-xs font-bold text-accent hover:text-accent/95 hover:underline transition-transform duration-200 hover:translate-x-0.5"
+            >
+              {scoreResult.hasScores ? 'Perbarui Baseline Kesiapan' : 'Mulai Baseline Kesiapan'}
+              <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+            </Link>
+          </div>
         </Card>
 
-        {/* Dynamic Next Actions */}
+        {/* ZONE 2: Rekomendasi Prioritas Utama */}
         <Card className="group/priorities relative overflow-hidden p-5 shadow-card border-border bg-card lg:col-span-2 flex flex-col justify-between transition-all duration-300 hover:shadow-elegant">
-          <div className="absolute top-0 left-0 h-1 w-0 bg-primary group-hover/priorities:w-full transition-all duration-500" />
+          <div className="absolute top-0 left-0 h-1 w-0 bg-[#155F66] group-hover/priorities:w-full transition-all duration-500" />
           <div>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold tracking-tight">Rekomendasi Prioritas Utama</h2>
@@ -717,29 +742,36 @@ export default function DashboardHome() {
                 : 'Langkah awal standar untuk memulai operasional nonprofit secara terstruktur.'}
             </p>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <div className="mt-5 space-y-3.5">
               {scoreResult.nextActions.map((action, idx) => (
                 <div
                   key={action.title}
-                  className="group/act flex flex-col justify-between overflow-hidden rounded-xl border border-border bg-muted/20 p-4 shadow-sm transition-all duration-300 hover:bg-muted/40 hover:-translate-y-1 hover:shadow-md hover:border-accent/20"
+                  className="group/act flex items-center justify-between gap-4 rounded-xl border border-border bg-muted/20 p-4 transition-all duration-300 hover:bg-muted/40 hover:border-accent/20"
                 >
-                  <div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/15 text-accent text-xs font-bold transition-transform duration-300 group-hover/act:scale-110">
-                        {idx + 1}
-                      </div>
-                      <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider bg-background border border-border transition-colors group-hover/act:border-accent/30 group-hover/act:text-accent">
-                        Layer {action.code}
-                      </Badge>
+                  <div className="flex items-center gap-4 min-w-0">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent/15 text-accent text-sm font-extrabold shadow-sm transition-transform duration-300 group-hover/act:scale-105">
+                      {idx + 1}
                     </div>
-                    <h3 className="text-xs font-bold text-foreground leading-snug mb-1 transition-colors group-hover/act:text-accent">{action.title}</h3>
-                    <p className="text-[11px] text-muted-foreground leading-relaxed mb-4">{action.desc}</p>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-sm font-bold text-foreground transition-colors duration-200 group-hover/act:text-accent leading-snug">
+                          {action.title}
+                        </h3>
+                        <Badge variant="secondary" className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5">
+                          Layer {action.code}
+                        </Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground leading-relaxed mt-0.5">
+                        {action.desc}
+                      </p>
+                    </div>
                   </div>
                   <Link
                     to={action.link}
-                    className="inline-flex items-center text-[11px] font-bold text-accent hover:text-accent/85 hover:underline mt-auto transition-transform duration-200 group-hover/act:translate-x-0.5"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:text-accent hover:border-accent/30 transition-all duration-300 group-hover/act:bg-accent group-hover/act:text-accent-foreground group-hover/act:border-accent"
+                    aria-label={action.linkText}
                   >
-                    {action.linkText}
+                    <ArrowRight className="h-4 w-4" />
                   </Link>
                 </div>
               ))}
@@ -747,18 +779,18 @@ export default function DashboardHome() {
           </div>
 
           {scoreResult.hasScores && (
-            <div className="mt-5 border-t border-border pt-4 text-xs text-muted-foreground flex items-center gap-1.5">
+            <div className="mt-5 border-t border-border pt-4 text-[11px] text-muted-foreground flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-accent animate-pulse" />
-              Sistem akan memperbarui prioritas otomatis saat Anda meningkatkan skor G.R.O.W.T.H.
+              Sistem mendeteksi gap terendah secara real-time dan menyusun prioritas otomatis.
             </div>
           )}
         </Card>
       </div>
 
-      {/* Redesigned 90-Day Plan Checklist Section */}
+      {/* Redesigned 90-Day Plan Checklist Section (Zone 3) */}
       <Card className="group relative overflow-hidden border-border bg-card p-6 shadow-card hover:shadow-elegant transition-all duration-300">
         <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-500" />
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-border pb-5">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b border-border pb-5 mb-6">
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl font-bold tracking-tight">Interactive 90-Day Plan</h2>
@@ -771,7 +803,7 @@ export default function DashboardHome() {
             </p>
           </div>
 
-          {/* Premium Progress circle or bar */}
+          {/* Premium Progress Badge */}
           <div className="flex items-center gap-4 bg-muted/30 border border-border px-4 py-2.5 rounded-xl transition-all duration-300 hover:bg-muted/50">
             <div className="flex flex-col text-right">
               <span className="text-xs text-muted-foreground font-medium">Progress Penyelesaian</span>
@@ -785,139 +817,168 @@ export default function DashboardHome() {
           </div>
         </div>
 
-        {/* Big visual progress bar */}
-        <div className="mt-5 h-2 w-full overflow-hidden rounded-full bg-muted border border-border">
+        {/* Global Progress Bar */}
+        <div className="h-2 w-full overflow-hidden rounded-full bg-muted border border-border mb-6">
           <div
             className="h-full bg-gradient-to-r from-accent via-[#155F66] to-[#1D7A75] transition-all duration-500"
             style={{ width: `${planStats.percentage}%` }}
           />
         </div>
 
-        {/* Phase Checklist Accordion */}
-        <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {phasesProgress.map((section) => {
-            const isExpanded = expandedSection === section.id;
-            const completedCount = section.completedCount;
-            const totalCount = section.totalCount;
-            const isPhaseDone = section.status === 'Done';
+        {/* Visual Stepper / Timeline Header */}
+        <div className="overflow-x-auto pb-4 -mx-4 px-4 md:mx-0 md:px-0">
+          <div className="flex items-center min-w-[760px] md:min-w-0 justify-between gap-3 relative">
+            {/* Stepper horizontal connector line */}
+            <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-muted -translate-y-1/2 z-0 hidden md:block" />
 
-            return (
-              <div
-                key={section.id}
-                className={cn(
-                  'flex flex-col justify-between overflow-hidden rounded-xl border transition-all duration-300 bg-[#0F3D4F]/5 p-4',
-                  isExpanded
-                    ? 'border-[#155F66]/40 shadow-elegant ring-1 ring-[#155F66]/10 bg-card'
-                    : 'border-border hover:border-primary/20 hover:bg-muted/5'
-                )}
-              >
-                <div>
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <span className="text-[10px] font-extrabold text-accent uppercase tracking-wider bg-accent/10 px-2 py-0.5 rounded">
-                        {section.day}
-                      </span>
-                      <h3 className="text-sm font-bold text-foreground mt-1.5">{section.phase}</h3>
-                    </div>
-                    <Badge
-                      className={cn(
-                        'text-[10px] font-bold border transition-all duration-300',
-                        isPhaseDone
-                          ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 shadow-sm'
-                          : section.status === 'In Progress'
-                          ? 'border-amber-500/30 bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 shadow-sm'
-                          : 'border-slate-300 bg-slate-100 text-slate-500 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400'
-                      )}
-                    >
-                      {section.status}
-                    </Badge>
+            {phasesProgress.map((sec, idx) => {
+              const isActive = expandedSection === sec.id;
+              const isDone = sec.status === 'Done';
+              const isInProgress = sec.status === 'In Progress';
+
+              return (
+                <button
+                  key={sec.id}
+                  type="button"
+                  onClick={() => {
+                    setExpandedSection(sec.id);
+                    setHasManuallySelected(true);
+                  }}
+                  className={cn(
+                    "relative z-10 flex-1 flex flex-col items-center p-3 rounded-xl border text-center transition-all duration-300 focus:outline-none focus:ring-1 focus:ring-accent",
+                    isActive
+                      ? "bg-[#0F3D4F] border-[#155F66]/50 text-white shadow-elegant scale-[1.02]"
+                      : isDone
+                      ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/15"
+                      : isInProgress
+                      ? "bg-amber-500/10 border-amber-500/30 text-amber-600 hover:bg-amber-500/15"
+                      : "bg-background border-border text-muted-foreground hover:bg-muted/50"
+                  )}
+                >
+                  {/* Step status dot */}
+                  <div
+                    className={cn(
+                      "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold mb-1.5 border shadow-sm transition-all duration-300",
+                      isActive
+                        ? "bg-white text-[#0F3D4F] border-white"
+                        : isDone
+                        ? "bg-emerald-500 text-white border-emerald-400"
+                        : isInProgress
+                        ? "bg-amber-500 text-white border-amber-400"
+                        : "bg-muted text-muted-foreground border-border"
+                    )}
+                  >
+                    {isDone && !isActive ? "✓" : idx + 1}
                   </div>
 
-                  <div className="space-y-1 mt-4">
-                    <div className="flex justify-between text-[11px] text-muted-foreground">
-                      <span>Progres Tugas</span>
-                      <span className="font-semibold text-foreground">{completedCount} / {totalCount} ({section.percentage}%)</span>
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider opacity-85">
+                    {sec.day}
+                  </span>
+                  <span className="text-[11px] font-bold leading-tight truncate max-w-[110px] mt-0.5">
+                    {sec.phase}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Expanded Detailed Active Phase Card */}
+        {(() => {
+          const activeSection = phasesProgress.find((sec) => sec.id === expandedSection) || phasesProgress[0];
+          if (!activeSection) return null;
+
+          return (
+            <div className="mt-6 rounded-2xl border border-accent/20 bg-accent-soft/10 p-6 md:p-8 shadow-inner animate-fade-in">
+              <div className="grid gap-6 md:grid-cols-5">
+                {/* Left side: Phase overview */}
+                <div className="md:col-span-2 space-y-4">
+                  <div>
+                    <Badge className="bg-accent/15 text-accent hover:bg-accent/20 border-accent/20 font-bold uppercase tracking-wider text-[10px]">
+                      Fase Aktif: {activeSection.day}
+                    </Badge>
+                    <h3 className="text-xl font-extrabold text-foreground mt-2 leading-tight">
+                      {activeSection.phase}
+                    </h3>
+                    <p className="text-xs text-muted-foreground leading-relaxed mt-1">
+                      Fokus Layer G.R.O.W.T.H: <span className="font-bold text-accent">{activeSection.layer}</span>
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-xs text-muted-foreground font-medium">
+                      <span>Progres Fase Ini</span>
+                      <span className="font-bold text-foreground">
+                        {activeSection.completedCount} / {activeSection.totalCount} ({activeSection.percentage}%)
+                      </span>
                     </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted border border-border">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted border border-border">
                       <div
                         className={cn(
-                          'h-full transition-all duration-500',
-                          isPhaseDone
-                            ? 'bg-emerald-500'
-                            : section.status === 'In Progress'
-                            ? 'bg-amber-500'
-                            : 'bg-slate-300 dark:bg-slate-700'
+                          "h-full transition-all duration-500",
+                          activeSection.status === "Done" ? "bg-emerald-500" : "bg-accent"
                         )}
-                        style={{ width: `${section.percentage}%` }}
+                        style={{ width: `${activeSection.percentage}%` }}
                       />
                     </div>
                   </div>
 
-                  <div className="mt-2.5 text-[11px] font-semibold text-muted-foreground flex items-center gap-1 bg-muted/40 p-1.5 rounded border border-border transition-colors duration-200 hover:bg-muted/60">
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-accent">Fokus Layer:</span>
-                    <span className="text-foreground">{section.layer}</span>
+                  <div className="rounded-xl border border-border bg-background/50 p-4 text-xs text-muted-foreground leading-relaxed">
+                    Penyelesaian tugas di fase ini membantu memperkuat sistem operasional NGO Anda secara bertahap dan teratur.
                   </div>
-                </div>
 
-                <div className="mt-5 space-y-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="w-full h-8 text-xs font-semibold justify-between border-border transition-transform duration-200 active:scale-[0.98]"
-                    onClick={() => setExpandedSection(isExpanded ? null : section.id)}
-                  >
-                    <span>{isExpanded ? 'Sembunyikan Checklist' : 'Lihat Checklist'}</span>
-                    {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                  </Button>
-
-                  {isExpanded && (
-                    <div className="mt-3 border-t border-border pt-4 space-y-2 animate-fade-in">
-                      {section.tasks.map((task) => {
-                        const isTaskChecked = !!planTasks[`${section.id}-${task}`];
-
-                        return (
-                          <button
-                            key={task}
-                            type="button"
-                            onClick={() => handleToggleTask(section.id, task)}
-                            className={cn(
-                              'group/task flex w-full items-start gap-2.5 rounded-lg border p-2.5 text-left text-[11px] font-medium transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-accent active:scale-[0.98]',
-                              isTaskChecked
-                                ? 'border-emerald-500/20 bg-emerald-500/[0.01] text-muted-foreground/80'
-                                : 'border-border bg-muted/10 text-foreground hover:bg-muted/20 hover:border-primary/20'
-                            )}
-                          >
-                            <div className="mt-0.5 shrink-0 text-accent transition-all duration-200 group-hover/task:scale-110">
-                              {isTaskChecked ? (
-                                <CheckCircle2 className="h-4 w-4 text-emerald-500 animate-fade-in" />
-                              ) : (
-                                <div className="h-3.5 w-3.5 rounded border border-muted-foreground/40 bg-background transition-colors group-hover/task:border-accent" />
-                              )}
-                            </div>
-                            <span className={cn('leading-normal transition-colors duration-200', isTaskChecked && 'line-through text-muted-foreground/50')}>
-                              {task}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {isPhaseDone && (
+                  {activeSection.status === 'Done' && (
                     <Button
                       type="button"
-                      className="w-full h-8 text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 gap-1 transition-transform duration-200 active:scale-[0.98]"
-                      onClick={() => handleCompletePhase(section.id)}
+                      className="w-full h-10 text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-600 gap-1.5 transition-transform duration-200 active:scale-[0.98] shadow-sm"
+                      onClick={() => handleCompletePhase(activeSection.id)}
                     >
-                      <CheckCircle2 className="h-3.5 w-3.5" />
-                      Fase Selesai
+                      <CheckCircle2 className="h-4 w-4" />
+                      Fase Berhasil Selesai!
                     </Button>
                   )}
                 </div>
+
+                {/* Right side: Interactive tasks checkboxes */}
+                <div className="md:col-span-3 space-y-3">
+                  <h4 className="text-xs font-extrabold text-foreground uppercase tracking-widest mb-1.5">
+                    Checklist Tugas:
+                  </h4>
+                  <div className="space-y-2.5">
+                    {activeSection.tasks.map((task) => {
+                      const isTaskChecked = !!planTasks[`${activeSection.id}-${task}`];
+
+                      return (
+                        <button
+                          key={task}
+                          type="button"
+                          onClick={() => handleToggleTask(activeSection.id, task)}
+                          className={cn(
+                            'group/task flex w-full items-start gap-3 rounded-xl border p-3.5 text-left text-xs font-medium transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-accent active:scale-[0.98]',
+                            isTaskChecked
+                              ? 'border-emerald-500/20 bg-emerald-500/[0.02] text-muted-foreground/80 shadow-inner'
+                              : 'border-border bg-card text-foreground hover:bg-muted/30 hover:border-accent/20 hover:shadow-sm'
+                          )}
+                        >
+                          <div className="mt-0.5 shrink-0 text-accent transition-all duration-200 group-hover/task:scale-110">
+                            {isTaskChecked ? (
+                              <CheckCircle2 className="h-5 w-5 text-emerald-500 animate-fade-in" />
+                            ) : (
+                              <div className="h-4 w-4 rounded-md border border-muted-foreground/40 bg-background transition-all group-hover/task:border-accent" />
+                            )}
+                          </div>
+                          <span className={cn('leading-normal transition-colors duration-200', isTaskChecked && 'line-through text-muted-foreground/45')}>
+                            {task}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })()}
       </Card>
 
       {/* Workflow Execution Layer */}
