@@ -113,11 +113,11 @@ test.describe('Impactory E2E Smoke Test Suite', () => {
       
       // Select main sector: Pendidikan
       await page.locator('#o-sector').click();
-      await page.locator('[role="option"]:has-text("Pendidikan"), span:has-text("Pendidikan")').first().click();
+      await page.locator('[role="option"]:has-text("Pendidikan")').first().click();
 
       // Select size: 1-5
       await page.locator('#o-size').click();
-      await page.locator('[role="option"]:has-text("1-5"), span:has-text("1-5")').first().click();
+      await page.locator('[role="option"]:has-text("1-5")').first().click();
 
       // Click submit
       const onboardingSubmitBtn = page.locator('button[type="submit"]:has-text("Mulai Gunakan Impactory")').first();
@@ -157,7 +157,7 @@ test.describe('Impactory E2E Smoke Test Suite', () => {
       
       // Select sector 'Pendidikan'
       await page.locator('#prog-sector').click();
-      await page.locator('[role="option"]:has-text("Pendidikan"), span:has-text("Pendidikan")').first().click();
+      await page.locator('[role="option"]:has-text("Pendidikan")').first().click();
 
       // Set locations and beneficiary details
       await page.locator('#prog-loc').fill('Garut, Jawa Barat');
