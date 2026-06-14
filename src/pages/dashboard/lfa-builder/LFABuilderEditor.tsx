@@ -585,7 +585,7 @@ export default function LFABuilderEditor() {
   if (!project) return null;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 py-1">
+    <div data-testid="lfa-editor-root" className="mx-auto max-w-7xl space-y-6 py-1">
       {/* TOP BAR BAR */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-4">
         <div className="flex items-center gap-3">
@@ -725,6 +725,7 @@ export default function LFABuilderEditor() {
           {completenessPercent >= 80 && wbsExists && mealExists ? (
             <button
               onClick={() => setActiveTab('sroi')}
+              data-testid="lfa-tab-sroi"
               className={`px-3 py-1.5 rounded-md transition-all ${
                 activeTab === 'sroi' ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border' : 'text-muted-foreground hover:text-foreground'
               }`}
@@ -735,7 +736,7 @@ export default function LFABuilderEditor() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
+                  <button data-testid="lfa-tab-sroi" className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
                     ⑤ SROI 🔒
                   </button>
                 </TooltipTrigger>

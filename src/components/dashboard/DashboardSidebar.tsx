@@ -166,6 +166,7 @@ export function DashboardSidebar() {
                           item.name === 'Grantwriter' ? 'tour-grant-writer' :
                           undefined
                         }
+                        data-testid={item.name === 'LFA Builder' ? 'nav-lfa-builder' : undefined}
                         to={item.href}
                         end={item.exact}
                         className={linkClass(active)}

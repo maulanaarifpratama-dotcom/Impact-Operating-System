@@ -1035,7 +1035,7 @@ export default function SROICalculator({
   const speedometer = getSpeedometerDetails(config.sroi_ratio);
 
   return (
-    <div className="space-y-6">
+    <div data-testid="sroi-calculator-root" className="space-y-6">
       {/* SROI HEADER */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-white dark:bg-slate-950 p-4 rounded-xl border shadow-elegant">
         <div>
@@ -1708,7 +1708,7 @@ export default function SROICalculator({
               <span className="text-[10px] text-muted-foreground block">Net Social Value setelah terdiskonto.</span>
             </Card>
 
-            <Card className="border p-4 shadow-elegant space-y-1 bg-slate-50/50 dark:bg-slate-900/10">
+            <Card data-testid="sroi-ratio-card" className="border p-4 shadow-elegant space-y-1 bg-slate-50/50 dark:bg-slate-900/10">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Rasio Return Sosial (SROI)</span>
               <div className="text-xl font-extrabold text-blue-600 dark:text-blue-400">Rp {config.sroi_ratio.toFixed(2)} per Rp1</div>
               <span className="text-[10px] text-muted-foreground block">SROI Ratio = NPV / Investasi.</span>
