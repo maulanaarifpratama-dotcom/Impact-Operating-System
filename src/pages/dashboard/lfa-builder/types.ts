@@ -43,3 +43,24 @@ export interface AiActivity {
   timeline_start?: number;
   timeline_end?: number;
 }
+
+export interface WbsItem {
+  id: string;
+  lfa_project_id: string;
+  org_id: string;
+  level: 1 | 2 | 3 | 4;
+  parent_id: string | null;
+  name: string;
+  start_month: number;
+  duration_weeks: number;
+  pic?: string | null;
+  method?: 'Workshop' | 'FGD' | 'Survey' | 'Pelatihan' | 'Pendampingan' | 'Rapat' | 'Lainnya' | null;
+  indicator?: string | null;
+  notes?: string | null;
+  dependencies?: string[] | null;
+  sort_order: number;
+  mode: 'simple' | 'professional';
+  created_at?: string;
+  updated_at?: string;
+}
+

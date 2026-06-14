@@ -31,6 +31,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { LfaProject, LfaEntry } from './types';
+import WBSBuilder from './WBSBuilder';
 
 export default function LFABuilderEditor() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -61,6 +62,23 @@ export default function LFABuilderEditor() {
   // Suggestions state
   const [suggestions, setSuggestions] = useState<Record<string, string>>({});
   const [showAiSuggestion, setShowAiSuggestion] = useState<Record<string, boolean>>({});
+
+  const [wbsExists, setWbsExists] = useState(false);
+
+  const checkWbsExistence = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const { count, error } = await supabase
+        .from('lfa_wbs_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('lfa_project_id', projectId);
+      if (!error) {
+        setWbsExists((count ?? 0) > 0);
+      }
+    } catch (err) {
+      console.error('Error checking WBS existence:', err);
+    }
+  }, [projectId]);
 
   const loadProjectAndEntries = useCallback(async () => {
     setLoading(true);
@@ -165,6 +183,7 @@ export default function LFABuilderEditor() {
       setPurpose(purposeEntry);
       setOutputs(entriesList.filter((e) => e.level === 'output'));
       setActivities(entriesList.filter((e) => e.level === 'activity'));
+      void checkWbsExistence();
     } catch (err) {
       const error = err as Error;
       toast({
@@ -175,7 +194,7 @@ export default function LFABuilderEditor() {
     } finally {
       setLoading(false);
     }
-  }, [user, profile, projectId, navigate, toast]);
+  }, [user, profile, projectId, navigate, toast, checkWbsExistence]);
 
   useEffect(() => {
     if (user && projectId) {
@@ -605,36 +624,62 @@ export default function LFABuilderEditor() {
             ① LFA Matrix
           </button>
           
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
-                  ② WBS ⬠
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Selesaikan LFA dulu untuk unlock modul WBS</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          {completenessPercent >= 80 ? (
+            <button
+              onClick={() => setActiveTab('wbs')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                activeTab === 'wbs' ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              ② WBS Builder
+            </button>
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
+                    ② WBS 🔒
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Lengkapi LFA Matrix minimal 80% untuk membuka WBS Builder</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {completenessPercent >= 80 && wbsExists ? (
+            <button
+              onClick={() => setActiveTab('budget')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                activeTab === 'budget' ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              ③ Budget
+            </button>
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
+                    ③ Budget 🔒
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {completenessPercent < 80 
+                    ? 'Lengkapi LFA Matrix minimal 80% dan isi WBS untuk membuka Budget' 
+                    : 'Isi minimal satu item WBS untuk membuka Budget'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
 
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
                 <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
-                  ③ Budget ⬠
+                  ④ MEAL 🔒
                 </button>
               </TooltipTrigger>
-              <TooltipContent>Selesaikan LFA dulu untuk unlock modul Budget</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
-                  ④ MEAL ⬠
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Selesaikan LFA dulu untuk unlock modul MEAL</TooltipContent>
+              <TooltipContent>Selesaikan LFA & Budget dulu untuk unlock modul MEAL</TooltipContent>
             </Tooltip>
           </TooltipProvider>
         </div>
@@ -652,7 +697,8 @@ export default function LFABuilderEditor() {
       </div>
 
       {/* SPLIT LAYOUT PANEL */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      {activeTab === 'lfa' ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         
         {/* LEFT COMPONENT (65%): Matrix Editor */}
         <div className="lg:col-span-2 space-y-6">
@@ -1300,6 +1346,27 @@ export default function LFABuilderEditor() {
 
         </div>
       </div>
+    ) : activeTab === 'wbs' ? (
+        <div className="w-full">
+          <WBSBuilder
+            projectId={projectId!}
+            orgId={project.org_id}
+            programDurationMonths={project.duration_months || 12}
+            sector={project.sector || 'Sektor Lainnya'}
+            onWbsSaved={checkWbsExistence}
+          />
+        </div>
+      ) : (
+        <div className="w-full">
+          <Card className="border border-slate-200 p-8 text-center bg-slate-50/40">
+            <CardContent className="flex flex-col items-center gap-2 text-muted-foreground">
+              <span className="text-4xl">💰</span>
+              <h3 className="font-bold text-lg mt-2 text-slate-800">Modul Budget</h3>
+              <p className="text-xs max-w-md">Modul anggaran Anda sedang disinkronkan dengan WBS. Rincian biaya per aktivitas akan muncul di sini otomatis.</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
