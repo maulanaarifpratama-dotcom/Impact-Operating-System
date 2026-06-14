@@ -64,3 +64,25 @@ export interface WbsItem {
   updated_at?: string;
 }
 
+export interface BudgetItem {
+  id: string;
+  lfa_project_id: string;
+  org_id: string;
+  wbs_item_id?: string | null;
+  activity_name?: string | null;
+  category?: string | null; // For Simple Mode (Honorarium, Transport, etc.)
+  cost_category?: string | null; // For Professional Mode (Personnel & Consultants, etc.)
+  item_name: string;
+  volume: number;
+  unit?: string | null;
+  unit_price_idr: number;
+  funding_source: 'grant' | 'self' | 'partner' | 'inkind';
+  justification?: string | null;
+  needs_donor_approval: boolean;
+  sort_order: number;
+  mode: 'simple' | 'professional';
+  created_at?: string;
+  updated_at?: string;
+}
+
+

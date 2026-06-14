@@ -35,6 +35,8 @@ export default function WBSBuilder({
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [globalMode, setGlobalMode] = useState<'simple' | 'professional'>('simple');
+  const [budgetTotals, setBudgetTotals] = useState<Record<string, number>>({});
+
 
   // AI Suggestion Dialog States
   const [aiSuggestOpen, setAiSuggestOpen] = useState(false);
@@ -131,10 +133,48 @@ export default function WBSBuilder({
 
   const { es, ef, criticalPathIds } = getCpmStatus();
 
+  const formatBudgetBadge = (amount: number) => {
+    if (amount >= 1_000_000_000) {
+      return `Rp ${(amount / 1_000_000_000).toFixed(1).replace('.0', '')} M`;
+    }
+    if (amount >= 1_000_000) {
+      return `Rp ${(amount / 1_000_000).toFixed(1).replace('.0', '')} jt`;
+    }
+    if (amount >= 1_000) {
+      return `Rp ${(amount / 1_000).toFixed(1).replace('.0', '')} rb`;
+    }
+    return `Rp ${amount.toLocaleString('id-ID')}`;
+  };
+
+  const loadBudgetTotals = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('lfa_budget_items')
+        .select('wbs_item_id, volume, unit_price_idr')
+        .eq('lfa_project_id', projectId);
+      
+      if (!error && data) {
+        const totals: Record<string, number> = {};
+        data.forEach((item) => {
+          if (item.wbs_item_id) {
+            const vol = Number(item.volume) || 1;
+            const price = Number(item.unit_price_idr) || 0;
+            totals[item.wbs_item_id] = (totals[item.wbs_item_id] || 0) + (vol * price);
+          }
+        });
+        setBudgetTotals(totals);
+      }
+    } catch (err) {
+      console.error('Failed to load budget totals:', err);
+    }
+  };
+
   // Load WBS Items
   const loadWbsItems = async () => {
     setLoading(true);
     try {
+      void loadBudgetTotals();
+
       const { data, error } = await supabase
         .from('lfa_wbs_items')
         .select('*')
@@ -917,7 +957,9 @@ export default function WBSBuilder({
               const theme = getLevel1Theme(level1OutputIdx);
 
               let indentStyle = '';
-              let rowStyle = 'py-3 px-4 flex items-center min-w-[500px] gap-2 transition-all ';
+              const rowHeightClass = item.level === 2 && globalMode === 'professional' ? 'h-[50px] py-1' : 'h-[38px] py-1.5';
+              let rowStyle = `px-4 flex items-center min-w-[500px] gap-2 transition-all ${rowHeightClass} `;
+
 
               if (item.level === 1) {
                 indentStyle = `border-l-4 ${theme.border} bg-slate-50/50 dark:bg-slate-800/10 font-semibold`;
@@ -1164,7 +1206,7 @@ export default function WBSBuilder({
                   if (item.level === 4 && globalMode === 'simple') return null;
 
                   return (
-                    <div key={item.id} className="h-[38px] flex items-center relative group">
+                    <div key={item.id} className={`${item.level === 2 && globalMode === 'professional' ? 'h-[50px]' : 'h-[38px]'} flex items-center relative group`}>
                       {/* Vertical Background lines */}
                       {Array.from({ length: programDurationMonths }).map((_, idx) => (
                         <div key={idx} className="w-20 shrink-0 border-r dark:border-slate-800 h-full"></div>
@@ -1177,36 +1219,54 @@ export default function WBSBuilder({
                           const widthVal = (item.duration_weeks / 4) * colWidth;
                           const isCritical = criticalPathIds.has(item.id) && globalMode === 'professional';
                           const isDragging = activeDrag?.itemId === item.id;
+                          const hasBudget = budgetTotals[item.id] !== undefined && budgetTotals[item.id] > 0;
+                          const budgetValue = budgetTotals[item.id] || 0;
 
                           return (
-                            <div
-                              style={{ left: `${leftOffset}px`, width: `${widthVal}px` }}
-                              className={`absolute top-1.5 h-[26px] rounded-md border flex items-center justify-between px-2 cursor-move select-none shadow-sm transition-shadow group-hover:shadow-md ${
-                                isDragging ? 'opacity-80 ring-2 ring-primary' : ''
-                              } ${
-                                isCritical
-                                  ? 'bg-red-500 border-red-600 text-white'
-                                  : `${theme.bar} text-white border-black/10`
-                              }`}
-                              onMouseDown={(e) => handleDragStart(e, item, 'move')}
-                            >
-                              {/* Left side info */}
-                              <span className="text-[9px] font-bold select-none truncate pr-1">
-                                {item.duration_weeks} Mgg
-                              </span>
-
-                              {/* Right Resize Handle */}
+                            <>
                               <div
-                                onMouseDown={(e) => {
-                                  e.stopPropagation(); // Prevent move trigger
-                                  handleDragStart(e, item, 'resize');
-                                }}
-                                className="w-2 h-full cursor-ew-resize hover:bg-white/20 active:bg-white/30 rounded-r-md flex items-center justify-center shrink-0"
-                                title="Drag untuk menyesuaikan durasi"
+                                style={{ left: `${leftOffset}px`, width: `${widthVal}px` }}
+                                className={`absolute ${globalMode === 'professional' ? 'top-1' : 'top-1.5'} h-[24px] rounded-md border flex items-center justify-between px-2 cursor-move select-none shadow-sm transition-shadow group-hover:shadow-md ${
+                                  isDragging ? 'opacity-80 ring-2 ring-primary' : ''
+                                } ${
+                                  isCritical
+                                    ? 'bg-red-500 border-red-600 text-white'
+                                    : `${theme.bar} text-white border-black/10`
+                                }`}
+                                onMouseDown={(e) => handleDragStart(e, item, 'move')}
                               >
-                                <span className="w-0.5 h-3 bg-white/40 block rounded"></span>
+                                {/* Left side info */}
+                                <span className="text-[9px] font-bold select-none truncate pr-1">
+                                  {item.duration_weeks} Mgg
+                                </span>
+
+                                {/* Right Resize Handle */}
+                                <div
+                                  onMouseDown={(e) => {
+                                    e.stopPropagation(); // Prevent move trigger
+                                    handleDragStart(e, item, 'resize');
+                                  }}
+                                  className="w-2 h-full cursor-ew-resize hover:bg-white/20 active:bg-white/30 rounded-r-md flex items-center justify-center shrink-0"
+                                  title="Drag untuk menyesuaikan durasi"
+                                >
+                                  <span className="w-0.5 h-3 bg-white/40 block rounded"></span>
+                                </div>
                               </div>
-                            </div>
+
+                              {/* Budget badge only in professional mode */}
+                              {globalMode === 'professional' && (
+                                <div
+                                  style={{ left: `${leftOffset}px` }}
+                                  className={`absolute top-[28px] text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm shrink-0 truncate max-w-[120px] ${
+                                    hasBudget 
+                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200' 
+                                      : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200'
+                                  }`}
+                                >
+                                  {hasBudget ? formatBudgetBadge(budgetValue) : 'Belum ada anggaran'}
+                                </div>
+                              )}
+                            </>
                           );
                         })()
                       )}

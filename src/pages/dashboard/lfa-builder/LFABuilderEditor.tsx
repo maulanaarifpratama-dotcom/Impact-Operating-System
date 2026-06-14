@@ -32,6 +32,7 @@ import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { LfaProject, LfaEntry } from './types';
 import WBSBuilder from './WBSBuilder';
+import BudgetCalculator from './BudgetCalculator';
 
 export default function LFABuilderEditor() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -1358,13 +1359,12 @@ export default function LFABuilderEditor() {
         </div>
       ) : (
         <div className="w-full">
-          <Card className="border border-slate-200 p-8 text-center bg-slate-50/40">
-            <CardContent className="flex flex-col items-center gap-2 text-muted-foreground">
-              <span className="text-4xl">💰</span>
-              <h3 className="font-bold text-lg mt-2 text-slate-800">Modul Budget</h3>
-              <p className="text-xs max-w-md">Modul anggaran Anda sedang disinkronkan dengan WBS. Rincian biaya per aktivitas akan muncul di sini otomatis.</p>
-            </CardContent>
-          </Card>
+          <BudgetCalculator
+            projectId={projectId!}
+            orgId={project.org_id}
+            programDurationMonths={project.duration_months || 12}
+            sector={project.sector || 'Sektor Lainnya'}
+          />
         </div>
       )}
     </div>
