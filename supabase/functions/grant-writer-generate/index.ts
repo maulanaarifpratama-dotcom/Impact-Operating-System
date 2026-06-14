@@ -17,7 +17,7 @@
 //           with: supabase.functions.invoke('grant-writer-generate', { body: { projectId } })
 
 import { authenticate, AuthError } from '../_shared/auth.ts';
-import { chatJson } from '../_shared/foundry.ts';
+import { chatJson, foundryEmbed } from '../_shared/foundry.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 
 interface GenerateRequest {
@@ -164,12 +164,54 @@ Deno.serve(async (req: Request) => {
       ...(lfaContext ? { lfa_context: lfaContext } : {})
     };
 
+    // Retrieve library RAG context if organization has any library documents.
+    let ragContext = '';
+    try {
+      const { count, error: countErr } = await ctx.supabase
+        .from('library_documents')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', project.organization_id);
+
+      if (countErr) {
+        console.error('Failed to pre-check library documents count:', countErr.message);
+      } else if (count && count > 0) {
+        const baseQuery = `${project.title || ''} ${project.sector || ''} ${project.summary || ''}`.trim();
+        if (baseQuery) {
+          const embedding = await foundryEmbed(baseQuery);
+          const { data: chunks, error: rpcErr } = await ctx.supabase.rpc('match_library_chunks', {
+            _org_id: project.organization_id,
+            _query_embedding: embedding,
+            _match_count: 5,
+            _min_similarity: 0.35,
+            _user_id: ctx.userId,
+          });
+
+          if (rpcErr) {
+            console.error('match_library_chunks RPC error in grant-writer-generate:', rpcErr);
+          } else if (chunks && chunks.length > 0) {
+            const chunkContents = (chunks as any[])
+              .map((c: any) => c.content || '')
+              .filter(Boolean)
+              .join('\n');
+
+            if (chunkContents) {
+              ragContext = `\n\n---REFERENSI DARI IMPACT LIBRARY ORGANISASI---\n${chunkContents}\n---END REFERENSI---\n\nGunakan referensi ini sebagai konteks tambahan saat membantu \nuser menulis proposal. Prioritaskan pendekatan, data, dan \nframing yang konsisten dengan dokumen organisasi tersebut.`;
+            }
+          }
+        }
+      }
+    } catch (ragErr) {
+      console.error('Failed to inject RAG context in grant-writer-generate:', (ragErr as Error).message);
+    }
+
+    const finalSystemPrompt = SYSTEM_PROMPT + ragContext;
+
     const { data: result, usage, model } = await chatJson<{
       matrix: LfaMatrix;
       proposal_markdown: string;
     }>({
       messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
+        { role: 'system', content: finalSystemPrompt },
         {
           role: 'user',
           content: `Generate the LFA matrix and donor-ready proposal for this project.\\n\\n${JSON.stringify(userPayload, null, 2)}`,

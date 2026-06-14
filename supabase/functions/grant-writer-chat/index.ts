@@ -17,7 +17,7 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { authenticate, AuthError } from '../_shared/auth.ts';
-import { chatCompletionStream } from '../_shared/foundry.ts';
+import { chatCompletionStream, foundryEmbed } from '../_shared/foundry.ts';
 
 const SYSTEM_PROMPT = [
   'Kamu adalah Grant Writer Assistant untuk Impactory.id, platform AI untuk NGO/yayasan/social enterprise di Indonesia.',
@@ -51,7 +51,7 @@ serve(async (req: Request) => {
     // Verify project belongs to user's org (RLS enforces access automatically)
     const { data: project, error: projErr } = await supabase
       .from('gw_projects')
-      .select('id, title, organization_id')
+      .select('id, title, sector, summary, organization_id')
       .eq('id', project_id)
       .single();
 
@@ -83,8 +83,50 @@ serve(async (req: Request) => {
       content: message,
     });
 
+    // Retrieve library RAG context if organization has any library documents.
+    let ragContext = '';
+    try {
+      const { count, error: countErr } = await supabase
+        .from('library_documents')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', organizationId);
+
+      if (countErr) {
+        console.error('Failed to pre-check library documents count:', countErr.message);
+      } else if (count && count > 0) {
+        const baseQuery = `${project.title || ''} ${project.sector || ''} ${project.summary || ''}`.trim();
+        if (baseQuery) {
+          const embedding = await foundryEmbed(baseQuery);
+          const { data: chunks, error: rpcErr } = await supabase.rpc('match_library_chunks', {
+            _org_id: organizationId,
+            _query_embedding: embedding,
+            _match_count: 5,
+            _min_similarity: 0.35,
+            _user_id: userId,
+          });
+
+          if (rpcErr) {
+            console.error('match_library_chunks RPC error in grant-writer-chat:', rpcErr);
+          } else if (chunks && chunks.length > 0) {
+            const chunkContents = (chunks as any[])
+              .map((c: any) => c.content || '')
+              .filter(Boolean)
+              .join('\n');
+
+            if (chunkContents) {
+              ragContext = `\n\n---REFERENSI DARI IMPACT LIBRARY ORGANISASI---\n${chunkContents}\n---END REFERENSI---\n\nGunakan referensi ini sebagai konteks tambahan saat membantu \nuser menulis proposal. Prioritaskan pendekatan, data, dan \nframing yang konsisten dengan dokumen organisasi tersebut.`;
+            }
+          }
+        }
+      }
+    } catch (ragErr) {
+      console.error('Failed to inject RAG context in grant-writer-chat:', (ragErr as Error).message);
+    }
+
+    const finalSystemPrompt = SYSTEM_PROMPT + ragContext;
+
     const messages = [
-      { role: 'system' as const, content: SYSTEM_PROMPT },
+      { role: 'system' as const, content: finalSystemPrompt },
       ...historyAsc.map((m: { role: string; content: string }) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,

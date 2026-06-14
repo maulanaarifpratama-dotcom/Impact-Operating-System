@@ -27,6 +27,7 @@ import { StepRisks } from '@/components/grant-writer/steps/StepRisks';
 import { useWizardProject } from '@/lib/grant-writer/useWizardProject';
 import { WIZARD_STEPS, WizardData, IndicatorItem, AssumptionItem } from '@/lib/grant-writer/types';
 import { GrantWriterChat } from '@/components/grant-writer/chat/GrantWriterChat';
+import { LibraryReferencesSidebar } from '@/components/grant-writer/LibraryReferencesSidebar';
 import { LfaProject, LfaEntry } from '../lfa-builder/types';
 import { generateLfaMatrix, renderProposalMarkdown } from '@/lib/grant-writer/generator';
 import { useAuth } from '@/providers/AuthProvider';
@@ -539,6 +540,10 @@ export default function GrantWriterWizard() {
             />
           </CardContent>
         </Card>
+        
+        <div className="lg:hidden">
+          <LibraryReferencesSidebar projectId={project.id} currentStepId={stepMeta.id} />
+        </div>
 
         <Card>
           <CardHeader>
@@ -693,9 +698,13 @@ export default function GrantWriterWizard() {
         </div>
       </div>
 
-      {/* Right: persistent chat (desktop only) */}
-      <aside className="hidden lg:block lg:w-[380px] xl:w-[420px] shrink-0">
-        <div className="sticky top-6 h-[calc(100vh-7rem)] overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
+      {/* Right: persistent sidebar & chat (desktop only) */}
+      <aside className="hidden lg:flex lg:flex-col lg:gap-4 lg:w-[380px] xl:w-[420px] shrink-0 sticky top-6 h-[calc(100vh-7rem)]">
+        <LibraryReferencesSidebar
+          projectId={project.id}
+          currentStepId={stepMeta.id}
+        />
+        <div className="flex-1 min-h-0 overflow-hidden rounded-xl border border-border/70 bg-card shadow-card">
           <GrantWriterChat
             projectId={project.id}
             organizationId={project.organization_id}
