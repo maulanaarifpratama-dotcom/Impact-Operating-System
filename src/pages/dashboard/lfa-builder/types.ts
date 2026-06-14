@@ -85,4 +85,56 @@ export interface BudgetItem {
   updated_at?: string;
 }
 
+export interface MealItem {
+  id: string;
+  lfa_project_id: string;
+  org_id: string;
+  lfa_level: 'goal' | 'purpose' | 'output';
+  indicator_text: string;
+  target_value?: number | null;
+  target_unit?: string | null;
+  collection_method?: string | null;
+  collection_tool?: string | null;
+  frequency?: string | null;
+  pic?: string | null;
+  status: 'Belum Mulai' | 'Sedang Berjalan' | 'Selesai';
+  baseline?: number | null;
+  midline_target?: number | null;
+  endline_target?: number | null;
+  secondary_source?: string | null;
+  disaggregation: string[];
+  data_assumption?: string | null;
+  monitoring_risk?: string | null;
+  mode: 'simple' | 'professional';
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MealLearningQuestion {
+  id: string;
+  lfa_project_id: string;
+  org_id: string;
+  question_text: string;
+  answer_method?: string | null;
+  timeline_month: number;
+  pic?: string | null;
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface MealAccountability {
+  id: string;
+  lfa_project_id: string;
+  org_id: string;
+  mechanism: string;
+  frequency?: string | null;
+  pic?: string | null;
+  escalation_procedure?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+
 

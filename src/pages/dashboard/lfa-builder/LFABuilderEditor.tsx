@@ -33,6 +33,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { LfaProject, LfaEntry } from './types';
 import WBSBuilder from './WBSBuilder';
 import BudgetCalculator from './BudgetCalculator';
+import MEALPlanner from './MEALPlanner';
+
 
 export default function LFABuilderEditor() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -50,7 +52,7 @@ export default function LFABuilderEditor() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [activeTab, setActiveTab] = useState<'lfa' | 'wbs' | 'budget'>('lfa');
+  const [activeTab, setActiveTab] = useState<'lfa' | 'wbs' | 'budget' | 'meal'>('lfa');
   const [activeSection, setActiveSection] = useState<'goal' | 'purpose' | 'outputs' | 'activities'>('goal');
   const [expandedActivities, setExpandedActivities] = useState<Record<string, boolean>>({});
   const [collapsedOutputs, setExpandedOutputs] = useState<Record<string, boolean>>({});
@@ -673,16 +675,27 @@ export default function LFABuilderEditor() {
             </TooltipProvider>
           )}
 
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
-                  ④ MEAL 🔒
-                </button>
-              </TooltipTrigger>
-              <TooltipContent>Selesaikan LFA & Budget dulu untuk unlock modul MEAL</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
+          {completenessPercent >= 80 && wbsExists ? (
+            <button
+              onClick={() => setActiveTab('meal')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                activeTab === 'meal' ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              ④ MEAL Planner
+            </button>
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
+                    ④ MEAL 🔒
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>Selesaikan LFA Matrix minimal 80% dan isi WBS untuk unlock modul MEAL</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
 
         {/* Progress tracker */}
@@ -1357,9 +1370,18 @@ export default function LFABuilderEditor() {
             onWbsSaved={checkWbsExistence}
           />
         </div>
-      ) : (
+      ) : activeTab === 'budget' ? (
         <div className="w-full">
           <BudgetCalculator
+            projectId={projectId!}
+            orgId={project.org_id}
+            programDurationMonths={project.duration_months || 12}
+            sector={project.sector || 'Sektor Lainnya'}
+          />
+        </div>
+      ) : (
+        <div className="w-full">
+          <MEALPlanner
             projectId={projectId!}
             orgId={project.org_id}
             programDurationMonths={project.duration_months || 12}
