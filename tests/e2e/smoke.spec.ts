@@ -24,6 +24,13 @@ test.describe('Impactory E2E Smoke Test Suite', () => {
     page.on('console', msg => console.log(`[BROWSER CONSOLE] ${msg.type()}: ${msg.text()}`));
     page.on('pageerror', err => console.log(`[BROWSER ERROR] ${err.message}`));
 
+    let hasReceived429 = false;
+    page.on('response', response => {
+      if (response.status() === 429) {
+        hasReceived429 = true;
+      }
+    });
+
     let signupSucceeded = false;
 
     if (allowSignup) {
@@ -52,8 +59,8 @@ test.describe('Impactory E2E Smoke Test Suite', () => {
       const bodyText = await page.innerText('body');
 
       // Check for HTTP 429 / Rate Limit
-      if (bodyText.includes('Too many requests') || bodyText.includes('banyak permintaan') || urlAfterSignup.includes('429')) {
-        throw new Error('❌ [E2E BLOCKED] Rate-limited: signup blocked by Supabase HTTP 429.');
+      if (hasReceived429 || bodyText.includes('Too many requests') || bodyText.includes('banyak permintaan') || urlAfterSignup.includes('429')) {
+        throw new Error('Signup rate-limited. Need existing verified test account.');
       }
 
       // Check for email verification
@@ -64,7 +71,7 @@ test.describe('Impactory E2E Smoke Test Suite', () => {
                                      bodyText.includes('confirm');
       
       if (emailVerificationFound && !urlAfterSignup.includes('dashboard') && !urlAfterSignup.includes('onboarding')) {
-        throw new Error('❌ [E2E BLOCKED] Email verification required to activate fake account.');
+        throw new Error('Email verification required. Need a real inbox or verified test account.');
       }
 
       if (urlAfterSignup.includes('dashboard') || urlAfterSignup.includes('onboarding')) {
