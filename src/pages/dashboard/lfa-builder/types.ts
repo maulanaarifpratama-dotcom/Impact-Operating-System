@@ -136,5 +136,45 @@ export interface MealAccountability {
   updated_at?: string;
 }
 
+export interface LfaSroiConfig {
+  id: string;
+  lfa_project_id: string;
+  org_id: string;
+  total_investment_idr: number;
+  discount_rate: number;
+  analysis_period_years: number;
+  beneficiary_count: number | null;
+  mode: 'simple' | 'professional';
+  sroi_ratio: number;
+  total_gross_value_idr: number;
+  total_present_value_idr: number;
+  ai_narrative: string | null;
+  sensitivity_result: any | null;
+  created_at?: string;
+  updated_at?: string;
+}
 
-
+export interface LfaSroiOutcome {
+  id: string;
+  lfa_project_id: string;
+  org_id: string;
+  meal_item_id: string | null;
+  outcome_name: string;
+  quantity: number;
+  unit: string | null;
+  proxy_value_idr: number;
+  proxy_source: string | null;
+  proxy_citation: string | null;
+  proxy_category: string | null;
+  duration_years: number;
+  attribution_pct: number;
+  deadweight_pct: number;
+  displacement_pct: number;
+  dropoff_pct_per_year: number;
+  gross_value_idr: number;
+  present_value_idr: number;
+  mode: 'simple' | 'professional';
+  sort_order: number;
+  created_at?: string;
+  updated_at?: string;
+}

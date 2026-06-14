@@ -34,6 +34,7 @@ import { LfaProject, LfaEntry } from './types';
 import WBSBuilder from './WBSBuilder';
 import BudgetCalculator from './BudgetCalculator';
 import MEALPlanner from './MEALPlanner';
+import SROICalculator from './SROICalculator';
 
 
 export default function LFABuilderEditor() {
@@ -53,10 +54,10 @@ export default function LFABuilderEditor() {
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [searchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'lfa' | 'wbs' | 'budget' | 'meal'>(() => {
+  const [activeTab, setActiveTab] = useState<'lfa' | 'wbs' | 'budget' | 'meal' | 'sroi'>(() => {
     const tabParam = searchParams.get('tab');
-    if (tabParam === 'wbs' || tabParam === 'budget' || tabParam === 'meal') {
-      return tabParam;
+    if (tabParam === 'wbs' || tabParam === 'budget' || tabParam === 'meal' || tabParam === 'sroi') {
+      return tabParam as any;
     }
     return 'lfa';
   });
@@ -74,6 +75,7 @@ export default function LFABuilderEditor() {
   const [showAiSuggestion, setShowAiSuggestion] = useState<Record<string, boolean>>({});
 
   const [wbsExists, setWbsExists] = useState(false);
+  const [mealExists, setMealExists] = useState(false);
 
   const checkWbsExistence = useCallback(async () => {
     if (!projectId) return;
@@ -87,6 +89,21 @@ export default function LFABuilderEditor() {
       }
     } catch (err) {
       console.error('Error checking WBS existence:', err);
+    }
+  }, [projectId]);
+
+  const checkMealExistence = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      const { count, error } = await supabase
+        .from('lfa_meal_items')
+        .select('*', { count: 'exact', head: true })
+        .eq('lfa_project_id', projectId);
+      if (!error) {
+        setMealExists((count ?? 0) > 0);
+      }
+    } catch (err) {
+      console.error('Error checking MEAL existence:', err);
     }
   }, [projectId]);
 
@@ -194,6 +211,7 @@ export default function LFABuilderEditor() {
       setOutputs(entriesList.filter((e) => e.level === 'output'));
       setActivities(entriesList.filter((e) => e.level === 'activity'));
       void checkWbsExistence();
+      void checkMealExistence();
     } catch (err) {
       const error = err as Error;
       toast({
@@ -204,7 +222,7 @@ export default function LFABuilderEditor() {
     } finally {
       setLoading(false);
     }
-  }, [user, profile, projectId, navigate, toast, checkWbsExistence]);
+  }, [user, profile, projectId, navigate, toast, checkWbsExistence, checkMealExistence]);
 
   useEffect(() => {
     if (user && projectId) {
@@ -700,6 +718,34 @@ export default function LFABuilderEditor() {
                   </button>
                 </TooltipTrigger>
                 <TooltipContent>Selesaikan LFA Matrix minimal 80% dan isi WBS untuk unlock modul MEAL</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {completenessPercent >= 80 && wbsExists && mealExists ? (
+            <button
+              onClick={() => setActiveTab('sroi')}
+              className={`px-3 py-1.5 rounded-md transition-all ${
+                activeTab === 'sroi' ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              ⑤ SROI Calculator
+            </button>
+          ) : (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
+                    ⑤ SROI 🔒
+                  </button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {completenessPercent < 80 
+                    ? 'Lengkapi LFA Matrix minimal 80% dan isi WBS untuk unlock SROI' 
+                    : !mealExists 
+                      ? 'Selesaikan MEAL Planner (minimal 1 indikator terdaftar) untuk membuka SROI'
+                      : 'Isi minimal satu item MEAL untuk membuka SROI'}
+                </TooltipContent>
               </Tooltip>
             </TooltipProvider>
           )}
@@ -1386,9 +1432,18 @@ export default function LFABuilderEditor() {
             sector={project.sector || 'Sektor Lainnya'}
           />
         </div>
-      ) : (
+      ) : activeTab === 'meal' ? (
         <div className="w-full">
           <MEALPlanner
+            projectId={projectId!}
+            orgId={project.org_id}
+            programDurationMonths={project.duration_months || 12}
+            sector={project.sector || 'Sektor Lainnya'}
+          />
+        </div>
+      ) : (
+        <div className="w-full">
+          <SROICalculator
             projectId={projectId!}
             orgId={project.org_id}
             programDurationMonths={project.duration_months || 12}
