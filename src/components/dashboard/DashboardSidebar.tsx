@@ -161,6 +161,11 @@ export function DashboardSidebar() {
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton asChild tooltip={item.name} isActive={active}>
                       <NavLink
+                        id={
+                          item.name === 'LFA Builder' ? 'tour-lfa-builder' :
+                          item.name === 'Grantwriter' ? 'tour-grant-writer' :
+                          undefined
+                        }
                         to={item.href}
                         end={item.exact}
                         className={linkClass(active)}
@@ -191,6 +196,7 @@ export function DashboardSidebar() {
                   <SidebarMenuItem key={item.href}>
                     <SidebarMenuButton asChild tooltip={item.name} isActive={active}>
                       <NavLink
+                        id={item.name === 'Impact Dashboard' ? 'tour-impact-dashboard' : undefined}
                         to={item.href}
                         end={item.exact}
                         className={linkClass(active)}

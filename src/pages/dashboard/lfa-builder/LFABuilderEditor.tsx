@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useNavigate, useParams, Link } from 'react-router-dom';
+import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Loader2,
@@ -52,7 +52,14 @@ export default function LFABuilderEditor() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [activeTab, setActiveTab] = useState<'lfa' | 'wbs' | 'budget' | 'meal'>('lfa');
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<'lfa' | 'wbs' | 'budget' | 'meal'>(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam === 'wbs' || tabParam === 'budget' || tabParam === 'meal') {
+      return tabParam;
+    }
+    return 'lfa';
+  });
   const [activeSection, setActiveSection] = useState<'goal' | 'purpose' | 'outputs' | 'activities'>('goal');
   const [expandedActivities, setExpandedActivities] = useState<Record<string, boolean>>({});
   const [collapsedOutputs, setExpandedOutputs] = useState<Record<string, boolean>>({});

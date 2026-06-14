@@ -27,6 +27,11 @@ export interface Database {
           primary_role: PrimaryRole | null;
           locale: string;
           onboarded_at: string | null;
+          onboarding_completed: boolean;
+          onboarding_skipped: boolean;
+          onboarding_sector: string | null;
+          onboarding_phase: string | null;
+          onboarding_completed_at: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -39,6 +44,11 @@ export interface Database {
           primary_role?: PrimaryRole | null;
           locale?: string;
           onboarded_at?: string | null;
+          onboarding_completed?: boolean;
+          onboarding_skipped?: boolean;
+          onboarding_sector?: string | null;
+          onboarding_phase?: string | null;
+          onboarding_completed_at?: string | null;
         };
         Update: Partial<Database['public']['Tables']['profiles']['Insert']>;
         Relationships: [];

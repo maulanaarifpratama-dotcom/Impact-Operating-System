@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { SidebarProvider } from '@/components/ui/sidebar';
 import { DashboardSidebar } from './DashboardSidebar';
 import { DashboardTopbar } from './DashboardTopbar';
+import { OnboardingFlow } from './OnboardingFlow';
 
 export function DashboardLayout() {
   return (
@@ -15,6 +16,7 @@ export function DashboardLayout() {
           </main>
         </div>
       </div>
+      <OnboardingFlow />
     </SidebarProvider>
   );
-}
+}
