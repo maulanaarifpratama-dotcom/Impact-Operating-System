@@ -5,7 +5,6 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { toast } from 'sonner';
 import {
-  ArrowRight,
   Cloud,
   KeyRound,
   RefreshCw,
@@ -28,20 +27,18 @@ import {
   User,
   Mail,
   FileText,
-  Check,
   Search,
   SlidersHorizontal,
   ShoppingBag,
   ClipboardList,
   Trash2,
   CheckSquare,
-  Square,
   Ban,
   Info,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -225,6 +222,7 @@ export default function ResourceAccessTracker() {
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResponse, setAiResponse] = useState<typeof AI_TIPS[string] | null>(null);
   const [humanReviewChecked, setHumanReviewChecked] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState<string>("");
 
   // 1. Fetch organization details
   const { data: membership, isLoading: isMembershipLoading } = useQuery({
@@ -251,6 +249,24 @@ export default function ResourceAccessTracker() {
     }
     return (membership as { organization_id: string }).organization_id;
   }, [membership]);
+
+  // 1b. Fetch organization name for AI prompt personalization
+  const { data: organization } = useQuery({
+    queryKey: ['organization', organizationId],
+    queryFn: async () => {
+      if (!organizationId) return null;
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', organizationId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!organizationId,
+  });
+
+  const orgName = organization?.name || 'Organisasi Saya';
 
   // 2. Fetch platform access records
   const { data: dbPlatforms, isLoading: isPlatformsLoading, refetch } = useQuery({
@@ -464,6 +480,34 @@ export default function ResourceAccessTracker() {
     }, 700);
   };
 
+  // Handle Contextual AI Assistant Activation from non-gateway registration tab
+  const handleTriggerContextualAi = (platform: Platform) => {
+    setAiSelectedPlatform(platform.id);
+    
+    const documentsStr = platform.requirements.documents.join(', ');
+    const promptText = `Saya ingin mendaftar ${platform.name} untuk organisasi saya ${orgName}. Berdasarkan persyaratan berikut: [${documentsStr}], bantu saya:\n1. Checklist dokumen yang perlu disiapkan\n2. Tips agar aplikasi tidak ditolak\n3. Estimasi waktu prosesnya`;
+    
+    setAiPrompt(promptText);
+    setAiLoading(true);
+    setAiResponse(null);
+    setHumanReviewChecked(false);
+    
+    // Smooth scroll down to the bottom AI Copilot section
+    setTimeout(() => {
+      const aiSection = document.getElementById('ai-copilot-section');
+      if (aiSection) {
+        aiSection.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
+
+    setTimeout(() => {
+      const tips = getAiTipsForPlatform(platform);
+      setAiResponse(tips);
+      setAiLoading(false);
+      toast.success(`AI Copilot memuat rekomendasi persiapan untuk ${platform.name}`);
+    }, 700);
+  };
+
   // Handle legacy global AI copilot lookup
   const handleTriggerAiCopilot = () => {
     setAiLoading(true);
@@ -472,6 +516,13 @@ export default function ResourceAccessTracker() {
 
     const matchingPlatform = PLATFORMS.find(p => p.id === aiSelectedPlatform);
     const pName = matchingPlatform ? matchingPlatform.name : aiSelectedPlatform;
+
+    if (matchingPlatform) {
+      const documentsStr = matchingPlatform.requirements.documents.join(', ');
+      setAiPrompt(`Saya ingin mendaftar ${matchingPlatform.name} untuk organisasi saya ${orgName}. Berdasarkan persyaratan berikut: [${documentsStr}], bantu saya:\n1. Checklist dokumen yang perlu disiapkan\n2. Tips agar aplikasi tidak ditolak\n3. Estimasi waktu prosesnya`);
+    } else {
+      setAiPrompt(`Saya ingin mendaftar ${pName} untuk organisasi saya ${orgName}.`);
+    }
 
     setTimeout(() => {
       const tips = getAiTipsForPlatform(matchingPlatform || { id: aiSelectedPlatform } as Platform);
@@ -491,9 +542,9 @@ export default function ResourceAccessTracker() {
     toast.success("Semua penyaringan filter berhasil dibersihkan");
   };
 
-  // Pure frontend cascading filter logic
+  // Pure frontend cascading filter logic for catalog platforms (excluding gateway)
   const filteredPlatforms = useMemo(() => {
-    let result = [...PLATFORMS];
+    let result = PLATFORMS.filter(p => !p.category.includes('gateway'));
 
     // a. Search text filter
     if (debouncedSearchText) {
@@ -553,8 +604,795 @@ export default function ResourceAccessTracker() {
     return result;
   }, [debouncedSearchText, gateway, pricing, category, sort]);
 
+  // Isolate pinned gateway platforms (unaffected by filters)
+  const gatewayPlatforms = useMemo(() => {
+    return PLATFORMS.filter(p => p.category.includes('gateway'));
+  }, []);
+
   const googleItem = platformsMap['google'];
   const googleIsApproved = googleItem?.status === 'approved';
+
+  // Helper nested render function to handle all platform cards styled cleanly
+  const renderPlatformCard = (platform: Platform, isGateway: boolean) => {
+    const platformKey = platform.id;
+    const item = platformsMap[platformKey];
+    const isEditing = editingPlatform === platformKey;
+    const isExpanded = !!expandedPlatforms[platformKey];
+    const countdown = getCountdownText(item?.renewal_at);
+    
+    // Resolve active tab state (defaults to 'products')
+    const activeTab = activeTabs[platformKey] || 'products';
+
+    // Map category names to emoji labels
+    const getCategoryLabel = (cat: string) => {
+      const match = CATEGORY_FILTERS.find(f => f.id === cat);
+      return match ? match.label : cat;
+    };
+
+    // Color classes for pricing type
+    const getPricingColor = (type: string) => {
+      switch(type) {
+        case 'free': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 dark:bg-emerald-500/25 dark:text-emerald-400';
+        case 'discount': return 'bg-blue-500/10 text-blue-500 border-blue-500/20 dark:bg-blue-500/25 dark:text-blue-400';
+        case 'credits': return 'bg-purple-500/10 text-purple-500 border-purple-500/20 dark:bg-purple-500/25 dark:text-purple-400';
+        case 'admin_fee': return 'bg-amber-500/10 text-amber-500 border-amber-500/20 dark:bg-amber-500/25 dark:text-amber-400';
+        default: return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
+      }
+    };
+
+    // Gateway labels and chips classes
+    const getGatewayChip = (gw: string) => {
+      switch(gw) {
+        case 'goodstack': return { label: 'Goodstack', style: 'bg-purple-500/10 text-purple-600 border-purple-200 dark:bg-purple-500/20 dark:text-purple-400 dark:border-purple-800' };
+        case 'techsoup': return { label: 'TechSoup', style: 'bg-blue-500/10 text-blue-600 border-blue-200 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-800' };
+        case 'both': return { label: 'Keduanya', style: 'bg-indigo-500/10 text-indigo-600 border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-400 dark:border-indigo-800' };
+        default: return { label: 'Langsung', style: 'bg-slate-500/10 text-slate-600 border-slate-200 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-800' };
+      }
+    };
+
+    const gwChip = getGatewayChip(platform.gateway);
+    const IconComponent = PLATFORM_ICONS[platformKey] || DEFAULT_ICON;
+    const sequenceLabel = platform.id === 'goodstack' ? 'Langkah 1' : 'Langkah 2';
+
+    const cardBgStyle = isGateway 
+      ? "bg-amber-50/75 border-amber-200/90 dark:bg-amber-950/15 dark:border-amber-900/40"
+      : "bg-card border-border/80";
+
+    return (
+      <Card 
+        key={platformKey} 
+        className={cn(
+          "relative overflow-hidden border p-5 shadow-card transition-all duration-300 hover:scale-[1.002] hover:shadow-elegant",
+          cardBgStyle,
+          isExpanded && "ring-1 ring-accent/35 border-accent/30",
+          !isGateway && isExpanded && "bg-accent-soft/[0.03]",
+          isGateway && isExpanded && "bg-amber-50/90 dark:bg-amber-950/25",
+          isEditing && "ring-1 ring-accent border-accent/40 bg-accent-soft/10"
+        )}
+      >
+        {/* Decorative Accent Strip */}
+        <div className={cn(
+          "absolute top-0 left-0 h-[3px] w-full",
+          isGateway ? "bg-gradient-to-r from-amber-400 to-amber-600" : "bg-gradient-to-r from-accent to-[#155F66]"
+        )} />
+
+        {/* TOP ROW BADGES */}
+        <div className="flex flex-wrap items-center justify-between gap-1.5 mb-3.5 w-full">
+          {isGateway ? (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-100 dark:bg-amber-900/40 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800 shadow-sm animate-pulse">
+                🔑 MULAI DARI SINI
+              </span>
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-600 dark:bg-amber-700 text-white text-[10px] font-extrabold px-2.5 py-0.5 shadow-sm">
+                {sequenceLabel}
+              </span>
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-semibold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded border">
+                Prioritas {platform.priority}
+              </span>
+              <Badge variant="outline" className={cn("text-[9px] font-bold border px-2 py-0", gwChip.style)}>
+                {gwChip.label}
+              </Badge>
+            </div>
+          )}
+          <Badge variant="outline" className={cn("text-[9px] font-extrabold border px-2 py-0 uppercase tracking-wide shadow-sm", getPricingColor(platform.pricing.type))}>
+            {platform.pricing.label}
+          </Badge>
+        </div>
+
+        {/* CARD CLICKABLE HEADER */}
+        <div 
+          onClick={() => toggleExpand(platformKey)}
+          className="flex items-start justify-between gap-3 cursor-pointer select-none group"
+        >
+          <div className="flex items-start gap-3.5">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent border border-accent/20 shadow-sm shrink-0 transition-transform duration-300 group-hover:scale-105">
+              <IconComponent className="h-5 w-5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-base leading-snug text-foreground flex items-center gap-1.5 group-hover:text-accent transition-colors">
+                {platform.name}
+                <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-300 shrink-0", isExpanded && "rotate-180")} />
+              </h3>
+              
+              {isGateway && (
+                <p className="text-xs font-bold text-amber-600 dark:text-amber-400 mt-1 flex items-center gap-1.5">
+                  <Info className="h-3.5 w-3.5 animate-bounce shrink-0" />
+                  Daftar gateway ini DULU sebelum apply platform lain
+                </p>
+              )}
+
+              <p className="text-xs text-muted-foreground leading-relaxed mt-1 max-w-xl">{platform.description}</p>
+              
+              {/* CATEGORY OUTLINED CHIPS */}
+              <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                {platform.category.map(cat => (
+                  <span key={cat} className="text-[10px] font-semibold text-muted-foreground/90 bg-muted/20 border px-2 py-0.5 rounded">
+                    {getCategoryLabel(cat)}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-end gap-1.5 shrink-0">
+            <Badge variant="outline" className={cn("text-[10px] font-bold px-2.5 py-0.5 shadow-sm border", STATUS_COLORS[item?.status || 'not_started'])}>
+              {STATUS_LABELS[item?.status || 'not_started']}
+            </Badge>
+            
+            {/* Collapsed state key metadata preview */}
+            {!isExpanded && (
+              <div className="hidden md:flex items-center gap-3 text-[11px] text-muted-foreground font-medium mt-1">
+                {item?.owner_name && (
+                  <span className="flex items-center gap-1 bg-muted/40 px-2 py-0.5 rounded border border-border/40">
+                    <User className="h-3 w-3 text-accent" /> {item.owner_name}
+                  </span>
+                )}
+                {item?.status === 'approved' && countdown && (
+                  <span className={cn("text-[10px] px-2 py-0.5 rounded-full border", countdown.color)}>
+                    {countdown.text}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* EXPANDED ACCORDION TABS BODY */}
+        {isExpanded && (
+          <div className="mt-5 pt-5 border-t border-border/40 space-y-4.5 animate-fade-in">
+            
+            {/* 1. Accordion Header Tabs list */}
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-border/40 pb-2.5 overflow-x-auto no-scrollbar scroll-smooth">
+              <button
+                onClick={() => setPlatformActiveTab(platformKey, 'products')}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
+                  activeTab === 'products'
+                    ? "bg-accent text-accent-foreground border-accent shadow-sm"
+                    : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                )}
+              >
+                <ShoppingBag className="h-3.5 w-3.5" />
+                Produk
+              </button>
+              <button
+                onClick={() => setPlatformActiveTab(platformKey, 'register')}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
+                  activeTab === 'register'
+                    ? "bg-accent text-accent-foreground border-accent shadow-sm"
+                    : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                )}
+              >
+                <ClipboardList className="h-3.5 w-3.5" />
+                Cara Daftar
+              </button>
+              <button
+                onClick={() => setPlatformActiveTab(platformKey, 'requirements')}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
+                  activeTab === 'requirements'
+                    ? "bg-accent text-accent-foreground border-accent shadow-sm"
+                    : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                )}
+              >
+                <FileText className="h-3.5 w-3.5" />
+                Syarat Kelayakan
+              </button>
+              <button
+                onClick={() => setPlatformActiveTab(platformKey, 'usage')}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
+                  activeTab === 'usage'
+                    ? "bg-accent text-accent-foreground border-accent shadow-sm"
+                    : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                )}
+              >
+                <Sparkles className="h-3.5 w-3.5" />
+                Cara Pakai (Use Cases)
+              </button>
+              <button
+                onClick={() => setPlatformActiveTab(platformKey, 'admin')}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
+                  activeTab === 'admin'
+                    ? "bg-accent text-accent-foreground border-accent shadow-sm"
+                    : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                )}
+              >
+                <User className="h-3.5 w-3.5" />
+                PIC & Administrasi
+              </button>
+            </div>
+
+            {/* 2. Active Tab Content Panels */}
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 min-h-[220px]">
+              
+              {/* TAB CONTENTS (Left 7 cols on Desktop, or Full Width on Gateway Cards if there is no AI helper) */}
+              <div className={cn(isGateway ? "md:col-span-12" : "md:col-span-7", "space-y-4")}>
+                
+                {/* TAB A: PRODUCTS */}
+                {activeTab === 'products' && (
+                  <div className="space-y-3.5 animate-slide-up">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <ShoppingBag className="h-3.5 w-3.5 text-accent" />
+                      Katalog Produk & Diskon
+                    </h4>
+                    <div className="space-y-2.5">
+                      {platform.products.map((prod, idx) => {
+                        // Get status badge colors
+                        let statusBadge = null;
+                        if (prod.status === 'free') {
+                          statusBadge = (
+                            <Badge variant="outline" className="text-[9px] font-extrabold px-1.5 bg-emerald-500/10 text-emerald-500 border-emerald-500/20 dark:bg-emerald-500/25 dark:text-emerald-400 py-0 uppercase">
+                              Gratis
+                            </Badge>
+                          );
+                        } else if (prod.status === 'discount') {
+                          statusBadge = (
+                            <Badge variant="outline" className="text-[9px] font-extrabold px-1.5 bg-blue-500/10 text-blue-500 border-blue-500/20 dark:bg-blue-500/25 dark:text-blue-400 py-0 uppercase">
+                              Diskon
+                            </Badge>
+                          );
+                        } else if (prod.status === 'credits') {
+                          statusBadge = (
+                            <Badge variant="outline" className="text-[9px] font-extrabold px-1.5 bg-purple-500/10 text-purple-500 border-purple-500/20 dark:bg-purple-500/25 dark:text-purple-400 py-0 uppercase">
+                              Credits
+                            </Badge>
+                          );
+                        }
+
+                        return (
+                          <div key={idx} className="rounded-xl border bg-muted/10 p-3.5 space-y-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-bold text-xs text-foreground">{prod.name}</span>
+                              <div className="flex items-center gap-1.5">
+                                {statusBadge}
+                                {prod.discount_percent && (
+                                  <Badge className="bg-red-500/10 text-red-500 border border-red-500/20 text-[9px] font-extrabold px-1.5">
+                                    Diskon {prod.discount_percent}%
+                                  </Badge>
+                                )}
+                                {prod.nonprofit_price_usd && (
+                                  <Badge variant="secondary" className="text-[10px] font-bold bg-accent/10 text-accent border border-accent/20 px-2 py-0">
+                                    {prod.nonprofit_price_usd}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-[11px] text-muted-foreground leading-normal">{prod.description}</p>
+                            <p className="text-[10px] text-muted-foreground/80 leading-relaxed italic border-t border-border/30 pt-1.5 mt-1.5 font-normal">
+                              NGO Use Case: {prod.use_case_ngo}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB B: CARA DAFTAR */}
+                {activeTab === 'register' && (
+                  <div className="space-y-3.5 animate-slide-up">
+                    <div className="flex items-center justify-between border-b pb-2">
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                        <ClipboardList className="h-3.5 w-3.5 text-accent" />
+                        Instruksi Registrasi Platform
+                      </h4>
+                      <Badge variant="outline" className="bg-accent/5 text-accent border-accent/20 text-[10px] font-bold py-0.5 flex items-center gap-1">
+                        <Clock className="h-3 w-3" /> Verifikasi: {platform.registration.estimated_time}
+                      </Badge>
+                    </div>
+
+                    {/* Numbered Steps list */}
+                    <div className="space-y-2.5">
+                      <p className="text-[11px] font-bold text-foreground">Langkah Pendaftaran:</p>
+                      <ol className="space-y-2.5 pl-4 list-decimal text-xs text-muted-foreground leading-relaxed">
+                        {platform.registration.steps.map((step, idx) => (
+                          <li key={idx} className="pl-1">
+                            <span className="text-foreground font-medium">{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+
+                    {/* Gotchas Amber warning box */}
+                    {platform.registration.gotchas && platform.registration.gotchas.length > 0 && (
+                      <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.03] p-4 text-xs leading-relaxed text-amber-800 dark:text-amber-400">
+                        <span className="font-bold uppercase tracking-wider text-[10px] flex items-center gap-1 mb-1.5">
+                          <AlertTriangle className="h-4 w-4 text-amber-500" />
+                          Perhatian Penting (Gotchas):
+                        </span>
+                        <ul className="list-disc pl-4 space-y-1">
+                          {platform.registration.gotchas.map((gotcha, idx) => (
+                            <li key={idx}>{gotcha}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Registration Direct CTA Button & AI Contextual Help Button */}
+                    <div className="pt-2 flex flex-wrap items-center gap-2.5">
+                      <Button
+                        asChild
+                        size="sm"
+                        className="bg-accent text-accent-foreground hover:bg-accent/90 font-bold text-xs shadow-sm h-9"
+                      >
+                        <a href={platform.registration.url} target="_blank" rel="noopener noreferrer">
+                          Daftar Sekarang &rarr;
+                        </a>
+                      </Button>
+
+                      {!isGateway && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTriggerContextualAi(platform);
+                          }}
+                          className="h-9 text-xs font-bold border-accent/30 text-accent bg-accent/5 hover:bg-accent/10 shadow-sm"
+                        >
+                          🤖 Bantu saya siapkan dokumen untuk {platform.name}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB C: SYARAT KELAYAKAN */}
+                {activeTab === 'requirements' && (
+                  <div className="space-y-3.5 animate-slide-up">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-accent" />
+                      Berkas & Kriteria Kelayakan
+                    </h4>
+
+                    {/* Documents Checklist */}
+                    <div className="rounded-xl border bg-muted/15 p-4 space-y-3">
+                      <p className="text-[11px] font-bold text-foreground">
+                        Checklist Dokumen Wajib NGO:
+                      </p>
+                      <div className="space-y-2.5">
+                        {platform.requirements.documents.map((doc, idx) => {
+                          return (
+                            <div 
+                              key={idx}
+                              className="flex items-start gap-2.5 text-xs text-foreground select-none"
+                            >
+                              <CheckSquare className="h-4 w-4 shrink-0 text-accent mt-0.5" />
+                              <span className="leading-normal font-medium text-foreground">
+                                {doc}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Conditions requirements */}
+                    <div className="space-y-1.5">
+                      <p className="text-[11px] font-bold text-foreground">Kriteria Kelayakan:</p>
+                      <ul className="list-disc pl-4 space-y-1 text-xs text-muted-foreground">
+                        {platform.requirements.conditions.map((cond, idx) => (
+                          <li key={idx}>{cond}</li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    {/* Non-Eligible Criteria */}
+                    {platform.not_eligible && platform.not_eligible.length > 0 && (
+                      <div className="rounded-xl border border-red-500/20 bg-red-500/[0.01] p-3.5 space-y-2.5 text-xs">
+                        <p className="font-bold text-[10px] uppercase tracking-wider text-red-500 flex items-center gap-1">
+                          <X className="h-3.5 w-3.5 text-red-500" />
+                          Tidak Layak / Not Eligible:
+                        </p>
+                        <div className="space-y-2">
+                          {platform.not_eligible.map((not, idx) => (
+                            <div key={idx} className="flex items-start gap-2 text-red-600/80 dark:text-red-400/80 leading-normal">
+                              <X className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                              <span>{not}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* TAB D: USE CASES (CARA PAKAI) */}
+                {activeTab === 'usage' && (
+                  <div className="space-y-4 animate-slide-up">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                      <Sparkles className="h-3.5 w-3.5 text-accent" />
+                      Dampak Penggunaan Platform (NGO Use Cases)
+                    </h4>
+
+                    <div className="space-y-3">
+                      <p className="text-[11px] font-bold text-foreground">Saran Solusi Dampak:</p>
+                      <ol className="space-y-2.5 pl-4 list-decimal text-xs text-muted-foreground leading-relaxed">
+                        {platform.use_cases.map((useCase, idx) => (
+                          <li key={idx} className="pl-1">
+                            <span className="text-foreground font-semibold">{useCase}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+
+                    {/* Renewal Info Badge at bottom */}
+                    <div className="rounded-xl border bg-muted/15 p-3.5 text-xs space-y-1">
+                      <div className="flex items-center gap-1.5 text-foreground font-bold">
+                        <RefreshCw className="h-3.5 w-3.5 text-accent" />
+                        <span>Kebijakan Perpanjangan (Renewal)</span>
+                      </div>
+                      <p className="text-muted-foreground leading-relaxed text-[11px]">
+                        Siklus: <span className="font-bold text-foreground">{platform.renewal.period}</span> ({platform.renewal.type === 'auto' ? 'Auto-Renewal' : platform.renewal.type === 'manual' ? 'Manual Renewal' : 'Tanpa Renewal'}). 
+                        {platform.renewal.note && <span className="block mt-1 italic text-accent">{platform.renewal.note}</span>}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* TAB E: PIC & ADMINISTRATIVE STATUS FORM */}
+                {activeTab === 'admin' && (
+                  <div className="space-y-4 animate-slide-up">
+                    
+                    {/* VIEW PIC DETAILS MODE */}
+                    {!isEditing ? (
+                      <div className="space-y-3.5">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <Building2 className="h-3.5 w-3.5 text-accent" />
+                          PIC & Informasi Administrasi
+                        </h4>
+
+                        <div className="grid grid-cols-1 gap-3 rounded-xl border bg-muted/20 p-4 text-xs">
+                          <div className="flex items-start gap-3">
+                            <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                            <div className="space-y-0.5">
+                              <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">PIC / Penanggung Jawab</p>
+                              <p className="font-semibold text-foreground text-sm">
+                                {item?.owner_name || <span className="text-muted-foreground/50 font-normal">Belum ditentukan</span>}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-start gap-3 border-t border-border/40 pt-3">
+                            <Mail className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                            <div className="space-y-0.5">
+                              <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">Email Kontak PIC</p>
+                              <p className="font-semibold text-foreground">
+                                {item?.owner_email || <span className="text-muted-foreground/50 font-normal">Belum ditentukan</span>}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 border-t border-border/40 pt-3">
+                            <div className="space-y-0.5">
+                              <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">Tanggal Apply</p>
+                              <p className="font-semibold text-foreground">
+                                {item?.applied_at ? new Date(item.applied_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                              </p>
+                            </div>
+                            <div className="space-y-0.5 border-l border-border/40 pl-3">
+                              <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">Tanggal Renewal</p>
+                              <p className="font-semibold text-foreground">
+                                {item?.renewal_at ? new Date(item.renewal_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {item?.notes ? (
+                          <div className="rounded-xl bg-muted/40 p-3.5 border border-dashed border-border text-xs leading-relaxed text-muted-foreground">
+                            <span className="font-bold text-foreground block mb-1">Catatan Internal / Token Verifikasi:</span> 
+                            {item.notes}
+                          </div>
+                        ) : (
+                          <div className="text-[11px] text-muted-foreground/50 text-center py-2 italic">
+                            Belum ada catatan internal atau token verifikasi yang disimpan.
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      
+                      /* EDIT PIC DETAILS INLINE FORM */
+                      <div className="space-y-3.5">
+                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                          <Edit2 className="h-3.5 w-3.5 text-accent" />
+                          Formulir Administrasi PIC
+                        </h4>
+
+                        <div className="grid grid-cols-2 gap-3 rounded-xl border p-4 bg-muted/10">
+                          <div className="col-span-2">
+                            <Label className="text-[10px] font-bold text-foreground">Status Pendaftaran</Label>
+                            <select
+                              value={formState.status}
+                              onChange={(e) => setFormState({ ...formState, status: e.target.value as PlatformAccessRecord['status'] })}
+                              className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-accent"
+                            >
+                              <option value="not_started">Belum Mulai (Not Started)</option>
+                              <option value="submitted">Dalam Proses (Submitted)</option>
+                              <option value="pending">Menunggu Verifikasi (Pending)</option>
+                              <option value="approved">Approved (Terverifikasi)</option>
+                              <option value="renewal_needed">Butuh Perpanjangan (Renewal Needed)</option>
+                            </select>
+                          </div>
+
+                          <div>
+                            <Label className="text-[10px] font-bold text-foreground">Nama PIC / Owner</Label>
+                            <Input
+                              type="text"
+                              value={formState.owner_name}
+                              placeholder="Budi"
+                              onChange={(e) => setFormState({ ...formState, owner_name: e.target.value })}
+                              className="mt-1.5 h-8.5 text-xs font-medium"
+                            />
+                          </div>
+
+                          <div>
+                            <Label className="text-[10px] font-bold text-foreground">Email PIC</Label>
+                            <Input
+                              type="email"
+                              value={formState.owner_email}
+                              placeholder="budi@ngo.org"
+                              onChange={(e) => setFormState({ ...formState, owner_email: e.target.value })}
+                              className="mt-1.5 h-8.5 text-xs font-medium"
+                            />
+                          </div>
+
+                          <div>
+                            <Label className="text-[10px] font-bold text-foreground">Tanggal Apply</Label>
+                            <Input
+                              type="date"
+                              value={formState.applied_at || ''}
+                              onChange={(e) => setFormState({ ...formState, applied_at: e.target.value || null })}
+                              className="mt-1.5 h-8.5 text-xs font-medium"
+                            />
+                          </div>
+
+                          <div>
+                            <Label className="text-[10px] font-bold text-foreground">Tanggal Approved</Label>
+                            <Input
+                              type="date"
+                              value={formState.approved_at || ''}
+                              onChange={(e) => setFormState({ ...formState, approved_at: e.target.value || null })}
+                              className="mt-1.5 h-8.5 text-xs font-medium"
+                            />
+                          </div>
+
+                          <div className="col-span-2">
+                            <Label className="text-[10px] font-bold text-foreground">Tanggal Renewal (Perpanjangan)</Label>
+                            <Input
+                              type="date"
+                              value={formState.renewal_at || ''}
+                              onChange={(e) => setFormState({ ...formState, renewal_at: e.target.value || null })}
+                              className="mt-1.5 h-8.5 text-xs font-medium"
+                            />
+                          </div>
+
+                          <div className="col-span-2">
+                            <Label className="text-[10px] font-bold text-foreground">Catatan Pendukung / Token</Label>
+                            <Textarea
+                              value={formState.notes}
+                              placeholder="Simpan token verifikasi atau catatan instruksi khusus perpanjangan akun di sini."
+                              onChange={(e) => setFormState({ ...formState, notes: e.target.value })}
+                              className="mt-1.5 min-h-[55px] text-xs font-medium leading-relaxed"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* RIGHT COLUMN (Desktop 5 cols) - Inline AI Integration & Actions (Render only on non-gateway platform cards) */}
+              <div className={cn(isGateway ? "md:col-span-12 flex justify-end" : "md:col-span-5 flex flex-col justify-between", "space-y-4")}>
+                
+                {/* Tanya AI Inline Integration Panel (Only for non-gateway platforms) */}
+                {!isGateway && (
+                  <div className="space-y-3 flex-1">
+                    {!inlineAiResponses[platformKey] ? (
+                      <div className="flex flex-col gap-3.5 bg-accent-soft/10 rounded-xl p-4 border border-accent/15">
+                        <div className="space-y-1">
+                          <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                            <Sparkles className="h-4 w-4 text-accent animate-pulse shrink-0" />
+                            Butuh Saran Registrasi Tambahan?
+                          </p>
+                          <p className="text-[11px] text-muted-foreground leading-normal">
+                            AI Copilot dapat menyusun tips taktis, kesiapan token, dan strategi lolos verifikasi secara instan.
+                          </p>
+                        </div>
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleTriggerInlineAi(platformKey);
+                          }}
+                          className="w-fit h-8.5 text-xs font-bold bg-accent text-accent-foreground hover:bg-accent/90 shrink-0 shadow-sm"
+                          disabled={inlineAiLoading[platformKey]}
+                        >
+                          {inlineAiLoading[platformKey] ? (
+                            <>
+                              <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                              Loading…
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="mr-1.5 h-3 w-3" />
+                              Tanya AI Copilot
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    ) : (
+                      // Loaded Inline AI Guide
+                      <div className="rounded-xl border border-accent/25 bg-accent-soft/5 p-4 space-y-3.5 animate-slide-up">
+                        <div className="flex items-center justify-between border-b border-accent/15 pb-2">
+                          <span className="text-xs font-bold text-accent flex items-center gap-1">
+                            <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+                            Rekomendasi Registrasi AI
+                          </span>
+                          <Badge variant="outline" className="text-[9px] bg-emerald-500/10 text-emerald-600 font-extrabold border-emerald-500/20 dark:bg-emerald-500/20">
+                            {inlineAiResponses[platformKey]?.confidence}% Confidence
+                          </Badge>
+                        </div>
+
+                        <div className="space-y-2 text-xs">
+                          <p className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Tips Taktis AI:</p>
+                          <ul className="space-y-2 list-none pl-0">
+                            {inlineAiResponses[platformKey]?.checklist.map((tip: string, idx: number) => (
+                              <li key={idx} className="flex items-start gap-2 text-muted-foreground leading-relaxed">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                                <span>{tip}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        {/* Warning Box */}
+                        <div className="rounded-lg border border-dashed border-red-500/30 bg-red-500/[0.01] p-3 text-[10px] leading-relaxed text-red-600 dark:text-red-400">
+                          <span className="font-bold uppercase tracking-wider block mb-1">⚠️ Perhatian Khusus:</span>
+                          {inlineAiResponses[platformKey]?.warning}
+                        </div>
+
+                        {/* Human Review Gate checkbox inside the card */}
+                        <div className="border-t border-accent/10 pt-3 flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id={`human-review-gate-${platformKey}`}
+                            checked={!!inlineHumanReviewChecked[platformKey]}
+                            onChange={(e) => {
+                              const val = e.target.checked;
+                              setInlineHumanReviewChecked(prev => ({ ...prev, [platformKey]: val }));
+                            }}
+                            className="h-3.5 w-3.5 rounded border-gray-300 text-accent focus:ring-accent cursor-pointer"
+                          />
+                          <Label 
+                            htmlFor={`human-review-gate-${platformKey}`} 
+                            className="text-[10px] font-bold text-foreground cursor-pointer select-none"
+                          >
+                            Saya mengonfirmasi telah membaca panduan ini dan melakukan verifikasi manual
+                          </Label>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Controls Footer buttons */}
+                <div className="pt-4 border-t border-border/40 flex items-center justify-end gap-2 w-full">
+                  {!isEditing ? (
+                    <Button 
+                      type="button" 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleStartEdit(platformKey);
+                      }}
+                      className={cn("h-8.5 text-xs font-bold border-border shadow-sm", isGateway ? "w-auto" : "w-full sm:w-auto")}
+                    >
+                      <Edit2 className="mr-1.5 h-3 w-3 text-accent" /> Edit PIC & Status
+                    </Button>
+                  ) : (
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                      <Button 
+                        type="button" 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setEditingPlatform(null);
+                        }}
+                        className="h-8.5 text-xs font-bold"
+                        disabled={upsertMutation.isPending}
+                      >
+                        <X className="mr-1 h-3 w-3" /> Batal
+                      </Button>
+                      <Button 
+                        type="button" 
+                        size="sm" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSave();
+                        }}
+                        className="h-8.5 text-xs font-bold bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm"
+                        disabled={upsertMutation.isPending}
+                      >
+                        {upsertMutation.isPending ? (
+                          <>
+                            <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                            Menyimpan…
+                          </>
+                        ) : (
+                          <>
+                            <Save className="mr-1.5 h-3.5 w-3.5" /> Simpan Perubahan
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Always-visible Card Footer: URL link & toggler */}
+        <div className="mt-4 pt-3.5 border-t border-border/30 flex items-center justify-between gap-3">
+          <a 
+            href={platform.registration.url} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="inline-flex items-center text-xs font-semibold text-accent hover:text-accent/85 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            Situs Resmi {platform.name}
+            <ExternalLink className="ml-1 h-3 w-3" />
+          </a>
+
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleExpand(platformKey);
+            }}
+            className="h-7 text-xs font-semibold text-muted-foreground hover:text-foreground"
+          >
+            {isExpanded ? 'Sembunyikan detail' : 'Tampilkan detail'}
+          </Button>
+        </div>
+      </Card>
+    );
+  };
 
   if (isMembershipLoading || (!!organizationId && isPlatformsLoading)) {
     return (
@@ -568,7 +1406,7 @@ export default function ResourceAccessTracker() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-4xl space-y-6 overflow-x-hidden px-4 md:px-0 w-full">
       
       {/* 1. Glassmorphic Hero Banner */}
       <Card className="relative overflow-hidden border-accent/20 bg-gradient-to-br from-accent-soft/60 via-background to-background p-6 shadow-card md:p-8">
@@ -647,112 +1485,142 @@ export default function ResourceAccessTracker() {
           </div>
 
           {/* Filters Grid with custom horizontal scrolling rows */}
-          <div className="space-y-3.5 pt-1.5">
-            {/* Filter Gateway */}
+          <div className="space-y-4 pt-1.5">
+            {/* Line 1: Filter Gateway */}
             <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-4">
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:w-20 shrink-0">Gateway:</span>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar select-none scroll-smooth">
-                {GATEWAY_FILTERS.map((f) => {
-                  const isActive = gateway === f.id;
-                  return (
-                    <button
-                      key={f.id}
-                      onClick={() => setGateway(f.id)}
-                      className={cn(
-                        "whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold transition-all border shrink-0",
-                        isActive 
-                          ? "bg-accent text-accent-foreground border-accent shadow-sm" 
-                          : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30 hover:text-foreground"
-                      )}
-                    >
-                      {f.id === 'all' ? 'Semua' : f.label}
-                    </button>
-                  );
-                })}
+              <div className="relative w-full overflow-hidden">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar select-none scroll-smooth -mx-4 px-4 md:mx-0 md:px-0">
+                  {GATEWAY_FILTERS.map((f) => {
+                    const isActive = gateway === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => setGateway(f.id)}
+                        className={cn(
+                          "whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold transition-all border shrink-0",
+                          isActive 
+                            ? "bg-accent text-accent-foreground border-accent shadow-sm" 
+                            : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30 hover:text-foreground"
+                        )}
+                      >
+                        {f.id === 'all' ? 'Semua' : f.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="pointer-events-none absolute bottom-0 right-0 top-0 w-8 bg-gradient-to-l from-card to-transparent md:hidden" />
               </div>
             </div>
 
-            {/* Filter Pricing */}
+            {/* Line 2: Filter Pricing */}
             <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-4 border-t border-border/30 pt-3 md:pt-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:w-20 shrink-0">Harga:</span>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar select-none scroll-smooth">
-                {PRICING_FILTERS.map((f) => {
-                  const isActive = pricing === f.id;
-                  return (
-                    <button
-                      key={f.id}
-                      onClick={() => setPricing(f.id)}
-                      className={cn(
-                        "whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold transition-all border shrink-0",
-                        isActive 
-                          ? "bg-accent text-accent-foreground border-accent shadow-sm" 
-                          : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30 hover:text-foreground"
-                      )}
-                    >
-                      {f.id === 'all' ? 'Semua' : f.label}
-                    </button>
-                  );
-                })}
+              <div className="relative w-full overflow-hidden">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar select-none scroll-smooth -mx-4 px-4 md:mx-0 md:px-0">
+                  {PRICING_FILTERS.map((f) => {
+                    const isActive = pricing === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => setPricing(f.id)}
+                        className={cn(
+                          "whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold transition-all border shrink-0",
+                          isActive 
+                            ? "bg-accent text-accent-foreground border-accent shadow-sm" 
+                            : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30 hover:text-foreground"
+                        )}
+                      >
+                        {f.id === 'all' ? 'Semua' : f.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="pointer-events-none absolute bottom-0 right-0 top-0 w-8 bg-gradient-to-l from-card to-transparent md:hidden" />
               </div>
             </div>
 
-            {/* Filter Category */}
-            <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-4 border-t border-border/30 pt-3 md:pt-2">
-              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:w-20 shrink-0">Kategori:</span>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar select-none scroll-smooth">
-                {CATEGORY_FILTERS.map((f) => {
-                  const isActive = category === f.id;
-                  return (
-                    <button
-                      key={f.id}
-                      onClick={() => setCategory(f.id)}
-                      className={cn(
-                        "whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold transition-all border shrink-0",
-                        isActive 
-                          ? "bg-accent text-accent-foreground border-accent shadow-sm" 
-                          : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30 hover:text-foreground"
-                      )}
-                    >
-                      {f.id === 'all' ? 'Semua' : f.label}
-                    </button>
-                  );
-                })}
+            {/* Line 3: Filter Category */}
+            <div className="flex flex-col gap-1.5 md:flex-row md:items-start md:gap-4 border-t border-border/30 pt-3 md:pt-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:w-20 shrink-0 md:mt-1.5">Kategori:</span>
+              <div className="relative w-full overflow-hidden">
+                <div className="flex md:flex-wrap items-center md:items-start gap-2 overflow-x-auto md:overflow-x-visible pb-1 md:pb-0 no-scrollbar select-none scroll-smooth -mx-4 px-4 md:mx-0 md:px-0">
+                  {CATEGORY_FILTERS.map((f) => {
+                    const isActive = category === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => setCategory(f.id)}
+                        className={cn(
+                          "whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold transition-all border shrink-0",
+                          isActive 
+                            ? "bg-accent text-accent-foreground border-accent shadow-sm" 
+                            : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30 hover:text-foreground"
+                        )}
+                      >
+                        {f.id === 'all' ? 'Semua' : f.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="pointer-events-none absolute bottom-0 right-0 top-0 w-8 bg-gradient-to-l from-card to-transparent md:hidden" />
               </div>
             </div>
 
-            {/* Sort Options */}
+            {/* Line 4: Sort Options */}
             <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-4 border-t border-border/30 pt-3 md:pt-2">
               <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:w-20 shrink-0">Urutkan:</span>
-              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar select-none scroll-smooth">
-                {SORT_OPTIONS.map((f) => {
-                  const isActive = sort === f.id;
-                  return (
-                    <button
-                      key={f.id}
-                      onClick={() => setSort(f.id)}
-                      className={cn(
-                        "whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold transition-all border shrink-0",
-                        isActive 
-                          ? "bg-accent text-accent-foreground border-accent shadow-sm" 
-                          : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30 hover:text-foreground"
-                      )}
-                    >
-                      {f.label}
-                    </button>
-                  );
-                })}
+              <div className="relative w-full overflow-hidden">
+                <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar select-none scroll-smooth -mx-4 px-4 md:mx-0 md:px-0">
+                  {SORT_OPTIONS.map((f) => {
+                    const isActive = sort === f.id;
+                    return (
+                      <button
+                        key={f.id}
+                        onClick={() => setSort(f.id)}
+                        className={cn(
+                          "whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold transition-all border shrink-0",
+                          isActive 
+                            ? "bg-accent text-accent-foreground border-accent shadow-sm" 
+                            : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30 hover:text-foreground"
+                        )}
+                      >
+                        {f.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="pointer-events-none absolute bottom-0 right-0 top-0 w-8 bg-gradient-to-l from-card to-transparent md:hidden" />
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* 3. Platform Accordion List */}
+      {/* 2b. PINNED GATEWAYS SECTION */}
+      <section className="space-y-4">
+        <div className="space-y-1 pb-2 border-b border-border/30">
+          <h2 className="text-lg font-extrabold tracking-tight text-foreground flex items-center gap-2">
+            <span className="text-amber-500">⚠️</span> Wajib Daftar Dulu — Gateway Verifikasi
+          </h2>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            Daftarkan organisasi ke kedua platform ini sebelum mengklaim diskon di platform lainnya.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          {gatewayPlatforms.map((platform) => renderPlatformCard(platform, true))}
+        </div>
+      </section>
+
+      {/* 3. Catalog Platform List */}
       <section className="space-y-4">
         <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between border-b border-border/30 pb-2">
-          <h2 className="text-xl font-bold tracking-tight">Katalog Layanan Non-profit</h2>
+          <h2 className="text-lg font-bold tracking-tight text-foreground">
+            Katalog Platform Non-profit
+          </h2>
           <span className="text-xs font-semibold text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-full border border-border/60">
-            Menampilkan {filteredPlatforms.length} dari {PLATFORMS.length} platform
+            Menampilkan {filteredPlatforms.length} dari {PLATFORMS.filter(p => !p.category.includes('gateway')).length} platform
           </span>
         </div>
 
@@ -775,739 +1643,7 @@ export default function ResourceAccessTracker() {
           </Card>
         ) : (
           <div className="flex flex-col gap-4">
-            {filteredPlatforms.map((platform) => {
-              const platformKey = platform.id;
-              const item = platformsMap[platformKey];
-              const isEditing = editingPlatform === platformKey;
-              const isExpanded = !!expandedPlatforms[platformKey];
-              const countdown = getCountdownText(item?.renewal_at);
-              
-              // Resolve active tab state (defaults to 'products')
-              const activeTab = activeTabs[platformKey] || 'products';
-
-              // Map category names to emoji labels
-              const getCategoryLabel = (cat: string) => {
-                const match = CATEGORY_FILTERS.find(f => f.id === cat);
-                return match ? match.label : cat;
-              };
-
-              // Color classes for pricing type
-              const getPricingColor = (type: string) => {
-                switch(type) {
-                  case 'free': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 dark:bg-emerald-500/25 dark:text-emerald-400';
-                  case 'discount': return 'bg-blue-500/10 text-blue-500 border-blue-500/20 dark:bg-blue-500/25 dark:text-blue-400';
-                  case 'credits': return 'bg-purple-500/10 text-purple-500 border-purple-500/20 dark:bg-purple-500/25 dark:text-purple-400';
-                  case 'admin_fee': return 'bg-amber-500/10 text-amber-500 border-amber-500/20 dark:bg-amber-500/25 dark:text-amber-400';
-                  default: return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
-                }
-              };
-
-              // Gateway labels and chips classes
-              const getGatewayChip = (gw: string) => {
-                switch(gw) {
-                  case 'goodstack': return { label: 'Goodstack', style: 'bg-purple-500/10 text-purple-600 border-purple-200 dark:bg-purple-500/20 dark:text-purple-400 dark:border-purple-800' };
-                  case 'techsoup': return { label: 'TechSoup', style: 'bg-blue-500/10 text-blue-600 border-blue-200 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-800' };
-                  case 'both': return { label: 'Keduanya', style: 'bg-indigo-500/10 text-indigo-600 border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-400 dark:border-indigo-800' };
-                  default: return { label: 'Langsung', style: 'bg-slate-500/10 text-slate-600 border-slate-200 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-800' };
-                }
-              };
-
-              const gwChip = getGatewayChip(platform.gateway);
-
-              // Standard icon mapping
-              const IconComponent = PLATFORM_ICONS[platformKey] || DEFAULT_ICON;
-
-              return (
-                <Card 
-                  key={platformKey} 
-                  className={cn(
-                    "relative overflow-hidden border border-border/80 bg-card p-5 shadow-card transition-all duration-300 hover:scale-[1.002] hover:shadow-elegant",
-                    isExpanded && "ring-1 ring-accent/35 border-accent/30 bg-accent-soft/[0.03]",
-                    isEditing && "ring-1 ring-accent border-accent/40 bg-accent-soft/10"
-                  )}
-                >
-                  {/* Decorative Accent Strip */}
-                  <div className="absolute top-0 left-0 h-[3px] w-full bg-gradient-to-r from-accent to-[#155F66]" />
-
-                  {/* TOP ROW BADGES */}
-                  <div className="flex flex-wrap items-center gap-1.5 mb-3.5">
-                    <span className="text-[10px] font-semibold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded border">
-                      Prioritas {platform.priority}
-                    </span>
-                    <Badge variant="outline" className={cn("text-[9px] font-bold border px-2 py-0", gwChip.style)}>
-                      {gwChip.label}
-                    </Badge>
-                    <Badge variant="outline" className={cn("text-[9px] font-extrabold border px-2 py-0 uppercase tracking-wide shadow-sm", getPricingColor(platform.pricing.type))}>
-                      {platform.pricing.label}
-                    </Badge>
-                  </div>
-
-                  {/* CARD CLICKABLE HEADER */}
-                  <div 
-                    onClick={() => toggleExpand(platformKey)}
-                    className="flex items-start justify-between gap-3 cursor-pointer select-none group"
-                  >
-                    <div className="flex items-start gap-3.5">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent border border-accent/20 shadow-sm shrink-0 transition-transform duration-300 group-hover:scale-105">
-                        <IconComponent className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <h3 className="font-bold text-base leading-snug text-foreground flex items-center gap-1.5 group-hover:text-accent transition-colors">
-                          {platform.name}
-                          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-300 shrink-0", isExpanded && "rotate-180")} />
-                        </h3>
-                        <p className="text-xs text-muted-foreground leading-relaxed mt-1 max-w-xl">{platform.description}</p>
-                        
-                        {/* CATEGORY OUTLINED CHIPS */}
-                        <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
-                          {platform.category.map(cat => (
-                            <span key={cat} className="text-[10px] font-semibold text-muted-foreground/90 bg-muted/20 border px-2 py-0.5 rounded">
-                              {getCategoryLabel(cat)}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-col items-end gap-1.5 shrink-0">
-                      <Badge variant="outline" className={cn("text-[10px] font-bold px-2.5 py-0.5 shadow-sm border", STATUS_COLORS[item?.status || 'not_started'])}>
-                        {STATUS_LABELS[item?.status || 'not_started']}
-                      </Badge>
-                      
-                      {/* Collapsed state key metadata preview */}
-                      {!isExpanded && (
-                        <div className="hidden md:flex items-center gap-3 text-[11px] text-muted-foreground font-medium mt-1">
-                          {item?.owner_name && (
-                            <span className="flex items-center gap-1 bg-muted/40 px-2 py-0.5 rounded border border-border/40">
-                              <User className="h-3 w-3 text-accent" /> {item.owner_name}
-                            </span>
-                          )}
-                          {item?.status === 'approved' && countdown && (
-                            <span className={cn("text-[10px] px-2 py-0.5 rounded-full border", countdown.color)}>
-                              {countdown.text}
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* EXPANDED ACCORDION TABS BODY */}
-                  {isExpanded && (
-                    <div className="mt-5 pt-5 border-t border-border/40 space-y-4.5 animate-fade-in">
-                      
-                      {/* 1. Accordion Header Tabs list */}
-                      <div className="flex flex-wrap items-center gap-1.5 border-b border-border/40 pb-2.5 overflow-x-auto no-scrollbar scroll-smooth">
-                        <button
-                          onClick={() => setPlatformActiveTab(platformKey, 'products')}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
-                            activeTab === 'products'
-                              ? "bg-accent text-accent-foreground border-accent shadow-sm"
-                              : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
-                          )}
-                        >
-                          <ShoppingBag className="h-3.5 w-3.5" />
-                          Produk
-                        </button>
-                        <button
-                          onClick={() => setPlatformActiveTab(platformKey, 'register')}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
-                            activeTab === 'register'
-                              ? "bg-accent text-accent-foreground border-accent shadow-sm"
-                              : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
-                          )}
-                        >
-                          <ClipboardList className="h-3.5 w-3.5" />
-                          Cara Daftar
-                        </button>
-                        <button
-                          onClick={() => setPlatformActiveTab(platformKey, 'requirements')}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
-                            activeTab === 'requirements'
-                              ? "bg-accent text-accent-foreground border-accent shadow-sm"
-                              : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
-                          )}
-                        >
-                          <FileText className="h-3.5 w-3.5" />
-                          Syarat Kelayakan
-                        </button>
-                        <button
-                          onClick={() => setPlatformActiveTab(platformKey, 'usage')}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
-                            activeTab === 'usage'
-                              ? "bg-accent text-accent-foreground border-accent shadow-sm"
-                              : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
-                          )}
-                        >
-                          <Sparkles className="h-3.5 w-3.5" />
-                          Cara Pakai (Use Cases)
-                        </button>
-                        <button
-                          onClick={() => setPlatformActiveTab(platformKey, 'admin')}
-                          className={cn(
-                            "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
-                            activeTab === 'admin'
-                              ? "bg-accent text-accent-foreground border-accent shadow-sm"
-                              : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
-                          )}
-                        >
-                          <User className="h-3.5 w-3.5" />
-                          PIC & Administrasi
-                        </button>
-                      </div>
-
-                      {/* 2. Active Tab Content Panels */}
-                      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 min-h-[220px]">
-                        
-                        {/* TAB CONTENTS (Left 7 cols on Desktop) */}
-                        <div className="md:col-span-7 space-y-4">
-                          
-                          {/* TAB A: PRODUCTS */}
-                          {activeTab === 'products' && (
-                            <div className="space-y-3.5 animate-slide-up">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                <ShoppingBag className="h-3.5 w-3.5 text-accent" />
-                                Katalog Produk & Diskon
-                              </h4>
-                              <div className="space-y-2.5">
-                                {platform.products.map((prod, idx) => {
-                                  // Get status badge colors
-                                  let statusBadge = null;
-                                  if (prod.status === 'free') {
-                                    statusBadge = (
-                                      <Badge variant="outline" className="text-[9px] font-extrabold px-1.5 bg-emerald-500/10 text-emerald-500 border-emerald-500/20 dark:bg-emerald-500/25 dark:text-emerald-400 py-0 uppercase">
-                                        Gratis
-                                      </Badge>
-                                    );
-                                  } else if (prod.status === 'discount') {
-                                    statusBadge = (
-                                      <Badge variant="outline" className="text-[9px] font-extrabold px-1.5 bg-blue-500/10 text-blue-500 border-blue-500/20 dark:bg-blue-500/25 dark:text-blue-400 py-0 uppercase">
-                                        Diskon
-                                      </Badge>
-                                    );
-                                  } else if (prod.status === 'credits') {
-                                    statusBadge = (
-                                      <Badge variant="outline" className="text-[9px] font-extrabold px-1.5 bg-purple-500/10 text-purple-500 border-purple-500/20 dark:bg-purple-500/25 dark:text-purple-400 py-0 uppercase">
-                                        Credits
-                                      </Badge>
-                                    );
-                                  }
-
-                                  return (
-                                    <div key={idx} className="rounded-xl border bg-muted/10 p-3.5 space-y-1.5">
-                                      <div className="flex items-center justify-between gap-2">
-                                        <span className="font-bold text-xs text-foreground">{prod.name}</span>
-                                        <div className="flex items-center gap-1.5">
-                                          {statusBadge}
-                                          {prod.discount_percent && (
-                                            <Badge className="bg-red-500/10 text-red-500 border border-red-500/20 text-[9px] font-extrabold px-1.5">
-                                              Diskon {prod.discount_percent}%
-                                            </Badge>
-                                          )}
-                                          {prod.nonprofit_price_usd && (
-                                            <Badge variant="secondary" className="text-[10px] font-bold bg-accent/10 text-accent border border-accent/20 px-2 py-0">
-                                              {prod.nonprofit_price_usd}
-                                            </Badge>
-                                          )}
-                                        </div>
-                                      </div>
-                                      <p className="text-[11px] text-muted-foreground leading-normal">{prod.description}</p>
-                                      <p className="text-[10px] text-muted-foreground/80 leading-relaxed italic border-t border-border/30 pt-1.5 mt-1.5">
-                                        NGO Use Case: {prod.use_case_ngo}
-                                      </p>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* TAB B: CARA DAFTAR */}
-                          {activeTab === 'register' && (
-                            <div className="space-y-3.5 animate-slide-up">
-                              <div className="flex items-center justify-between border-b pb-2">
-                                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                  <ClipboardList className="h-3.5 w-3.5 text-accent" />
-                                  Instruksi Registrasi Platform
-                                </h4>
-                                <Badge variant="outline" className="bg-accent/5 text-accent border-accent/20 text-[10px] font-bold py-0.5 flex items-center gap-1">
-                                  <Clock className="h-3 w-3" /> Verifikasi: {platform.registration.estimated_time}
-                                </Badge>
-                              </div>
-
-                              {/* Numbered Steps list */}
-                              <div className="space-y-2.5">
-                                <p className="text-[11px] font-bold text-foreground">Langkah Pendaftaran:</p>
-                                <ol className="space-y-2.5 pl-4 list-decimal text-xs text-muted-foreground leading-relaxed">
-                                  {platform.registration.steps.map((step, idx) => (
-                                    <li key={idx} className="pl-1">
-                                      <span className="text-foreground font-medium">{step}</span>
-                                    </li>
-                                  ))}
-                                </ol>
-                              </div>
-
-                              {/* Gotchas Amber warning box */}
-                              {platform.registration.gotchas && platform.registration.gotchas.length > 0 && (
-                                <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.03] p-4 text-xs leading-relaxed text-amber-800 dark:text-amber-400">
-                                  <span className="font-bold uppercase tracking-wider text-[10px] flex items-center gap-1 mb-1.5">
-                                    <AlertTriangle className="h-4 w-4 text-amber-500" />
-                                    Perhatian Penting (Gotchas):
-                                  </span>
-                                  <ul className="list-disc pl-4 space-y-1">
-                                    {platform.registration.gotchas.map((gotcha, idx) => (
-                                      <li key={idx}>{gotcha}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-
-                              {/* Registration Direct CTA Button */}
-                              <div className="pt-2">
-                                <Button
-                                  asChild
-                                  size="sm"
-                                  className="bg-accent text-accent-foreground hover:bg-accent/90 font-bold text-xs shadow-sm h-9"
-                                >
-                                  <a href={platform.registration.url} target="_blank" rel="noopener noreferrer">
-                                    Daftar Sekarang &rarr;
-                                  </a>
-                                </Button>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* TAB C: SYARAT KELAYAKAN */}
-                          {activeTab === 'requirements' && (
-                            <div className="space-y-3.5 animate-slide-up">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                <FileText className="h-3.5 w-3.5 text-accent" />
-                                Berkas & Kriteria Kelayakan
-                              </h4>
-
-                              {/* Documents Checklist */}
-                              <div className="rounded-xl border bg-muted/15 p-4 space-y-3">
-                                <p className="text-[11px] font-bold text-foreground">
-                                  Checklist Dokumen Wajib NGO:
-                                </p>
-                                <div className="space-y-2.5">
-                                  {platform.requirements.documents.map((doc, idx) => {
-                                    return (
-                                      <div 
-                                        key={idx}
-                                        className="flex items-start gap-2.5 text-xs text-foreground select-none"
-                                      >
-                                        <CheckSquare className="h-4 w-4 shrink-0 text-accent mt-0.5" />
-                                        <span className="leading-normal font-medium">
-                                          {doc}
-                                        </span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-
-                              {/* Conditions requirements */}
-                              <div className="space-y-1.5">
-                                <p className="text-[11px] font-bold text-foreground">Kriteria Kelayakan:</p>
-                                <ul className="list-disc pl-4 space-y-1 text-xs text-muted-foreground">
-                                  {platform.requirements.conditions.map((cond, idx) => (
-                                    <li key={idx}>{cond}</li>
-                                  ))}
-                                </ul>
-                              </div>
-
-                              {/* Non-Eligible Criteria */}
-                              {platform.not_eligible && platform.not_eligible.length > 0 && (
-                                <div className="rounded-xl border border-red-500/20 bg-red-500/[0.01] p-3.5 space-y-2.5 text-xs">
-                                  <p className="font-bold text-[10px] uppercase tracking-wider text-red-500 flex items-center gap-1">
-                                    <X className="h-3.5 w-3.5 text-red-500" />
-                                    Tidak Layak / Not Eligible:
-                                  </p>
-                                  <div className="space-y-2">
-                                    {platform.not_eligible.map((not, idx) => (
-                                      <div key={idx} className="flex items-start gap-2 text-red-600/80 dark:text-red-400/80 leading-normal">
-                                        <X className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
-                                        <span>{not}</span>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {/* TAB D: USE CASES (CARA PAKAI) */}
-                          {activeTab === 'usage' && (
-                            <div className="space-y-4 animate-slide-up">
-                              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                <Sparkles className="h-3.5 w-3.5 text-accent" />
-                                Dampak Penggunaan Platform (NGO Use Cases)
-                              </h4>
-
-                              <div className="space-y-3">
-                                <p className="text-[11px] font-bold text-foreground">Saran Solusi Dampak:</p>
-                                <ol className="space-y-2.5 pl-4 list-decimal text-xs text-muted-foreground leading-relaxed">
-                                  {platform.use_cases.map((useCase, idx) => (
-                                    <li key={idx} className="pl-1">
-                                      <span className="text-foreground font-semibold">{useCase}</span>
-                                    </li>
-                                  ))}
-                                </ol>
-                              </div>
-
-                              {/* Renewal Info Badge at bottom */}
-                              <div className="rounded-xl border bg-muted/15 p-3.5 text-xs space-y-1">
-                                <div className="flex items-center gap-1.5 text-foreground font-bold">
-                                  <RefreshCw className="h-3.5 w-3.5 text-accent" />
-                                  <span>Kebijakan Perpanjangan (Renewal)</span>
-                                </div>
-                                <p className="text-muted-foreground leading-relaxed text-[11px]">
-                                  Siklus: <span className="font-bold text-foreground">{platform.renewal.period}</span> ({platform.renewal.type === 'auto' ? 'Auto-Renewal' : platform.renewal.type === 'manual' ? 'Manual Renewal' : 'Tanpa Renewal'}). 
-                                  {platform.renewal.note && <span className="block mt-1 italic text-accent">{platform.renewal.note}</span>}
-                                </p>
-                              </div>
-                            </div>
-                          )}
-
-                          {/* TAB E: PIC & ADMINISTRATIVE STATUS FORM */}
-                          {activeTab === 'admin' && (
-                            <div className="space-y-4 animate-slide-up">
-                              
-                              {/* VIEW PIC DETAILS MODE */}
-                              {!isEditing ? (
-                                <div className="space-y-3.5">
-                                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                    <Building2 className="h-3.5 w-3.5 text-accent" />
-                                    PIC & Informasi Administrasi
-                                  </h4>
-
-                                  <div className="grid grid-cols-1 gap-3 rounded-xl border bg-muted/20 p-4 text-xs">
-                                    <div className="flex items-start gap-3">
-                                      <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                                      <div className="space-y-0.5">
-                                        <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">PIC / Penanggung Jawab</p>
-                                        <p className="font-semibold text-foreground text-sm">
-                                          {item?.owner_name || <span className="text-muted-foreground/50 font-normal">Belum ditentukan</span>}
-                                        </p>
-                                      </div>
-                                    </div>
-
-                                    <div className="flex items-start gap-3 border-t border-border/40 pt-3">
-                                      <Mail className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                                      <div className="space-y-0.5">
-                                        <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">Email Kontak PIC</p>
-                                        <p className="font-semibold text-foreground">
-                                          {item?.owner_email || <span className="text-muted-foreground/50 font-normal">Belum ditentukan</span>}
-                                        </p>
-                                      </div>
-                                    </div>
-
-                                    <div className="grid grid-cols-2 gap-3 border-t border-border/40 pt-3">
-                                      <div className="space-y-0.5">
-                                        <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">Tanggal Apply</p>
-                                        <p className="font-semibold text-foreground">
-                                          {item?.applied_at ? new Date(item.applied_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-                                        </p>
-                                      </div>
-                                      <div className="space-y-0.5 border-l border-border/40 pl-3">
-                                        <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">Tanggal Renewal</p>
-                                        <p className="font-semibold text-foreground">
-                                          {item?.renewal_at ? new Date(item.renewal_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  {item?.notes ? (
-                                    <div className="rounded-xl bg-muted/40 p-3.5 border border-dashed border-border text-xs leading-relaxed text-muted-foreground">
-                                      <span className="font-bold text-foreground block mb-1">Catatan Internal / Token Verifikasi:</span> 
-                                      {item.notes}
-                                    </div>
-                                  ) : (
-                                    <div className="text-[11px] text-muted-foreground/50 text-center py-2 italic">
-                                      Belum ada catatan internal atau token verifikasi yang disimpan.
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                
-                                /* EDIT PIC DETAILS INLINE FORM */
-                                <div className="space-y-3.5">
-                                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                                    <Edit2 className="h-3.5 w-3.5 text-accent" />
-                                    Formulir Administrasi PIC
-                                  </h4>
-
-                                  <div className="grid grid-cols-2 gap-3 rounded-xl border p-4 bg-muted/10">
-                                    <div className="col-span-2">
-                                      <Label className="text-[10px] font-bold text-foreground">Status Pendaftaran</Label>
-                                      <select
-                                        value={formState.status}
-                                        onChange={(e) => setFormState({ ...formState, status: e.target.value as PlatformAccessRecord['status'] })}
-                                        className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-accent"
-                                      >
-                                        <option value="not_started">Belum Mulai (Not Started)</option>
-                                        <option value="submitted">Dalam Proses (Submitted)</option>
-                                        <option value="pending">Menunggu Verifikasi (Pending)</option>
-                                        <option value="approved">Approved (Terverifikasi)</option>
-                                        <option value="renewal_needed">Butuh Perpanjangan (Renewal Needed)</option>
-                                      </select>
-                                    </div>
-
-                                    <div>
-                                      <Label className="text-[10px] font-bold text-foreground">Nama PIC / Owner</Label>
-                                      <Input
-                                        type="text"
-                                        value={formState.owner_name}
-                                        placeholder="Budi"
-                                        onChange={(e) => setFormState({ ...formState, owner_name: e.target.value })}
-                                        className="mt-1.5 h-8.5 text-xs font-medium"
-                                      />
-                                    </div>
-
-                                    <div>
-                                      <Label className="text-[10px] font-bold text-foreground">Email PIC</Label>
-                                      <Input
-                                        type="email"
-                                        value={formState.owner_email}
-                                        placeholder="budi@ngo.org"
-                                        onChange={(e) => setFormState({ ...formState, owner_email: e.target.value })}
-                                        className="mt-1.5 h-8.5 text-xs font-medium"
-                                      />
-                                    </div>
-
-                                    <div>
-                                      <Label className="text-[10px] font-bold text-foreground">Tanggal Apply</Label>
-                                      <Input
-                                        type="date"
-                                        value={formState.applied_at || ''}
-                                        onChange={(e) => setFormState({ ...formState, applied_at: e.target.value || null })}
-                                        className="mt-1.5 h-8.5 text-xs font-medium"
-                                      />
-                                    </div>
-
-                                    <div>
-                                      <Label className="text-[10px] font-bold text-foreground">Tanggal Approved</Label>
-                                      <Input
-                                        type="date"
-                                        value={formState.approved_at || ''}
-                                        onChange={(e) => setFormState({ ...formState, approved_at: e.target.value || null })}
-                                        className="mt-1.5 h-8.5 text-xs font-medium"
-                                      />
-                                    </div>
-
-                                    <div className="col-span-2">
-                                      <Label className="text-[10px] font-bold text-foreground">Tanggal Renewal (Perpanjangan)</Label>
-                                      <Input
-                                        type="date"
-                                        value={formState.renewal_at || ''}
-                                        onChange={(e) => setFormState({ ...formState, renewal_at: e.target.value || null })}
-                                        className="mt-1.5 h-8.5 text-xs font-medium"
-                                      />
-                                    </div>
-
-                                    <div className="col-span-2">
-                                      <Label className="text-[10px] font-bold text-foreground">Catatan Pendukung / Token</Label>
-                                      <Textarea
-                                        value={formState.notes}
-                                        placeholder="Simpan token verifikasi atau catatan instruksi khusus perpanjangan akun di sini."
-                                        onChange={(e) => setFormState({ ...formState, notes: e.target.value })}
-                                        className="mt-1.5 min-h-[55px] text-xs font-medium leading-relaxed"
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* RIGHT COLUMN (Desktop 5 cols) - Inline AI Integration & Actions */}
-                        <div className="md:col-span-5 flex flex-col justify-between space-y-4">
-                          
-                          {/* Tanya AI Inline Integration Panel */}
-                          <div className="space-y-3 flex-1">
-                            {!inlineAiResponses[platformKey] ? (
-                              <div className="flex flex-col gap-3.5 bg-accent-soft/10 rounded-xl p-4 border border-accent/15">
-                                <div className="space-y-1">
-                                  <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                                    <Sparkles className="h-4 w-4 text-accent animate-pulse shrink-0" />
-                                    Butuh Saran Registrasi Tambahan?
-                                  </p>
-                                  <p className="text-[11px] text-muted-foreground leading-normal">
-                                    AI Copilot dapat menyusun tips taktis, kesiapan token, dan strategi lolos verifikasi secara instan.
-                                  </p>
-                                </div>
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleTriggerInlineAi(platformKey);
-                                  }}
-                                  className="w-fit h-8.5 text-xs font-bold bg-accent text-accent-foreground hover:bg-accent/90 shrink-0 shadow-sm"
-                                  disabled={inlineAiLoading[platformKey]}
-                                >
-                                  {inlineAiLoading[platformKey] ? (
-                                    <>
-                                      <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                                      Loading…
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Sparkles className="mr-1.5 h-3 w-3" />
-                                      Tanya AI Copilot
-                                    </>
-                                  )}
-                                </Button>
-                              </div>
-                            ) : (
-                              // Loaded Inline AI Guide
-                              <div className="rounded-xl border border-accent/25 bg-accent-soft/5 p-4 space-y-3.5 animate-slide-up">
-                                <div className="flex items-center justify-between border-b border-accent/15 pb-2">
-                                  <span className="text-xs font-bold text-accent flex items-center gap-1">
-                                    <Sparkles className="h-3.5 w-3.5 animate-pulse" />
-                                    Rekomendasi Registrasi AI
-                                  </span>
-                                  <Badge variant="outline" className="text-[9px] bg-emerald-500/10 text-emerald-600 font-extrabold border-emerald-500/20 dark:bg-emerald-500/20">
-                                    {inlineAiResponses[platformKey]?.confidence}% Confidence
-                                  </Badge>
-                                </div>
-
-                                <div className="space-y-2 text-xs">
-                                  <p className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Tips Taktis AI:</p>
-                                  <ul className="space-y-2 list-none pl-0">
-                                    {inlineAiResponses[platformKey]?.checklist.map((tip: string, idx: number) => (
-                                      <li key={idx} className="flex items-start gap-2 text-muted-foreground leading-relaxed">
-                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                                        <span>{tip}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-
-                                {/* Warning Box */}
-                                <div className="rounded-lg border border-dashed border-red-500/30 bg-red-500/[0.01] p-3 text-[10px] leading-relaxed text-red-600 dark:text-red-400">
-                                  <span className="font-bold uppercase tracking-wider block mb-1">⚠️ Perhatian Khusus:</span>
-                                  {inlineAiResponses[platformKey]?.warning}
-                                </div>
-
-                                {/* Human Review Gate checkbox inside the card */}
-                                <div className="border-t border-accent/10 pt-3 flex items-center gap-2">
-                                  <input
-                                    type="checkbox"
-                                    id={`human-review-gate-${platformKey}`}
-                                    checked={!!inlineHumanReviewChecked[platformKey]}
-                                    onChange={(e) => {
-                                      const val = e.target.checked;
-                                      setInlineHumanReviewChecked(prev => ({ ...prev, [platformKey]: val }));
-                                    }}
-                                    className="h-3.5 w-3.5 rounded border-gray-300 text-accent focus:ring-accent cursor-pointer"
-                                  />
-                                  <Label 
-                                    htmlFor={`human-review-gate-${platformKey}`} 
-                                    className="text-[10px] font-bold text-foreground cursor-pointer select-none"
-                                  >
-                                    Saya mengonfirmasi telah membaca panduan ini dan melakukan verifikasi manual
-                                  </Label>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Controls Footer buttons */}
-                          <div className="pt-4 border-t border-border/40 flex items-center justify-end gap-2">
-                            {!isEditing ? (
-                              <Button 
-                                type="button" 
-                                variant="outline" 
-                                size="sm" 
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleStartEdit(platformKey);
-                                }}
-                                className="h-8.5 text-xs font-bold border-border shadow-sm w-full sm:w-auto"
-                              >
-                                <Edit2 className="mr-1.5 h-3 w-3 text-accent" /> Edit PIC & Status
-                              </Button>
-                            ) : (
-                              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                                <Button 
-                                  type="button" 
-                                  variant="ghost" 
-                                  size="sm" 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingPlatform(null);
-                                  }}
-                                  className="h-8.5 text-xs font-bold"
-                                  disabled={upsertMutation.isPending}
-                                >
-                                  <X className="mr-1 h-3 w-3" /> Batal
-                                </Button>
-                                <Button 
-                                  type="button" 
-                                  size="sm" 
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSave();
-                                  }}
-                                  className="h-8.5 text-xs font-bold bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm"
-                                  disabled={upsertMutation.isPending}
-                                >
-                                  {upsertMutation.isPending ? (
-                                    <>
-                                      <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                                      Menyimpan…
-                                    </>
-                                  ) : (
-                                    <>
-                                      <Save className="mr-1.5 h-3.5 w-3.5" /> Simpan Perubahan
-                                    </>
-                                  )}
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Always-visible Card Footer: URL link & toggler */}
-                  <div className="mt-4 pt-3.5 border-t border-border/30 flex items-center justify-between gap-3">
-                    <a 
-                      href={platform.registration.url} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center text-xs font-semibold text-accent hover:text-accent/85 hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      Situs Resmi {platform.name}
-                      <ExternalLink className="ml-1 h-3 w-3" />
-                    </a>
-
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleExpand(platformKey);
-                      }}
-                      className="h-7 text-xs font-semibold text-muted-foreground hover:text-foreground"
-                    >
-                      {isExpanded ? 'Sembunyikan detail' : 'Tampilkan detail'}
-                    </Button>
-                  </div>
-                </Card>
-              );
-            })}
+            {filteredPlatforms.map((platform) => renderPlatformCard(platform, false))}
           </div>
         )}
       </section>
@@ -1683,8 +1819,8 @@ export default function ResourceAccessTracker() {
         )}
       </Card>
 
-      {/* 6. Legacy AI Assistant Copilot (Kept for compatibility, polished) */}
-      <Card className="border-accent-soft/80 bg-accent-soft/20 p-5 shadow-card relative overflow-hidden">
+      {/* 6. Context-Specific AI Assistant Copilot Panel */}
+      <Card id="ai-copilot-section" className="border-accent-soft/80 bg-accent-soft/20 p-5 shadow-card relative overflow-hidden">
         <div className="absolute top-0 right-0 h-16 w-16 bg-accent-soft text-accent/15 -mr-4 -mt-4 transform rotate-12 pointer-events-none">
           <Sparkles className="h-16 w-16" />
         </div>
@@ -1694,7 +1830,7 @@ export default function ResourceAccessTracker() {
               <Sparkles className="h-4 w-4 text-accent animate-pulse" />
               <Badge className="bg-accent/15 text-accent border border-accent/20">Global AI Registration Copilot</Badge>
             </div>
-            <h3 className="text-lg font-bold tracking-tight">Butuh panduan pengajuan platform?</h3>
+            <h3 className="text-lg font-bold tracking-tight font-sans">Asisten Dokumen & Registrasi</h3>
             <p className="text-xs text-muted-foreground leading-relaxed max-w-lg">
               Asisten registrasi kami dapat menyusun daftar persyaratan taktis per platform sesuai kebijakan organisasi nonprofit di Indonesia secara instan.
             </p>
@@ -1704,14 +1840,23 @@ export default function ResourceAccessTracker() {
               <select
                 value={aiSelectedPlatform}
                 onChange={(e) => {
-                  setAiSelectedPlatform(e.target.value);
+                  const pId = e.target.value;
+                  setAiSelectedPlatform(pId);
                   setAiResponse(null);
                   setHumanReviewChecked(false);
+                  
+                  const p = PLATFORMS.find(item => item.id === pId);
+                  if (p) {
+                    const documentsStr = p.requirements.documents.join(', ');
+                    setAiPrompt(`Saya ingin mendaftar ${p.name} untuk organisasi saya ${orgName}. Berdasarkan persyaratan berikut: [${documentsStr}], bantu saya:\n1. Checklist dokumen yang perlu disiapkan\n2. Tips agar aplikasi tidak ditolak\n3. Estimasi waktu prosesnya`);
+                  } else {
+                    setAiPrompt("");
+                  }
                 }}
                 className="rounded-md border bg-background px-3 py-1 text-xs font-semibold h-8 focus:outline-none focus:ring-1 focus:ring-accent"
               >
                 {/* Dynamically list standard platforms for the global copilot */}
-                {PLATFORMS.slice(0, 5).map((p) => (
+                {PLATFORMS.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
                   </option>
@@ -1738,7 +1883,7 @@ export default function ResourceAccessTracker() {
             </div>
           </div>
 
-          {/* AI Output Pane */}
+          {/* AI Output Pane with actual custom prompt display */}
           {aiResponse && (
             <div className="rounded-xl border bg-card p-4 shadow-sm w-full md:w-96 space-y-3 animate-slide-up">
               <div className="flex items-center justify-between border-b pb-2">
@@ -1750,6 +1895,13 @@ export default function ResourceAccessTracker() {
                   {aiResponse.confidence}% Confidence
                 </Badge>
               </div>
+
+              {aiPrompt && (
+                <div className="bg-muted/60 dark:bg-muted/20 rounded-xl p-3 border text-[11px] leading-relaxed text-muted-foreground mb-3 space-y-1">
+                  <p className="font-bold text-[10px] uppercase tracking-wider text-accent">Prompt Anda:</p>
+                  <p className="italic whitespace-pre-line font-mono text-[10px] leading-normal text-foreground">"{aiPrompt}"</p>
+                </div>
+              )}
 
               <div className="space-y-2 text-xs">
                 <p className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Checklist Persyaratan:</p>
