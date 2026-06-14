@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import * as fs from 'fs';
 
 test.describe('Impactory E2E Smoke Test Suite', () => {
   test.beforeAll(() => {
@@ -8,63 +9,77 @@ test.describe('Impactory E2E Smoke Test Suite', () => {
     if (missing.length > 0) {
       throw new Error(
         `❌ [E2E FAILED] Missing required environment variables: ${missing.join(', ')}.\n` +
-        `Please create a .env.e2e file or supply them via environment variables before running E2E tests.`
+        `Please make sure .env.e2e is configured.`
       );
     }
   });
 
-  test('should sign up, onboard, navigate to LFA Builder, create project and verify SROI tab', async ({ page }) => {
+  test('should execute stable login or signup, navigate to LFA Builder, handle project, and verify SROI tab', async ({ page }) => {
     const baseUrl = process.env.E2E_BASE_URL!;
     const email = process.env.E2E_USER_EMAIL!;
     const password = process.env.E2E_USER_PASSWORD!;
+    const allowSignup = process.env.E2E_ALLOW_SIGNUP === '1';
 
-    console.log(`[E2E] Opening base URL signup page: ${baseUrl}/signup`);
-    await page.goto(`${baseUrl}/signup`);
+    // Set up console and error listeners
+    page.on('console', msg => console.log(`[BROWSER CONSOLE] ${msg.type()}: ${msg.text()}`));
+    page.on('pageerror', err => console.log(`[BROWSER ERROR] ${err.message}`));
 
-    // Fill signup credentials
-    console.log(`[E2E] Trying signup with email: ${email}`);
-    await expect(page.locator('#s-name')).toBeVisible({ timeout: 15000 });
-    await page.locator('#s-name').fill('E2E Test User');
-    await page.locator('#s-email').fill(email);
-    await page.locator('#s-password').fill(password);
-
-    // Select role
-    await page.locator('#s-role').click();
-    await page.locator('[role="option"]:has-text("Yayasan"), [role="option"]:has-text("Foundation"), [role="option"]').first().click();
-
-    // Click submit button
-    const signupSubmitBtn = page.locator('button[type="submit"]:has-text("Daftar gratis")').first();
-    await signupSubmitBtn.click();
-
-    console.log('[E2E] Waiting for signup response or redirect...');
     let signupSucceeded = false;
-    let signupBlockedByEmailVerification = false;
 
-    try {
-      // Check if redirect to dashboard or onboarding happens
-      await page.waitForURL(/(dashboard|onboarding)/, { timeout: 15000 });
-      signupSucceeded = true;
-    } catch (e) {
-      // Check if there is an email confirmation toast or standard feedback toast
-      const toastText = page.locator('div:has-text("Cek email"), div:has-text("konfirmasi akun"), div:has-text("email")');
-      if (await toastText.count() > 0 && await toastText.first().isVisible()) {
-        signupBlockedByEmailVerification = true;
-        console.log('[E2E] Signup blocked by email verification.');
+    if (allowSignup) {
+      console.log(`[E2E] Option E2E_ALLOW_SIGNUP is active. Opening signup page: ${baseUrl}/signup`);
+      await page.goto(`${baseUrl}/signup`);
+
+      // Fill signup credentials
+      console.log(`[E2E] Trying signup with email: ${email}`);
+      await expect(page.locator('#s-name')).toBeVisible({ timeout: 10000 });
+      await page.locator('#s-name').fill('E2E Test User');
+      await page.locator('#s-email').fill(email);
+      await page.locator('#s-password').fill(password);
+
+      // Select role
+      await page.locator('#s-role').click();
+      await page.locator('[role="option"]:has-text("Yayasan"), [role="option"]:has-text("Foundation"), [role="option"]').first().click();
+
+      // Click submit button
+      const signupSubmitBtn = page.locator('button[type="submit"]:has-text("Daftar gratis")').first();
+      await signupSubmitBtn.click();
+
+      console.log('[E2E] Waiting 10 seconds for signup response or redirect...');
+      await page.waitForTimeout(10000);
+
+      const urlAfterSignup = page.url();
+      const bodyText = await page.innerText('body');
+
+      // Check for HTTP 429 / Rate Limit
+      if (bodyText.includes('Too many requests') || bodyText.includes('banyak permintaan') || urlAfterSignup.includes('429')) {
+        throw new Error('❌ [E2E BLOCKED] Rate-limited: signup blocked by Supabase HTTP 429.');
+      }
+
+      // Check for email verification
+      const emailVerificationFound = bodyText.includes('Cek email') || 
+                                     bodyText.includes('konfirmasi') || 
+                                     bodyText.includes('verifikasi') || 
+                                     bodyText.includes('verification') ||
+                                     bodyText.includes('confirm');
+      
+      if (emailVerificationFound && !urlAfterSignup.includes('dashboard') && !urlAfterSignup.includes('onboarding')) {
+        throw new Error('❌ [E2E BLOCKED] Email verification required to activate fake account.');
+      }
+
+      if (urlAfterSignup.includes('dashboard') || urlAfterSignup.includes('onboarding')) {
+        signupSucceeded = true;
+        console.log('[E2E] Signup completed successfully and auto-logged in!');
       } else {
-        console.log('[E2E] Unknown signup state, attempting login fallback anyway.');
+        console.log('[E2E] Signup did not log in automatically. Proceeding to direct login fallback...');
       }
     }
 
-    if (signupBlockedByEmailVerification) {
-      throw new Error('❌ [E2E BLOCKED] Email verification blocks fake account flow.');
-    }
-
-    // Fallback Login if signup did not automatically log us in
     if (!signupSucceeded) {
-      console.log('[E2E] Signup did not log in. Trying Login fallback...');
+      console.log(`[E2E] Executing direct Login flow. Opening login page: ${baseUrl}/login`);
       await page.goto(`${baseUrl}/login`);
-      
-      // Click on Password tab
+
+      // Click on Password tab if present
       const passwordTab = page.locator('button:has-text("Password")').first();
       await expect(passwordTab).toBeVisible({ timeout: 10000 });
       await passwordTab.click();
@@ -78,10 +93,8 @@ test.describe('Impactory E2E Smoke Test Suite', () => {
       await loginSubmitBtn.click();
 
       // Wait for onboarding or dashboard redirect
-      await page.waitForURL(/(dashboard|onboarding)/, { timeout: 20000 });
-      console.log('[E2E] Login fallback succeeded!');
-    } else {
-      console.log('[E2E] Signup/Login phase succeeded!');
+      await page.waitForURL(/(dashboard|onboarding)/, { timeout: 25000 });
+      console.log('[E2E] Logged in successfully!');
     }
 
     // Handle onboarding if redirected there
@@ -115,7 +128,7 @@ test.describe('Impactory E2E Smoke Test Suite', () => {
     // Navigate to LFA Builder
     console.log('[E2E] Navigating to LFA Builder...');
     const lfaNavLink = page.getByTestId('nav-lfa-builder');
-    await expect(lfaNavLink).toBeVisible();
+    await expect(lfaNavLink).toBeVisible({ timeout: 15000 });
     await lfaNavLink.click();
 
     // Look for existing E2E Smoke Test Project card
@@ -132,7 +145,7 @@ test.describe('Impactory E2E Smoke Test Suite', () => {
       await createBtn.click();
 
       // Wait for wizard modal and fill values
-      await expect(page.locator('#prog-name')).toBeVisible();
+      await expect(page.locator('#prog-name')).toBeVisible({ timeout: 10000 });
       await page.locator('#prog-name').fill(targetProjectName);
       
       // Select sector 'Pendidikan'
@@ -179,7 +192,7 @@ test.describe('Impactory E2E Smoke Test Suite', () => {
 
     const isSroiLocked = sroiLabelText.includes('🔒');
     if (isSroiLocked) {
-      console.log('[E2E] SROI tab is locked (WBS items or MEAL indicators are missing). This is an expected state.');
+      console.log('[E2E] SROI tab is locked (WBS items or MEAL indicators are missing). This is expected.');
     } else {
       console.log('[E2E] SROI tab is unlocked! Transitioning to SROI Calculator...');
       await tabSroi.click();
@@ -192,10 +205,11 @@ test.describe('Impactory E2E Smoke Test Suite', () => {
       await expect(sroiRatioCard).toBeVisible();
     }
 
-    // Capture visual screenshot of final state
-    const screenshotDir = 'playwright-report/screenshots';
-    const screenshotPath = `${screenshotDir}/smoke-test-${Date.now()}.png`;
-    await page.screenshot({ path: screenshotPath, fullPage: true });
-    console.log(`[E2E] Visual screenshot captured successfully at: ${screenshotPath}`);
+    // Capture visual screenshot of final state in playwright-report folder (git-ignored)
+    if (!fs.existsSync('playwright-report')) {
+      fs.mkdirSync('playwright-report');
+    }
+    await page.screenshot({ path: 'playwright-report/smoke-test-final.png', fullPage: true });
+    console.log('[E2E] Visual screenshot captured successfully at: playwright-report/smoke-test-final.png');
   });
 });
