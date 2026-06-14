@@ -28,8 +28,11 @@ import { useWizardProject } from '@/lib/grant-writer/useWizardProject';
 import { WIZARD_STEPS, WizardData, IndicatorItem, AssumptionItem } from '@/lib/grant-writer/types';
 import { GrantWriterChat } from '@/components/grant-writer/chat/GrantWriterChat';
 import { LfaProject, LfaEntry } from '../lfa-builder/types';
+import { generateLfaMatrix, renderProposalMarkdown } from '@/lib/grant-writer/generator';
+import { useAuth } from '@/providers/AuthProvider';
 
 export default function GrantWriterWizard() {
+  const { user } = useAuth();
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -44,6 +47,8 @@ export default function GrantWriterWizard() {
     saveNow,
   } = useWizardProject(projectId);
   const [generating, setGenerating] = useState(false);
+  const [compiling, setCompiling] = useState(false);
+  const [aiFailed, setAiFailed] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const [lfaProject, setLfaProject] = useState<LfaProject | null>(null);
   const [lfaEntries, setLfaEntries] = useState<LfaEntry[]>([]);
@@ -321,6 +326,7 @@ export default function GrantWriterWizard() {
   const handleGenerate = async () => {
     if (!projectId) return;
     setGenerating(true);
+    setAiFailed(false);
     try {
       await saveNow();
 
@@ -357,24 +363,90 @@ export default function GrantWriterWizard() {
       }
 
       console.error('[grant-writer] Foundry edge function failed:', errorMessage);
+      setAiFailed(true);
 
       // Surface the failure clearly. Do NOT persist any local/mock
       // markdown to gw_lfa_documents. Do NOT navigate to the proposal
       // preview, because there is no successful proposal.
       toast({
-        title: 'Gagal membuat proposal',
-        description: `Koneksi ke Azure Foundry gagal: ${errorMessage}. Silakan coba lagi atau hubungi admin.`,
+        title: 'Gagal membuat proposal dengan AI',
+        description: `Koneksi ke Azure Foundry gagal: ${errorMessage}. Anda tetap bisa menggunakan Kompilasi Manual tanpa AI.`,
         variant: 'destructive',
       });
     } catch (err) {
       const error = err as Error;
+      setAiFailed(true);
       toast({
-        title: 'Gagal membuat proposal',
-        description: error.message ?? 'Terjadi kesalahan tak terduga.',
+        title: 'Gagal membuat proposal dengan AI',
+        description: (error.message ?? 'Terjadi kesalahan tak terduga.') + '. Anda tetap bisa menggunakan Kompilasi Manual tanpa AI.',
         variant: 'destructive',
       });
     } finally {
       setGenerating(false);
+    }
+  };
+
+  const handleCompileManually = async () => {
+    if (!projectId || !user || !project) return;
+    setCompiling(true);
+    try {
+      await saveNow();
+
+      // 1. Compute LFA Matrix locally
+      const matrix = generateLfaMatrix(data);
+
+      // 2. Render Markdown locally
+      const markdown = renderProposalMarkdown(data, matrix);
+
+      // 3. Update existing documents for this project to is_current = false
+      await supabase
+        .from('gw_lfa_documents')
+        .update({ is_current: false })
+        .eq('project_id', projectId);
+
+      // 4. Fetch current max version
+      const { data: existingDocs } = await supabase
+        .from('gw_lfa_documents')
+        .select('version')
+        .eq('project_id', projectId)
+        .order('version', { ascending: false })
+        .limit(1);
+
+      const nextVersion = existingDocs && existingDocs.length > 0 ? existingDocs[0].version + 1 : 1;
+
+      // 5. Insert new document
+      const { error: insertError } = await supabase
+        .from('gw_lfa_documents')
+        .insert({
+          project_id: projectId,
+          organization_id: project.organization_id,
+          generated_by: user.id,
+          version: nextVersion,
+          matrix: matrix as unknown as Record<string, unknown>,
+          proposal_markdown: markdown,
+          model: 'manual_fallback',
+          donor_standard: data.context?.donorStandard || 'un_oecd_dac',
+          is_current: true,
+        });
+
+      if (insertError) throw insertError;
+
+      toast({
+        title: 'Proposal Berhasil Dikompilasi',
+        description: `Proposal versi ${nextVersion} berhasil dikompilasi secara manual (instan & gratis).`,
+      });
+
+      navigate(`/dashboard/grant-writer/${projectId}/proposal`);
+    } catch (err) {
+      const error = err as Error;
+      console.error('[grant-writer] Local compilation failed:', error);
+      toast({
+        title: 'Gagal mengompilasi proposal',
+        description: error.message || 'Terjadi kesalahan saat kompilasi manual.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCompiling(false);
     }
   };
 
@@ -551,29 +623,68 @@ export default function GrantWriterWizard() {
           <CardContent>{renderStep()}</CardContent>
         </Card>
 
+        {aiFailed && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-4 mb-4 text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 text-xs flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+              <span>AI sedang tidak tersedia. Anda tetap bisa menggunakan Kompilasi Manual tanpa AI secara gratis & instan.</span>
+            </div>
+            <Button
+              size="xs"
+              className="bg-amber-600 hover:bg-amber-500 text-white shrink-0"
+              onClick={handleCompileManually}
+              disabled={compiling || generating}
+            >
+              {compiling ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <FileText className="h-3 w-3 mr-1" />}
+              Kompilasi Manual Sekarang
+            </Button>
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <Button variant="outline" onClick={goPrev} disabled={currentStep === 1}>
+          <Button variant="outline" onClick={goPrev} disabled={currentStep === 1 || compiling || generating}>
             <ArrowLeft className="mr-1 h-4 w-4" /> Sebelumnya
           </Button>
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" onClick={() => void saveNow()} disabled={saving}>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" onClick={() => void saveNow()} disabled={saving || compiling || generating}>
               <Save className="mr-1 h-4 w-4" /> Simpan
             </Button>
             {isLast ? (
-              <Button onClick={handleGenerate} disabled={generating}>
-                {generating ? (
-                  <Loader2 className="mr-1 h-4 w-4 animate-spin" />
-                ) : (
-                  <Sparkles className="mr-1 h-4 w-4" />
-                )}
-                {generating ? 'Menghubungi Azure Foundry...' : 'Buat Proposal'}
-              </Button>
+              <div className="flex flex-col items-stretch sm:items-end gap-1">
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={handleCompileManually}
+                    disabled={compiling || generating}
+                    className="border-slate-300 hover:bg-slate-100 h-9"
+                  >
+                    {compiling ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <FileText className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    Kompilasi Manual (Tanpa AI)
+                  </Button>
+
+                  <Button onClick={handleGenerate} disabled={generating || compiling} className="h-9">
+                    {generating ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Sparkles className="mr-1.5 h-3.5 w-3.5" />
+                    )}
+                    {generating ? 'Menghubungi Azure Foundry...' : 'Buat Proposal (AI)'}
+                  </Button>
+                </div>
+                <span className="text-[10px] text-muted-foreground text-center sm:text-right w-full block">
+                  Tidak memakai AI. Aman digunakan saat layanan AI tidak tersedia.
+                </span>
+              </div>
             ) : (
-              <Button onClick={goNext}>
+              <Button onClick={goNext} disabled={compiling || generating}>
                 Lanjut <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             )}
-            <Button variant="outline" asChild>
+            <Button variant="outline" asChild disabled={compiling || generating}>
               <Link to={`/dashboard/grant-writer/${project.id}/proposal`}>
                 <FileText className="mr-1 h-4 w-4" /> Pratinjau
               </Link>

@@ -220,7 +220,7 @@ export default function GrantWriterIndex() {
               description: `Menghubungkan program "${data.name}" ke proposal baru Anda.`,
             });
           }
-        } catch (e: any) {
+        } catch (e) {
           console.error('Error fetching LFA project:', e);
         }
       };
@@ -275,8 +275,9 @@ export default function GrantWriterIndex() {
           ? `/dashboard/grant-writer/quick/${data.id}`
           : `/dashboard/grant-writer/${data.id}`,
       );
-    } catch (err: any) {
-      toast({ title: 'Gagal membuat proyek', description: err.message, variant: 'destructive' });
+    } catch (err) {
+      const error = err as Error;
+      toast({ title: 'Gagal membuat proyek', description: error.message, variant: 'destructive' });
     } finally {
       setCreating(false);
       setCreateOpen(false);
