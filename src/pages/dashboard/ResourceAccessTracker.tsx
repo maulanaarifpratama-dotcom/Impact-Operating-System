@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -35,6 +35,8 @@ import {
   CheckSquare,
   Ban,
   Info,
+  Send,
+  RotateCw,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -177,6 +179,13 @@ const getAiTipsForPlatform = (platform: Platform) => {
   };
 };
 
+interface ChatMessage {
+  id: string;
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+}
+
 export default function ResourceAccessTracker() {
   const { user } = useAuth();
   
@@ -217,12 +226,12 @@ export default function ResourceAccessTracker() {
   const [inlineAiResponses, setInlineAiResponses] = useState<Record<string, typeof AI_TIPS[string] | null>>({});
   const [inlineHumanReviewChecked, setInlineHumanReviewChecked] = useState<Record<string, boolean>>({});
   
-  // Legacy Bottom AI Assistant states (kept for compatibility)
+  // AI Chat Assistant states
   const [aiSelectedPlatform, setAiSelectedPlatform] = useState<string>('techsoup');
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiResponse, setAiResponse] = useState<typeof AI_TIPS[string] | null>(null);
-  const [humanReviewChecked, setHumanReviewChecked] = useState(false);
-  const [aiPrompt, setAiPrompt] = useState<string>("");
+  const [chatsByPlatform, setChatsByPlatform] = useState<Record<string, ChatMessage[]>>({});
+  const [chatInput, setAiChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatScrollRef = useRef<HTMLDivElement | null>(null);
 
   // 1. Fetch organization details
   const { data: membership, isLoading: isMembershipLoading } = useQuery({
@@ -480,17 +489,193 @@ export default function ResourceAccessTracker() {
     }, 700);
   };
 
+  // Scroll to bottom helper
+  const scrollToBottom = () => {
+    if (chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = chatScrollRef.current.scrollHeight;
+    }
+  };
+
+  // Auto-scroll chat to bottom when messages update
+  useEffect(() => {
+    scrollToBottom();
+  }, [chatsByPlatform, aiSelectedPlatform]);
+
+  // Start chat with contextual priming
+  const startPlatformChat = async (platformId: string) => {
+    const platform = PLATFORMS.find(p => p.id === platformId) || { id: platformId, name: platformId, requirements: { documents: [] } } as unknown as Platform;
+    const pName = platform.name;
+    const docsStr = platform.requirements.documents.join(', ');
+
+    const systemPrompt = `Kamu adalah Impactory AI, asisten registrasi platform nonprofit untuk NGO Indonesia. Bantu pengguna mempersiapkan dokumen dan strategi pendaftaran platform nonprofit dengan akurat dan praktis. Selalu jawab dalam Bahasa Indonesia. Berikan jawaban yang konkret, actionable, dan spesifik untuk konteks NGO Indonesia.`;
+
+    const userMessageText = `Saya ingin mendaftar ${pName} untuk organisasi saya ${orgName}. Dokumen yang dibutuhkan: [${docsStr}].
+Tolong bantu saya:
+1. Checklist dokumen lengkap yang perlu disiapkan
+2. Tips spesifik agar aplikasi tidak ditolak  
+3. Jebakan umum yang harus dihindari
+4. Estimasi waktu proses verifikasi`;
+
+    const systemMsg: ChatMessage = {
+      id: 'sys-' + Date.now(),
+      role: 'system',
+      content: systemPrompt,
+      timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    };
+
+    const userMsg: ChatMessage = {
+      id: 'usr-' + Date.now(),
+      role: 'user',
+      content: userMessageText,
+      timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    };
+
+    const initialMessages = [systemMsg, userMsg];
+    setChatsByPlatform(prev => ({
+      ...prev,
+      [platformId]: initialMessages
+    }));
+
+    await triggerStreamingResponse(platformId, initialMessages);
+  };
+
+  const triggerStreamingResponse = async (platformId: string, messagesHistory: ChatMessage[]) => {
+    setChatLoading(true);
+    
+    const assistantMsgId = 'assistant-' + Date.now();
+    const assistantMsgPlaceholder: ChatMessage = {
+      id: assistantMsgId,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setChatsByPlatform(prev => ({
+      ...prev,
+      [platformId]: [...(prev[platformId] || []), assistantMsgPlaceholder]
+    }));
+
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error('Missing session token');
+
+      const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+      const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) throw new Error('Missing Supabase environment variables');
+
+      const url = SUPABASE_URL.replace(/\/$/, '') + '/functions/v1/platform-registration-chat';
+
+      const payloadMessages = messagesHistory.map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + token,
+          apikey: SUPABASE_ANON_KEY,
+        },
+        body: JSON.stringify({ messages: payloadMessages }),
+      });
+
+      if (!resp.ok) {
+        throw new Error(`Edge Function error ${resp.status}`);
+      }
+      if (!resp.body) throw new Error('Edge Function returned no body');
+
+      const reader = resp.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let accumulatedText = '';
+
+      while (true) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split('\n\n');
+        buffer = events.pop() ?? '';
+        for (const ev of events) {
+          const line = ev.trim();
+          if (!line.startsWith('data:')) continue;
+          const payload = line.slice(5).trim();
+          if (payload === '[DONE]') continue;
+          try {
+            const obj = JSON.parse(payload);
+            if (obj.delta) {
+              accumulatedText += obj.delta;
+              setChatsByPlatform(prev => {
+                const currentHistory = prev[platformId] || [];
+                return {
+                  ...prev,
+                  [platformId]: currentHistory.map(msg => 
+                    msg.id === assistantMsgId ? { ...msg, content: accumulatedText } : msg
+                  )
+                };
+              });
+            } else if (obj.error) {
+              throw new Error(obj.error);
+            }
+          } catch (e) {
+            // ignore JSON parse errors
+          }
+        }
+      }
+    } catch (err) {
+      console.error('[Impactory AI] Error streaming chat response:', err);
+      const errorMsg = err instanceof Error ? err.message : 'Kesalahan Server';
+      toast.error(`Koneksi ke Impactory AI gagal: ${errorMsg}`);
+      setChatsByPlatform(prev => {
+        const currentHistory = prev[platformId] || [];
+        return {
+          ...prev,
+          [platformId]: currentHistory.map(msg => 
+            msg.id === assistantMsgId ? { ...msg, content: `Error: Gagal memuat rekomendasi. Silakan coba lagi.` } : msg
+          )
+        };
+      });
+    } finally {
+      setChatLoading(false);
+    }
+  };
+
+  const handleSendCustomMessage = async () => {
+    const text = chatInput.trim();
+    if (!text || chatLoading) return;
+    setAiChatInput("");
+
+    const platformId = aiSelectedPlatform;
+    const userMsg: ChatMessage = {
+      id: 'usr-' + Date.now(),
+      role: 'user',
+      content: text,
+      timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })
+    };
+
+    const existingHistory = chatsByPlatform[platformId] || [];
+    const updatedHistory = [...existingHistory, userMsg];
+
+    setChatsByPlatform(prev => ({
+      ...prev,
+      [platformId]: updatedHistory
+    }));
+
+    await triggerStreamingResponse(platformId, updatedHistory);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void handleSendCustomMessage();
+    }
+  };
+
   // Handle Contextual AI Assistant Activation from non-gateway registration tab
   const handleTriggerContextualAi = (platform: Platform) => {
     setAiSelectedPlatform(platform.id);
-    
-    const documentsStr = platform.requirements.documents.join(', ');
-    const promptText = `Saya ingin mendaftar ${platform.name} untuk organisasi saya ${orgName}. Berdasarkan persyaratan berikut: [${documentsStr}], bantu saya:\n1. Checklist dokumen yang perlu disiapkan\n2. Tips agar aplikasi tidak ditolak\n3. Estimasi waktu prosesnya`;
-    
-    setAiPrompt(promptText);
-    setAiLoading(true);
-    setAiResponse(null);
-    setHumanReviewChecked(false);
+    void startPlatformChat(platform.id);
     
     // Smooth scroll down to the bottom AI Copilot section
     setTimeout(() => {
@@ -499,38 +684,15 @@ export default function ResourceAccessTracker() {
         aiSection.scrollIntoView({ behavior: 'smooth' });
       }
     }, 100);
-
-    setTimeout(() => {
-      const tips = getAiTipsForPlatform(platform);
-      setAiResponse(tips);
-      setAiLoading(false);
-      toast.success(`AI Copilot memuat rekomendasi persiapan untuk ${platform.name}`);
-    }, 700);
   };
 
-  // Handle legacy global AI copilot lookup
-  const handleTriggerAiCopilot = () => {
-    setAiLoading(true);
-    setAiResponse(null);
-    setHumanReviewChecked(false);
-
-    const matchingPlatform = PLATFORMS.find(p => p.id === aiSelectedPlatform);
-    const pName = matchingPlatform ? matchingPlatform.name : aiSelectedPlatform;
-
-    if (matchingPlatform) {
-      const documentsStr = matchingPlatform.requirements.documents.join(', ');
-      setAiPrompt(`Saya ingin mendaftar ${matchingPlatform.name} untuk organisasi saya ${orgName}. Berdasarkan persyaratan berikut: [${documentsStr}], bantu saya:\n1. Checklist dokumen yang perlu disiapkan\n2. Tips agar aplikasi tidak ditolak\n3. Estimasi waktu prosesnya`);
-    } else {
-      setAiPrompt(`Saya ingin mendaftar ${pName} untuk organisasi saya ${orgName}.`);
+  // Trigger chat automatically when selected platform changes or on mount (after organization details load)
+  useEffect(() => {
+    if (orgName && aiSelectedPlatform) {
+      void startPlatformChat(aiSelectedPlatform);
     }
-
-    setTimeout(() => {
-      const tips = getAiTipsForPlatform(matchingPlatform || { id: aiSelectedPlatform } as Platform);
-      setAiResponse(tips);
-      setAiLoading(false);
-      toast.success(`AI Copilot memuat panduan pendaftaran ${pName}`);
-    }, 700);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [aiSelectedPlatform, orgName]);
 
   // Filter Clear All Action
   const handleClearAllFilters = () => {
@@ -1820,7 +1982,7 @@ export default function ResourceAccessTracker() {
       </Card>
 
       {/* 6. Context-Specific AI Assistant Copilot Panel */}
-      <Card id="ai-copilot-section" className="border-accent-soft/80 bg-accent-soft/20 p-5 shadow-card relative overflow-hidden">
+      <Card id="ai-copilot-section" className="border-accent-soft/80 bg-accent-soft/20 p-5 shadow-card relative overflow-hidden w-full">
         <div className="absolute top-0 right-0 h-16 w-16 bg-accent-soft text-accent/15 -mr-4 -mt-4 transform rotate-12 pointer-events-none">
           <Sparkles className="h-16 w-16" />
         </div>
@@ -1828,34 +1990,24 @@ export default function ResourceAccessTracker() {
           <div className="space-y-3 flex-1">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-accent animate-pulse" />
-              <Badge className="bg-accent/15 text-accent border border-accent/20">Global AI Registration Copilot</Badge>
+              <Badge className="bg-accent/15 text-accent border border-accent/20">Impactory AI Chat</Badge>
             </div>
-            <h3 className="text-lg font-bold tracking-tight font-sans">Asisten Dokumen & Registrasi</h3>
+            <h3 className="text-lg font-bold tracking-tight font-sans">🤖 Impactory AI</h3>
             <p className="text-xs text-muted-foreground leading-relaxed max-w-lg">
-              Asisten registrasi kami dapat menyusun daftar persyaratan taktis per platform sesuai kebijakan organisasi nonprofit di Indonesia secara instan.
+              Asisten Registrasi Platform
             </p>
             
-            {/* Platform Selection */}
+            {/* Platform Selection & Reset Button */}
             <div className="flex flex-wrap items-center gap-2 pt-2">
               <select
                 value={aiSelectedPlatform}
                 onChange={(e) => {
                   const pId = e.target.value;
                   setAiSelectedPlatform(pId);
-                  setAiResponse(null);
-                  setHumanReviewChecked(false);
-                  
-                  const p = PLATFORMS.find(item => item.id === pId);
-                  if (p) {
-                    const documentsStr = p.requirements.documents.join(', ');
-                    setAiPrompt(`Saya ingin mendaftar ${p.name} untuk organisasi saya ${orgName}. Berdasarkan persyaratan berikut: [${documentsStr}], bantu saya:\n1. Checklist dokumen yang perlu disiapkan\n2. Tips agar aplikasi tidak ditolak\n3. Estimasi waktu prosesnya`);
-                  } else {
-                    setAiPrompt("");
-                  }
+                  void startPlatformChat(pId);
                 }}
                 className="rounded-md border bg-background px-3 py-1 text-xs font-semibold h-8 focus:outline-none focus:ring-1 focus:ring-accent"
               >
-                {/* Dynamically list standard platforms for the global copilot */}
                 {PLATFORMS.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.name}
@@ -1865,81 +2017,109 @@ export default function ResourceAccessTracker() {
               <Button
                 type="button"
                 size="sm"
-                onClick={handleTriggerAiCopilot}
+                onClick={() => void startPlatformChat(aiSelectedPlatform)}
                 className="h-8 text-xs font-bold bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm"
-                disabled={aiLoading}
+                disabled={chatLoading}
               >
-                {aiLoading ? (
+                {chatLoading ? (
                   <>
                     <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                    Menyusun panduan…
+                    Memuat…
                   </>
                 ) : (
                   <>
-                    Dapatkan Tips Registrasi (AI)
+                    <RotateCw className="mr-1 h-3 w-3" />
+                    Reset & Mulai Ulang
                   </>
                 )}
               </Button>
             </div>
           </div>
 
-          {/* AI Output Pane with actual custom prompt display */}
-          {aiResponse && (
-            <div className="rounded-xl border bg-card p-4 shadow-sm w-full md:w-96 space-y-3 animate-slide-up">
-              <div className="flex items-center justify-between border-b pb-2">
-                <span className="text-xs font-bold text-accent flex items-center gap-1">
-                  <Sparkles className="h-3 w-3 animate-pulse" />
-                  Tips Hasil Analisis AI
-                </span>
-                <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 font-bold border border-emerald-500/20">
-                  {aiResponse.confidence}% Confidence
-                </Badge>
-              </div>
+          {/* Interactive Chat Pane */}
+          <div className="flex flex-col border rounded-xl bg-card shadow-sm w-full md:w-[480px] h-[600px] overflow-hidden">
+            {/* Chat Messages scroll area */}
+            <div 
+              ref={chatScrollRef}
+              className="flex-1 overflow-y-auto p-4 space-y-3 flex flex-col scroll-smooth"
+            >
+              {(() => {
+                const msgs = chatsByPlatform[aiSelectedPlatform] || [];
+                const visibleMsgs = msgs.filter(m => m.role !== 'system');
+                
+                if (visibleMsgs.length === 0) {
+                  return (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center p-6 text-muted-foreground gap-2">
+                      <Sparkles className="h-8 w-8 text-accent animate-pulse" />
+                      <p className="text-xs font-bold">Belum ada percakapan</p>
+                      <p className="text-[11px] leading-relaxed max-w-xs">
+                        Klik tombol di platform card atau tombol di atas untuk memulai asisten registrasi pintar.
+                      </p>
+                    </div>
+                  );
+                }
 
-              {aiPrompt && (
-                <div className="bg-muted/60 dark:bg-muted/20 rounded-xl p-3 border text-[11px] leading-relaxed text-muted-foreground mb-3 space-y-1">
-                  <p className="font-bold text-[10px] uppercase tracking-wider text-accent">Prompt Anda:</p>
-                  <p className="italic whitespace-pre-line font-mono text-[10px] leading-normal text-foreground">"{aiPrompt}"</p>
+                return visibleMsgs.map((msg) => {
+                  const isUser = msg.role === 'user';
+                  return (
+                    <div 
+                      key={msg.id}
+                      className={cn(
+                        "flex flex-col max-w-[85%] space-y-1",
+                        isUser ? "self-end items-end" : "self-start items-start"
+                      )}
+                    >
+                      <span className="text-[10px] font-bold text-muted-foreground">
+                        {isUser ? 'Anda' : '🤖 Impactory AI'}
+                      </span>
+                      <div 
+                        className={cn(
+                          "rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed whitespace-pre-line shadow-sm",
+                          isUser 
+                            ? "bg-accent text-accent-foreground rounded-tr-none" 
+                            : "bg-muted text-foreground rounded-tl-none border"
+                        )}
+                      >
+                        {msg.content}
+                      </div>
+                      <span className="text-[9px] text-muted-foreground/75 px-1">
+                        {msg.timestamp}
+                      </span>
+                    </div>
+                  );
+                });
+              })()}
+
+              {chatLoading && (
+                <div className="flex items-center gap-1.5 text-muted-foreground text-[11px] bg-muted/35 rounded-full px-3 py-1.5 w-fit animate-pulse">
+                  <Loader2 className="h-3 w-3 animate-spin text-accent" />
+                  <span>Impactory AI sedang mengetik...</span>
                 </div>
               )}
-
-              <div className="space-y-2 text-xs">
-                <p className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Checklist Persyaratan:</p>
-                <ul className="space-y-1.5 list-none pl-0">
-                  {aiResponse.checklist.map((tip: string, idx: number) => (
-                    <li key={idx} className="flex items-start gap-1.5 text-muted-foreground">
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                      <span>{tip}</span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-
-              {/* Rls Trust Doctrine / Human Review Gate */}
-              <div className="border-t pt-3 space-y-2">
-                <div className="rounded-lg border border-dashed border-red-500/30 bg-red-500/[0.01] p-3 text-[10px] leading-relaxed text-red-600 dark:text-red-400 flex items-start gap-1.5">
-                  <AlertTriangle className="h-4 w-4 shrink-0 text-red-500 mt-0.5" />
-                  <div>
-                    <span className="font-bold uppercase tracking-wider">Human Review Required:</span> Rekomendasi di atas adalah saran taktis. Tim hukum/operasional Anda wajib membaca dan memvalidasi langsung formulir pengajuan di situs resmi platform terkait.
-                  </div>
-                </div>
-
-                {/* Interactive gate authorization check */}
-                <div className="flex items-center gap-2 pt-1">
-                  <input
-                    type="checkbox"
-                    id="human-review-gate"
-                    checked={humanReviewChecked}
-                    onChange={(e) => setHumanReviewChecked(e.target.checked)}
-                    className="h-3.5 w-3.5 rounded border-gray-300 text-accent focus:ring-accent"
-                  />
-                  <Label htmlFor="human-review-gate" className="text-[10px] font-bold text-foreground cursor-pointer">
-                    Saya mengonfirmasi telah melakukan review manual
-                  </Label>
-                </div>
-              </div>
             </div>
-          )}
+
+            {/* Input bar */}
+            <div className="p-3 border-t bg-muted/10 flex items-center gap-2 shrink-0">
+              <Textarea
+                rows={1}
+                value={chatInput}
+                onChange={(e) => setAiChatInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Tulis pesan follow-up..."
+                className="resize-none min-h-[40px] max-h-[80px] text-xs font-medium focus-visible:ring-accent py-2.5 px-3 flex-1"
+                disabled={chatLoading}
+              />
+              <Button
+                type="button"
+                size="icon"
+                onClick={handleSendCustomMessage}
+                disabled={chatLoading || !chatInput.trim()}
+                className="h-10 w-10 bg-accent text-accent-foreground hover:bg-accent/90 shrink-0 shadow-sm"
+              >
+                <Send className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
         </div>
       </Card>
 
