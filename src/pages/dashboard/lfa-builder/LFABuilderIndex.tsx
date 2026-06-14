@@ -39,49 +39,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
-
-interface LfaProject {
-  id: string;
-  name: string;
-  sector: string | null;
-  location: string | null;
-  duration_months: number | null;
-  start_date: string | null;
-  beneficiary_count: number | null;
-  beneficiary_description: string | null;
-  status: string | null;
-  created_at: string | null;
-  linked_grant_id: string | null;
-}
-
-interface LfaEntry {
-  id?: string;
-  org_id: string;
-  project_id: string;
-  level: 'goal' | 'purpose' | 'output' | 'activity';
-  sequence?: number | null;
-  parent_id?: string | null;
-  description?: string | null;
-  indicator?: string | null;
-  means_of_verification?: string | null;
-  assumption?: string | null;
-  responsible_party?: string | null;
-  timeline_start?: number | null;
-  timeline_end?: number | null;
-  ai_suggestion?: string | null;
-  created_at?: string | null;
-  updated_at?: string | null;
-}
-
-interface AiActivity {
-  sequence?: number;
-  description?: string;
-  indicator?: string;
-  means_of_verification?: string;
-  assumption?: string;
-  timeline_start?: number;
-  timeline_end?: number;
-}
+import { LfaProject, LfaEntry, AiActivity } from './types';
 
 export default function LFABuilderIndex() {
   const { user, profile } = useAuth();
@@ -109,12 +67,6 @@ export default function LFABuilderIndex() {
   // Loading indicator for AI generation
   const [generating, setGenerating] = useState(false);
   const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (user) {
-      void loadProjects();
-    }
-  }, [user, loadProjects]);
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -170,6 +122,12 @@ export default function LFABuilderIndex() {
       setLoading(false);
     }
   }, [user, profile, toast]);
+
+  useEffect(() => {
+    if (user) {
+      void loadProjects();
+    }
+  }, [user, loadProjects]);
 
   const handleCreateFromScratch = async () => {
     if (!name.trim()) return;

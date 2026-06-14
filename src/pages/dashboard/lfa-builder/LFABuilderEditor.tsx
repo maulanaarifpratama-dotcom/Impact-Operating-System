@@ -30,36 +30,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-
-interface LfaProject {
-  id: string;
-  name: string;
-  sector: string | null;
-  location: string | null;
-  duration_months: number | null;
-  start_date: string | null;
-  beneficiary_count: number | null;
-  beneficiary_description: string | null;
-  status: string | null;
-  linked_grant_id: string | null;
-}
-
-interface LfaEntry {
-  id: string;
-  project_id: string;
-  org_id: string;
-  level: 'goal' | 'purpose' | 'output' | 'activity';
-  sequence: number;
-  parent_id: string | null;
-  description: string;
-  indicator: string;
-  means_of_verification: string;
-  assumption: string;
-  responsible_party: string | null;
-  timeline_start: number | null;
-  timeline_end: number | null;
-  ai_suggestion: string | null;
-}
+import { LfaProject, LfaEntry } from './types';
 
 export default function LFABuilderEditor() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -90,12 +61,6 @@ export default function LFABuilderEditor() {
   // Suggestions state
   const [suggestions, setSuggestions] = useState<Record<string, string>>({});
   const [showAiSuggestion, setShowAiSuggestion] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    if (user && projectId) {
-      void loadProjectAndEntries();
-    }
-  }, [user, projectId, loadProjectAndEntries]);
 
   const loadProjectAndEntries = useCallback(async () => {
     setLoading(true);
@@ -211,6 +176,12 @@ export default function LFABuilderEditor() {
       setLoading(false);
     }
   }, [user, profile, projectId, navigate, toast]);
+
+  useEffect(() => {
+    if (user && projectId) {
+      void loadProjectAndEntries();
+    }
+  }, [user, projectId, loadProjectAndEntries]);
 
   // Generic Save for individual entries
   const saveEntry = async (entry: LfaEntry) => {

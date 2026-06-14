@@ -27,42 +27,7 @@ import { StepRisks } from '@/components/grant-writer/steps/StepRisks';
 import { useWizardProject } from '@/lib/grant-writer/useWizardProject';
 import { WIZARD_STEPS, WizardData, IndicatorItem, AssumptionItem } from '@/lib/grant-writer/types';
 import { GrantWriterChat } from '@/components/grant-writer/chat/GrantWriterChat';
-
-export interface LfaProject {
-  id: string;
-  org_id: string;
-  name: string;
-  sector?: string | null;
-  location?: string | null;
-  duration_months?: number | null;
-  start_date?: string | null;
-  beneficiary_count?: number | null;
-  beneficiary_description?: string | null;
-  status?: string | null;
-  donor_feedback?: string | null;
-  linked_grant_id?: string | null;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface LfaEntry {
-  id: string;
-  org_id: string;
-  project_id: string;
-  level: 'goal' | 'purpose' | 'output' | 'activity';
-  sequence?: number | null;
-  parent_id?: string | null;
-  description?: string | null;
-  indicator?: string | null;
-  means_of_verification?: string | null;
-  assumption?: string | null;
-  responsible_party?: string | null;
-  timeline_start?: number | null;
-  timeline_end?: number | null;
-  ai_suggestion?: string | null;
-  created_at?: string;
-  updated_at?: string;
-}
+import { LfaProject, LfaEntry } from '../lfa-builder/types';
 
 export default function GrantWriterWizard() {
   const { projectId } = useParams<{ projectId: string }>();
