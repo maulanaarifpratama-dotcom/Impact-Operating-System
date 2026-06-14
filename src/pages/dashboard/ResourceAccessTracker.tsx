@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
@@ -29,6 +29,15 @@ import {
   Mail,
   FileText,
   Check,
+  Search,
+  SlidersHorizontal,
+  ShoppingBag,
+  ClipboardList,
+  Trash2,
+  CheckSquare,
+  Square,
+  Ban,
+  Info,
 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -39,11 +48,24 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { cn } from '@/lib/utils';
 
+// Static Data Imports
+import { PLATFORMS, Platform, PlatformProduct } from '@/data/platforms';
+import { 
+  GATEWAY_FILTERS, 
+  PRICING_FILTERS, 
+  CATEGORY_FILTERS, 
+  SORT_OPTIONS,
+  FilterGateway,
+  FilterPricing,
+  FilterCategory,
+  FilterSort
+} from '@/data/platformFilters';
+
 // Types representing the database schema
 interface PlatformAccessRecord {
   id?: string;
   organization_id?: string;
-  platform_name: 'techsoup' | 'goodstack' | 'canva' | 'google' | 'microsoft';
+  platform_name: string; // Dynamic support for all platform IDs
   status: 'not_started' | 'submitted' | 'pending' | 'approved' | 'renewal_needed';
   owner_name: string;
   owner_email: string;
@@ -59,49 +81,16 @@ interface PlatformAccessRecord {
   updated_at?: string;
 }
 
-// Configs for standard platform metadata
-const PLATFORM_CONFIGS = {
-  techsoup: {
-    displayName: 'TechSoup Indonesia',
-    icon: Cloud,
-    benefit: 'Donasi & diskon software (Microsoft, Adobe, antivirus)',
-    officialUrl: 'https://www.techsoup.or.id/',
-    accentColor: 'from-blue-500/20 to-indigo-500/5 border-blue-500/30 text-blue-600 dark:text-blue-400',
-    iconBg: 'bg-blue-500/15 text-blue-600 dark:text-blue-400',
-  },
-  goodstack: {
-    displayName: 'Goodstack (Benevity)',
-    icon: ShieldCheck,
-    benefit: 'Verifikasi global + akses corporate giving',
-    officialUrl: 'https://goodstack.org/',
-    accentColor: 'from-purple-500/20 to-indigo-500/5 border-purple-500/30 text-purple-600 dark:text-purple-400',
-    iconBg: 'bg-purple-500/15 text-purple-600 dark:text-purple-400',
-  },
-  canva: {
-    displayName: 'Canva for Nonprofits',
-    icon: Sparkles,
-    benefit: 'Canva Pro gratis sampai 50 user',
-    officialUrl: 'https://www.canva.com/id_id/canva-untuk-nonprofit/',
-    accentColor: 'from-pink-500/20 to-rose-500/5 border-pink-500/30 text-pink-600 dark:text-pink-400',
-    iconBg: 'bg-pink-500/15 text-pink-600 dark:text-pink-400',
-  },
-  google: {
-    displayName: 'Google for Nonprofits',
-    icon: Laptop,
-    benefit: 'Workspace gratis + Google Ads Grant US$10K/bulan',
-    officialUrl: 'https://www.google.com/nonprofits/',
-    accentColor: 'from-emerald-500/20 to-teal-500/5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400',
-    iconBg: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400',
-  },
-  microsoft: {
-    displayName: 'Microsoft for Nonprofits',
-    icon: Building2,
-    benefit: 'Microsoft 365 + Azure credit US$3.500/tahun',
-    officialUrl: 'https://nonprofit.microsoft.com/',
-    accentColor: 'from-amber-500/20 to-orange-500/5 border-amber-500/30 text-amber-600 dark:text-amber-400',
-    iconBg: 'bg-amber-500/15 text-amber-600 dark:text-amber-400',
-  },
+// Configs for standard platform icons and colors used dynamically for backward compatibility
+const PLATFORM_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  techsoup: Cloud,
+  goodstack: ShieldCheck,
+  canva: Sparkles,
+  google: Laptop,
+  microsoft: Building2,
 };
+
+const DEFAULT_ICON = Sparkles;
 
 const STATUS_COLORS: Record<string, string> = {
   not_started: 'bg-slate-500/10 text-slate-500 border-slate-500/20 dark:bg-slate-500/25 dark:text-slate-400 dark:border-slate-500/30',
@@ -119,51 +108,7 @@ const STATUS_LABELS: Record<string, string> = {
   renewal_needed: 'Perlu Renewal',
 };
 
-const PLATFORM_REQUIREMENTS: Record<string, { estimate: string; documents: string[] }> = {
-  techsoup: {
-    estimate: '3-7 Hari Kerja',
-    documents: [
-      'Akta Pendirian Organisasi & SK Kemenkumham',
-      'NPWP Resmi Organisasi (bukan pribadi)',
-      'Surat Keterangan Domisili Organisasi',
-      'Deskripsi singkat program sosial kemasyarakatan'
-    ]
-  },
-  goodstack: {
-    estimate: '5-10 Hari Kerja',
-    documents: [
-      'AD/ART lengkap organisasi',
-      'Rekening Bank atas nama Lembaga Resmi (bukan personal)',
-      'Bank Statement / Rekening Koran terbaru (max 3 bulan)',
-      'Nomor NPWP Organisasi'
-    ]
-  },
-  canva: {
-    estimate: '2-4 Hari Kerja',
-    documents: [
-      'Akun Canva standar menggunakan email organisasi resmi',
-      'SK Kemenkumham / Akta Pendirian',
-      'Bukti aktivitas sosial aktif (link website/sosmed yang update)'
-    ]
-  },
-  google: {
-    estimate: '2-5 Hari Kerja',
-    documents: [
-      'Validation Token dari TechSoup Indonesia (masih aktif)',
-      'Email domain resmi lembaga (e.g., admin@organisasi.or.id)',
-      'Website organisasi (aktif, HTTPS, non-komersial)'
-    ]
-  },
-  microsoft: {
-    estimate: '3-7 Hari Kerja',
-    documents: [
-      'Validation Token dari TechSoup Indonesia',
-      'Domain email resmi organisasi yang sudah diverifikasi',
-      'Profil organisasi terisi di portal Microsoft Nonprofit'
-    ]
-  }
-};
-
+// Original Hardcoded AI tips kept for exact backward compatibility with the existing inline/bottom AI
 const AI_TIPS: Record<string, { checklist: string[]; warning: string; confidence: number }> = {
   techsoup: {
     confidence: 98,
@@ -217,6 +162,24 @@ const AI_TIPS: Record<string, { checklist: string[]; warning: string; confidence
   },
 };
 
+// Fallback AI tips function for newer platforms so they don't crash
+const getAiTipsForPlatform = (platform: Platform) => {
+  const existing = AI_TIPS[platform.id];
+  if (existing) return existing;
+  
+  // Safe dynamic fallback tips based on real-world non-profit verification patterns
+  return {
+    confidence: 92,
+    checklist: [
+      `Siapkan dokumen legalitas utama seperti SK Kemenkumham, Akta Notaris, atau AD/ART organisasi Anda.`,
+      `Pastikan pendaftaran diajukan melalui portal non-profit resmi di ${new URL(platform.registration.url).hostname}.`,
+      `Gunakan email resmi berdomain institusi Anda (@organisasi.org) saat mengajukan permohonan.`,
+      `Pastikan profil organisasi dan website publik mencantumkan detail misi kemasyarakatan yang jelas.`
+    ],
+    warning: `Selalu lakukan tinjauan kelayakan khusus. Platform ini mewajibkan status verifikasi non-profit aktif agar diskon/hibah tidak dicabut.`
+  };
+};
+
 export default function ResourceAccessTracker() {
   const { user } = useAuth();
   
@@ -225,13 +188,32 @@ export default function ResourceAccessTracker() {
   const [formState, setFormState] = useState<Partial<PlatformAccessRecord>>({});
   const [expandedMistakes, setExpandedMistakes] = useState(false);
   
-  // Accordion Expand/Collapse States
+  // Accordion Expand/Collapse States (Goodstack expanded by default to follow original logical flow)
   const [expandedPlatforms, setExpandedPlatforms] = useState<Record<string, boolean>>({
-    techsoup: true, // Expand TechSoup by default as the logical starting point
+    goodstack: true,
   });
+
+  // Active Tab State per expanded Card (defaults to 'products')
+  const [activeTabs, setActiveTabs] = useState<Record<string, 'products' | 'register' | 'requirements' | 'usage' | 'admin'>>({});
 
   // Interactive Checklist Checkboxes (Local Persistence during Session)
   const [checkedDocuments, setCheckedDocuments] = useState<Record<string, Record<number, boolean>>>({});
+
+  // Search & Filter State
+  const [searchText, setSearchText] = useState("");
+  const [debouncedSearchText, setDebouncedSearchText] = useState("");
+  const [gateway, setGateway] = useState<FilterGateway>("all");
+  const [pricing, setPricing] = useState<FilterPricing>("all");
+  const [category, setCategory] = useState<FilterCategory>("all");
+  const [sort, setSort] = useState<FilterSort>("priority");
+
+  // Search Debouncing
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchText(searchText);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchText]);
 
   // Inline AI Assistant states
   const [inlineAiLoading, setInlineAiLoading] = useState<Record<string, boolean>>({});
@@ -313,18 +295,14 @@ export default function ResourceAccessTracker() {
     }
   });
 
-  // Transform records into a unified mapping
+  // Transform records into a unified mapping supporting all 24 platforms
   const platformsMap = useMemo(() => {
     const map: Record<string, PlatformAccessRecord> = {};
     
-    // Set defaults first
-    const keys: Array<'techsoup' | 'goodstack' | 'canva' | 'google' | 'microsoft'> = [
-      'techsoup', 'goodstack', 'canva', 'google', 'microsoft'
-    ];
-    
-    keys.forEach(key => {
-      map[key] = {
-        platform_name: key,
+    // Set defaults for ALL static platforms first
+    PLATFORMS.forEach(p => {
+      map[p.id] = {
+        platform_name: p.id,
         status: 'not_started',
         owner_name: '',
         owner_email: '',
@@ -350,9 +328,8 @@ export default function ResourceAccessTracker() {
 
   // Statistics
   const stats = useMemo(() => {
-    const keys = ['techsoup', 'goodstack', 'canva', 'google', 'microsoft'];
-    const approved = keys.filter(k => platformsMap[k]?.status === 'approved').length;
-    return { total: keys.length, approved };
+    const approved = PLATFORMS.filter(p => platformsMap[p.id]?.status === 'approved').length;
+    return { total: PLATFORMS.length, approved };
   }, [platformsMap]);
 
   // Renewal countdown calculator
@@ -383,17 +360,15 @@ export default function ResourceAccessTracker() {
 
   // List of active renewals for calendar view
   const renewalItems = useMemo(() => {
-    const keys = ['techsoup', 'goodstack', 'canva', 'google', 'microsoft'];
-    return keys
-      .map(key => {
-        const item = platformsMap[key];
-        const config = PLATFORM_CONFIGS[key as keyof typeof PLATFORM_CONFIGS];
-        const countdown = getCountdownText(item.renewal_at);
+    return PLATFORMS
+      .map(p => {
+        const item = platformsMap[p.id];
+        const countdown = getCountdownText(item?.renewal_at);
         return {
-          key,
-          displayName: config.displayName,
-          status: item.status,
-          renewalDate: item.renewal_at,
+          key: p.id,
+          displayName: p.name,
+          status: item?.status || 'not_started',
+          renewalDate: item?.renewal_at || null,
           countdown,
         };
       })
@@ -408,11 +383,12 @@ export default function ResourceAccessTracker() {
   // Initiate edit mode
   const handleStartEdit = (platformName: string) => {
     const current = platformsMap[platformName];
-    // Automatically expand card when editing
+    // Automatically expand card and switch to PIC & Status tab when editing
     setExpandedPlatforms(prev => ({ ...prev, [platformName]: true }));
+    setActiveTabs(prev => ({ ...prev, [platformName]: 'admin' }));
     setEditingPlatform(platformName);
     setFormState({
-      platform_name: platformName as 'techsoup' | 'goodstack' | 'canva' | 'google' | 'microsoft',
+      platform_name: platformName,
       status: current.status,
       owner_name: current.owner_name || '',
       owner_email: current.owner_email || '',
@@ -452,6 +428,14 @@ export default function ResourceAccessTracker() {
     }));
   };
 
+  // Switch Active Tab for Expanded Card
+  const setPlatformActiveTab = (platformKey: string, tab: 'products' | 'register' | 'requirements' | 'usage' | 'admin') => {
+    setActiveTabs(prev => ({
+      ...prev,
+      [platformKey]: tab
+    }));
+  };
+
   // Handle Interactive Document Checking
   const toggleDocumentCheck = (platformKey: string, docIndex: number) => {
     setCheckedDocuments(prev => ({
@@ -469,27 +453,105 @@ export default function ResourceAccessTracker() {
     setInlineAiResponses(prev => ({ ...prev, [platformKey]: null }));
     setInlineHumanReviewChecked(prev => ({ ...prev, [platformKey]: false }));
 
+    const matchingPlatform = PLATFORMS.find(p => p.id === platformKey);
+    const pName = matchingPlatform ? matchingPlatform.name : platformKey;
+
     setTimeout(() => {
-      const tips = AI_TIPS[platformKey as keyof typeof AI_TIPS];
+      const tips = getAiTipsForPlatform(matchingPlatform || { id: platformKey } as Platform);
       setInlineAiResponses(prev => ({ ...prev, [platformKey]: tips }));
       setInlineAiLoading(prev => ({ ...prev, [platformKey]: false }));
-      toast.success(`AI Copilot memuat panduan pendaftaran ${PLATFORM_CONFIGS[platformKey as keyof typeof PLATFORM_CONFIGS].displayName}`);
+      toast.success(`AI Copilot memuat panduan pendaftaran ${pName}`);
     }, 700);
   };
 
-  // Handle legacy global AI copilot lookup (maintained for backward compatibility)
+  // Handle legacy global AI copilot lookup
   const handleTriggerAiCopilot = () => {
     setAiLoading(true);
     setAiResponse(null);
     setHumanReviewChecked(false);
 
+    const matchingPlatform = PLATFORMS.find(p => p.id === aiSelectedPlatform);
+    const pName = matchingPlatform ? matchingPlatform.name : aiSelectedPlatform;
+
     setTimeout(() => {
-      const tips = AI_TIPS[aiSelectedPlatform as keyof typeof AI_TIPS];
+      const tips = getAiTipsForPlatform(matchingPlatform || { id: aiSelectedPlatform } as Platform);
       setAiResponse(tips);
       setAiLoading(false);
-      toast.success(`AI Copilot memuat panduan pendaftaran ${PLATFORM_CONFIGS[aiSelectedPlatform as keyof typeof PLATFORM_CONFIGS].displayName}`);
+      toast.success(`AI Copilot memuat panduan pendaftaran ${pName}`);
     }, 700);
   };
+
+  // Filter Clear All Action
+  const handleClearAllFilters = () => {
+    setSearchText("");
+    setGateway("all");
+    setPricing("all");
+    setCategory("all");
+    setSort("priority");
+    toast.success("Semua penyaringan filter berhasil dibersihkan");
+  };
+
+  // Pure frontend cascading filter logic
+  const filteredPlatforms = useMemo(() => {
+    let result = [...PLATFORMS];
+
+    // a. Search text filter
+    if (debouncedSearchText) {
+      const q = debouncedSearchText.toLowerCase();
+      result = result.filter(p => {
+        const matchesName = p.name.toLowerCase().includes(q);
+        const matchesDesc = p.description.toLowerCase().includes(q);
+        const matchesProducts = p.products.some(prod => 
+          prod.name.toLowerCase().includes(q) || prod.description.toLowerCase().includes(q)
+        );
+        return matchesName || matchesDesc || matchesProducts;
+      });
+    }
+
+    // b. Gateway filter
+    if (gateway !== "all") {
+      result = result.filter(p => {
+        if (gateway === "goodstack") {
+          return p.gateway === "goodstack" || p.gateway === "both";
+        }
+        if (gateway === "techsoup") {
+          return p.gateway === "techsoup" || p.gateway === "both";
+        }
+        return p.gateway === gateway;
+      });
+    }
+
+    // c. Pricing type filter
+    if (pricing !== "all") {
+      result = result.filter(p => p.pricing.type === pricing);
+    }
+
+    // d. Category filter
+    if (category !== "all") {
+      result = result.filter(p => p.category.includes(category));
+    }
+
+    // e. Sort
+    result.sort((a, b) => {
+      if (sort === "priority") {
+        return a.priority - b.priority;
+      }
+      if (sort === "name_asc") {
+        return a.name.localeCompare(b.name);
+      }
+      if (sort === "name_desc") {
+        return b.name.localeCompare(a.name);
+      }
+      if (sort === "discount_high") {
+        const discA = a.products.reduce((max, prod) => Math.max(max, prod.discount_percent || 0), 0);
+        const discB = b.products.reduce((max, prod) => Math.max(max, prod.discount_percent || 0), 0);
+        return discB - discA;
+      }
+      return 0;
+    });
+
+    return result;
+  }, [debouncedSearchText, gateway, pricing, category, sort]);
 
   const googleItem = platformsMap['google'];
   const googleIsApproved = googleItem?.status === 'approved';
@@ -541,462 +603,916 @@ export default function ResourceAccessTracker() {
         </div>
       </Card>
 
-      {/* 2. Platform Accordion List */}
+      {/* 2. Interactive Search & Filter Bar Section */}
       <section className="space-y-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold tracking-tight">Daftar Platform NGO Utama</h2>
-          <span className="text-xs text-muted-foreground font-medium hidden sm:inline">Klik bar platform untuk memperluas persyaratan & PIC</span>
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-base font-bold tracking-tight text-foreground flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-accent" />
+            Saring & Cari Platform
+          </h2>
         </div>
 
-        <div className="flex flex-col gap-4">
-          {Object.keys(PLATFORM_CONFIGS).map((key) => {
-            const platformKey = key as 'techsoup' | 'goodstack' | 'canva' | 'google' | 'microsoft';
-            const item = platformsMap[platformKey];
-            const config = PLATFORM_CONFIGS[platformKey];
-            const requirements = PLATFORM_REQUIREMENTS[platformKey];
-            const IconComponent = config.icon;
-            const isEditing = editingPlatform === platformKey;
-            const isExpanded = !!expandedPlatforms[platformKey];
-            const countdown = getCountdownText(item.renewal_at);
-
-            return (
-              <Card 
-                key={platformKey} 
-                className={cn(
-                  "relative overflow-hidden border border-border/80 bg-card p-5 shadow-card transition-all duration-300 hover:scale-[1.005] hover:shadow-elegant",
-                  isExpanded && "ring-1 ring-accent/35 border-accent/30 bg-accent-soft/[0.03]",
-                  isEditing && "ring-1 ring-accent border-accent/40 bg-accent-soft/10"
-                )}
-              >
-                {/* Decorative Accent Strip */}
-                <div className={cn("absolute top-0 left-0 h-[3px] w-full bg-gradient-to-r", config.accentColor)} />
-
-                {/* Card Clickable Header */}
-                <div 
-                  onClick={() => toggleExpand(platformKey)}
-                  className="flex items-start justify-between gap-3 cursor-pointer select-none group"
+        <div className="space-y-4 rounded-2xl border bg-card/50 p-5 shadow-sm backdrop-blur-sm">
+          {/* Search input bar */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Cari platform..."
+                value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                className="pl-9 pr-8 text-xs font-medium h-9"
+              />
+              {searchText && (
+                <button
+                  onClick={() => setSearchText("")}
+                  className="absolute right-3 top-2.5 text-muted-foreground hover:text-foreground"
                 >
-                  <div className="flex items-center gap-3">
-                    <div className={cn("flex h-11 w-11 items-center justify-center rounded-xl shadow-sm shrink-0 transition-transform duration-300 group-hover:scale-105", config.iconBg)}>
-                      <IconComponent className="h-5 w-5" />
-                    </div>
-                    <div>
-                      <h3 className="font-bold text-base leading-snug text-foreground flex items-center gap-2">
-                        {config.displayName}
-                        <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-300 shrink-0", isExpanded && "rotate-180")} />
-                      </h3>
-                      <p className="text-xs text-muted-foreground leading-normal mt-0.5">{config.benefit}</p>
-                    </div>
-                  </div>
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+            
+            {/* Clear Filters CTA */}
+            {(searchText || gateway !== 'all' || pricing !== 'all' || category !== 'all' || sort !== 'priority') && (
+              <Button
+                variant="ghost"
+                onClick={handleClearAllFilters}
+                className="h-9 text-xs font-bold text-red-500 hover:bg-red-500/10 hover:text-red-600 shrink-0"
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                Hapus Semua Filter
+              </Button>
+            )}
+          </div>
 
-                  <div className="flex flex-col items-end gap-1.5 shrink-0">
-                    <Badge variant="outline" className={cn("text-[10px] font-bold px-2.5 py-0.5 shadow-sm border", STATUS_COLORS[item.status])}>
-                      {STATUS_LABELS[item.status]}
-                    </Badge>
-                    
-                    {/* Collapsed state key metadata preview */}
-                    {!isExpanded && (
-                      <div className="hidden md:flex items-center gap-3 text-[11px] text-muted-foreground font-medium mt-1">
-                        {item.owner_name && (
-                          <span className="flex items-center gap-1 bg-muted/40 px-2 py-0.5 rounded border border-border/40">
-                            <User className="h-3 w-3 text-accent" /> {item.owner_name}
-                          </span>
-                        )}
-                        {item.status === 'approved' && countdown && (
-                          <span className={cn("text-[10px] px-2 py-0.5 rounded-full border", countdown.color)}>
-                            {countdown.text}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Expanded Accordion Body */}
-                {isExpanded && (
-                  <div className="mt-5 pt-5 border-t border-border/40 grid grid-cols-1 md:grid-cols-12 gap-6 animate-fade-in">
-                    
-                    {/* LEFT COLUMN: Legal Requirements & AI Copilot (7 cols) */}
-                    <div className="md:col-span-7 space-y-4 pr-0 md:pr-4 border-b md:border-b-0 md:border-r border-border/40 pb-5 md:pb-0">
-                      <div className="space-y-2">
-                        <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-                          <FileText className="h-3.5 w-3.5 text-accent" />
-                          Prosedur & Persyaratan Pendaftaran
-                        </h4>
-                        
-                        {/* Process time badge */}
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground">Estimasi waktu verifikasi:</span>
-                          <Badge variant="outline" className="bg-accent/5 text-accent border-accent/20 text-[10px] font-bold py-0.5 flex items-center gap-1">
-                            <Clock className="h-3 w-3" /> {requirements.estimate}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      {/* Interactive Requirements Checklist */}
-                      <div className="rounded-xl border bg-muted/15 p-4 space-y-3">
-                        <p className="text-[11px] font-bold text-foreground">Checklist Dokumen Wajib NGO Indonesia:</p>
-                        <div className="space-y-2.5">
-                          {requirements.documents.map((doc, idx) => {
-                            const isChecked = !!checkedDocuments[platformKey]?.[idx];
-                            return (
-                              <div 
-                                key={idx}
-                                onClick={() => toggleDocumentCheck(platformKey, idx)}
-                                className="flex items-start gap-2.5 cursor-pointer group/item text-xs select-none"
-                              >
-                                <div className={cn(
-                                  "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-all mt-0.5",
-                                  isChecked ? "bg-accent border-accent text-accent-foreground" : "border-muted-foreground/30 bg-background group-hover/item:border-accent"
-                                )}>
-                                  {isChecked && <Check className="h-3 w-3 stroke-[3]" />}
-                                </div>
-                                <span className={cn(
-                                  "leading-normal transition-colors",
-                                  isChecked ? "text-muted-foreground line-through decoration-muted-foreground/40" : "text-foreground group-hover/item:text-accent font-medium"
-                                )}>
-                                  {doc}
-                                </span>
-                              </div>
-                            );
-                          })}
-                        </div>
-                        <p className="text-[10px] text-muted-foreground italic leading-normal border-t border-border/30 pt-2">
-                          💡 Klik pada item dokumen di atas untuk menandai persiapan berkas Anda.
-                        </p>
-                      </div>
-
-                      {/* Tanya AI Inline Integration */}
-                      <div className="space-y-3 pt-1">
-                        {!inlineAiResponses[platformKey] ? (
-                          <div className="flex items-center justify-between gap-3 bg-accent-soft/10 rounded-xl p-3.5 border border-accent/15">
-                            <div className="space-y-1">
-                              <p className="text-xs font-bold text-foreground flex items-center gap-1">
-                                <Sparkles className="h-3.5 w-3.5 text-accent animate-pulse" />
-                                Butuh Saran Registrasi Tambahan?
-                              </p>
-                              <p className="text-[11px] text-muted-foreground leading-normal max-w-sm">
-                                AI Copilot dapat menyusun tips taktis, kesiapan token, dan strategi lolos verifikasi platform.
-                              </p>
-                            </div>
-                            <Button
-                              type="button"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleTriggerInlineAi(platformKey);
-                              }}
-                              className="h-8.5 text-xs font-bold bg-accent text-accent-foreground hover:bg-accent/90 shrink-0 shadow-sm"
-                              disabled={inlineAiLoading[platformKey]}
-                            >
-                              {inlineAiLoading[platformKey] ? (
-                                <>
-                                  <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                                  Loading…
-                                </>
-                              ) : (
-                                <>
-                                  <Sparkles className="mr-1.5 h-3 w-3" />
-                                  Tanya AI
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        ) : (
-                          // Loaded Inline AI Guide
-                          <div className="rounded-xl border border-accent/25 bg-accent-soft/5 p-4 space-y-3.5 animate-slide-up">
-                            <div className="flex items-center justify-between border-b border-accent/15 pb-2">
-                              <span className="text-xs font-bold text-accent flex items-center gap-1">
-                                <Sparkles className="h-3.5 w-3.5 animate-pulse" />
-                                Rekomendasi Registrasi AI
-                              </span>
-                              <Badge variant="outline" className="text-[9px] bg-emerald-500/10 text-emerald-600 font-extrabold border-emerald-500/20 dark:bg-emerald-500/20">
-                                {inlineAiResponses[platformKey]?.confidence}% Confidence
-                              </Badge>
-                            </div>
-
-                            <div className="space-y-2 text-xs">
-                              <p className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Tips Taktis AI:</p>
-                              <ul className="space-y-2 list-none pl-0">
-                                {inlineAiResponses[platformKey]?.checklist.map((tip: string, idx: number) => (
-                                  <li key={idx} className="flex items-start gap-2 text-muted-foreground leading-relaxed">
-                                    <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                                    <span>{tip}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-
-                            {/* Warning Box */}
-                            <div className="rounded-lg border border-dashed border-red-500/30 bg-red-500/[0.01] p-3 text-[10px] leading-relaxed text-red-600 dark:text-red-400">
-                              <span className="font-bold uppercase tracking-wider block mb-1">⚠️ Perhatian Khusus:</span>
-                              {inlineAiResponses[platformKey]?.warning}
-                            </div>
-
-                            {/* Human Review Gate checkbox inside the card */}
-                            <div className="border-t border-accent/10 pt-3 flex items-center gap-2">
-                              <input
-                                type="checkbox"
-                                id={`human-review-gate-${platformKey}`}
-                                checked={!!inlineHumanReviewChecked[platformKey]}
-                                onChange={(e) => {
-                                  const val = e.target.checked;
-                                  setInlineHumanReviewChecked(prev => ({ ...prev, [platformKey]: val }));
-                                }}
-                                className="h-3.5 w-3.5 rounded border-gray-300 text-accent focus:ring-accent cursor-pointer"
-                              />
-                              <Label 
-                                htmlFor={`human-review-gate-${platformKey}`} 
-                                className="text-[10px] font-bold text-foreground cursor-pointer select-none"
-                              >
-                                Saya mengonfirmasi telah membaca panduan ini dan melakukan verifikasi manual
-                              </Label>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* RIGHT COLUMN: PIC & Administrative Status (5 cols) */}
-                    <div className="md:col-span-5 flex flex-col justify-between space-y-4">
-                      
-                      {/* VIEW MODE */}
-                      {!isEditing ? (
-                        <div className="space-y-4 flex-1">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
-                            <Building2 className="h-3.5 w-3.5 text-accent" />
-                            PIC & Informasi Administrasi
-                          </h4>
-
-                          <div className="grid grid-cols-1 gap-3 rounded-xl border bg-muted/20 p-4 text-xs">
-                            <div className="flex items-start gap-3">
-                              <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                              <div className="space-y-0.5">
-                                <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">PIC / Penanggung Jawab</p>
-                                <p className="font-semibold text-foreground text-sm">
-                                  {item.owner_name || <span className="text-muted-foreground/50 font-normal">Belum ditentukan</span>}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="flex items-start gap-3 border-t border-border/40 pt-3">
-                              <Mail className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                              <div className="space-y-0.5">
-                                <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">Email Kontak PIC</p>
-                                <p className="font-semibold text-foreground">
-                                  {item.owner_email || <span className="text-muted-foreground/50 font-normal">Belum ditentukan</span>}
-                                </p>
-                              </div>
-                            </div>
-
-                            <div className="grid grid-cols-2 gap-3 border-t border-border/40 pt-3">
-                              <div className="space-y-0.5">
-                                <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">Tanggal Apply</p>
-                                <p className="font-semibold text-foreground">
-                                  {item.applied_at ? new Date(item.applied_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-                                </p>
-                              </div>
-                              <div className="space-y-0.5 border-l border-border/40 pl-3">
-                                <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">Tanggal Renewal</p>
-                                <p className="font-semibold text-foreground">
-                                  {item.renewal_at ? new Date(item.renewal_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
-                                </p>
-                              </div>
-                            </div>
-                          </div>
-
-                          {item.notes ? (
-                            <div className="rounded-xl bg-muted/40 p-3.5 border border-dashed border-border text-xs leading-relaxed text-muted-foreground">
-                              <span className="font-bold text-foreground block mb-1">Catatan Internal / Token Verifikasi:</span> 
-                              {item.notes}
-                            </div>
-                          ) : (
-                            <div className="text-[11px] text-muted-foreground/50 text-center py-2 italic">
-                              Belum ada catatan internal atau token verifikasi yang disimpan.
-                            </div>
-                          )}
-                        </div>
-                      ) : (
-                        
-                        /* EDIT INLINE FORM MODE */
-                        <div className="space-y-4 flex-1">
-                          <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-1">
-                            <Edit2 className="h-3.5 w-3.5 text-accent" />
-                            Formulir Administrasi
-                          </h4>
-
-                          <div className="grid grid-cols-2 gap-3.5 rounded-xl border p-4 bg-muted/10">
-                            <div className="col-span-2">
-                              <Label className="text-[11px] font-bold text-foreground">Status Pendaftaran</Label>
-                              <select
-                                value={formState.status}
-                                onChange={(e) => setFormState({ ...formState, status: e.target.value as 'not_started' | 'submitted' | 'pending' | 'approved' | 'renewal_needed' })}
-                                className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-accent"
-                              >
-                                <option value="not_started">Belum Mulai (Not Started)</option>
-                                <option value="submitted">Dalam Proses (Submitted)</option>
-                                <option value="pending">Menunggu Verifikasi (Pending)</option>
-                                <option value="approved">Approved (Terverifikasi)</option>
-                                <option value="renewal_needed">Butuh Perpanjangan (Renewal Needed)</option>
-                              </select>
-                            </div>
-
-                            <div>
-                              <Label className="text-[11px] font-bold text-foreground">Nama PIC / Owner</Label>
-                              <Input
-                                type="text"
-                                value={formState.owner_name}
-                                placeholder="Budiono"
-                                onChange={(e) => setFormState({ ...formState, owner_name: e.target.value })}
-                                className="mt-1.5 h-8.5 text-xs font-medium"
-                              />
-                            </div>
-
-                            <div>
-                              <Label className="text-[11px] font-bold text-foreground">Email PIC</Label>
-                              <Input
-                                type="email"
-                                value={formState.owner_email}
-                                placeholder="budi@organisasi.org"
-                                onChange={(e) => setFormState({ ...formState, owner_email: e.target.value })}
-                                className="mt-1.5 h-8.5 text-xs font-medium"
-                              />
-                            </div>
-
-                            <div>
-                              <Label className="text-[11px] font-bold text-foreground">Tanggal Apply</Label>
-                              <Input
-                                type="date"
-                                value={formState.applied_at || ''}
-                                onChange={(e) => setFormState({ ...formState, applied_at: e.target.value || null })}
-                                className="mt-1.5 h-8.5 text-xs font-medium"
-                              />
-                            </div>
-
-                            <div>
-                              <Label className="text-[11px] font-bold text-foreground">Tanggal Approved</Label>
-                              <Input
-                                type="date"
-                                value={formState.approved_at || ''}
-                                onChange={(e) => setFormState({ ...formState, approved_at: e.target.value || null })}
-                                className="mt-1.5 h-8.5 text-xs font-medium"
-                              />
-                            </div>
-
-                            <div className="col-span-2">
-                              <Label className="text-[11px] font-bold text-foreground">Tanggal Renewal (Perpanjangan)</Label>
-                              <Input
-                                type="date"
-                                value={formState.renewal_at || ''}
-                                onChange={(e) => setFormState({ ...formState, renewal_at: e.target.value || null })}
-                                className="mt-1.5 h-8.5 text-xs font-medium"
-                              />
-                            </div>
-
-                            <div className="col-span-2">
-                              <Label className="text-[11px] font-bold text-foreground">Catatan Pendukung / Token</Label>
-                              <Textarea
-                                value={formState.notes}
-                                placeholder="Simpan token verifikasi atau catatan instruksi khusus perpanjangan akun di sini."
-                                onChange={(e) => setFormState({ ...formState, notes: e.target.value })}
-                                className="mt-1.5 min-h-[55px] text-xs font-medium leading-relaxed"
-                              />
-                            </div>
-                          </div>
-                        </div>
+          {/* Filters Grid with custom horizontal scrolling rows */}
+          <div className="space-y-3.5 pt-1.5">
+            {/* Filter Gateway */}
+            <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-4">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:w-20 shrink-0">Gateway:</span>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar select-none scroll-smooth">
+                {GATEWAY_FILTERS.map((f) => {
+                  const isActive = gateway === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => setGateway(f.id)}
+                      className={cn(
+                        "whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold transition-all border shrink-0",
+                        isActive 
+                          ? "bg-accent text-accent-foreground border-accent shadow-sm" 
+                          : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30 hover:text-foreground"
                       )}
+                    >
+                      {f.id === 'all' ? 'Semua' : f.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-                      {/* PIC ACTIONS / CONTROL FOOTER */}
-                      <div className="pt-4 border-t border-border/40 flex items-center justify-end gap-2.5">
-                        {!isEditing ? (
-                          <Button 
-                            type="button" 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleStartEdit(platformKey);
-                            }}
-                            className="h-8.5 text-xs font-bold border-border shadow-sm"
-                          >
-                            <Edit2 className="mr-1.5 h-3 w-3 text-accent" /> Edit PIC & Status
-                          </Button>
-                        ) : (
-                          <div className="flex items-center gap-2">
-                            <Button 
-                              type="button" 
-                              variant="ghost" 
-                              size="sm" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingPlatform(null);
-                              }}
-                              className="h-8.5 text-xs font-bold"
-                              disabled={upsertMutation.isPending}
-                            >
-                              <X className="mr-1 h-3 w-3" /> Batal
-                            </Button>
-                            <Button 
-                              type="button" 
-                              size="sm" 
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleSave();
-                              }}
-                              className="h-8.5 text-xs font-bold bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm"
-                              disabled={upsertMutation.isPending}
-                            >
-                              {upsertMutation.isPending ? (
-                                <>
-                                  <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
-                                  Menyimpan…
-                                </>
-                              ) : (
-                                <>
-                                  <Save className="mr-1.5 h-3.5 w-3.5" /> Simpan Perubahan
-                                </>
-                              )}
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
+            {/* Filter Pricing */}
+            <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-4 border-t border-border/30 pt-3 md:pt-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:w-20 shrink-0">Harga:</span>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar select-none scroll-smooth">
+                {PRICING_FILTERS.map((f) => {
+                  const isActive = pricing === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => setPricing(f.id)}
+                      className={cn(
+                        "whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold transition-all border shrink-0",
+                        isActive 
+                          ? "bg-accent text-accent-foreground border-accent shadow-sm" 
+                          : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30 hover:text-foreground"
+                      )}
+                    >
+                      {f.id === 'all' ? 'Semua' : f.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-                {/* Always-visible Card Footer: Situs Resmi link & toggler */}
-                <div className="mt-4 pt-3.5 border-t border-border/30 flex items-center justify-between gap-3">
-                  <a 
-                    href={config.officialUrl} 
-                    target="_blank" 
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center text-xs font-semibold text-accent hover:text-accent/85 hover:underline"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    Situs Resmi {config.displayName}
-                    <ExternalLink className="ml-1 h-3 w-3" />
-                  </a>
+            {/* Filter Category */}
+            <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-4 border-t border-border/30 pt-3 md:pt-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:w-20 shrink-0">Kategori:</span>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar select-none scroll-smooth">
+                {CATEGORY_FILTERS.map((f) => {
+                  const isActive = category === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => setCategory(f.id)}
+                      className={cn(
+                        "whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold transition-all border shrink-0",
+                        isActive 
+                          ? "bg-accent text-accent-foreground border-accent shadow-sm" 
+                          : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30 hover:text-foreground"
+                      )}
+                    >
+                      {f.id === 'all' ? 'Semua' : f.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleExpand(platformKey);
-                    }}
-                    className="h-7 text-xs font-medium text-muted-foreground hover:text-foreground"
-                  >
-                    {isExpanded ? 'Sembunyikan detail' : 'Tampilkan detail'}
-                  </Button>
-                </div>
-              </Card>
-            );
-          })}
+            {/* Sort Options */}
+            <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-4 border-t border-border/30 pt-3 md:pt-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground md:w-20 shrink-0">Urutkan:</span>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0 no-scrollbar select-none scroll-smooth">
+                {SORT_OPTIONS.map((f) => {
+                  const isActive = sort === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      onClick={() => setSort(f.id)}
+                      className={cn(
+                        "whitespace-nowrap rounded-full px-3 py-1 text-[11px] font-semibold transition-all border shrink-0",
+                        isActive 
+                          ? "bg-accent text-accent-foreground border-accent shadow-sm" 
+                          : "bg-background text-muted-foreground border-border hover:border-muted-foreground/30 hover:text-foreground"
+                      )}
+                    >
+                      {f.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* 3. Google Ads Grant Sub-Section (renders only when google is approved) */}
+      {/* 3. Platform Accordion List */}
+      <section className="space-y-4">
+        <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between border-b border-border/30 pb-2">
+          <h2 className="text-xl font-bold tracking-tight">Katalog Layanan Non-profit</h2>
+          <span className="text-xs font-semibold text-muted-foreground bg-muted/50 px-2.5 py-1 rounded-full border border-border/60">
+            Menampilkan {filteredPlatforms.length} dari {PLATFORMS.length} platform
+          </span>
+        </div>
+
+        {filteredPlatforms.length === 0 ? (
+          /* EMPTY STATE */
+          <Card className="border border-dashed border-border p-10 text-center rounded-2xl bg-card/40 backdrop-blur-sm flex flex-col items-center justify-center gap-4">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted text-muted-foreground">
+              <Ban className="h-6 w-6" />
+            </div>
+            <div className="space-y-1">
+              <h3 className="font-bold text-base">Tidak ada platform yang cocok dengan filter ini.</h3>
+            </div>
+            <Button
+              onClick={handleClearAllFilters}
+              size="sm"
+              className="mt-2 bg-accent text-accent-foreground hover:bg-accent/90 font-bold"
+            >
+              Hapus Semua Filter
+            </Button>
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {filteredPlatforms.map((platform) => {
+              const platformKey = platform.id;
+              const item = platformsMap[platformKey];
+              const isEditing = editingPlatform === platformKey;
+              const isExpanded = !!expandedPlatforms[platformKey];
+              const countdown = getCountdownText(item?.renewal_at);
+              
+              // Resolve active tab state (defaults to 'products')
+              const activeTab = activeTabs[platformKey] || 'products';
+
+              // Map category names to emoji labels
+              const getCategoryLabel = (cat: string) => {
+                const match = CATEGORY_FILTERS.find(f => f.id === cat);
+                return match ? match.label : cat;
+              };
+
+              // Color classes for pricing type
+              const getPricingColor = (type: string) => {
+                switch(type) {
+                  case 'free': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20 dark:bg-emerald-500/25 dark:text-emerald-400';
+                  case 'discount': return 'bg-blue-500/10 text-blue-500 border-blue-500/20 dark:bg-blue-500/25 dark:text-blue-400';
+                  case 'credits': return 'bg-purple-500/10 text-purple-500 border-purple-500/20 dark:bg-purple-500/25 dark:text-purple-400';
+                  case 'admin_fee': return 'bg-amber-500/10 text-amber-500 border-amber-500/20 dark:bg-amber-500/25 dark:text-amber-400';
+                  default: return 'bg-slate-500/10 text-slate-500 border-slate-500/20';
+                }
+              };
+
+              // Gateway labels and chips classes
+              const getGatewayChip = (gw: string) => {
+                switch(gw) {
+                  case 'goodstack': return { label: 'Goodstack', style: 'bg-purple-500/10 text-purple-600 border-purple-200 dark:bg-purple-500/20 dark:text-purple-400 dark:border-purple-800' };
+                  case 'techsoup': return { label: 'TechSoup', style: 'bg-blue-500/10 text-blue-600 border-blue-200 dark:bg-blue-500/20 dark:text-blue-400 dark:border-blue-800' };
+                  case 'both': return { label: 'Keduanya', style: 'bg-indigo-500/10 text-indigo-600 border-indigo-200 dark:bg-indigo-500/20 dark:text-indigo-400 dark:border-indigo-800' };
+                  default: return { label: 'Langsung', style: 'bg-slate-500/10 text-slate-600 border-slate-200 dark:bg-slate-500/20 dark:text-slate-400 dark:border-slate-800' };
+                }
+              };
+
+              const gwChip = getGatewayChip(platform.gateway);
+
+              // Standard icon mapping
+              const IconComponent = PLATFORM_ICONS[platformKey] || DEFAULT_ICON;
+
+              return (
+                <Card 
+                  key={platformKey} 
+                  className={cn(
+                    "relative overflow-hidden border border-border/80 bg-card p-5 shadow-card transition-all duration-300 hover:scale-[1.002] hover:shadow-elegant",
+                    isExpanded && "ring-1 ring-accent/35 border-accent/30 bg-accent-soft/[0.03]",
+                    isEditing && "ring-1 ring-accent border-accent/40 bg-accent-soft/10"
+                  )}
+                >
+                  {/* Decorative Accent Strip */}
+                  <div className="absolute top-0 left-0 h-[3px] w-full bg-gradient-to-r from-accent to-[#155F66]" />
+
+                  {/* TOP ROW BADGES */}
+                  <div className="flex flex-wrap items-center gap-1.5 mb-3.5">
+                    <span className="text-[10px] font-semibold text-muted-foreground bg-muted/60 px-2 py-0.5 rounded border">
+                      Prioritas {platform.priority}
+                    </span>
+                    <Badge variant="outline" className={cn("text-[9px] font-bold border px-2 py-0", gwChip.style)}>
+                      {gwChip.label}
+                    </Badge>
+                    <Badge variant="outline" className={cn("text-[9px] font-extrabold border px-2 py-0 uppercase tracking-wide shadow-sm", getPricingColor(platform.pricing.type))}>
+                      {platform.pricing.label}
+                    </Badge>
+                  </div>
+
+                  {/* CARD CLICKABLE HEADER */}
+                  <div 
+                    onClick={() => toggleExpand(platformKey)}
+                    className="flex items-start justify-between gap-3 cursor-pointer select-none group"
+                  >
+                    <div className="flex items-start gap-3.5">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-accent/10 text-accent border border-accent/20 shadow-sm shrink-0 transition-transform duration-300 group-hover:scale-105">
+                        <IconComponent className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-bold text-base leading-snug text-foreground flex items-center gap-1.5 group-hover:text-accent transition-colors">
+                          {platform.name}
+                          <ChevronDown className={cn("h-4 w-4 text-muted-foreground transition-transform duration-300 shrink-0", isExpanded && "rotate-180")} />
+                        </h3>
+                        <p className="text-xs text-muted-foreground leading-relaxed mt-1 max-w-xl">{platform.description}</p>
+                        
+                        {/* CATEGORY OUTLINED CHIPS */}
+                        <div className="flex flex-wrap items-center gap-1.5 mt-2.5">
+                          {platform.category.map(cat => (
+                            <span key={cat} className="text-[10px] font-semibold text-muted-foreground/90 bg-muted/20 border px-2 py-0.5 rounded">
+                              {getCategoryLabel(cat)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col items-end gap-1.5 shrink-0">
+                      <Badge variant="outline" className={cn("text-[10px] font-bold px-2.5 py-0.5 shadow-sm border", STATUS_COLORS[item?.status || 'not_started'])}>
+                        {STATUS_LABELS[item?.status || 'not_started']}
+                      </Badge>
+                      
+                      {/* Collapsed state key metadata preview */}
+                      {!isExpanded && (
+                        <div className="hidden md:flex items-center gap-3 text-[11px] text-muted-foreground font-medium mt-1">
+                          {item?.owner_name && (
+                            <span className="flex items-center gap-1 bg-muted/40 px-2 py-0.5 rounded border border-border/40">
+                              <User className="h-3 w-3 text-accent" /> {item.owner_name}
+                            </span>
+                          )}
+                          {item?.status === 'approved' && countdown && (
+                            <span className={cn("text-[10px] px-2 py-0.5 rounded-full border", countdown.color)}>
+                              {countdown.text}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* EXPANDED ACCORDION TABS BODY */}
+                  {isExpanded && (
+                    <div className="mt-5 pt-5 border-t border-border/40 space-y-4.5 animate-fade-in">
+                      
+                      {/* 1. Accordion Header Tabs list */}
+                      <div className="flex flex-wrap items-center gap-1.5 border-b border-border/40 pb-2.5 overflow-x-auto no-scrollbar scroll-smooth">
+                        <button
+                          onClick={() => setPlatformActiveTab(platformKey, 'products')}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
+                            activeTab === 'products'
+                              ? "bg-accent text-accent-foreground border-accent shadow-sm"
+                              : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                          )}
+                        >
+                          <ShoppingBag className="h-3.5 w-3.5" />
+                          Produk
+                        </button>
+                        <button
+                          onClick={() => setPlatformActiveTab(platformKey, 'register')}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
+                            activeTab === 'register'
+                              ? "bg-accent text-accent-foreground border-accent shadow-sm"
+                              : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                          )}
+                        >
+                          <ClipboardList className="h-3.5 w-3.5" />
+                          Cara Daftar
+                        </button>
+                        <button
+                          onClick={() => setPlatformActiveTab(platformKey, 'requirements')}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
+                            activeTab === 'requirements'
+                              ? "bg-accent text-accent-foreground border-accent shadow-sm"
+                              : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                          )}
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          Syarat Kelayakan
+                        </button>
+                        <button
+                          onClick={() => setPlatformActiveTab(platformKey, 'usage')}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
+                            activeTab === 'usage'
+                              ? "bg-accent text-accent-foreground border-accent shadow-sm"
+                              : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                          )}
+                        >
+                          <Sparkles className="h-3.5 w-3.5" />
+                          Cara Pakai (Use Cases)
+                        </button>
+                        <button
+                          onClick={() => setPlatformActiveTab(platformKey, 'admin')}
+                          className={cn(
+                            "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-bold transition-all border shrink-0",
+                            activeTab === 'admin'
+                              ? "bg-accent text-accent-foreground border-accent shadow-sm"
+                              : "bg-muted/30 text-muted-foreground border-transparent hover:bg-muted/50"
+                          )}
+                        >
+                          <User className="h-3.5 w-3.5" />
+                          PIC & Administrasi
+                        </button>
+                      </div>
+
+                      {/* 2. Active Tab Content Panels */}
+                      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 min-h-[220px]">
+                        
+                        {/* TAB CONTENTS (Left 7 cols on Desktop) */}
+                        <div className="md:col-span-7 space-y-4">
+                          
+                          {/* TAB A: PRODUCTS */}
+                          {activeTab === 'products' && (
+                            <div className="space-y-3.5 animate-slide-up">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                <ShoppingBag className="h-3.5 w-3.5 text-accent" />
+                                Katalog Produk & Diskon
+                              </h4>
+                              <div className="space-y-2.5">
+                                {platform.products.map((prod, idx) => {
+                                  // Get status badge colors
+                                  let statusBadge = null;
+                                  if (prod.status === 'free') {
+                                    statusBadge = (
+                                      <Badge variant="outline" className="text-[9px] font-extrabold px-1.5 bg-emerald-500/10 text-emerald-500 border-emerald-500/20 dark:bg-emerald-500/25 dark:text-emerald-400 py-0 uppercase">
+                                        Gratis
+                                      </Badge>
+                                    );
+                                  } else if (prod.status === 'discount') {
+                                    statusBadge = (
+                                      <Badge variant="outline" className="text-[9px] font-extrabold px-1.5 bg-blue-500/10 text-blue-500 border-blue-500/20 dark:bg-blue-500/25 dark:text-blue-400 py-0 uppercase">
+                                        Diskon
+                                      </Badge>
+                                    );
+                                  } else if (prod.status === 'credits') {
+                                    statusBadge = (
+                                      <Badge variant="outline" className="text-[9px] font-extrabold px-1.5 bg-purple-500/10 text-purple-500 border-purple-500/20 dark:bg-purple-500/25 dark:text-purple-400 py-0 uppercase">
+                                        Credits
+                                      </Badge>
+                                    );
+                                  }
+
+                                  return (
+                                    <div key={idx} className="rounded-xl border bg-muted/10 p-3.5 space-y-1.5">
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="font-bold text-xs text-foreground">{prod.name}</span>
+                                        <div className="flex items-center gap-1.5">
+                                          {statusBadge}
+                                          {prod.discount_percent && (
+                                            <Badge className="bg-red-500/10 text-red-500 border border-red-500/20 text-[9px] font-extrabold px-1.5">
+                                              Diskon {prod.discount_percent}%
+                                            </Badge>
+                                          )}
+                                          {prod.nonprofit_price_usd && (
+                                            <Badge variant="secondary" className="text-[10px] font-bold bg-accent/10 text-accent border border-accent/20 px-2 py-0">
+                                              {prod.nonprofit_price_usd}
+                                            </Badge>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <p className="text-[11px] text-muted-foreground leading-normal">{prod.description}</p>
+                                      <p className="text-[10px] text-muted-foreground/80 leading-relaxed italic border-t border-border/30 pt-1.5 mt-1.5">
+                                        NGO Use Case: {prod.use_case_ngo}
+                                      </p>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* TAB B: CARA DAFTAR */}
+                          {activeTab === 'register' && (
+                            <div className="space-y-3.5 animate-slide-up">
+                              <div className="flex items-center justify-between border-b pb-2">
+                                <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                  <ClipboardList className="h-3.5 w-3.5 text-accent" />
+                                  Instruksi Registrasi Platform
+                                </h4>
+                                <Badge variant="outline" className="bg-accent/5 text-accent border-accent/20 text-[10px] font-bold py-0.5 flex items-center gap-1">
+                                  <Clock className="h-3 w-3" /> Verifikasi: {platform.registration.estimated_time}
+                                </Badge>
+                              </div>
+
+                              {/* Numbered Steps list */}
+                              <div className="space-y-2.5">
+                                <p className="text-[11px] font-bold text-foreground">Langkah Pendaftaran:</p>
+                                <ol className="space-y-2.5 pl-4 list-decimal text-xs text-muted-foreground leading-relaxed">
+                                  {platform.registration.steps.map((step, idx) => (
+                                    <li key={idx} className="pl-1">
+                                      <span className="text-foreground font-medium">{step}</span>
+                                    </li>
+                                  ))}
+                                </ol>
+                              </div>
+
+                              {/* Gotchas Amber warning box */}
+                              {platform.registration.gotchas && platform.registration.gotchas.length > 0 && (
+                                <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.03] p-4 text-xs leading-relaxed text-amber-800 dark:text-amber-400">
+                                  <span className="font-bold uppercase tracking-wider text-[10px] flex items-center gap-1 mb-1.5">
+                                    <AlertTriangle className="h-4 w-4 text-amber-500" />
+                                    Perhatian Penting (Gotchas):
+                                  </span>
+                                  <ul className="list-disc pl-4 space-y-1">
+                                    {platform.registration.gotchas.map((gotcha, idx) => (
+                                      <li key={idx}>{gotcha}</li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+
+                              {/* Registration Direct CTA Button */}
+                              <div className="pt-2">
+                                <Button
+                                  asChild
+                                  size="sm"
+                                  className="bg-accent text-accent-foreground hover:bg-accent/90 font-bold text-xs shadow-sm h-9"
+                                >
+                                  <a href={platform.registration.url} target="_blank" rel="noopener noreferrer">
+                                    Daftar Sekarang &rarr;
+                                  </a>
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* TAB C: SYARAT KELAYAKAN */}
+                          {activeTab === 'requirements' && (
+                            <div className="space-y-3.5 animate-slide-up">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                <FileText className="h-3.5 w-3.5 text-accent" />
+                                Berkas & Kriteria Kelayakan
+                              </h4>
+
+                              {/* Documents Checklist */}
+                              <div className="rounded-xl border bg-muted/15 p-4 space-y-3">
+                                <p className="text-[11px] font-bold text-foreground">
+                                  Checklist Dokumen Wajib NGO:
+                                </p>
+                                <div className="space-y-2.5">
+                                  {platform.requirements.documents.map((doc, idx) => {
+                                    return (
+                                      <div 
+                                        key={idx}
+                                        className="flex items-start gap-2.5 text-xs text-foreground select-none"
+                                      >
+                                        <CheckSquare className="h-4 w-4 shrink-0 text-accent mt-0.5" />
+                                        <span className="leading-normal font-medium">
+                                          {doc}
+                                        </span>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Conditions requirements */}
+                              <div className="space-y-1.5">
+                                <p className="text-[11px] font-bold text-foreground">Kriteria Kelayakan:</p>
+                                <ul className="list-disc pl-4 space-y-1 text-xs text-muted-foreground">
+                                  {platform.requirements.conditions.map((cond, idx) => (
+                                    <li key={idx}>{cond}</li>
+                                  ))}
+                                </ul>
+                              </div>
+
+                              {/* Non-Eligible Criteria */}
+                              {platform.not_eligible && platform.not_eligible.length > 0 && (
+                                <div className="rounded-xl border border-red-500/20 bg-red-500/[0.01] p-3.5 space-y-2.5 text-xs">
+                                  <p className="font-bold text-[10px] uppercase tracking-wider text-red-500 flex items-center gap-1">
+                                    <X className="h-3.5 w-3.5 text-red-500" />
+                                    Tidak Layak / Not Eligible:
+                                  </p>
+                                  <div className="space-y-2">
+                                    {platform.not_eligible.map((not, idx) => (
+                                      <div key={idx} className="flex items-start gap-2 text-red-600/80 dark:text-red-400/80 leading-normal">
+                                        <X className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
+                                        <span>{not}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* TAB D: USE CASES (CARA PAKAI) */}
+                          {activeTab === 'usage' && (
+                            <div className="space-y-4 animate-slide-up">
+                              <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                <Sparkles className="h-3.5 w-3.5 text-accent" />
+                                Dampak Penggunaan Platform (NGO Use Cases)
+                              </h4>
+
+                              <div className="space-y-3">
+                                <p className="text-[11px] font-bold text-foreground">Saran Solusi Dampak:</p>
+                                <ol className="space-y-2.5 pl-4 list-decimal text-xs text-muted-foreground leading-relaxed">
+                                  {platform.use_cases.map((useCase, idx) => (
+                                    <li key={idx} className="pl-1">
+                                      <span className="text-foreground font-semibold">{useCase}</span>
+                                    </li>
+                                  ))}
+                                </ol>
+                              </div>
+
+                              {/* Renewal Info Badge at bottom */}
+                              <div className="rounded-xl border bg-muted/15 p-3.5 text-xs space-y-1">
+                                <div className="flex items-center gap-1.5 text-foreground font-bold">
+                                  <RefreshCw className="h-3.5 w-3.5 text-accent" />
+                                  <span>Kebijakan Perpanjangan (Renewal)</span>
+                                </div>
+                                <p className="text-muted-foreground leading-relaxed text-[11px]">
+                                  Siklus: <span className="font-bold text-foreground">{platform.renewal.period}</span> ({platform.renewal.type === 'auto' ? 'Auto-Renewal' : platform.renewal.type === 'manual' ? 'Manual Renewal' : 'Tanpa Renewal'}). 
+                                  {platform.renewal.note && <span className="block mt-1 italic text-accent">{platform.renewal.note}</span>}
+                                </p>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* TAB E: PIC & ADMINISTRATIVE STATUS FORM */}
+                          {activeTab === 'admin' && (
+                            <div className="space-y-4 animate-slide-up">
+                              
+                              {/* VIEW PIC DETAILS MODE */}
+                              {!isEditing ? (
+                                <div className="space-y-3.5">
+                                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                    <Building2 className="h-3.5 w-3.5 text-accent" />
+                                    PIC & Informasi Administrasi
+                                  </h4>
+
+                                  <div className="grid grid-cols-1 gap-3 rounded-xl border bg-muted/20 p-4 text-xs">
+                                    <div className="flex items-start gap-3">
+                                      <User className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                                      <div className="space-y-0.5">
+                                        <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">PIC / Penanggung Jawab</p>
+                                        <p className="font-semibold text-foreground text-sm">
+                                          {item?.owner_name || <span className="text-muted-foreground/50 font-normal">Belum ditentukan</span>}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="flex items-start gap-3 border-t border-border/40 pt-3">
+                                      <Mail className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                                      <div className="space-y-0.5">
+                                        <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">Email Kontak PIC</p>
+                                        <p className="font-semibold text-foreground">
+                                          {item?.owner_email || <span className="text-muted-foreground/50 font-normal">Belum ditentukan</span>}
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-3 border-t border-border/40 pt-3">
+                                      <div className="space-y-0.5">
+                                        <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">Tanggal Apply</p>
+                                        <p className="font-semibold text-foreground">
+                                          {item?.applied_at ? new Date(item.applied_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                        </p>
+                                      </div>
+                                      <div className="space-y-0.5 border-l border-border/40 pl-3">
+                                        <p className="font-bold text-muted-foreground text-[10px] uppercase tracking-wider">Tanggal Renewal</p>
+                                        <p className="font-semibold text-foreground">
+                                          {item?.renewal_at ? new Date(item.renewal_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {item?.notes ? (
+                                    <div className="rounded-xl bg-muted/40 p-3.5 border border-dashed border-border text-xs leading-relaxed text-muted-foreground">
+                                      <span className="font-bold text-foreground block mb-1">Catatan Internal / Token Verifikasi:</span> 
+                                      {item.notes}
+                                    </div>
+                                  ) : (
+                                    <div className="text-[11px] text-muted-foreground/50 text-center py-2 italic">
+                                      Belum ada catatan internal atau token verifikasi yang disimpan.
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                
+                                /* EDIT PIC DETAILS INLINE FORM */
+                                <div className="space-y-3.5">
+                                  <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                                    <Edit2 className="h-3.5 w-3.5 text-accent" />
+                                    Formulir Administrasi PIC
+                                  </h4>
+
+                                  <div className="grid grid-cols-2 gap-3 rounded-xl border p-4 bg-muted/10">
+                                    <div className="col-span-2">
+                                      <Label className="text-[10px] font-bold text-foreground">Status Pendaftaran</Label>
+                                      <select
+                                        value={formState.status}
+                                        onChange={(e) => setFormState({ ...formState, status: e.target.value as PlatformAccessRecord['status'] })}
+                                        className="mt-1.5 w-full rounded-md border border-input bg-background px-3 py-1.5 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-accent"
+                                      >
+                                        <option value="not_started">Belum Mulai (Not Started)</option>
+                                        <option value="submitted">Dalam Proses (Submitted)</option>
+                                        <option value="pending">Menunggu Verifikasi (Pending)</option>
+                                        <option value="approved">Approved (Terverifikasi)</option>
+                                        <option value="renewal_needed">Butuh Perpanjangan (Renewal Needed)</option>
+                                      </select>
+                                    </div>
+
+                                    <div>
+                                      <Label className="text-[10px] font-bold text-foreground">Nama PIC / Owner</Label>
+                                      <Input
+                                        type="text"
+                                        value={formState.owner_name}
+                                        placeholder="Budi"
+                                        onChange={(e) => setFormState({ ...formState, owner_name: e.target.value })}
+                                        className="mt-1.5 h-8.5 text-xs font-medium"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <Label className="text-[10px] font-bold text-foreground">Email PIC</Label>
+                                      <Input
+                                        type="email"
+                                        value={formState.owner_email}
+                                        placeholder="budi@ngo.org"
+                                        onChange={(e) => setFormState({ ...formState, owner_email: e.target.value })}
+                                        className="mt-1.5 h-8.5 text-xs font-medium"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <Label className="text-[10px] font-bold text-foreground">Tanggal Apply</Label>
+                                      <Input
+                                        type="date"
+                                        value={formState.applied_at || ''}
+                                        onChange={(e) => setFormState({ ...formState, applied_at: e.target.value || null })}
+                                        className="mt-1.5 h-8.5 text-xs font-medium"
+                                      />
+                                    </div>
+
+                                    <div>
+                                      <Label className="text-[10px] font-bold text-foreground">Tanggal Approved</Label>
+                                      <Input
+                                        type="date"
+                                        value={formState.approved_at || ''}
+                                        onChange={(e) => setFormState({ ...formState, approved_at: e.target.value || null })}
+                                        className="mt-1.5 h-8.5 text-xs font-medium"
+                                      />
+                                    </div>
+
+                                    <div className="col-span-2">
+                                      <Label className="text-[10px] font-bold text-foreground">Tanggal Renewal (Perpanjangan)</Label>
+                                      <Input
+                                        type="date"
+                                        value={formState.renewal_at || ''}
+                                        onChange={(e) => setFormState({ ...formState, renewal_at: e.target.value || null })}
+                                        className="mt-1.5 h-8.5 text-xs font-medium"
+                                      />
+                                    </div>
+
+                                    <div className="col-span-2">
+                                      <Label className="text-[10px] font-bold text-foreground">Catatan Pendukung / Token</Label>
+                                      <Textarea
+                                        value={formState.notes}
+                                        placeholder="Simpan token verifikasi atau catatan instruksi khusus perpanjangan akun di sini."
+                                        onChange={(e) => setFormState({ ...formState, notes: e.target.value })}
+                                        className="mt-1.5 min-h-[55px] text-xs font-medium leading-relaxed"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* RIGHT COLUMN (Desktop 5 cols) - Inline AI Integration & Actions */}
+                        <div className="md:col-span-5 flex flex-col justify-between space-y-4">
+                          
+                          {/* Tanya AI Inline Integration Panel */}
+                          <div className="space-y-3 flex-1">
+                            {!inlineAiResponses[platformKey] ? (
+                              <div className="flex flex-col gap-3.5 bg-accent-soft/10 rounded-xl p-4 border border-accent/15">
+                                <div className="space-y-1">
+                                  <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                                    <Sparkles className="h-4 w-4 text-accent animate-pulse shrink-0" />
+                                    Butuh Saran Registrasi Tambahan?
+                                  </p>
+                                  <p className="text-[11px] text-muted-foreground leading-normal">
+                                    AI Copilot dapat menyusun tips taktis, kesiapan token, dan strategi lolos verifikasi secara instan.
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleTriggerInlineAi(platformKey);
+                                  }}
+                                  className="w-fit h-8.5 text-xs font-bold bg-accent text-accent-foreground hover:bg-accent/90 shrink-0 shadow-sm"
+                                  disabled={inlineAiLoading[platformKey]}
+                                >
+                                  {inlineAiLoading[platformKey] ? (
+                                    <>
+                                      <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                                      Loading…
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Sparkles className="mr-1.5 h-3 w-3" />
+                                      Tanya AI Copilot
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            ) : (
+                              // Loaded Inline AI Guide
+                              <div className="rounded-xl border border-accent/25 bg-accent-soft/5 p-4 space-y-3.5 animate-slide-up">
+                                <div className="flex items-center justify-between border-b border-accent/15 pb-2">
+                                  <span className="text-xs font-bold text-accent flex items-center gap-1">
+                                    <Sparkles className="h-3.5 w-3.5 animate-pulse" />
+                                    Rekomendasi Registrasi AI
+                                  </span>
+                                  <Badge variant="outline" className="text-[9px] bg-emerald-500/10 text-emerald-600 font-extrabold border-emerald-500/20 dark:bg-emerald-500/20">
+                                    {inlineAiResponses[platformKey]?.confidence}% Confidence
+                                  </Badge>
+                                </div>
+
+                                <div className="space-y-2 text-xs">
+                                  <p className="font-bold text-[10px] uppercase tracking-wider text-muted-foreground">Tips Taktis AI:</p>
+                                  <ul className="space-y-2 list-none pl-0">
+                                    {inlineAiResponses[platformKey]?.checklist.map((tip: string, idx: number) => (
+                                      <li key={idx} className="flex items-start gap-2 text-muted-foreground leading-relaxed">
+                                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                                        <span>{tip}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+
+                                {/* Warning Box */}
+                                <div className="rounded-lg border border-dashed border-red-500/30 bg-red-500/[0.01] p-3 text-[10px] leading-relaxed text-red-600 dark:text-red-400">
+                                  <span className="font-bold uppercase tracking-wider block mb-1">⚠️ Perhatian Khusus:</span>
+                                  {inlineAiResponses[platformKey]?.warning}
+                                </div>
+
+                                {/* Human Review Gate checkbox inside the card */}
+                                <div className="border-t border-accent/10 pt-3 flex items-center gap-2">
+                                  <input
+                                    type="checkbox"
+                                    id={`human-review-gate-${platformKey}`}
+                                    checked={!!inlineHumanReviewChecked[platformKey]}
+                                    onChange={(e) => {
+                                      const val = e.target.checked;
+                                      setInlineHumanReviewChecked(prev => ({ ...prev, [platformKey]: val }));
+                                    }}
+                                    className="h-3.5 w-3.5 rounded border-gray-300 text-accent focus:ring-accent cursor-pointer"
+                                  />
+                                  <Label 
+                                    htmlFor={`human-review-gate-${platformKey}`} 
+                                    className="text-[10px] font-bold text-foreground cursor-pointer select-none"
+                                  >
+                                    Saya mengonfirmasi telah membaca panduan ini dan melakukan verifikasi manual
+                                  </Label>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Controls Footer buttons */}
+                          <div className="pt-4 border-t border-border/40 flex items-center justify-end gap-2">
+                            {!isEditing ? (
+                              <Button 
+                                type="button" 
+                                variant="outline" 
+                                size="sm" 
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleStartEdit(platformKey);
+                                }}
+                                className="h-8.5 text-xs font-bold border-border shadow-sm w-full sm:w-auto"
+                              >
+                                <Edit2 className="mr-1.5 h-3 w-3 text-accent" /> Edit PIC & Status
+                              </Button>
+                            ) : (
+                              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                                <Button 
+                                  type="button" 
+                                  variant="ghost" 
+                                  size="sm" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingPlatform(null);
+                                  }}
+                                  className="h-8.5 text-xs font-bold"
+                                  disabled={upsertMutation.isPending}
+                                >
+                                  <X className="mr-1 h-3 w-3" /> Batal
+                                </Button>
+                                <Button 
+                                  type="button" 
+                                  size="sm" 
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSave();
+                                  }}
+                                  className="h-8.5 text-xs font-bold bg-accent text-accent-foreground hover:bg-accent/90 shadow-sm"
+                                  disabled={upsertMutation.isPending}
+                                >
+                                  {upsertMutation.isPending ? (
+                                    <>
+                                      <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                                      Menyimpan…
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Save className="mr-1.5 h-3.5 w-3.5" /> Simpan Perubahan
+                                    </>
+                                  )}
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Always-visible Card Footer: URL link & toggler */}
+                  <div className="mt-4 pt-3.5 border-t border-border/30 flex items-center justify-between gap-3">
+                    <a 
+                      href={platform.registration.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center text-xs font-semibold text-accent hover:text-accent/85 hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      Situs Resmi {platform.name}
+                      <ExternalLink className="ml-1 h-3 w-3" />
+                    </a>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggleExpand(platformKey);
+                      }}
+                      className="h-7 text-xs font-semibold text-muted-foreground hover:text-foreground"
+                    >
+                      {isExpanded ? 'Sembunyikan detail' : 'Tampilkan detail'}
+                    </Button>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </section>
+
+      {/* 4. Google Ads Grant Sub-Section (renders only when google is approved) */}
       {googleIsApproved && (
         <Card className="border-emerald-500/20 bg-emerald-500/[0.01] p-5 shadow-card relative overflow-hidden">
           <div className="absolute top-0 left-0 h-full w-1.5 bg-emerald-500" />
@@ -1100,7 +1616,7 @@ export default function ResourceAccessTracker() {
         </Card>
       )}
 
-      {/* 4. Renewal Calendar Section (Dynamic Timeline) */}
+      {/* 5. Renewal Calendar Section (Dynamic Timeline) */}
       <Card className="p-5 shadow-card border-border bg-card">
         <div className="flex items-center gap-2 mb-4">
           <Calendar className="h-5 w-5 text-accent" />
@@ -1112,7 +1628,7 @@ export default function ResourceAccessTracker() {
             <Calendar className="mx-auto h-8 w-8 text-muted-foreground/50" />
             <h3 className="mt-3 font-semibold text-sm">Belum ada linimasa renewal</h3>
             <p className="mt-1 text-xs text-muted-foreground max-w-sm mx-auto">
-              Tanggal perpanjangan akun akan tampil di sini secara urut setelah status platform diubah ke \'Approved\' dan diisi Tanggal Renewal-nya.
+              Tanggal perpanjangan akun akan tampil di sini secara urut setelah status platform diubah ke 'Approved' dan diisi Tanggal Renewal-nya.
             </p>
           </div>
         ) : (
@@ -1167,7 +1683,7 @@ export default function ResourceAccessTracker() {
         )}
       </Card>
 
-      {/* 5. Legacy AI Assistant Copilot (Kept for compatibility, polished) */}
+      {/* 6. Legacy AI Assistant Copilot (Kept for compatibility, polished) */}
       <Card className="border-accent-soft/80 bg-accent-soft/20 p-5 shadow-card relative overflow-hidden">
         <div className="absolute top-0 right-0 h-16 w-16 bg-accent-soft text-accent/15 -mr-4 -mt-4 transform rotate-12 pointer-events-none">
           <Sparkles className="h-16 w-16" />
@@ -1194,9 +1710,10 @@ export default function ResourceAccessTracker() {
                 }}
                 className="rounded-md border bg-background px-3 py-1 text-xs font-semibold h-8 focus:outline-none focus:ring-1 focus:ring-accent"
               >
-                {Object.keys(PLATFORM_CONFIGS).map((k) => (
-                  <option key={k} value={k}>
-                    {PLATFORM_CONFIGS[k as keyof typeof PLATFORM_CONFIGS].displayName}
+                {/* Dynamically list standard platforms for the global copilot */}
+                {PLATFORMS.slice(0, 5).map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
                   </option>
                 ))}
               </select>
@@ -1274,7 +1791,7 @@ export default function ResourceAccessTracker() {
         </div>
       </Card>
 
-      {/* 6. Common Mistakes Collapsible Card (Accordions style) */}
+      {/* 7. Common Mistakes Collapsible Card (Accordions style) */}
       <Card className="border border-dashed border-border bg-card">
         <button
           type="button"
@@ -1289,7 +1806,7 @@ export default function ResourceAccessTracker() {
         </button>
 
         {expandedMistakes && (
-          <CardContent className="p-5 pt-0 border-t border-dashed border-border grid gap-4 sm:grid-cols-2">
+          <CardContent className="p-5 pt-0 border-t border-dashed border-border grid gap-4 sm:grid-cols-2 animate-fade-in">
             <div className="rounded-xl border bg-muted/10 p-4 space-y-2">
               <h3 className="text-xs font-bold text-foreground leading-normal flex items-center gap-1.5">
                 <div className="h-2 w-2 rounded-full bg-red-500" />
@@ -1333,7 +1850,7 @@ export default function ResourceAccessTracker() {
         )}
       </Card>
 
-      {/* 7. Bottom Navigation Area */}
+      {/* 8. Bottom Navigation Area */}
       <Card className="flex flex-col gap-3 p-5 shadow-card md:flex-row md:items-center md:justify-between md:p-6">
         <div>
           <h2 className="text-lg font-bold leading-snug">Hubungkan ke Workflow Pertumbuhan Lainnya</h2>
