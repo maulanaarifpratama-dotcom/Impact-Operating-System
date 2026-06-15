@@ -881,7 +881,7 @@ export default function WBSBuilder({
   };
 
   return (
-    <div className="space-y-6">
+    <div data-testid="wbs-builder-root" className="space-y-6">
       {/* MODULE WORKSPACE HEADER */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 bg-white dark:bg-slate-900 border rounded-lg shadow-sm">
         <div className="space-y-1">
@@ -993,6 +993,7 @@ export default function WBSBuilder({
                       <input
                         type="text"
                         value={item.name}
+                        data-testid="wbs-activity-name-input"
                         placeholder={
                           item.level === 2 ? 'Ketik nama aktivitas...' :
                           item.level === 3 ? 'Ketik sub-aktivitas...' : 'Ketik detail task...'
@@ -1085,6 +1086,7 @@ export default function WBSBuilder({
                       <input
                         type="text"
                         value={item.pic || ''}
+                        data-testid="wbs-pic-input"
                         placeholder={item.level === 2 && globalMode === 'professional' ? 'Nama + Jabatan + Org' : 'PIC'}
                         onChange={(e) => {
                           const updated = { ...item, pic: e.target.value };
@@ -1143,6 +1145,7 @@ export default function WBSBuilder({
                       <Button
                         variant="ghost"
                         size="icon"
+                        data-testid="wbs-add-item-button"
                         className="h-6 w-6 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
                         onClick={() => void handleAddSubActivity(item.id)}
                         title="Tambah Sub-aktivitas"

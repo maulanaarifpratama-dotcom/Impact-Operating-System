@@ -946,7 +946,7 @@ export default function MEALPlanner({
   }
 
   return (
-    <div className="space-y-6">
+    <div data-testid="meal-planner-root" className="space-y-6">
       {/* MEAL HEADER BAR */}
       <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 p-6 rounded-xl border border-slate-800 shadow-xl text-white">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -1067,6 +1067,7 @@ export default function MEALPlanner({
                     <td className="p-3.5">
                       <Textarea
                         value={item.indicator_text}
+                        data-testid="meal-indicator-name-input"
                         onChange={(e) => {
                           const val = e.target.value;
                           setMealItems(prev => prev.map(m => m.id === item.id ? { ...m, indicator_text: val } : m));
@@ -1108,6 +1109,7 @@ export default function MEALPlanner({
                             <Input
                               type="number"
                               value={item.target_value ?? ''}
+                              data-testid="meal-target-input"
                               onChange={(e) => {
                                 const val = e.target.value === '' ? null : Number(e.target.value);
                                 setMealItems(prev => prev.map(m => m.id === item.id ? { ...m, target_value: val } : m));
@@ -1411,6 +1413,7 @@ export default function MEALPlanner({
             onClick={() => handleAddMealItem('output')}
             variant="outline"
             size="sm"
+            data-testid="meal-add-indicator-button"
             className="text-xs h-8 border-slate-200"
           >
             <Plus className="mr-1.5 h-3.5 w-3.5 text-slate-500" /> Tambah Indikator Hasil (Output)

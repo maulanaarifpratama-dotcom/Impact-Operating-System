@@ -655,6 +655,7 @@ export default function LFABuilderEditor() {
           {completenessPercent >= 80 ? (
             <button
               onClick={() => setActiveTab('wbs')}
+              data-testid="lfa-tab-wbs"
               className={`px-3 py-1.5 rounded-md transition-all ${
                 activeTab === 'wbs' ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border' : 'text-muted-foreground hover:text-foreground'
               }`}
@@ -665,7 +666,7 @@ export default function LFABuilderEditor() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
+                  <button data-testid="lfa-tab-wbs" className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
                     ② WBS 🔒
                   </button>
                 </TooltipTrigger>
@@ -703,6 +704,7 @@ export default function LFABuilderEditor() {
           {completenessPercent >= 80 && wbsExists ? (
             <button
               onClick={() => setActiveTab('meal')}
+              data-testid="lfa-tab-meal"
               className={`px-3 py-1.5 rounded-md transition-all ${
                 activeTab === 'meal' ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border' : 'text-muted-foreground hover:text-foreground'
               }`}
@@ -713,7 +715,7 @@ export default function LFABuilderEditor() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
+                  <button data-testid="lfa-tab-meal" className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
                     ④ MEAL 🔒
                   </button>
                 </TooltipTrigger>
