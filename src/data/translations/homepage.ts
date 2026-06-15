@@ -59,6 +59,8 @@ export interface HomepageTranslation {
       cta: string;
       href?: string;
       disabled?: boolean;
+      size?: "small" | "wide" | "full";
+      variant?: "default" | "highlight" | "ai";
     }>;
   };
   evidenceAndReporting: {
@@ -224,61 +226,89 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
           title: "Guided Onboarding",
           description: "Mulai perjalanan digitalisasi organisasi Anda dengan setup profil dan pemetaan aset terpadu.",
           cta: "Mulai Onboarding",
-          href: "/onboarding"
+          href: "/onboarding",
+          size: "small",
+          variant: "default"
         },
         {
           title: "LFA Builder",
           description: "Desain matriks Logical Framework Approach yang komprehensif, menghubungkan tujuan, output, aktivitas, dan asumsi.",
           cta: "Buka LFA Builder",
-          href: "/dashboard/lfa-builder"
+          href: "/dashboard/lfa-builder",
+          size: "wide",
+          variant: "highlight"
         },
         {
           title: "WBS Builder",
           description: "Pecah aktivitas program menjadi paket kerja (Work Breakdown Structure) yang jelas dan terstruktur.",
           cta: "Desain Aktivitas",
-          href: "/dashboard/lfa-builder"
+          href: "/dashboard/lfa-builder",
+          size: "small",
+          variant: "default"
         },
         {
           title: "Budget Calculator",
           description: "Kalkulasi anggaran operasional dan aktivitas yang terhubung langsung dengan alur logis program.",
           cta: "Kalkulasi Anggaran",
-          href: "/dashboard/lfa-builder"
+          href: "/dashboard/lfa-builder",
+          size: "small",
+          variant: "default"
         },
         {
           title: "MEAL Planner",
           description: "Rumuskan indikator, baseline, target, dan metode pengumpulan data pemantauan program secara praktis.",
           cta: "Rencanakan MEAL",
-          href: "/dashboard/lfa-builder"
+          href: "/dashboard/lfa-builder",
+          size: "wide",
+          variant: "highlight"
         },
         {
           title: "MEAL Tracker",
           description: "Catat dan telusuri realisasi capaian aktual indikator secara real-time, lengkap dengan catatan verifikasi.",
           cta: "Telusuri Capaian",
-          href: "/dashboard/lfa-builder"
+          href: "/dashboard/lfa-builder",
+          size: "small",
+          variant: "default"
         },
         {
           title: "Kalkulator SROI Terintegrasi",
           description: "Hitung nilai Social Return on Investment (SROI) secara otomatis yang diimpor dari indikator MEAL & anggaran LFA.",
           cta: "Lihat SROI Terintegrasi",
-          href: "/dashboard/lfa-builder"
+          href: "/dashboard/lfa-builder",
+          size: "wide",
+          variant: "highlight"
         },
         {
           title: "Kalkulator SROI Mandiri",
           description: "Hitung rasio SROI secara instan tanpa LFA dengan memasukkan data investasi dan manfaat sosial secara manual.",
           cta: "Gunakan SROI Mandiri",
-          href: "/dashboard/sroi"
+          href: "/dashboard/sroi",
+          size: "small",
+          variant: "default"
         },
         {
           title: "Impact Library",
           description: "Ubah tumpukan dokumen lama, proposal lama, laporan, dan cerita sukses menjadi knowledge base AI.",
           cta: "Buka Library",
-          href: "/dashboard/impactory-library"
+          href: "/dashboard/impactory-library",
+          size: "small",
+          variant: "default"
         },
         {
           title: "OneDrive Evidence Sync",
           description: "Kelola bukti fisik dan dokumen pendukung dengan sinkronisasi otomatis ke folder cloud Microsoft OneDrive.",
           cta: "Kelola Bukti Dampak",
-          href: "/dashboard/impactory-library"
+          href: "/dashboard/impactory-library",
+          size: "small",
+          variant: "default"
+        },
+        {
+          title: "AI Assist (RAG & Copilot)",
+          description: "Gunakan asisten AI berbasis pengetahuan internal Anda sendiri untuk mempercepat penulisan draf proposal, laporan dampak, dan pembuatan salinan kampanye digital.",
+          cta: "Buka AI Assist",
+          href: "/dashboard/impactory-library",
+          size: "full",
+          variant: "ai"
         }
       ]
     },
@@ -467,61 +497,89 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
           title: "Guided Onboarding",
           description: "Kickstart your digital transformation with automated profiling and resource mapping.",
           cta: "Start Onboarding",
-          href: "/onboarding"
+          href: "/onboarding",
+          size: "small",
+          variant: "default"
         },
         {
           title: "LFA Builder",
           description: "Design standard Logical Framework Approach matrices connecting goals, outcomes, outputs, and assumptions.",
           cta: "Open LFA Builder",
-          href: "/dashboard/lfa-builder"
+          href: "/dashboard/lfa-builder",
+          size: "wide",
+          variant: "highlight"
         },
         {
           title: "WBS Builder",
           description: "Deconstruct program activities into structured, clear, and executable Work Breakdown Structures.",
           cta: "Design Activities",
-          href: "/dashboard/lfa-builder"
+          href: "/dashboard/lfa-builder",
+          size: "small",
+          variant: "default"
         },
         {
           title: "Budget Calculator",
           description: "Perform precise budget estimations that link directly to your WBS framework.",
           cta: "Calculate Budget",
-          href: "/dashboard/lfa-builder"
+          href: "/dashboard/lfa-builder",
+          size: "small",
+          variant: "default"
         },
         {
           title: "MEAL Planner",
           description: "Formulate metrics, baseline numbers, targets, and data collection plans logically.",
           cta: "Plan MEAL",
-          href: "/dashboard/lfa-builder"
+          href: "/dashboard/lfa-builder",
+          size: "wide",
+          variant: "highlight"
         },
         {
           title: "MEAL Tracker",
           description: "Log and monitor real-time actual progress of indicator accomplishments with verification notes.",
           cta: "Track Outcomes",
-          href: "/dashboard/lfa-builder"
+          href: "/dashboard/lfa-builder",
+          size: "small",
+          variant: "default"
         },
         {
           title: "Integrated SROI Calculator",
           description: "Generate SROI ratios instantly utilizing data imported from MEAL targets and LFA budgets.",
           cta: "View Integrated SROI",
-          href: "/dashboard/lfa-builder"
+          href: "/dashboard/lfa-builder",
+          size: "wide",
+          variant: "highlight"
         },
         {
           title: "Standalone SROI Calculator",
           description: "Estimate SROI quickly without LFA configuration by typing investment and outcome metrics manually.",
           cta: "Use Standalone SROI",
-          href: "/dashboard/sroi"
+          href: "/dashboard/sroi",
+          size: "small",
+          variant: "default"
         },
         {
           title: "Impact Library",
           description: "Turn piles of past files, previous proposals, and reports into a secure AI-powered search database.",
           cta: "Open Library",
-          href: "/dashboard/impactory-library"
+          href: "/dashboard/impactory-library",
+          size: "small",
+          variant: "default"
         },
         {
           title: "OneDrive Evidence Sync",
           description: "Manage physical evidence and reports with automated folder syncs to Microsoft OneDrive.",
           cta: "Manage Evidence",
-          href: "/dashboard/impactory-library"
+          href: "/dashboard/impactory-library",
+          size: "small",
+          variant: "default"
+        },
+        {
+          title: "AI Assist (RAG & Copilot)",
+          description: "Leverage AI grounded on your private organizational history to speed up drafting proposals, reports, and copy.",
+          cta: "Open AI Assist",
+          href: "/dashboard/impactory-library",
+          size: "full",
+          variant: "ai"
         }
       ]
     },

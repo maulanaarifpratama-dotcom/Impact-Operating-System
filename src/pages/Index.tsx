@@ -133,7 +133,8 @@ export default function Index() {
       Share2,         // Integrated SROI
       Coins,          // Standalone SROI
       LibraryBig,     // Impact Library
-      FolderSync      // OneDrive sync
+      FolderSync,     // OneDrive sync
+      Sparkles        // AI Assist
     ];
     return icons[index] || ShieldCheck;
   };
@@ -420,49 +421,147 @@ export default function Index() {
               </p>
             </div>
 
-            <div className="mt-16 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="mt-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {t.modules.cards.map((module, idx) => {
                 const Icon = resolveModuleIcon(idx);
-                const isStandaloneSroi = module.href === '/dashboard/sroi';
                 
-                const cardNode = (
-                  <Card className="relative overflow-hidden flex h-full flex-col border border-[#1D7A75]/20 p-6 shadow-xl bg-[#0A1D25]/80 rounded-2xl hover:border-teal-500/40 hover:-translate-y-1 transition-all duration-300 group">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 transition-transform duration-300 group-hover:scale-105">
-                        <Icon className="h-5 w-5" />
+                let gridSpan = "col-span-1";
+                if (module.size === "wide") {
+                  gridSpan = "col-span-1 md:col-span-2 lg:col-span-2";
+                } else if (module.size === "full") {
+                  gridSpan = "col-span-1 md:col-span-2 lg:col-span-3";
+                }
+
+                // Render dynamic card style and structure based on Bento size
+                let cardElement;
+                if (module.size === "full") {
+                  cardElement = (
+                    <Card className="relative overflow-hidden flex h-full flex-col border border-teal-500/30 p-8 shadow-xl bg-gradient-to-br from-[#0D2530] via-[#0A1D25]/95 to-[#1D7A75]/15 hover:border-teal-400/50 transition-all duration-300 rounded-2xl group">
+                      <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 via-teal-500/0 to-teal-500/5 opacity-50 pointer-events-none group-hover:opacity-75 transition-opacity" />
+                      <div className="absolute -right-24 -bottom-24 w-60 h-60 bg-teal-500/5 rounded-full blur-[100px] pointer-events-none group-hover:bg-teal-500/10 transition-colors duration-500" />
+                      
+                      <div className="flex flex-col lg:flex-row gap-8 items-stretch relative z-10 w-full h-full">
+                        {/* Left Column: Core content */}
+                        <div className="flex-1 flex flex-col justify-between gap-5 text-left">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/15 text-teal-400 border border-teal-500/30 transition-transform duration-300 group-hover:scale-105">
+                                <Icon className="h-5 w-5" />
+                              </div>
+                              <Badge variant="outline" className="border-teal-500/30 bg-teal-500/10 text-teal-300 font-bold px-2 py-0.5 rounded-md text-[10px] uppercase tracking-wider">
+                                {lang === 'id' ? 'Teknologi AI' : 'AI-Powered'}
+                              </Badge>
+                            </div>
+                            
+                            <h3 className="mt-5 text-xl font-extrabold text-white group-hover:text-teal-300 transition-colors">
+                              {module.title}
+                            </h3>
+                            
+                            <p className="mt-3 text-slate-300 text-sm leading-relaxed font-normal max-w-xl">
+                              {module.description}
+                            </p>
+                          </div>
+                          
+                          <span className="inline-flex items-center gap-1.5 text-sm font-bold text-teal-400 transition-colors group-hover:text-teal-300">
+                            {module.cta}
+                            <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
+                          </span>
+                        </div>
+
+                        {/* Right Column: Dynamic core capabilities list */}
+                        <div className="lg:w-[320px] flex flex-col justify-center gap-3 bg-white/[0.02] border border-white/5 rounded-2xl p-5 shrink-0 text-left">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">
+                            {lang === 'id' ? 'Kemampuan Kunci' : 'Core Capabilities'}
+                          </span>
+                          {(lang === 'id' 
+                            ? ["Proposal Generator", "Audit-Ready RAG", "Draf Laporan Otomatis", "SROI Synthesis"]
+                            : ["Proposal Generator", "Audit-Ready RAG", "Automated Report Drafting", "SROI Synthesis"]
+                          ).map((tag, tIdx) => (
+                            <div key={tIdx} className="flex items-center gap-2.5 text-xs text-slate-300 font-medium py-1.5 px-2 hover:bg-white/5 rounded-lg transition-colors">
+                              <div className="h-1.5 w-1.5 rounded-full bg-teal-400 shrink-0" />
+                              <span>{tag}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <ArrowRight className="h-4 w-4 text-slate-500 transition-transform duration-300 group-hover:translate-x-1 group-hover:text-teal-400" />
-                    </div>
-                    
-                    <h3 className="mt-5 text-base font-extrabold text-slate-100 group-hover:text-teal-300 transition-colors">
-                      {module.title}
-                    </h3>
-                    
-                    <p className="mt-2.5 flex-1 text-xs sm:text-sm text-slate-400 leading-relaxed font-normal">
-                      {module.description}
-                    </p>
-                    
-                    <span className="mt-5 text-xs sm:text-sm font-bold text-teal-400 transition-colors group-hover:text-teal-300 block">
-                      {module.cta}
-                    </span>
-                  </Card>
-                );
+                    </Card>
+                  );
+                } else if (module.size === "wide") {
+                  cardElement = (
+                    <Card className="relative overflow-hidden flex h-full flex-col border border-[#1D7A75]/30 p-6 shadow-xl bg-[#0D2530]/90 rounded-2xl hover:border-teal-500/50 hover:bg-[#0D2530]/95 hover:-translate-y-1 transition-all duration-300 group text-left">
+                      <div 
+                        className="absolute inset-0 opacity-10 pointer-events-none" 
+                        style={{ 
+                          backgroundImage: 'radial-gradient(circle, rgba(29, 122, 117, 0.15) 1px, transparent 1px)', 
+                          backgroundSize: '16px 16px' 
+                        }} 
+                      />
+                      <div className="absolute -right-6 -bottom-6 w-24 h-24 bg-teal-500/5 rounded-full blur-xl group-hover:bg-teal-500/10 transition-colors duration-500" />
+                      
+                      <div className="flex items-start justify-between gap-3 relative z-10">
+                        <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 transition-transform duration-300 group-hover:scale-105">
+                          <Icon className="h-5.5 w-5.5" />
+                        </div>
+                        <ArrowRight className="h-4.5 w-4.5 text-slate-400 transition-transform duration-300 group-hover:translate-x-1 group-hover:text-teal-400" />
+                      </div>
+                      
+                      <div className="relative z-10 flex-1 flex flex-col justify-between mt-6">
+                        <div>
+                          <h3 className="text-lg font-extrabold text-white group-hover:text-teal-300 transition-colors">
+                            {module.title}
+                          </h3>
+                          <p className="mt-3 text-slate-300 text-sm leading-relaxed font-normal">
+                            {module.description}
+                          </p>
+                        </div>
+                        <span className="mt-6 text-sm font-bold text-teal-400 transition-colors group-hover:text-teal-300 block">
+                          {module.cta}
+                        </span>
+                      </div>
+                    </Card>
+                  );
+                } else {
+                  cardElement = (
+                    <Card className="relative overflow-hidden flex h-full flex-col border border-[#1D7A75]/20 p-6 shadow-xl bg-[#0A1D25]/80 rounded-2xl hover:border-teal-500/40 hover:-translate-y-1 transition-all duration-300 group text-left">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 transition-transform duration-300 group-hover:scale-105">
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-slate-500 transition-transform duration-300 group-hover:translate-x-1 group-hover:text-teal-400" />
+                      </div>
+                      
+                      <div className="flex-1 flex flex-col justify-between mt-5">
+                        <div>
+                          <h3 className="text-base font-extrabold text-slate-100 group-hover:text-teal-300 transition-colors">
+                            {module.title}
+                          </h3>
+                          <p className="mt-2.5 text-xs sm:text-sm text-slate-400 leading-relaxed font-normal">
+                            {module.description}
+                          </p>
+                        </div>
+                        <span className="mt-5 text-xs sm:text-sm font-bold text-teal-400 transition-colors group-hover:text-teal-300 block">
+                          {module.cta}
+                        </span>
+                      </div>
+                    </Card>
+                  );
+                }
 
                 if (module.href) {
                   return (
                     <Link
                       key={idx}
                       to={module.href}
-                      className="group block rounded-2xl focus:outline-none"
+                      className={`group block rounded-2xl focus:outline-none transition-all duration-300 ${gridSpan}`}
                     >
-                      {cardNode}
+                      {cardElement}
                     </Link>
                   );
                 }
 
                 return (
-                  <div key={idx} className="opacity-80">
-                    {cardNode}
+                  <div key={idx} className={`opacity-80 transition-all duration-300 ${gridSpan}`}>
+                    {cardElement}
                   </div>
                 );
               })}
