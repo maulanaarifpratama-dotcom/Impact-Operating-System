@@ -17,6 +17,8 @@ import {
   Ruler,
   FolderSync,
   HelpCircle,
+  Lock,
+  ArrowRight,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -573,6 +575,7 @@ export default function LFABuilderEditor() {
 
   const validationWarnings = runValidation();
   const completenessPercent = calculateCompleteness();
+  const isSroiUnlocked = completenessPercent >= 80 && wbsExists && mealExists;
 
   if (loading) {
     return (
@@ -738,7 +741,15 @@ export default function LFABuilderEditor() {
             <TooltipProvider>
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button data-testid="lfa-tab-sroi" className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
+                  <button 
+                    onClick={() => setActiveTab('sroi')}
+                    data-testid="lfa-tab-sroi" 
+                    className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1 font-normal ${
+                      activeTab === 'sroi'
+                        ? 'bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 shadow-sm'
+                        : 'text-muted-foreground/60 hover:text-foreground'
+                    }`}
+                  >
                     ⑤ SROI 🔒
                   </button>
                 </TooltipTrigger>
@@ -1444,7 +1455,7 @@ export default function LFABuilderEditor() {
             sector={project.sector || 'Sektor Lainnya'}
           />
         </div>
-      ) : (
+      ) : isSroiUnlocked ? (
         <div className="w-full">
           <SROICalculator
             projectId={projectId!}
@@ -1452,6 +1463,66 @@ export default function LFABuilderEditor() {
             programDurationMonths={project.duration_months || 12}
             sector={project.sector || 'Sektor Lainnya'}
           />
+        </div>
+      ) : (
+        <div className="w-full max-w-2xl mx-auto my-12 px-4 animate-fade-in">
+          <Card className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 overflow-hidden shadow-elegant rounded-xl">
+            <CardHeader className="p-8 text-center pb-4 space-y-4">
+              <div className="mx-auto w-16 h-16 bg-amber-50 dark:bg-amber-950/20 text-amber-500 rounded-full flex items-center justify-center border border-amber-100 dark:border-amber-900/30 relative">
+                <div className="absolute inset-0 rounded-full bg-amber-400 opacity-10 animate-ping" />
+                <Lock className="h-6 w-6 text-amber-500" />
+              </div>
+              <div className="space-y-1">
+                <CardTitle className="text-xl font-bold text-slate-800 dark:text-slate-100">
+                  SROI terkunci
+                </CardTitle>
+              </div>
+              <CardDescription className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed max-w-lg mx-auto">
+                Belum ada indikator MEAL untuk program ini. Lengkapi minimal 1 indikator MEAL agar Impactory bisa mengimpor outcome, target, dan sumber data secara otomatis ke SROI.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="px-8 pb-8 space-y-6">
+              <div className="p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-850 text-xs text-slate-500 dark:text-slate-400 text-center leading-relaxed">
+                <strong>Mau hitung cepat tanpa setup lengkap?</strong> Mode SROI manual akan disiapkan sebagai jalur standalone.
+              </div>
+              <div className="flex flex-col sm:flex-row justify-center items-center gap-3">
+                <Button
+                  onClick={() => {
+                    const isMealUnlocked = completenessPercent >= 80 && wbsExists;
+                    if (!isMealUnlocked) {
+                      toast({
+                        title: "Modul MEAL Terkunci",
+                        description: "Selesaikan LFA Matrix minimal 80% dan isi WBS untuk unlock modul MEAL.",
+                        variant: "destructive",
+                      });
+                      if (completenessPercent < 80) {
+                        setActiveTab('lfa');
+                      } else {
+                        setActiveTab('wbs');
+                      }
+                    } else {
+                      setActiveTab('meal');
+                    }
+                  }}
+                  className="w-full sm:w-auto bg-teal-650 hover:bg-teal-600 dark:bg-teal-600 dark:hover:bg-teal-500 text-white font-semibold text-xs h-10 px-6 rounded-lg flex items-center justify-center gap-1.5 shadow"
+                >
+                  Lengkapi MEAL dulu <ArrowRight className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  onClick={() => {
+                    toast({
+                      title: "SROI Manual Segera Hadir",
+                      description: "SROI manual belum aktif. Untuk sekarang, lengkapi MEAL agar SROI terintegrasi bisa digunakan.",
+                    });
+                  }}
+                  variant="outline"
+                  className="w-full sm:w-auto text-xs h-10 px-6 rounded-lg font-semibold text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
+                >
+                  SROI Manual segera hadir
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>
