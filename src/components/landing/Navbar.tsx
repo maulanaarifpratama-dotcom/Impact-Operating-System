@@ -25,7 +25,7 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
 
   const links = [
     { href: '#problem', label: t.navbar.problem },
-    { href: '#workflow', label: t.navbar.growth },
+    { href: '#growth-system', label: t.navbar.growth },
     { href: '#modules', label: t.navbar.products },
   ];
 

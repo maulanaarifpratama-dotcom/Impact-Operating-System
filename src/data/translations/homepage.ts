@@ -28,6 +28,17 @@ export interface HomepageTranslation {
     description: string;
     highlight: string;
   };
+  growth: {
+    badge: string;
+    heading: string;
+    subheading: string;
+    cards: Array<{
+      letter: string;
+      title: string;
+      description: string;
+      modules: string[];
+    }>;
+  };
   workflow: {
     badge: string;
     heading: string;
@@ -101,7 +112,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
     },
     navbar: {
       problem: "Masalah",
-      growth: "Alur Kerja",
+      growth: "G.R.O.W.T.H.",
       products: "Produk",
       login: "Masuk",
       startScorecard: "Mulai Scorecard"
@@ -112,7 +123,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
       headingHighlight: "Mudah & Terukur.",
       subheading: "Platform AI untuk merancang program, menyusun anggaran, memantau capaian, mengelola bukti, dan menghitung nilai dampak sosial NGO.",
       ctaPrimary: "Mulai buat program",
-      ctaSecondary: "Hitung SROI",
+      ctaSecondary: "Lihat G.R.O.W.T.H. System",
       trustBadge: "Civic Resource Hub untuk CSO Akar Rumput, dibangun dari pengalaman 20B+ budget digital marketing di NGO.",
       floatingStat1: "72 Peluang Grant Aktif",
       floatingStat2: "SDG-Aligned Pipeline",
@@ -123,6 +134,49 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
       heading: "NGO bukan miskin tools. NGO sering kali miskin sistem.",
       description: "Canva Pro sudah ada. Google Ads Grant sudah aktif. Workspace sudah dipakai. Tapi civil society resource access belum terpetakan, proposal masih mulai dari nol, donor masih tercecer, laporan impact dibuat saat diminta, dan campaign sering dimulai dari panik.",
       highlight: "Tools adalah bahan bakar. Sistem adalah mesin."
+    },
+    growth: {
+      badge: "Framework",
+      heading: "G.R.O.W.T.H. System",
+      subheading: "Enam dimensi terstruktur untuk membangun operational excellence, akuntabilitas data, dan keberlanjutan dampak NGO.",
+      cards: [
+        {
+          letter: "G",
+          title: "Grant & Resource Access",
+          description: "Temukan pendanaan baru dan buka akses sumber daya digital organisasi secara terpusat.",
+          modules: ["Resource Access Tracker", "Grant Pipeline", "Grantwriter"]
+        },
+        {
+          letter: "R",
+          title: "Readiness & Baseline",
+          description: "Ukur kesiapan digital organisasi dan petakan baseline profil secara sistematis.",
+          modules: ["Readiness Scorecard", "Guided Onboarding"]
+        },
+        {
+          letter: "O",
+          title: "Operating Program",
+          description: "Rancang kerangka logis, aktivitas kerja, dan anggaran program secara presisi.",
+          modules: ["LFA Builder", "WBS Builder", "Budget Calculator"]
+        },
+        {
+          letter: "W",
+          title: "Work Evidence & Proof",
+          description: "Catat capaian indikator dan simpan bukti pelaksanaan program langsung di cloud.",
+          modules: ["MEAL Tracker", "OneDrive Evidence Sync", "Impact Library"]
+        },
+        {
+          letter: "T",
+          title: "Tracking & Monitoring",
+          description: "Rencanakan indikator pemantauan, dashboard real-time, dan laporan bulanan otomatis.",
+          modules: ["MEAL Planner", "Impact Dashboard", "Monthly Report"]
+        },
+        {
+          letter: "H",
+          title: "High-Impact Reporting",
+          description: "Kalkulasikan nilai dampak sosial program dan buat draf laporan proposal otomatis dengan AI.",
+          modules: ["SROI Calculator", "Monthly Impact Report", "AI Assist Writer"]
+        }
+      ]
     },
     workflow: {
       badge: "Alur Kerja Utama",
@@ -301,7 +355,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
     },
     navbar: {
       problem: "Problem",
-      growth: "Workflow",
+      growth: "G.R.O.W.T.H.",
       products: "Products",
       login: "Login",
       startScorecard: "Start Scorecard"
@@ -312,7 +366,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
       headingHighlight: "Seamless & Scalable.",
       subheading: "An AI-powered platform for NGOs to design programs, manage budgets, track outcomes, organize evidence, and calculate social impact value.",
       ctaPrimary: "Start a program",
-      ctaSecondary: "Calculate SROI",
+      ctaSecondary: "Explore G.R.O.W.T.H. System",
       trustBadge: "Civic Resource Hub for Grassroots CSOs, built from 20B+ digital marketing budget experience in NGOs.",
       floatingStat1: "72 Active Grant Opportunities",
       floatingStat2: "SDG-Aligned Pipeline",
@@ -323,6 +377,49 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
       heading: "NGOs are not short of tools. They are short of systems.",
       description: "Canva Pro is set. Google Ads Grant is active. Workspaces are used. But civil society resource access remains unmapped, proposals start from scratch, donors are scattered, impact reports are compiled only on demand, and campaigns start out of panic.",
       highlight: "Tools are the fuel. System is the engine."
+    },
+    growth: {
+      badge: "Framework",
+      heading: "G.R.O.W.T.H. System",
+      subheading: "Six structured dimensions to construct operational excellence, data accountability, and impact sustainability for NGOs.",
+      cards: [
+        {
+          letter: "G",
+          title: "Grant & Resource Access",
+          description: "Discover new funding avenues and unlock digital resources centrally for your organization.",
+          modules: ["Resource Access Tracker", "Grant Pipeline", "Grantwriter"]
+        },
+        {
+          letter: "R",
+          title: "Readiness & Baseline",
+          description: "Assess digital readiness and map operational profiles systematically from the start.",
+          modules: ["Readiness Scorecard", "Guided Onboarding"]
+        },
+        {
+          letter: "O",
+          title: "Operating Program",
+          description: "Design standard logical frameworks, break down activities, and estimate budgets precisely.",
+          modules: ["LFA Builder", "WBS Builder", "Budget Calculator"]
+        },
+        {
+          letter: "W",
+          title: "Work Evidence & Proof",
+          description: "Log actual indicator accomplishments and secure physical evidence in the cloud.",
+          modules: ["MEAL Tracker", "OneDrive Evidence Sync", "Impact Library"]
+        },
+        {
+          letter: "T",
+          title: "Tracking & Monitoring",
+          description: "Formulate monitoring metrics, manage live dashboards, and compile monthly progress reports.",
+          modules: ["MEAL Planner", "Impact Dashboard", "Monthly Report"]
+        },
+        {
+          letter: "H",
+          title: "High-Impact Reporting",
+          description: "Quantify social return on investment and draft polished, AI-assisted reports.",
+          modules: ["SROI Calculator", "Monthly Impact Report", "AI Assist Writer"]
+        }
+      ]
     },
     workflow: {
       badge: "Core Workflow",

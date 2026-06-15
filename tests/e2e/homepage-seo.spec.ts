@@ -59,7 +59,7 @@ test.describe('Homepage Refresh & Bilingual SEO Tests', () => {
     // 4. Verify presence of critical English landing content
     const content = await page.textContent('body');
     expect(content).toContain('AI-powered platform');
-    expect(content).toContain('Calculate SROI');
+    expect(content).toContain('Explore G.R.O.W.T.H. System');
     expect(content).toContain('LFA Builder');
     expect(content).toContain('MEAL Tracker');
     expect(content).toContain('OneDrive Evidence Sync');

@@ -197,7 +197,7 @@ export default function Index() {
                     </Link>
                   </Button>
                   <Button asChild size="lg" variant="outline" className="border-[#1D7A75]/30 bg-transparent text-white hover:bg-white/5 transition-all duration-300 hover:-translate-y-0.5 rounded-xl px-6 py-6">
-                    <Link to="/dashboard/sroi">{t.hero.ctaSecondary}</Link>
+                    <a href="#growth-system">{t.hero.ctaSecondary}</a>
                   </Button>
                 </div>
                 
@@ -282,6 +282,71 @@ export default function Index() {
                   {t.problem.highlight}
                 </p>
               </Card>
+            </div>
+          </div>
+        </section>
+
+        {/* =========================================================================
+            G.R.O.W.T.H. SYSTEM SECTION: Dark-navy bg with glowing dot grids & glassmorphism cards
+            ========================================================================= */}
+        <section id="growth-system" className="relative overflow-hidden py-20 md:py-28 bg-[#0A1D25] border-b border-[#1D7A75]/10">
+          <div 
+            className="absolute inset-0 opacity-20 pointer-events-none" 
+            style={{ 
+              backgroundImage: 'radial-gradient(circle, rgba(29, 122, 117, 0.25) 1px, transparent 1px)', 
+              backgroundSize: '24px 24px' 
+            }} 
+          />
+          <div aria-hidden className="absolute -left-48 top-1/4 h-[500px] w-[500px] rounded-full bg-teal-500/5 blur-[120px] pointer-events-none" />
+          <div aria-hidden className="absolute -right-48 bottom-1/4 h-[500px] w-[500px] rounded-full bg-[#1D7A75]/5 blur-[120px] pointer-events-none" />
+
+          <div className="container relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
+            <div className="max-w-3xl">
+              <Badge variant="outline" className="mb-4 border-[#1D7A75]/40 bg-[#1D7A75]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
+                {t.growth.badge}
+              </Badge>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
+                {t.growth.heading}
+              </h2>
+              <p className="mt-4 text-slate-400 text-sm sm:text-base leading-relaxed">
+                {t.growth.subheading}
+              </p>
+            </div>
+
+            <div className="mt-12 grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {t.growth.cards.map((card) => (
+                <Card 
+                  key={card.letter} 
+                  className="group relative overflow-hidden border border-white/5 border-l-4 border-l-[#1D7A75] p-6 shadow-xl transition-all duration-300 hover:-translate-y-1.5 hover:border-[#1D7A75]/35 bg-[#0D2530]/60 hover:bg-[#0D2530]/80 rounded-r-2xl rounded-l-md"
+                >
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-[#1D7A75]/5 rounded-bl-full pointer-events-none" />
+                  <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 font-extrabold text-lg shadow-inner">
+                    {card.letter}
+                  </div>
+                  <h3 className="mt-5 text-base font-extrabold text-slate-100 transition-colors duration-300 group-hover:text-teal-300">
+                    {card.title}
+                  </h3>
+                  <p className="mt-2.5 text-xs sm:text-sm text-slate-400 leading-relaxed font-normal">
+                    {card.description}
+                  </p>
+                  
+                  {/* Modules Sub-bullets */}
+                  {card.modules && card.modules.length > 0 && (
+                    <div className="mt-5 pt-4 border-t border-white/5">
+                      <div className="flex flex-wrap gap-1.5">
+                        {card.modules.map((mod, mIdx) => (
+                          <span 
+                            key={mIdx} 
+                            className="inline-flex items-center rounded-md bg-[#1D7A75]/10 px-2 py-1 text-[10px] font-bold text-teal-300 border border-[#1D7A75]/20 group-hover:bg-[#1D7A75]/20 transition-colors"
+                          >
+                            {mod}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              ))}
             </div>
           </div>
         </section>
