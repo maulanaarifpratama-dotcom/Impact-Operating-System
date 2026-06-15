@@ -59,8 +59,8 @@ export interface HomepageTranslation {
       cta: string;
       href?: string;
       disabled?: boolean;
-      size?: "small" | "wide" | "full";
-      variant?: "default" | "highlight" | "ai";
+      size?: "small" | "wide" | "hero" | "full";
+      variant?: "default" | "highlight" | "hero" | "ai";
     }>;
   };
   evidenceAndReporting: {
@@ -235,8 +235,8 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
           description: "Desain matriks Logical Framework Approach yang komprehensif, menghubungkan tujuan, output, aktivitas, dan asumsi.",
           cta: "Buka LFA Builder",
           href: "/dashboard/lfa-builder",
-          size: "wide",
-          variant: "highlight"
+          size: "hero",
+          variant: "hero"
         },
         {
           title: "WBS Builder",
@@ -506,8 +506,8 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
           description: "Design standard Logical Framework Approach matrices connecting goals, outcomes, outputs, and assumptions.",
           cta: "Open LFA Builder",
           href: "/dashboard/lfa-builder",
-          size: "wide",
-          variant: "highlight"
+          size: "hero",
+          variant: "hero"
         },
         {
           title: "WBS Builder",
