@@ -85,7 +85,7 @@ Beneficiary Type: ${beneficiary_type || 'Masyarakat Umum'}`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-        max_tokens: 1500,
+        max_tokens: 4000,
       });
 
       // Inject governance metadata in the payload
@@ -155,7 +155,7 @@ Asumsi: ${assumptions || 'Suku bunga diskonto 3.5%'}`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-        max_tokens: 2000,
+        max_tokens: 4000,
       });
 
       const responsePayload = {
@@ -232,7 +232,7 @@ Data: ${JSON.stringify(current_sroi_data || {})}`;
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userMessage },
         ],
-        max_tokens: 2000,
+        max_tokens: 4000,
       });
 
       const responsePayload = {
@@ -261,8 +261,15 @@ Data: ${JSON.stringify(current_sroi_data || {})}`;
 
   } catch (err: any) {
     console.error(`[sroi-ai-suggest] Error in operation=${currentOperation}:`, err);
+    
+    const isTokenExhausted = err.message?.includes('finish_reason=length') || err.message?.includes('empty content');
+    const isTimeout = err.message?.includes('timeout') || err.message?.includes('AbortError');
+    const httpStatus = (isTokenExhausted || isTimeout) ? 503 : 500;
+    const errorCode = isTokenExhausted ? 'UPSTREAM_TOKEN_EXHAUSTED' : (isTimeout ? 'UPSTREAM_TIMEOUT' : 'INTERNAL_ERROR');
+
     return new Response(JSON.stringify({
       error: err.message || 'Internal Server Error',
+      code: errorCode,
       _metadata: {
         feature: "sroi",
         operation: currentOperation,
@@ -272,7 +279,7 @@ Data: ${JSON.stringify(current_sroi_data || {})}`;
         fallbackHandling: "Graceful error toast shown to client"
       }
     }), {
-      status: 500,
+      status: httpStatus,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
