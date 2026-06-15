@@ -111,6 +111,25 @@ export interface MealItem {
   updated_at?: string;
 }
 
+export interface MealTrackingEntry {
+  id: string;
+  meal_item_id: string;
+  lfa_project_id: string;
+  org_id: string;
+  recorded_value: number;
+  recorded_date: string;
+  recorded_by?: string | null;
+  evidence_source_type?: 'manual_url' | 'onedrive' | 'other' | null;
+  evidence_url?: string | null;
+  evidence_note?: string | null;
+  onedrive_drive_id?: string | null;
+  onedrive_item_id?: string | null;
+  onedrive_web_url?: string | null;
+  library_document_id?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface MealLearningQuestion {
   id: string;
   lfa_project_id: string;

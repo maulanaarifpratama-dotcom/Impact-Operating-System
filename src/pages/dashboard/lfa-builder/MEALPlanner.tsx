@@ -4,10 +4,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { MealItem, MealLearningQuestion, MealAccountability, LfaProject, LfaEntry } from './types';
+import { useAuth } from '@/providers/AuthProvider';
+import { MealItem, MealLearningQuestion, MealAccountability, LfaProject, LfaEntry, MealTrackingEntry } from './types';
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
-  AlertTriangle, HelpCircle, CheckCircle2, Award, ClipboardCheck, Info, FileText
+  AlertTriangle, HelpCircle, CheckCircle2, Award, ClipboardCheck, Info, FileText,
+  FileUp, Link2, Calendar, User, History, Upload
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -32,6 +34,25 @@ export default function MEALPlanner({
   sector = 'Sektor Lainnya'
 }: MEALPlannerProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
+  
+  // Sub-Navigation Tab
+  const [subTab, setSubTab] = useState<'planner' | 'tracker'>('planner');
+
+  // Tracking Entries State
+  const [trackingEntries, setTrackingEntries] = useState<MealTrackingEntry[]>([]);
+  const [loadingEntries, setLoadingEntries] = useState(false);
+
+  // Tracking Dialog Form State
+  const [isTrackingOpen, setIsTrackingOpen] = useState(false);
+  const [activeTrackingItem, setActiveTrackingItem] = useState<MealItem | null>(null);
+  const [recordedValue, setRecordedValue] = useState<string>('');
+  const [recordedDate, setRecordedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [evidenceSourceType, setEvidenceSourceType] = useState<'onedrive' | 'manual_url' | 'other'>('onedrive');
+  const [evidenceUrl, setEvidenceUrl] = useState<string>('');
+  const [evidenceNote, setEvidenceNote] = useState<string>('');
+  const [uploadingFile, setUploadingFile] = useState(false);
+  const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
   
   // State
   const [mealItems, setMealItems] = useState<MealItem[]>([]);
@@ -147,6 +168,184 @@ export default function MEALPlanner({
   useEffect(() => {
     void loadData();
   }, [loadData]);
+
+  const fetchTrackingEntries = useCallback(async () => {
+    setLoadingEntries(true);
+    try {
+      const { data, error } = await supabase
+        .from('lfa_meal_tracking_entries')
+        .select('*')
+        .eq('lfa_project_id', projectId)
+        .order('recorded_date', { ascending: false });
+
+      if (error) throw error;
+      setTrackingEntries((data || []) as MealTrackingEntry[]);
+    } catch (err: any) {
+      console.error('Failed to fetch tracking entries:', err);
+    } finally {
+      setLoadingEntries(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (projectId) {
+      void fetchTrackingEntries();
+    }
+  }, [projectId, fetchTrackingEntries]);
+
+  const handleDeleteEntry = async (entryId: string) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus catatan capaian ini?')) return;
+    try {
+      const { error } = await supabase
+        .from('lfa_meal_tracking_entries')
+        .delete()
+        .eq('id', entryId);
+      if (error) throw error;
+      toast({
+        title: 'Berhasil',
+        description: 'Catatan capaian berhasil dihapus.',
+      });
+      await fetchTrackingEntries();
+    } catch (err: any) {
+      console.error('Error deleting entry:', err);
+      toast({
+        title: 'Gagal Menghapus',
+        description: err.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSaveTrackingEntry = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeTrackingItem || !orgId) {
+      toast({
+        title: 'Error',
+        description: 'ID Organisasi atau item pelacakan belum siap.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!recordedValue.trim()) {
+      toast({
+        title: 'Harap Isi Nilai Capaian',
+        description: 'Nilai capaian tidak boleh kosong.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const valueNum = parseFloat(recordedValue);
+    if (isNaN(valueNum)) {
+      toast({
+        title: 'Nilai Tidak Valid',
+        description: 'Harap masukkan nilai numerik yang valid.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      let finalOneDriveDriveId: string | null = null;
+      let finalOneDriveItemId: string | null = null;
+      let finalOneDriveWebUrl: string | null = null;
+      let finalEvidenceUrl: string | null = null;
+
+      if (evidenceSourceType === 'onedrive') {
+        if (!selectedUploadFile) {
+          toast({
+            title: 'File Belum Dipilih',
+            description: 'Silakan pilih file bukti terlebih dahulu untuk diunggah.',
+            variant: 'destructive',
+          });
+          setSaving(false);
+          return;
+        }
+
+        setUploadingFile(true);
+        const documentId = crypto.randomUUID();
+        const formData = new FormData();
+        formData.append('file', selectedUploadFile);
+        formData.append('organizationId', orgId);
+        formData.append('documentId', documentId);
+        formData.append('fileName', selectedUploadFile.name);
+
+        const { data: uploadResult, error: funcErr } = await supabase.functions.invoke('onedrive-upload', {
+          body: formData,
+        });
+
+        setUploadingFile(false);
+
+        if (funcErr || !uploadResult) {
+          throw new Error(funcErr?.message || 'Gagal memanggil onedrive-upload.');
+        }
+
+        finalOneDriveDriveId = uploadResult.driveId;
+        finalOneDriveItemId = uploadResult.storageItemId;
+        finalOneDriveWebUrl = uploadResult.webUrl;
+        finalEvidenceUrl = uploadResult.webUrl;
+      } else if (evidenceSourceType === 'manual_url') {
+        if (!evidenceUrl.trim()) {
+          toast({
+            title: 'Harap Isi Tautan',
+            description: 'Tautan bukti tidak boleh kosong.',
+            variant: 'destructive',
+          });
+          setSaving(false);
+          return;
+        }
+        finalEvidenceUrl = evidenceUrl.trim();
+      }
+
+      // Insert into lfa_meal_tracking_entries
+      const { error: insertErr } = await supabase
+        .from('lfa_meal_tracking_entries')
+        .insert({
+          meal_item_id: activeTrackingItem.id,
+          lfa_project_id: projectId,
+          org_id: orgId,
+          recorded_value: valueNum,
+          recorded_date: recordedDate,
+          recorded_by: user?.email || 'User',
+          evidence_source_type: evidenceSourceType,
+          evidence_url: finalEvidenceUrl,
+          evidence_note: evidenceNote.trim() || null,
+          onedrive_drive_id: finalOneDriveDriveId,
+          onedrive_item_id: finalOneDriveItemId,
+          onedrive_web_url: finalOneDriveWebUrl,
+        });
+
+      if (insertErr) throw insertErr;
+
+      toast({
+        title: 'Berhasil Mencatat Capaian',
+        description: 'Capaian indikator dan bukti berhasil disimpan.',
+      });
+
+      // Clear states & close
+      setRecordedValue('');
+      setEvidenceUrl('');
+      setEvidenceNote('');
+      setSelectedUploadFile(null);
+      setEvidenceSourceType('onedrive');
+      setIsTrackingOpen(false);
+
+      // Refresh
+      await fetchTrackingEntries();
+    } catch (err: any) {
+      console.error('OneDrive upload or db insert flow error:', err);
+      toast({
+        title: 'Pencatatan Gagal',
+        description: `Error: ${err.message || err}. Silakan gunakan metode 'Tempel Link' atau 'Catatan Bukti' sebagai alternatif.`,
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingFile(false);
+      setSaving(false);
+    }
+  };
 
   // Idempotent Auto-Import from LFA Matrix
   const triggerAutoImport = async () => {
@@ -1023,8 +1222,34 @@ export default function MEALPlanner({
         </div>
       </div>
 
-      {/* MATRIX TABLE CONTAINER */}
-      <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-elegant">
+      {/* SUB-NAVIGATION SELECTOR */}
+      <div className="flex border-b border-slate-200 dark:border-slate-800 gap-2">
+        <button
+          onClick={() => setSubTab('planner')}
+          className={`px-5 py-3 text-sm font-semibold transition-all relative flex items-center gap-1.5 border-b-2 -mb-[2px] ${
+            subTab === 'planner'
+              ? 'text-teal-600 border-teal-600 dark:text-teal-400 dark:border-teal-400'
+              : 'text-slate-500 border-transparent hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+          }`}
+        >
+          <span>📋</span> Kerangka MEAL
+        </button>
+        <button
+          onClick={() => setSubTab('tracker')}
+          className={`px-5 py-3 text-sm font-semibold transition-all relative flex items-center gap-1.5 border-b-2 -mb-[2px] ${
+            subTab === 'tracker'
+              ? 'text-teal-600 border-teal-600 dark:text-teal-400 dark:border-teal-400'
+              : 'text-slate-500 border-transparent hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300'
+          }`}
+        >
+          <span>📈</span> Pelacakan Capaian
+        </button>
+      </div>
+
+      {subTab === 'planner' ? (
+        <div className="space-y-6">
+          {/* MATRIX TABLE CONTAINER */}
+          <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-elegant">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -1706,6 +1931,196 @@ export default function MEALPlanner({
           </div>
         </div>
       )}
+    </div>
+      ) : (
+        <div className="space-y-6">
+          {/* Tracker Metrics Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            {/* CARD 1: TOTAL INDICATORS */}
+            <div className="bg-white dark:bg-slate-950 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-elegant flex items-center gap-4">
+              <div className="p-3 bg-teal-50 dark:bg-teal-950/30 text-teal-600 dark:text-teal-400 rounded-lg border border-teal-100 dark:border-teal-900/20">
+                <ClipboardCheck className="h-6 w-6" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block">Total Indikator</span>
+                <p className="text-2xl font-black text-slate-800 dark:text-slate-100">{mealItems.length}</p>
+              </div>
+            </div>
+
+            {/* CARD 2: TRACKED INDICATORS */}
+            <div className="bg-white dark:bg-slate-950 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-elegant flex items-center gap-4">
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/30 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-100 dark:border-blue-900/20">
+                <CheckCircle2 className="h-6 w-6" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block">Indikator Terlacak</span>
+                <p className="text-2xl font-black text-slate-800 dark:text-slate-100">
+                  {mealItems.filter(item => trackingEntries.some(e => e.meal_item_id === item.id)).length}
+                </p>
+              </div>
+            </div>
+
+            {/* CARD 3: AVERAGE PROGRESS */}
+            <div className="bg-white dark:bg-slate-950 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-elegant flex items-center gap-4">
+              <div className="p-3 bg-orange-50 dark:bg-orange-950/30 text-orange-600 dark:text-orange-400 rounded-lg border border-orange-100 dark:border-orange-900/20">
+                <Award className="h-6 w-6" />
+              </div>
+              <div className="space-y-0.5">
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider block">Rata-Rata Capaian</span>
+                <p className="text-2xl font-black text-slate-800 dark:text-slate-100">
+                  {mealItems.length > 0
+                    ? Math.round(
+                        mealItems.reduce((acc, item) => {
+                          const entries = trackingEntries.filter(e => e.meal_item_id === item.id);
+                          const latestVal = entries.length > 0 ? entries[0].recorded_value : (item.baseline || 0);
+                          const target = item.target_value || 0;
+                          const progress = target > 0 ? Math.min(100, Math.max(0, (latestVal / target) * 100)) : 0;
+                          return acc + progress;
+                        }, 0) / mealItems.length
+                      )
+                    : 0}%
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Grouped indicators by level */}
+          {['goal', 'purpose', 'output'].map((level) => {
+            const levelItems = mealItems.filter(item => item.lfa_level === level);
+            if (levelItems.length === 0) return null;
+
+            return (
+              <div key={level} className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-elegant space-y-4 p-6">
+                <div className="flex items-center gap-2 border-b pb-4">
+                  <span className="text-base">
+                    {level === 'goal' ? '🎯' : level === 'purpose' ? '🌟' : '📦'}
+                  </span>
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                    {level === 'goal' ? 'Indikator Tingkat Dampak (Goal)' : level === 'purpose' ? 'Indikator Tingkat Tujuan (Outcome)' : 'Indikator Tingkat Hasil (Output)'}
+                  </h3>
+                </div>
+
+                <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {levelItems.map((item) => {
+                    const entries = trackingEntries.filter(e => e.meal_item_id === item.id);
+                    const latestEntry = entries.length > 0 ? entries[0] : null;
+                    const latestValue = latestEntry ? latestEntry.recorded_value : (item.baseline || 0);
+                    const targetValue = item.target_value || 0;
+                    const progressPct = targetValue > 0 ? Math.round((latestValue / targetValue) * 100) : 0;
+
+                    return (
+                      <div key={item.id} className="py-4 flex flex-col md:flex-row md:items-center justify-between gap-4 group hover:bg-slate-50/20 dark:hover:bg-slate-900/5 px-2 rounded-lg transition-colors">
+                        <div className="flex-1 space-y-2.5">
+                          <div className="space-y-1">
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-relaxed">
+                              {item.indicator_text}
+                            </p>
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-400 font-medium">
+                              {item.baseline !== undefined && item.baseline !== null && (
+                                <span>Baseline: <strong className="text-slate-600 dark:text-slate-300">{item.baseline}</strong></span>
+                              )}
+                              <span>Target: <strong className="text-slate-600 dark:text-slate-300">{targetValue} {item.target_unit || ''}</strong></span>
+                              {item.frequency && (
+                                <span>Frek: <strong className="text-slate-600 dark:text-slate-300">{item.frequency}</strong></span>
+                              )}
+                              {item.pic && (
+                                <span>PIC: <strong className="text-slate-600 dark:text-slate-300">{item.pic}</strong></span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Progress bar details */}
+                          <div className="space-y-1.5 max-w-md">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="font-semibold text-slate-500">Capaian Terbaru: <strong className="text-teal-600 dark:text-teal-400">{latestValue} {item.target_unit || ''}</strong></span>
+                              <span className="font-extrabold text-slate-700 dark:text-slate-300">{progressPct}%</span>
+                            </div>
+                            <div className="w-full bg-slate-100 dark:bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-200/40 dark:border-slate-800/40 shadow-inner">
+                              <div
+                                className="bg-gradient-to-r from-teal-500 to-teal-600 h-2 rounded-full transition-all duration-500 ease-out"
+                                style={{ width: `${Math.min(100, Math.max(0, progressPct))}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Middle column: Evidence badge */}
+                        <div className="flex flex-col gap-1.5 md:items-end justify-center min-w-[150px]">
+                          {latestEntry ? (
+                            <>
+                              {latestEntry.evidence_source_type === 'onedrive' && (
+                                <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-150 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30 py-0.5 px-2 text-[10px] font-bold flex items-center gap-1.5 self-start md:self-end">
+                                  <FileUp className="h-3 w-3" /> Bukti OneDrive
+                                </Badge>
+                              )}
+                              {latestEntry.evidence_source_type === 'manual_url' && (
+                                <Badge variant="secondary" className="bg-purple-50 text-purple-700 border-purple-150 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30 py-0.5 px-2 text-[10px] font-bold flex items-center gap-1.5 self-start md:self-end">
+                                  <Link2 className="h-3 w-3" /> Tautan Terlampir
+                                </Badge>
+                              )}
+                              {latestEntry.evidence_source_type === 'other' && (
+                                <Badge variant="secondary" className="bg-orange-50 text-orange-700 border-orange-150 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30 py-0.5 px-2 text-[10px] font-bold flex items-center gap-1.5 self-start md:self-end">
+                                  <FileText className="h-3 w-3" /> Bukti Fisik/Catatan
+                                </Badge>
+                              )}
+                              {latestEntry.evidence_url && (
+                                <a
+                                  href={latestEntry.evidence_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline font-bold inline-flex items-center gap-0.5"
+                                >
+                                  Buka Bukti Terbaru ↗
+                                </a>
+                              )}
+                              <span className="text-[10px] text-slate-400 font-medium mt-0.5">
+                                Diperbarui {new Date(latestEntry.recorded_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="text-[10px] text-slate-400 italic font-medium">Belum ada bukti</span>
+                          )}
+                        </div>
+
+                        {/* Right column: Action */}
+                        <div className="flex items-center gap-2">
+                          <Button
+                            onClick={() => {
+                              setActiveTrackingItem(item);
+                              setIsTrackingOpen(true);
+                              setRecordedValue('');
+                              setEvidenceUrl('');
+                              setEvidenceNote('');
+                              setSelectedUploadFile(null);
+                              setEvidenceSourceType('onedrive');
+                              setRecordedDate(new Date().toISOString().split('T')[0]);
+                            }}
+                            variant="outline"
+                            size="sm"
+                            className="bg-teal-50 dark:bg-teal-950/20 text-teal-700 dark:text-teal-400 hover:bg-teal-100 dark:hover:bg-teal-900/40 border-teal-200/50 dark:border-teal-900/30 text-xs font-bold h-8.5 rounded-lg flex items-center gap-1.5 shadow-sm"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Catat Capaian
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {mealItems.length === 0 && (
+            <div className="flex flex-col items-center justify-center border border-dashed border-slate-250 dark:border-slate-800 rounded-xl p-12 bg-white dark:bg-slate-950 text-center shadow-sm space-y-3">
+              <span className="text-3xl">🌱</span>
+              <h4 className="font-bold text-slate-800 dark:text-slate-200 text-sm">Belum Ada Indikator MEAL</h4>
+              <p className="text-xs text-slate-400 max-w-sm leading-relaxed">
+                Silakan buat atau import indikator terlebih dahulu di tab <strong>Kerangka MEAL</strong> sebelum melakukan pelacakan capaian.
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* AI SUGGESTION DETAIL DIALOG */}
       <Dialog open={aiSuggestOpen} onOpenChange={setAiSuggestOpen}>
@@ -1831,6 +2246,338 @@ export default function MEALPlanner({
               Tutup
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MEAL TRACKING LOG DIALOG ("Catat Capaian") */}
+      <Dialog open={isTrackingOpen} onOpenChange={setIsTrackingOpen}>
+        <DialogContent className="max-w-4xl rounded-xl overflow-hidden p-0 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+          <DialogHeader className="p-6 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800">
+            <DialogTitle className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-teal-600 dark:text-teal-400">
+              <History className="h-4.5 w-4.5" /> Catat Capaian & Riwayat Bukti
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500 mt-1">
+              Log pencapaian kuantitatif beserta berkas/tautan verifikasi sebagai bukti audit.
+            </DialogDescription>
+          </DialogHeader>
+
+          {activeTrackingItem && (
+            <div className="grid grid-cols-1 md:grid-cols-12 gap-0 divide-y md:divide-y-0 md:divide-x divide-slate-100 dark:divide-slate-800">
+              {/* LEFT COLUMN: NEW ENTRY FORM */}
+              <div className="col-span-1 md:col-span-7 p-6 space-y-5">
+                <div className="p-4 bg-teal-50/50 dark:bg-teal-950/20 rounded-lg border border-teal-100/50 dark:border-teal-900/30 space-y-1">
+                  <span className="text-[10px] text-teal-600 dark:text-teal-400 font-bold uppercase tracking-wide">Indikator Terpilih</span>
+                  <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 leading-relaxed">
+                    {activeTrackingItem.indicator_text}
+                  </p>
+                  <div className="flex gap-4 pt-1.5 text-[11px] text-slate-500 font-medium">
+                    {activeTrackingItem.baseline !== undefined && activeTrackingItem.baseline !== null && (
+                      <span>Baseline: <strong>{activeTrackingItem.baseline}</strong></span>
+                    )}
+                    <span>Target Kuantitatif: <strong>{activeTrackingItem.target_value || 0} {activeTrackingItem.target_unit || ''}</strong></span>
+                  </div>
+                </div>
+
+                <form onSubmit={handleSaveTrackingEntry} className="space-y-4 text-xs">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="recorded_value" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Nilai Capaian Riil <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="recorded_value"
+                        type="number"
+                        step="any"
+                        placeholder="E.g. 75"
+                        value={recordedValue}
+                        onChange={(e) => setRecordedValue(e.target.value)}
+                        className="h-9 text-xs"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="recorded_date" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Tanggal Capaian <span className="text-red-500">*</span>
+                      </Label>
+                      <div className="relative">
+                        <Input
+                          id="recorded_date"
+                          type="date"
+                          value={recordedDate}
+                          onChange={(e) => setRecordedDate(e.target.value)}
+                          className="h-9 text-xs pl-8"
+                          required
+                        />
+                        <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-450" />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* EVIDENCE SOURCE TOGGLE */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                      Metode Bukti Verifikasi
+                    </Label>
+                    <div className="grid grid-cols-3 gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-lg border border-slate-200/50 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => setEvidenceSourceType('onedrive')}
+                        className={`py-1.5 rounded-md text-[11px] font-medium transition-all flex items-center justify-center gap-1 ${
+                          evidenceSourceType === 'onedrive'
+                            ? 'bg-white dark:bg-slate-800 text-teal-650 dark:text-teal-400 shadow-sm border border-slate-200/40 dark:border-slate-700/40'
+                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        <FileUp className="h-3.5 w-3.5" /> Upload Bukti
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEvidenceSourceType('manual_url')}
+                        className={`py-1.5 rounded-md text-[11px] font-medium transition-all flex items-center justify-center gap-1 ${
+                          evidenceSourceType === 'manual_url'
+                            ? 'bg-white dark:bg-slate-800 text-teal-650 dark:text-teal-400 shadow-sm border border-slate-200/40 dark:border-slate-700/40'
+                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        <Link2 className="h-3.5 w-3.5" /> Tempel Link
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEvidenceSourceType('other')}
+                        className={`py-1.5 rounded-md text-[11px] font-medium transition-all flex items-center justify-center gap-1 ${
+                          evidenceSourceType === 'other'
+                            ? 'bg-white dark:bg-slate-800 text-teal-650 dark:text-teal-400 shadow-sm border border-slate-200/40 dark:border-slate-700/40'
+                            : 'text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
+                        }`}
+                      >
+                        <FileText className="h-3.5 w-3.5" /> Catatan Bukti
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* EVIDENCE SWITCH PANEL */}
+                  <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-800 min-h-[110px] flex flex-col justify-center">
+                    {evidenceSourceType === 'onedrive' && (
+                      <div className="space-y-3">
+                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Unggah File ke OneDrive
+                        </Label>
+                        <div className="flex flex-col items-center justify-center border border-dashed border-slate-300 dark:border-slate-700 rounded-lg p-4 bg-white dark:bg-slate-950 text-center relative group hover:border-teal-500 dark:hover:border-teal-400 transition-colors">
+                          <input
+                            type="file"
+                            id="onedrive-file-upload"
+                            className="absolute inset-0 opacity-0 cursor-pointer"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0] || null;
+                              if (file) {
+                                if (file.size > 4 * 1024 * 1024) {
+                                  toast({
+                                    title: 'Ukuran File Terlalu Besar',
+                                    description: 'Maksimal 4MB untuk versi awal.',
+                                    variant: 'destructive',
+                                  });
+                                  e.target.value = '';
+                                  setSelectedUploadFile(null);
+                                } else {
+                                  setSelectedUploadFile(file);
+                                }
+                              }
+                            }}
+                          />
+                          <Upload className={`h-6 w-6 text-slate-400 group-hover:text-teal-500 transition-colors mb-2 ${uploadingFile ? 'animate-bounce' : ''}`} />
+                          {selectedUploadFile ? (
+                            <div className="space-y-0.5">
+                              <p className="font-semibold text-teal-600 dark:text-teal-400 truncate max-w-xs">{selectedUploadFile.name}</p>
+                              <p className="text-[10px] text-slate-400 font-medium">{(selectedUploadFile.size / 1024 / 1024).toFixed(2)} MB</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-0.5">
+                              <p className="font-medium text-slate-700 dark:text-slate-300">Pilih atau Seret Berkas ke Sini</p>
+                              <p className="text-[10px] text-slate-400 font-medium">Maksimal 4MB untuk versi awal.</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {evidenceSourceType === 'manual_url' && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="evidence_url" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Tautan Eksternal Bukti
+                        </Label>
+                        <div className="relative">
+                          <Input
+                            id="evidence_url"
+                            type="url"
+                            placeholder="E.g. https://drive.google.com/drive/folders/..."
+                            value={evidenceUrl}
+                            onChange={(e) => setEvidenceUrl(e.target.value)}
+                            className="h-9 text-xs pl-8"
+                          />
+                          <Link2 className="absolute left-2.5 top-2.5 h-4 w-4 text-slate-400" />
+                        </div>
+                        <p className="text-[10px] text-slate-400 mt-1 font-medium leading-normal">
+                          Masukkan URL file bukti di Google Drive, Dropbox, website berita, atau platform penyimpanan eksternal lainnya.
+                        </p>
+                      </div>
+                    )}
+
+                    {evidenceSourceType === 'other' && (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="evidence_note_direct" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Detail Lokasi/Keterangan Bukti Fisik
+                        </Label>
+                        <Textarea
+                          id="evidence_note_direct"
+                          rows={3}
+                          placeholder="E.g. Disimpan di lemari arsip 2, lembar kuesioner no 1-50, bertanda tangan kepala desa."
+                          value={evidenceNote}
+                          onChange={(e) => setEvidenceNote(e.target.value)}
+                          className="text-xs"
+                        />
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ADDITIONAL EXPLANATORY NOTES */}
+                  {evidenceSourceType !== 'other' && (
+                    <div className="space-y-1.5">
+                      <Label htmlFor="evidence_note" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        Catatan Bukti (Opsional)
+                      </Label>
+                      <Textarea
+                        id="evidence_note"
+                        rows={2}
+                        placeholder="E.g. Foto kegiatan penyerahan bibit bersama kelompok wanita tani."
+                        value={evidenceNote}
+                        onChange={(e) => setEvidenceNote(e.target.value)}
+                        className="text-xs"
+                      />
+                    </div>
+                  )}
+
+                  <div className="pt-2 flex justify-end gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsTrackingOpen(false)}
+                      className="text-xs h-8.5 rounded-lg"
+                    >
+                      Batal
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={saving || uploadingFile}
+                      className="bg-teal-600 hover:bg-teal-500 text-white font-semibold text-xs h-8.5 rounded-lg flex items-center gap-1.5 shadow"
+                    >
+                      {(saving || uploadingFile) ? (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          {uploadingFile ? 'Mengunggah...' : 'Menyimpan...'}
+                        </>
+                      ) : (
+                        <>
+                          <Check className="h-3.5 w-3.5" />
+                          Simpan Capaian
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </div>
+
+              {/* RIGHT COLUMN: HISTORY TIMELINE */}
+              <div className="col-span-1 md:col-span-5 p-6 space-y-4 bg-slate-50/50 dark:bg-slate-900/10">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <History className="h-3.5 w-3.5 text-slate-400" /> Riwayat Capaian
+                </h3>
+
+                {loadingEntries ? (
+                  <div className="flex h-40 flex-col items-center justify-center text-slate-400">
+                    <Loader2 className="h-5 w-5 animate-spin mb-1 text-teal-600" />
+                    <span>Memuat riwayat...</span>
+                  </div>
+                ) : trackingEntries.filter(e => e.meal_item_id === activeTrackingItem.id).length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-48 border border-dashed border-slate-250 dark:border-slate-800 rounded-lg p-6 text-center text-slate-400 space-y-1.5">
+                    <span className="text-lg">📋</span>
+                    <p className="text-xs font-semibold">Belum Ada Capaian</p>
+                    <p className="text-[10px] leading-relaxed font-medium">Indikator ini belum memiliki catatan progress. Silakan isi formulir di sebelah kiri untuk merekam capaian perdana.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+                    {trackingEntries
+                      .filter(e => e.meal_item_id === activeTrackingItem.id)
+                      .map((entry) => (
+                        <div key={entry.id} className="p-3.5 bg-white dark:bg-slate-950 rounded-lg border border-slate-200/60 dark:border-slate-800/80 shadow-sm relative group/item">
+                          <Button
+                            onClick={() => void handleDeleteEntry(entry.id)}
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-slate-300 hover:text-red-500 absolute top-2 right-2 opacity-0 group-hover/item:opacity-100 transition-all rounded"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+
+                          <div className="space-y-1.5 text-xs">
+                            <div className="flex items-baseline justify-between pr-4">
+                              <span className="text-base font-extrabold text-teal-600 dark:text-teal-400">
+                                {entry.recorded_value} <span className="text-[10px] font-normal text-slate-400">{activeTrackingItem.target_unit || ''}</span>
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-semibold">
+                                {new Date(entry.recorded_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              </span>
+                            </div>
+
+                            {entry.evidence_source_type && (
+                              <div className="flex items-center gap-1.5">
+                                {entry.evidence_source_type === 'onedrive' && (
+                                  <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100 dark:bg-blue-950/20 dark:text-blue-400 dark:border-blue-900/30 py-0 px-1.5 text-[9px] font-bold flex items-center gap-1">
+                                    <FileUp className="h-2.5 w-2.5" /> OneDrive File
+                                  </Badge>
+                                )}
+                                {entry.evidence_source_type === 'manual_url' && (
+                                  <Badge variant="secondary" className="bg-purple-50 text-purple-700 border-purple-100 dark:bg-purple-950/20 dark:text-purple-400 dark:border-purple-900/30 py-0 px-1.5 text-[9px] font-bold flex items-center gap-1">
+                                    <Link2 className="h-2.5 w-2.5" /> Tautan Bukti
+                                  </Badge>
+                                )}
+                                {entry.evidence_source_type === 'other' && (
+                                  <Badge variant="secondary" className="bg-orange-50 text-orange-700 border-orange-100 dark:bg-orange-950/20 dark:text-orange-400 dark:border-orange-900/30 py-0 px-1.5 text-[9px] font-bold flex items-center gap-1">
+                                    <FileText className="h-2.5 w-2.5" /> Bukti Fisik
+                                  </Badge>
+                                )}
+
+                                {entry.evidence_url && (
+                                  <a
+                                    href={entry.evidence_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-[10px] text-teal-600 dark:text-teal-400 hover:underline inline-flex items-center gap-0.5 font-bold"
+                                  >
+                                    Buka File <span className="text-[8px]">↗</span>
+                                  </a>
+                                )}
+                              </div>
+                            )}
+
+                            {entry.evidence_note && (
+                              <p className="text-[11px] text-slate-500 italic bg-slate-50 dark:bg-slate-900/50 p-2 rounded border border-slate-100 dark:border-slate-800 leading-normal">
+                                "{entry.evidence_note}"
+                              </p>
+                            )}
+
+                            <div className="flex items-center gap-1 text-[9px] text-slate-400 pt-1 border-t border-slate-50 dark:border-slate-900">
+                              <User className="h-2.5 w-2.5" />
+                              <span>Dicatat oleh: <strong>{entry.recorded_by || 'User'}</strong></span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
