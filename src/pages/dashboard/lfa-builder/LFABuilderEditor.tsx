@@ -1510,15 +1510,12 @@ export default function LFABuilderEditor() {
                 </Button>
                 <Button
                   onClick={() => {
-                    toast({
-                      title: "SROI Manual Segera Hadir",
-                      description: "SROI manual belum aktif. Untuk sekarang, lengkapi MEAL agar SROI terintegrasi bisa digunakan.",
-                    });
+                    navigate('/dashboard/sroi');
                   }}
                   variant="outline"
                   className="w-full sm:w-auto text-xs h-10 px-6 rounded-lg font-semibold text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
                 >
-                  SROI Manual segera hadir
+                  Buka SROI Standalone &rarr;
                 </Button>
               </div>
             </CardContent>

@@ -30,6 +30,7 @@ import Settings from './pages/dashboard/Settings';
 import MonthlyOperatingReview from './pages/dashboard/MonthlyOperatingReview';
 import LFABuilderIndex from './pages/dashboard/lfa-builder/LFABuilderIndex';
 import LFABuilderEditor from './pages/dashboard/lfa-builder/LFABuilderEditor';
+import SROIStandalone from './pages/dashboard/SROIStandalone';
 
 
 
@@ -97,6 +98,7 @@ const App = () => (
               {/* LFA Builder Routes */}
               <Route path="/dashboard/lfa-builder" element={<LFABuilderIndex />} />
               <Route path="/dashboard/lfa-builder/:projectId" element={<LFABuilderEditor />} />
+              <Route path="/dashboard/sroi" element={<SROIStandalone />} />
 
 
               {/* Settings Route */}
