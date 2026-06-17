@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { WbsItem, LfaEntry, LfaProject } from './types';
@@ -142,7 +142,7 @@ export default function WBSBuilder({
     return { es, ef, criticalPathIds };
   };
 
-  const { es, ef, criticalPathIds } = getCpmStatus();
+  const { es, ef, criticalPathIds } = useMemo(() => getCpmStatus(), [wbsItems]);
 
   const formatBudgetBadge = (amount: number) => {
     if (amount >= 1_000_000_000) {
