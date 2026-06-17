@@ -216,7 +216,7 @@ export default function MonthlyImpactReport() {
     queryFn: async () => {
       if (!orgId) return [];
       const { data, error } = await supabase
-        .from('programs')
+        .from('lfa_projects')
         .select('*')
         .eq('organization_id', orgId);
       if (error) throw error;
