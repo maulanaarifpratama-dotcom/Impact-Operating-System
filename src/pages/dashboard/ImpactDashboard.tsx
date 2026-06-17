@@ -173,18 +173,8 @@ export default function ImpactDashboard() {
     enabled: !!organizationId,
   });
 
-  const { data: programMetrics = [], isLoading: isProgramMetricsLoading } = useQuery({
-    queryKey: ['program_metrics_dashboard', organizationId],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from('program_metrics')
-        .select('*')
-        .eq('organization_id', organizationId);
-      if (error) throw error;
-      return data || [];
-    },
-    enabled: !!organizationId,
-  });
+  const programMetrics: any[] = [];
+  const isProgramMetricsLoading = false;
 
   const { data: gwProjects = [], isLoading: isGwProjectsLoading } = useQuery({
     queryKey: ['gw_projects_dashboard', organizationId],
