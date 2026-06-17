@@ -564,7 +564,7 @@ export default function ReadinessScorecard() {
     : projects.find(p => p.id === selectedProjectId)?.name || 'Program';
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <Tabs value={activeTab} onValueChange={handleTabChange} className="mx-auto max-w-6xl space-y-6">
       {/* Dynamic Print Sheet Styles for Professional Look */}
       <style>{`
         @media print {
@@ -655,7 +655,7 @@ export default function ReadinessScorecard() {
       </section>
 
       {/* CONTENT TABS PANEL */}
-      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
+      <div className="w-full">
         {/* ==================== TAB 1: BASELINE KESIAPAN ==================== */}
         <TabsContent value="baseline" className="space-y-6 focus:outline-none">
           <Card className="border-accent/30 bg-accent-soft/40 p-5 shadow-card no-print">
@@ -1037,7 +1037,7 @@ export default function ReadinessScorecard() {
             </aside>
           </div>
         </TabsContent>
-      </Tabs>
-    </div>
+      </div>
+    </Tabs>
   );
 }
