@@ -156,8 +156,11 @@ const App = () => (
               <Route path="/dashboard/grant-writer/quick/:projectId" element={<GrantWriterQuickWizard />} />
               <Route path="/dashboard/grant-writer/:projectId/proposal" element={<GrantWriterProposal />} />
               <Route path="/dashboard/impactory-library" element={<ImpactoryLibrary />} />
+              <Route path="/dashboard/impact-library" element={<Navigate to="/dashboard/impactory-library" replace />} />
               <Route path="/dashboard/grantfinder" element={<Grantfinder />} />
+              <Route path="/dashboard/grant-pipeline" element={<Navigate to="/dashboard/grantfinder" replace />} />
               <Route path="/dashboard/impactory-ads" element={<ImpactoryAds />} />
+              <Route path="/dashboard/campaign-builder" element={<Navigate to="/dashboard/impactory-ads" replace />} />
               
               {/* LFA Builder Routes */}
               <Route path="/dashboard/lfa-builder" element={<LFABuilderIndex />} />

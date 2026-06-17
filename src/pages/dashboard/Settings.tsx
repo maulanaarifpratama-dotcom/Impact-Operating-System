@@ -162,25 +162,33 @@ export default function Settings() {
     queryKey: ['team_members_settings', orgId],
     queryFn: async () => {
       if (!orgId) return [];
-      const { data, error } = await supabase
+      const { data: members, error: membersError } = await supabase
         .from('organization_members')
-        .select(`
-          id,
-          role,
-          joined_at,
-          user_id,
-          profiles (
-            id,
-            email,
-            full_name,
-            avatar_url,
-            phone
-          )
-        `)
+        .select('id, role, joined_at, user_id')
         .eq('organization_id', orgId)
         .order('joined_at', { ascending: true });
-      if (error) throw error;
-      return data ?? [];
+
+      if (membersError) throw membersError;
+      if (!members || members.length === 0) return [];
+
+      const userIds = members.map(m => m.user_id).filter(Boolean);
+      if (userIds.length === 0) {
+        return members.map(m => ({ ...m, profiles: null }));
+      }
+
+      const { data: profiles, error: profilesError } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, avatar_url, phone')
+        .in('id', userIds);
+
+      if (profilesError) throw profilesError;
+
+      const profileMap = new Map(profiles?.map(p => [p.id, p]) ?? []);
+
+      return members.map(m => ({
+        ...m,
+        profiles: profileMap.get(m.user_id) || null
+      }));
     },
     enabled: !!orgId,
   });
