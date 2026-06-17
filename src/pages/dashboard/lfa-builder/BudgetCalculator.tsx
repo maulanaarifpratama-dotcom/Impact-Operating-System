@@ -5,7 +5,7 @@ import { BudgetItem, WbsItem, LfaProject } from './types';
 import { SBM_2026, SBM_FLAT_ITEMS, SbmItem } from '@/data/sbm2026';
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
-  AlertTriangle, DollarSign, Wallet, Percent, TrendingUp, HelpCircle
+  AlertTriangle, DollarSign, Wallet, Percent, TrendingUp, HelpCircle, Calendar, Link as LinkIcon, FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 interface BudgetCalculatorProps {
   projectId: string;
@@ -39,6 +40,7 @@ export default function BudgetCalculator({
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [globalMode, setGlobalMode] = useState<'simple' | 'professional'>('simple');
+  const [activeTab, setActiveTab] = useState<'rencana' | 'realisasi'>('rencana');
   const [projectData, setProject] = useState<LfaProject | null>(null);
 
   // Exchange rate state
@@ -295,6 +297,7 @@ export default function BudgetCalculator({
         const itemToSave = budgetItemsRef.current.find(i => i.id === itemId);
         if (!itemToSave) return;
 
+        const actualVal = itemToSave.actual_amount_idr !== undefined && itemToSave.actual_amount_idr !== null && itemToSave.actual_amount_idr !== '' ? Number(itemToSave.actual_amount_idr) : null;
         const { error } = await supabase
           .from('lfa_budget_items')
           .update({
@@ -307,7 +310,11 @@ export default function BudgetCalculator({
             funding_source: itemToSave.funding_source,
             justification: itemToSave.justification,
             needs_donor_approval: itemToSave.needs_donor_approval,
-            mode: globalMode
+            mode: globalMode,
+            actual_amount_idr: actualVal === null || isNaN(actualVal) ? null : actualVal,
+            realisasi_date: itemToSave.realisasi_date || null,
+            realisasi_notes: itemToSave.realisasi_notes || null,
+            realisasi_evidence_url: itemToSave.realisasi_evidence_url || null
           })
           .eq('id', itemId);
 
@@ -446,6 +453,25 @@ export default function BudgetCalculator({
   // Calculations & Metrics
   const totalIDR = budgetItems.reduce((acc, i) => acc + ((Number(i.volume) || 0) * (Number(i.unit_price_idr) || 0)), 0);
   const totalUSD = totalIDR / (exchangeRate || 16000);
+
+  // Realization Metrics
+  const totalRealisasiIDR = budgetItems.reduce((acc, i) => acc + (Number(i.actual_amount_idr) || 0), 0);
+  const totalRealisasiUSD = totalRealisasiIDR / (exchangeRate || 16000);
+  const remainingBudgetIDR = totalIDR - totalRealisasiIDR;
+  const remainingBudgetUSD = totalUSD - totalRealisasiUSD;
+  const realizationPercentage = totalIDR > 0 ? (totalRealisasiIDR / totalIDR) * 100 : 0;
+  const actualBurnRateIDR = totalRealisasiIDR / durationMonths;
+  const actualBurnRateUSD = totalRealisasiUSD / durationMonths;
+
+  // Over budget check: if total spent > planned * 1.1
+  const isOverBudgetKritis = totalRealisasiIDR > totalIDR * 1.1;
+
+  // Item level over budget check
+  const overBudgetItemsCount = budgetItems.filter(item => {
+    const planned = (Number(item.volume) || 0) * (Number(item.unit_price_idr) || 0);
+    const actual = Number(item.actual_amount_idr) || 0;
+    return actual > planned;
+  }).length;
 
   // Program Duration
   const durationMonths = projectData?.duration_months || programDurationMonths || 12;
@@ -886,6 +912,195 @@ export default function BudgetCalculator({
     printWindow.document.close();
   };
 
+  const handleExportRealisasi = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast({
+        title: 'Export Gagal',
+        description: 'Bloker pop-up menghalangi ekspor PDF. Izinkan pop-up untuk situs ini.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const today = new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+
+    const printHtml = `
+      <html>
+      <head>
+        <title>Laporan Realisasi Anggaran & Varian - ${projectData?.name || 'Program'}</title>
+        <script src="https://cdn.tailwindcss.com"></script>
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+        <style>
+          body { font-family: 'Inter', sans-serif; }
+          .page-break { page-break-after: always; }
+          .avoid-break { page-break-inside: avoid; }
+          @media print {
+            .no-print { display: none; }
+            body { background-color: white; color: black; }
+            @page { size: landscape; margin: 15mm; }
+          }
+        </style>
+      </head>
+      <body class="bg-white p-6 text-[10px] leading-normal text-slate-800">
+        <div class="flex justify-between items-start border-b-2 border-slate-950 pb-4 mb-6">
+          <div>
+            <span class="text-[9px] font-extrabold uppercase bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded shadow-sm tracking-wider">Laporan Keuangan MVP</span>
+            <h1 class="text-xl font-black mt-2 text-slate-900 uppercase tracking-tight">Realisasi & Variasi Anggaran (RAB vs Realisasi)</h1>
+            <p class="text-[10px] text-slate-500 mt-1">Program: ${projectData?.name || 'Program LFA'} • Sektor: ${projectData?.sector || 'Sektor Lainnya'} • Durasi: ${durationMonths} Bulan</p>
+          </div>
+          <div class="text-right">
+            <span class="text-lg font-black text-slate-900 tracking-wider">Impactory.id</span>
+            <p class="text-[9px] text-slate-400 uppercase tracking-widest">Financial Realization Summary</p>
+            <p class="text-[9px] text-slate-500 mt-1">Tanggal Cetak: ${today}</p>
+          </div>
+        </div>
+
+        <!-- Grand Summary Cards -->
+        <div class="grid grid-cols-4 gap-4 p-4 border rounded-xl bg-slate-50 mb-6 text-slate-950">
+          <div>
+            <span class="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Total Rencana Anggaran</span>
+            <span class="text-base font-extrabold">Rp ${totalIDR.toLocaleString('id-ID')}</span>
+          </div>
+          <div>
+            <span class="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Total Realisasi Pengeluaran</span>
+            <span class="text-base font-extrabold text-emerald-600">Rp ${totalRealisasiIDR.toLocaleString('id-ID')}</span>
+          </div>
+          <div>
+            <span class="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Sisa Anggaran (Varian)</span>
+            <span class="text-base font-extrabold ${remainingBudgetIDR < 0 ? 'text-rose-600' : 'text-slate-900'}">
+              Rp ${remainingBudgetIDR.toLocaleString('id-ID')}
+            </span>
+          </div>
+          <div>
+            <span class="text-[8px] font-bold text-slate-400 uppercase tracking-wider block">Persentase Penyerapan</span>
+            <span class="text-base font-extrabold text-indigo-600">${realizationPercentage.toFixed(1)}%</span>
+          </div>
+        </div>
+
+        ${isOverBudgetKritis ? `
+          <div class="p-2 border border-rose-300 bg-rose-50 text-rose-800 text-[10px] rounded-lg mb-6 font-semibold">
+            ⚠️ PERINGATAN CRITICAL: Total realisasi pengeluaran saat ini telah melebihi 10% dari total anggaran yang direncanakan! Segera koordinasikan dengan donor atau manajer keuangan program.
+          </div>
+        ` : ''}
+
+        <!-- Cost Groups per Activity -->
+        ${wbsActivities.map((act, actIdx) => {
+          const actItems = budgetItems.filter(i => i.wbs_item_id === act.id);
+          const actTotalPlanned = actItems.reduce((acc, i) => acc + ((Number(i.volume) || 0) * (Number(i.unit_price_idr) || 0)), 0);
+          const actTotalActual = actItems.reduce((acc, i) => acc + (Number(i.actual_amount_idr) || 0), 0);
+          const actVariance = actTotalPlanned - actTotalActual;
+
+          return `
+            <div class="mb-6 avoid-break">
+              <div class="flex justify-between items-center bg-slate-100 p-2 rounded border border-slate-200 mb-2 font-bold text-slate-800">
+                <span>Aktivitas ${actIdx + 1}: ${act.name}</span>
+                <span class="text-[9px] text-slate-500">
+                  Rencana: Rp ${actTotalPlanned.toLocaleString('id-ID')} | Realisasi: Rp ${actTotalActual.toLocaleString('id-ID')} | Selisih: <span class="${actVariance < 0 ? 'text-rose-600' : 'text-emerald-600'}">Rp ${actVariance.toLocaleString('id-ID')}</span>
+                </span>
+              </div>
+
+              ${actItems.length === 0 ? `
+                <p class="text-slate-400 italic text-[9px] p-2 bg-slate-50 rounded border border-dashed border-slate-200">Belum ada item anggaran.</p>
+              ` : `
+                <table class="w-full text-[9px] mb-2">
+                  <thead>
+                    <tr class="border-b border-slate-300 text-slate-500 font-bold">
+                      <th class="text-left pb-1 w-1/4">Nama Item Biaya</th>
+                      <th class="text-center pb-1 w-[8%]">Vol (Rencana)</th>
+                      <th class="text-right pb-1 w-[12%]">RAB Satuan (IDR)</th>
+                      <th class="text-right pb-1 w-[12%]">RAB Total (IDR)</th>
+                      <th class="text-right pb-1 w-[12%]">Realisasi (IDR)</th>
+                      <th class="text-right pb-1 w-[12%]">Selisih/Varian</th>
+                      <th class="text-center pb-1 w-[10%]">Tanggal</th>
+                      <th class="text-left pb-1 w-1/6">Catatan & Bukti</th>
+                      <th class="text-center pb-1 w-[8%]">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    ${actItems.map(item => {
+                      const plannedTotal = item.volume * item.unit_price_idr;
+                      const actualTotal = Number(item.actual_amount_idr) || 0;
+                      const variance = plannedTotal - actualTotal;
+
+                      let statusBadge = 'Belum Realisasi';
+                      let badgeColor = 'bg-slate-100 text-slate-600 border-slate-200';
+                      if (item.actual_amount_idr !== null && item.actual_amount_idr !== undefined) {
+                        if (actualTotal > plannedTotal) {
+                          statusBadge = 'Over budget';
+                          badgeColor = 'bg-rose-100 text-rose-800 border-rose-200';
+                        } else if (variance <= plannedTotal * 0.05) {
+                          statusBadge = 'Sesuai';
+                          badgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-200';
+                        } else {
+                          statusBadge = 'Efisien';
+                          badgeColor = 'bg-blue-100 text-blue-800 border-blue-200';
+                        }
+                      }
+
+                      return `
+                        <tr class="border-b border-slate-100 py-1">
+                          <td class="py-1.5 font-medium">${item.item_name}</td>
+                          <td class="py-1.5 text-center">${item.volume} ${item.unit || 'Orang'}</td>
+                          <td class="py-1.5 text-right">Rp ${item.unit_price_idr.toLocaleString('id-ID')}</td>
+                          <td class="py-1.5 text-right font-semibold">Rp ${plannedTotal.toLocaleString('id-ID')}</td>
+                          <td class="py-1.5 text-right font-semibold text-emerald-600">Rp ${item.actual_amount_idr !== null ? actualTotal.toLocaleString('id-ID') : '-'}</td>
+                          <td class="py-1.5 text-right font-bold ${variance < 0 ? 'text-rose-600' : 'text-slate-800'}">
+                            Rp ${variance.toLocaleString('id-ID')}
+                          </td>
+                          <td class="py-1.5 text-center text-slate-500">${item.realisasi_date ? new Date(item.realisasi_date).toLocaleDateString('id-ID') : '-'}</td>
+                          <td class="py-1.5 text-slate-500 max-w-[150px] truncate" title="${item.realisasi_notes || ''}">
+                            ${item.realisasi_notes || ''}
+                            ${item.realisasi_evidence_url ? `<br/><a href="${item.realisasi_evidence_url}" class="text-indigo-600 font-semibold" target="_blank">🔗 Bukti Transaksi</a>` : ''}
+                          </td>
+                          <td class="py-1.5 text-center">
+                            <span class="px-1.5 py-0.5 rounded-full text-[8px] font-bold border ${badgeColor}">${statusBadge}</span>
+                          </td>
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+              `}
+            </div>
+          `;
+        }).join('')}
+
+        <!-- Compliance & Audit Signatures -->
+        <div class="mt-12 border-t border-slate-300 pt-6 grid grid-cols-2 gap-8 avoid-break">
+          <div>
+            <span class="font-bold text-[10px] uppercase text-slate-950 mb-1 tracking-wider">Kepatuhan Realisasi Keuangan</span>
+            <p class="text-[9px] text-slate-400 leading-relaxed">Seluruh realisasi pengeluaran di atas dicatat dengan benar beserta lampiran bukti fisik/digital yang valid untuk kepentingan pelaporan kepatuhan dan audit donor.</p>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div class="text-center">
+              <div class="border-b border-slate-400 h-12 w-32 mx-auto mb-1"></div>
+              <p class="font-bold text-slate-800">___________________</p>
+              <p class="text-[8px] text-slate-500 uppercase mt-0.5">Finance Manager / PIC Keuangan</p>
+            </div>
+            <div class="text-center">
+              <div class="border-b border-slate-400 h-12 w-32 mx-auto mb-1"></div>
+              <p class="font-bold text-slate-800">___________________</p>
+              <p class="text-[8px] text-slate-500 uppercase mt-0.5">Program Director / Pimpinan</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="no-print mt-12 text-center">
+          <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded shadow-lg text-xs tracking-wider uppercase">Cetak Laporan Realisasi</button>
+        </div>
+
+        <div class="mt-16 text-center text-[9px] text-slate-400 border-t pt-2">
+          Dibuat secara otomatis dengan <strong>Impactory.id</strong> • Program LFA & Dynamic Realization Calculator
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.write(printHtml);
+    printWindow.document.close();
+  };
+
   if (loading) {
     return (
       <div className="flex h-[350px] items-center justify-center text-muted-foreground">
@@ -896,476 +1111,807 @@ export default function BudgetCalculator({
 
   return (
     <div className="space-y-6">
-      {/* 1. WARNINGS & ALERTS BANNER BAR */}
-      {(sbmWarnings.length > 0 || emptyActivityWarnings.length > 0 || overheadPercentage > 20) && (
-        <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl space-y-2 shadow-sm animate-fade-in">
-          <div className="flex items-center gap-2 font-bold text-xs text-amber-800 dark:text-amber-400 uppercase tracking-wide">
-            <AlertTriangle className="h-4 w-4 text-amber-500 animate-pulse" /> Peringatan Kepatuhan Anggaran (Compliance Warnings)
+      <Tabs defaultValue="rencana" className="w-full space-y-6" onValueChange={(v) => setActiveTab(v as 'rencana' | 'realisasi')}>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-white/50 dark:bg-slate-950/20 backdrop-blur-md p-3 rounded-xl border shadow-sm">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight">Kalkulator & Realisasi Anggaran</h2>
+            <p className="text-[11px] text-muted-foreground">Kelola rencana alokasi biaya program dan catat realisasi pengeluaran dalam satu dasbor.</p>
           </div>
-          <div className="text-[11px] text-slate-700 dark:text-slate-300 space-y-1.5 pl-6 leading-relaxed">
-            {overheadPercentage > 20 && (
-              <p>⚠️ <strong>Rasio Overhead Tinggi ({overheadPercentage.toFixed(1)}%):</strong> Biaya overhead melebihi batas 20%. Beberapa donor internasional (seperti PBB/USAID) membatasi alokasi overhead administrasi maksimal 15-20%.</p>
-            )}
-            {sbmWarnings.slice(0, 3).map((warn, i) => (
-              <p key={i}>{warn}</p>
-            ))}
-            {sbmWarnings.length > 3 && (
-              <p className="font-semibold text-amber-700 dark:text-amber-500">... dan {sbmWarnings.length - 3} item biaya lainnya melebihi standar SBM 2026.</p>
-            )}
-            {emptyActivityWarnings.map((warn, i) => (
-              <p key={i}>{warn}</p>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 2. HEADER TAB CONTROLS */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-4">
-        {/* Toggle Slider */}
-        <div className="flex items-center gap-4">
-          <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg border shadow-inner">
-            <button
-              onClick={() => handleModeToggle('simple')}
-              className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-md transition-all ${
-                globalMode === 'simple'
-                  ? 'bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-50 shadow-md border'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              🌱 Sederhana
-            </button>
-            <button
-              onClick={() => handleModeToggle('professional')}
-              className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-md transition-all ${
-                globalMode === 'professional'
-                  ? 'bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-md border-0'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              🏢 Profesional
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-            {saving ? (
-              <span className="flex items-center gap-1">
-                <Loader2 className="h-3 w-3 animate-spin text-primary" /> Menyimpan...
-              </span>
-            ) : lastSaved ? (
-              <span className="flex items-center gap-1 text-emerald-600 font-medium">
-                <Check className="h-3.5 w-3.5" /> Tersimpan
-              </span>
-            ) : (
-              <span>Autosave aktif</span>
-            )}
-          </div>
+          
+          <TabsList className="grid grid-cols-2 w-full sm:w-[320px]">
+            <TabsTrigger value="rencana" className="text-xs font-bold flex items-center gap-1.5 py-2">
+              <FileText className="h-3.5 w-3.5" /> Rencana Anggaran
+            </TabsTrigger>
+            <TabsTrigger value="realisasi" className="text-xs font-bold flex items-center gap-1.5 py-2">
+              <DollarSign className="h-3.5 w-3.5 animate-pulse text-emerald-500" /> Realisasi Anggaran
+            </TabsTrigger>
+          </TabsList>
         </div>
 
-        {/* Currency Rate Indicator & Export */}
-        <div className="flex flex-wrap items-center gap-3">
-          {globalMode === 'professional' && (
-            <Badge variant="outline" className="text-[10px] font-semibold flex items-center gap-1 py-1.5 px-2.5 bg-slate-50 dark:bg-slate-900 border-indigo-200 dark:border-indigo-950">
-              <DollarSign className="h-3 w-3 text-indigo-500" />
-              <span>Kurs: 1 USD = Rp {exchangeRate.toLocaleString('id-ID')}</span>
-              <span className="text-slate-400 font-normal">({rateUpdateTime})</span>
-            </Badge>
-          )}
-
-          <Button
-            size="sm"
-            onClick={handleExportRAB}
-            className="bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-semibold flex items-center gap-1.5 text-xs shadow"
-          >
-            <Download className="h-3.5 w-3.5" /> Export RAB
-          </Button>
-        </div>
-      </div>
-
-      {/* 3. BUDGET SUMMARY CARDS */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Card 1: Grand Total */}
-        <div className="p-4 bg-white dark:bg-slate-950 rounded-xl border shadow-sm space-y-2 relative overflow-hidden group hover:shadow transition-all duration-300">
-          <div className="absolute right-3 top-3 h-8 w-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-all duration-300">
-            <Wallet className="h-4 w-4" />
-          </div>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Anggaran Program</span>
-          <div className="space-y-1">
-            <p className="text-xl font-black text-slate-900 dark:text-white">
-              Rp {totalIDR.toLocaleString('id-ID')}
-            </p>
-            {globalMode === 'professional' && (
-              <p className="text-xs font-bold text-indigo-600">
-                ${totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Card 2: Burn Rate */}
-        <div className="p-4 bg-white dark:bg-slate-950 rounded-xl border shadow-sm space-y-2 relative overflow-hidden group hover:shadow transition-all duration-300">
-          <div className="absolute right-3 top-3 h-8 w-8 rounded-lg bg-amber-50 dark:bg-amber-950/20 flex items-center justify-center text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-all duration-300">
-            <TrendingUp className="h-4 w-4" />
-          </div>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Laju Serapan Bulanan (Burn Rate)</span>
-          <div className="space-y-1">
-            <p className="text-sm font-black text-slate-800 dark:text-slate-100">
-              Rp {burnRateIDR.toLocaleString('id-ID')}/bulan
-            </p>
-            {globalMode === 'professional' && (
-              <p className="text-[11px] font-bold text-indigo-600">
-                ${burnRateUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD/bulan
-              </p>
-            )}
-            <span className="text-[9px] text-slate-400 block mt-1">Berdasarkan total {durationMonths} bulan pelaksanaan</span>
-          </div>
-        </div>
-
-        {/* Card 3: Overhead Gauge */}
-        <div className="p-4 bg-white dark:bg-slate-950 rounded-xl border shadow-sm space-y-2 relative overflow-hidden group hover:shadow transition-all duration-300">
-          <div className="absolute right-3 top-3 h-8 w-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-all duration-300">
-            <Percent className="h-4 w-4" />
-          </div>
-          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Rasio Administrasi / Overhead</span>
-          <div className="space-y-1">
-            <p className={`text-sm font-black ${overheadPercentage > 20 ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
-              {overheadPercentage.toFixed(1)}% Overhead
-            </p>
-            <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
-              <div
-                style={{ width: `${Math.min(100, overheadPercentage)}%` }}
-                className={`h-full rounded-full transition-all duration-500 ${overheadPercentage > 20 ? 'bg-rose-500' : 'bg-emerald-500'}`}
-              ></div>
+        {/* Dynamic Metric Cards at top (depending on active tab) */}
+        {activeTab === 'rencana' ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Card 1: Grand Total */}
+            <div className="p-4 bg-white dark:bg-slate-950 rounded-xl border shadow-sm space-y-2 relative overflow-hidden group hover:shadow transition-all duration-300">
+              <div className="absolute right-3 top-3 h-8 w-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-all duration-300">
+                <Wallet className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Anggaran Program</span>
+              <div className="space-y-1">
+                <p className="text-xl font-black text-slate-900 dark:text-white">
+                  Rp {totalIDR.toLocaleString('id-ID')}
+                </p>
+                {globalMode === 'professional' && (
+                  <p className="text-xs font-bold text-indigo-600">
+                    ${totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                  </p>
+                )}
+              </div>
             </div>
-            <span className="text-[9px] text-slate-400 block mt-1">Biaya Overhead: Rp {totalOverheadIDR.toLocaleString('id-ID')}</span>
+
+            {/* Card 2: Burn Rate */}
+            <div className="p-4 bg-white dark:bg-slate-950 rounded-xl border shadow-sm space-y-2 relative overflow-hidden group hover:shadow transition-all duration-300">
+              <div className="absolute right-3 top-3 h-8 w-8 rounded-lg bg-amber-50 dark:bg-amber-950/20 flex items-center justify-center text-amber-600 dark:text-amber-400 group-hover:scale-110 transition-all duration-300">
+                <TrendingUp className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Laju Serapan Bulanan (Burn Rate)</span>
+              <div className="space-y-1">
+                <p className="text-sm font-black text-slate-800 dark:text-slate-100">
+                  Rp {burnRateIDR.toLocaleString('id-ID')}/bulan
+                </p>
+                {globalMode === 'professional' && (
+                  <p className="text-[11px] font-bold text-indigo-600">
+                    ${burnRateUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD/bulan
+                  </p>
+                )}
+                <span className="text-[9px] text-slate-400 block mt-1">Berdasarkan total {durationMonths} bulan pelaksanaan</span>
+              </div>
+            </div>
+
+            {/* Card 3: Overhead Gauge */}
+            <div className="p-4 bg-white dark:bg-slate-950 rounded-xl border shadow-sm space-y-2 relative overflow-hidden group hover:shadow transition-all duration-300">
+              <div className="absolute right-3 top-3 h-8 w-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-all duration-300">
+                <Percent className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Rasio Administrasi / Overhead</span>
+              <div className="space-y-1">
+                <p className={`text-sm font-black ${overheadPercentage > 20 ? 'text-rose-500' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                  {overheadPercentage.toFixed(1)}% Overhead
+                </p>
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+                  <div
+                    style={{ width: `${Math.min(100, overheadPercentage)}%` }}
+                    className={`h-full rounded-full transition-all duration-500 ${overheadPercentage > 20 ? 'bg-rose-500' : 'bg-emerald-500'}`}
+                  ></div>
+                </div>
+                <span className="text-[9px] text-slate-400 block mt-1">Biaya Overhead: Rp {totalOverheadIDR.toLocaleString('id-ID')}</span>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-fade-in">
+            {/* Realisasi Card 1: Planned Budget */}
+            <div className="p-4 bg-white dark:bg-slate-950 rounded-xl border shadow-sm space-y-2 relative overflow-hidden group hover:shadow transition-all duration-300">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Rencana RAB (Planned)</span>
+              <div className="space-y-1">
+                <p className="text-sm font-bold text-slate-600 dark:text-slate-400">
+                  Rp {totalIDR.toLocaleString('id-ID')}
+                </p>
+                {globalMode === 'professional' && (
+                  <p className="text-[10px] font-semibold text-slate-400">
+                    ${totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                  </p>
+                )}
+              </div>
+            </div>
 
-      {/* 4. COST SECTION BY ACTIVITY (THE DUAL-EXPERIENCE CORE ENGINE) */}
-      <div className="space-y-6">
-        {wbsActivities.map((act, actIdx) => {
-          const actItems = budgetItems.filter(i => i.wbs_item_id === act.id);
-          const actTotal = actItems.reduce((acc, i) => acc + ((Number(i.volume) || 0) * (Number(i.unit_price_idr) || 0)), 0);
+            {/* Realisasi Card 2: Actual Spent */}
+            <div className="p-4 bg-white dark:bg-slate-950 rounded-xl border border-emerald-100 dark:border-emerald-950/40 shadow-sm space-y-2 relative overflow-hidden group hover:shadow transition-all duration-300">
+              <div className="absolute right-3 top-3 h-8 w-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 group-hover:scale-110 transition-all duration-300">
+                <DollarSign className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Total Realisasi (Actual)</span>
+              <div className="space-y-1">
+                <p className="text-base font-black text-emerald-600 dark:text-emerald-400">
+                  Rp {totalRealisasiIDR.toLocaleString('id-ID')}
+                </p>
+                {globalMode === 'professional' && (
+                  <p className="text-[11px] font-bold text-indigo-600">
+                    ${totalRealisasiUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                  </p>
+                )}
+              </div>
+            </div>
 
-          return (
-            <Card key={act.id} className="border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
-              {/* Activity Header Banner */}
-              <div className="bg-slate-50 dark:bg-slate-900/60 px-4 py-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                <div className="flex items-center gap-2">
-                  <span className="h-5 w-5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 rounded text-[10px] font-bold flex items-center justify-center text-indigo-700">
-                    {actIdx + 1}
-                  </span>
-                  <div className="space-y-0.5">
-                    <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100">{act.name}</span>
-                    <span className="text-[10px] text-slate-400 block font-semibold uppercase tracking-wider">
-                      Timeline: {formatTimeline(act.start_month, act.duration_weeks)}
-                    </span>
-                  </div>
+            {/* Realisasi Card 3: Remaining Budget */}
+            <div className="p-4 bg-white dark:bg-slate-950 rounded-xl border shadow-sm space-y-2 relative overflow-hidden group hover:shadow transition-all duration-300">
+              <div className="absolute right-3 top-3 h-8 w-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-all duration-300">
+                <Wallet className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Sisa Anggaran (Variance)</span>
+              <div className="space-y-1">
+                <p className={`text-base font-black ${remainingBudgetIDR < 0 ? 'text-rose-500' : 'text-slate-800 dark:text-slate-100'}`}>
+                  Rp {remainingBudgetIDR.toLocaleString('id-ID')}
+                </p>
+                {globalMode === 'professional' && (
+                  <p className="text-[11px] font-bold text-indigo-600">
+                    ${remainingBudgetUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Realisasi Card 4: Spend Rate */}
+            <div className="p-4 bg-white dark:bg-slate-950 rounded-xl border shadow-sm space-y-2 relative overflow-hidden group hover:shadow transition-all duration-300">
+              <div className="absolute right-3 top-3 h-8 w-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-all duration-300">
+                <Percent className="h-4 w-4" />
+              </div>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Tingkat Penyerapan</span>
+              <div className="space-y-1">
+                <p className="text-sm font-black text-indigo-600">
+                  {realizationPercentage.toFixed(1)}% Terpakai
+                </p>
+                <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full mt-2 overflow-hidden">
+                  <div
+                    style={{ width: `${Math.min(100, realizationPercentage)}%` }}
+                    className="h-full rounded-full transition-all duration-500 bg-indigo-600"
+                  ></div>
                 </div>
+                <span className="text-[9px] text-slate-400 block mt-1">Serapan Rata-rata: Rp {actualBurnRateIDR.toLocaleString('id-ID')}/bulan</span>
+              </div>
+            </div>
+          </div>
+        )}
 
-                <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-0 pt-2 sm:pt-0">
-                  <div className="text-left sm:text-right space-y-0.5">
-                    <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-widest">Alokasi Anggaran</span>
-                    <span className="text-xs font-extrabold text-slate-900 dark:text-white">
-                      Rp {actTotal.toLocaleString('id-ID')}
-                    </span>
-                  </div>
+        {/* Alerts / Warnings */}
+        {activeTab === 'rencana' && (sbmWarnings.length > 0 || emptyActivityWarnings.length > 0 || overheadPercentage > 20) && (
+          <div className="p-4 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-xl space-y-2 shadow-sm animate-fade-in">
+            <div className="flex items-center gap-2 font-bold text-xs text-amber-800 dark:text-amber-400 uppercase tracking-wide">
+              <AlertTriangle className="h-4 w-4 text-amber-500 animate-pulse" /> Peringatan Kepatuhan Anggaran (Compliance Warnings)
+            </div>
+            <div className="text-[11px] text-slate-700 dark:text-slate-300 space-y-1.5 pl-6 leading-relaxed">
+              {overheadPercentage > 20 && (
+                <p>⚠️ <strong>Rasio Overhead Tinggi ({overheadPercentage.toFixed(1)}%):</strong> Biaya overhead melebihi batas 20%. Beberapa donor internasional (seperti PBB/USAID) membatasi alokasi overhead administrasi maksimal 15-20%.</p>
+              )}
+              {sbmWarnings.slice(0, 3).map((warn, i) => (
+                <p key={i}>{warn}</p>
+              ))}
+              {sbmWarnings.length > 3 && (
+                <p className="font-semibold text-amber-700 dark:text-amber-500">... dan {sbmWarnings.length - 3} item biaya lainnya melebihi standar SBM 2026.</p>
+              )}
+              {emptyActivityWarnings.map((warn, i) => (
+                <p key={i}>{warn}</p>
+              ))}
+            </div>
+          </div>
+        )}
 
-                  <Button
-                    size="xs"
-                    onClick={() => handleAddItem(act.id, act.name)}
-                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-7 py-1 px-3 text-[10px] tracking-wide"
-                  >
-                    <Plus className="mr-1 h-3 w-3" /> Tambah Item
-                  </Button>
-                </div>
+        {activeTab === 'realisasi' && isOverBudgetKritis && (
+          <div className="p-4 bg-rose-50 dark:bg-rose-950/20 border border-rose-200 dark:border-rose-900/50 rounded-xl space-y-1.5 shadow-sm animate-fade-in">
+            <div className="flex items-center gap-2 font-bold text-xs text-rose-800 dark:text-rose-400 uppercase tracking-wide">
+              <AlertTriangle className="h-4 w-4 text-rose-500 animate-bounce" /> Peringatan Kritis: Over Budget (&gt;10%)
+            </div>
+            <p className="text-[11px] text-rose-700 dark:text-rose-300 pl-6 leading-relaxed">
+              Total realisasi pengeluaran program saat ini (<strong>Rp {totalRealisasiIDR.toLocaleString('id-ID')}</strong>) telah melebihi batas toleransi 10% dari total anggaran yang direncanakan (<strong>Rp {totalIDR.toLocaleString('id-ID')}</strong>). Rasio penyerapan saat ini berada di angka <strong className="text-rose-600 dark:text-rose-400">{realizationPercentage.toFixed(1)}%</strong>.
+            </p>
+          </div>
+        )}
+
+        {activeTab === 'realisasi' && overBudgetItemsCount > 0 && (
+          <div className="p-3 bg-amber-50 dark:bg-amber-950/10 border border-amber-200 dark:border-amber-900/30 rounded-xl flex items-center gap-2 text-xs text-amber-800 dark:text-amber-400 animate-fade-in">
+            <span>⚠️</span>
+            <span>Terdapat <strong>{overBudgetItemsCount} item pengeluaran</strong> yang melebihi alokasi rencana anggaran mula-mula. Gunakan panel adaptif MOR jika diperlukan penyesuaian strategi.</span>
+          </div>
+        )}
+
+        {/* Tab 1 Content: Plans Editor */}
+        <TabsContent value="rencana" className="space-y-6 mt-0">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-4">
+            {/* Toggle Slider */}
+            <div className="flex items-center gap-4">
+              <div className="flex bg-slate-100 dark:bg-slate-900 p-1 rounded-lg border shadow-inner">
+                <button
+                  onClick={() => handleModeToggle('simple')}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-md transition-all ${
+                    globalMode === 'simple'
+                      ? 'bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-50 shadow-md border'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  🌱 Sederhana
+                </button>
+                <button
+                  onClick={() => handleModeToggle('professional')}
+                  className={`flex items-center gap-1.5 px-4 py-2 text-xs font-bold rounded-md transition-all ${
+                    globalMode === 'professional'
+                      ? 'bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-md border-0'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  🏢 Profesional
+                </button>
               </div>
 
-              {/* Table of Budget Items inside this activity */}
-              <CardContent className="p-0">
-                {actItems.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground italic text-xs border-dashed border-2 m-4 rounded-lg bg-slate-50/20">
-                    Belum ada item biaya alokasi. Klik "+ Tambah Item" untuk mulai merinci anggaran kegiatan ini.
-                  </div>
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                {saving ? (
+                  <span className="flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin text-primary" /> Menyimpan...
+                  </span>
+                ) : lastSaved ? (
+                  <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                    <Check className="h-3.5 w-3.5" /> Tersimpan ke Supabase
+                  </span>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b text-slate-400 font-bold bg-slate-50/30 dark:bg-slate-950/20">
-                          <th className="text-left p-3 w-1/4">Nama Item Biaya</th>
-                          <th className="text-left p-3 w-1/6">Kategori</th>
-                          {globalMode === 'professional' && (
-                            <th className="text-left p-3 w-1/6">Cost Category (Donor)</th>
-                          )}
-                          <th className="text-center p-3 w-[80px]">Volume</th>
-                          <th className="text-center p-3 w-[100px]">Satuan</th>
-                          <th className="text-right p-3 w-[150px]">Harga Satuan (IDR)</th>
-                          {globalMode === 'professional' && (
-                            <th className="text-left p-3 w-[120px]">Sumber Dana</th>
-                          )}
-                          <th className="text-right p-3 w-[120px]">Total (IDR)</th>
-                          <th className="text-center p-3 w-[60px]">Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {actItems.map(item => {
-                          const itemTotal = (Number(item.volume) || 0) * (Number(item.unit_price_idr) || 0);
-                          const isSuggested = activeSuggestionId === item.id;
+                  <span>Autosave aktif</span>
+                )}
+              </div>
+            </div>
 
-                          return (
-                            <tr key={item.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10">
-                              {/* 1. Item Name Input with smart autocomplete */}
-                              <td className="p-3 relative align-middle">
-                                <div className="space-y-1">
-                                  <Input
-                                    value={item.item_name}
-                                    onChange={(e) => handleItemNameTyping(item.id, e.target.value, item.category || 'Lainnya')}
-                                    placeholder="Mis. Narasumber, Sewa LCD..."
-                                    className="text-xs h-8 bg-transparent"
-                                  />
+            {/* Currency Rate Indicator & Export */}
+            <div className="flex flex-wrap items-center gap-3">
+              {globalMode === 'professional' && (
+                <Badge variant="outline" className="text-[10px] font-semibold flex items-center gap-1 py-1.5 px-2.5 bg-slate-50 dark:bg-slate-900 border-indigo-200 dark:border-indigo-950">
+                  <DollarSign className="h-3 w-3 text-indigo-500" />
+                  <span>Kurs: 1 USD = Rp {exchangeRate.toLocaleString('id-ID')}</span>
+                  <span className="text-slate-400 font-normal">({rateUpdateTime})</span>
+                </Badge>
+              )}
 
-                                  {/* Custom Autocomplete Suggestions Popover */}
-                                  {isSuggested && filteredSuggestions.length > 0 && (
-                                    <div className="absolute z-10 left-3 top-11 w-64 bg-white dark:bg-slate-900 border rounded-lg shadow-xl divide-y text-[11px] overflow-hidden">
-                                      <div className="bg-slate-50 dark:bg-slate-950 p-1.5 font-bold text-[9px] text-slate-400 uppercase tracking-widest">
-                                        Rekomendasi SBM 2026
-                                      </div>
-                                      {filteredSuggestions.map((sbm, idx) => (
-                                        <button
-                                          key={idx}
-                                          type="button"
-                                          onClick={() => selectSuggestion(item.id, sbm)}
-                                          className="w-full text-left p-2 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 flex flex-col gap-0.5"
-                                        >
-                                          <span className="font-bold text-slate-800 dark:text-slate-200">{sbm.name}</span>
-                                          <span className="text-[10px] text-slate-400">
-                                            Rp {sbm.price.toLocaleString('id-ID')}/{sbm.unit} • {sbm.category}
-                                          </span>
-                                        </button>
-                                      ))}
-                                    </div>
-                                  )}
+              <Button
+                size="sm"
+                onClick={handleExportRAB}
+                className="bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200 text-white dark:text-slate-900 font-semibold flex items-center gap-1.5 text-xs shadow"
+              >
+                <Download className="h-3.5 w-3.5" /> Export RAB
+              </Button>
+            </div>
+          </div>
 
-                                  {globalMode === 'professional' && (
-                                    <Textarea
-                                      value={item.justification || ''}
-                                      onChange={(e) => handleFieldChange(item.id, 'justification', e.target.value)}
-                                      placeholder="Tambahkan narasi justifikasi urgensi anggaran ini..."
-                                      rows={1}
-                                      className="text-[10px] p-1.5 min-h-[32px] resize-y"
-                                    />
-                                  )}
-                                </div>
-                              </td>
+          <div className="space-y-6">
+            {wbsActivities.map((act, actIdx) => {
+              const actItems = budgetItems.filter(i => i.wbs_item_id === act.id);
+              const actTotal = actItems.reduce((acc, i) => acc + ((Number(i.volume) || 0) * (Number(i.unit_price_idr) || 0)), 0);
 
-                              {/* 2. Category Simple Dropdown */}
-                              <td className="p-3 align-middle">
-                                <Select
-                                  value={item.category || 'Lainnya'}
-                                  onValueChange={(val) => handleFieldChange(item.id, 'category', val)}
-                                >
-                                  <SelectTrigger className="h-8 text-xs bg-transparent">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent className="text-xs">
-                                    <SelectItem value="Honorarium">Honorarium</SelectItem>
-                                    <SelectItem value="Transport">Transport</SelectItem>
-                                    <SelectItem value="Akomodasi">Akomodasi</SelectItem>
-                                    <SelectItem value="Konsumsi">Konsumsi</SelectItem>
-                                    <SelectItem value="ATK">ATK</SelectItem>
-                                    <SelectItem value="Cetak">Cetak</SelectItem>
-                                    <SelectItem value="Komunikasi">Komunikasi</SelectItem>
-                                    <SelectItem value="Sewa">Sewa</SelectItem>
-                                    <SelectItem value="Jasa">Jasa</SelectItem>
-                                    <SelectItem value="Lainnya">Lainnya</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </td>
+              return (
+                <Card key={act.id} className="border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
+                  {/* Activity Header Banner */}
+                  <div className="bg-slate-50 dark:bg-slate-900/60 px-4 py-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-5 w-5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 rounded text-[10px] font-bold flex items-center justify-center text-indigo-700">
+                        {actIdx + 1}
+                      </span>
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100">{act.name}</span>
+                        <span className="text-[10px] text-slate-400 block font-semibold uppercase tracking-wider">
+                          Timeline: {formatTimeline(act.start_month, act.duration_weeks)}
+                        </span>
+                      </div>
+                    </div>
 
-                              {/* 3. Cost Category Professional Dropdown */}
+                    <div className="flex items-center justify-between sm:justify-end gap-4 border-t sm:border-0 pt-2 sm:pt-0">
+                      <div className="text-left sm:text-right space-y-0.5">
+                        <span className="text-[10px] text-slate-400 block font-bold uppercase tracking-widest">Alokasi Anggaran</span>
+                        <span className="text-xs font-extrabold text-slate-900 dark:text-white">
+                          Rp {actTotal.toLocaleString('id-ID')}
+                        </span>
+                      </div>
+
+                      <Button
+                        size="xs"
+                        onClick={() => handleAddItem(act.id, act.name)}
+                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-7 py-1 px-3 text-[10px] tracking-wide"
+                      >
+                        <Plus className="mr-1 h-3 w-3" /> Tambah Item
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Table of Budget Items inside this activity */}
+                  <CardContent className="p-0">
+                    {actItems.length === 0 ? (
+                      <div className="p-8 text-center text-muted-foreground italic text-xs border-dashed border-2 m-4 rounded-lg bg-slate-50/20">
+                        Belum ada item biaya alokasi. Klik "+ Tambah Item" untuk mulai merinci anggaran kegiatan ini.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b text-slate-400 font-bold bg-slate-50/30 dark:bg-slate-950/20">
+                              <th className="text-left p-3 w-1/4">Nama Item Biaya</th>
+                              <th className="text-left p-3 w-1/6">Kategori</th>
                               {globalMode === 'professional' && (
-                                <td className="p-3 align-middle">
-                                  <Select
-                                    value={item.cost_category || 'Other Direct Costs'}
-                                    onValueChange={(val) => handleFieldChange(item.id, 'cost_category', val)}
-                                  >
-                                    <SelectTrigger className="h-8 text-[10px] bg-transparent font-medium text-slate-600 dark:text-slate-300">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent className="text-xs">
-                                      {categoriesList.map(cat => (
-                                        <SelectItem key={cat} value={cat} className="text-[10px]">{cat}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </td>
+                                <th className="text-left p-3 w-1/6">Cost Category (Donor)</th>
                               )}
-
-                              {/* 4. Volume Input */}
-                              <td className="p-3 align-middle">
-                                <Input
-                                  type="number"
-                                  value={item.volume}
-                                  onChange={(e) => handleFieldChange(item.id, 'volume', Number(e.target.value))}
-                                  min={1}
-                                  className="text-xs h-8 text-center bg-transparent"
-                                />
-                              </td>
-
-                              {/* 5. Unit Dropdown */}
-                              <td className="p-3 align-middle">
-                                <Select
-                                  value={item.unit || 'Orang'}
-                                  onValueChange={(val) => handleFieldChange(item.id, 'unit', val)}
-                                >
-                                  <SelectTrigger className="h-8 text-xs bg-transparent">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent className="text-xs">
-                                    <SelectItem value="Orang">Orang</SelectItem>
-                                    <SelectItem value="Hari">Hari</SelectItem>
-                                    <SelectItem value="Paket">Paket</SelectItem>
-                                    <SelectItem value="Unit">Unit</SelectItem>
-                                    <SelectItem value="Bulan">Bulan</SelectItem>
-                                    <SelectItem value="Kegiatan">Kegiatan</SelectItem>
-                                    <SelectItem value="Lembar">Lembar</SelectItem>
-                                    <SelectItem value="Lainnya">Lainnya</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </td>
-
-                              {/* 6. Unit Price IDR with PMK-32 Checker button */}
-                              <td className="p-3 align-middle">
-                                <div className="flex items-center gap-1.5 relative">
-                                  <Input
-                                    type="number"
-                                    value={item.unit_price_idr}
-                                    onChange={(e) => handleFieldChange(item.id, 'unit_price_idr', Number(e.target.value))}
-                                    className="text-xs h-8 bg-transparent pr-12 font-semibold"
-                                  />
-                                  <button
-                                    type="button"
-                                    onClick={() => handleCheckSbmWithAI(item)}
-                                    title="SBM PMK-32 AI Assistant"
-                                    className="absolute right-1.5 h-6 w-8 rounded bg-amber-50 hover:bg-amber-100 text-amber-600 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 border border-amber-200/50 flex items-center justify-center text-[10px]"
-                                  >
-                                    ✨
-                                  </button>
-                                </div>
-                              </td>
-
-                              {/* 7. Funding Source (Professional Only) */}
+                              <th className="text-center p-3 w-[80px]">Volume</th>
+                              <th className="text-center p-3 w-[100px]">Satuan</th>
+                              <th className="text-right p-3 w-[150px]">Harga Satuan (IDR)</th>
                               {globalMode === 'professional' && (
-                                <td className="p-3 align-middle">
-                                  <div className="space-y-2">
+                                <th className="text-left p-3 w-[120px]">Sumber Dana</th>
+                              )}
+                              <th className="text-right p-3 w-[120px]">Total (IDR)</th>
+                              <th className="text-center p-3 w-[60px]">Aksi</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {actItems.map(item => {
+                              const itemTotal = (Number(item.volume) || 0) * (Number(item.unit_price_idr) || 0);
+                              const isSuggested = activeSuggestionId === item.id;
+
+                              return (
+                                <tr key={item.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10">
+                                  {/* 1. Item Name Input with smart autocomplete */}
+                                  <td className="p-3 relative align-middle">
+                                    <div className="space-y-1">
+                                      <Input
+                                        value={item.item_name}
+                                        onChange={(e) => handleItemNameTyping(item.id, e.target.value, item.category || 'Lainnya')}
+                                        placeholder="Mis. Narasumber, Sewa LCD..."
+                                        className="text-xs h-8 bg-transparent"
+                                      />
+
+                                      {/* Custom Autocomplete Suggestions Popover */}
+                                      {isSuggested && filteredSuggestions.length > 0 && (
+                                        <div className="absolute z-10 left-3 top-11 w-64 bg-white dark:bg-slate-900 border rounded-lg shadow-xl divide-y text-[11px] overflow-hidden">
+                                          <div className="bg-slate-50 dark:bg-slate-950 p-1.5 font-bold text-[9px] text-slate-400 uppercase tracking-widest">
+                                            Rekomendasi SBM 2026
+                                          </div>
+                                          {filteredSuggestions.map((sbm, idx) => (
+                                            <button
+                                              key={idx}
+                                              type="button"
+                                              onClick={() => selectSuggestion(item.id, sbm)}
+                                              className="w-full text-left p-2 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 flex flex-col gap-0.5"
+                                            >
+                                              <span className="font-bold text-slate-800 dark:text-slate-200">{sbm.name}</span>
+                                              <span className="text-[10px] text-slate-400">
+                                                Rp {sbm.price.toLocaleString('id-ID')}/{sbm.unit} • {sbm.category}
+                                              </span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      )}
+
+                                      {globalMode === 'professional' && (
+                                        <Textarea
+                                          value={item.justification || ''}
+                                          onChange={(e) => handleFieldChange(item.id, 'justification', e.target.value)}
+                                          placeholder="Tambahkan narasi justifikasi urgensi anggaran ini..."
+                                          rows={1}
+                                          className="text-[10px] p-1.5 min-h-[32px] resize-y"
+                                        />
+                                      )}
+                                    </div>
+                                  </td>
+
+                                  {/* 2. Category Simple Dropdown */}
+                                  <td className="p-3 align-middle">
                                     <Select
-                                      value={item.funding_source || 'grant'}
-                                      onValueChange={(val) => handleFieldChange(item.id, 'funding_source', val)}
+                                      value={item.category || 'Lainnya'}
+                                      onValueChange={(val) => handleFieldChange(item.id, 'category', val)}
                                     >
-                                      <SelectTrigger className="h-8 text-[10px] bg-transparent">
+                                      <SelectTrigger className="h-8 text-xs bg-transparent">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent className="text-xs">
-                                        <SelectItem value="grant">Dana Hibah</SelectItem>
-                                        <SelectItem value="self">Dana Mandiri</SelectItem>
-                                        <SelectItem value="partner">Dana Mitra</SelectItem>
-                                        <SelectItem value="inkind">In-Kind</SelectItem>
+                                        <SelectItem value="Honorarium">Honorarium</SelectItem>
+                                        <SelectItem value="Transport">Transport</SelectItem>
+                                        <SelectItem value="Akomodasi">Akomodasi</SelectItem>
+                                        <SelectItem value="Konsumsi">Konsumsi</SelectItem>
+                                        <SelectItem value="ATK">ATK</SelectItem>
+                                        <SelectItem value="Cetak">Cetak</SelectItem>
+                                        <SelectItem value="Komunikasi">Komunikasi</SelectItem>
+                                        <SelectItem value="Sewa">Sewa</SelectItem>
+                                        <SelectItem value="Jasa">Jasa</SelectItem>
+                                        <SelectItem value="Lainnya">Lainnya</SelectItem>
                                       </SelectContent>
                                     </Select>
+                                  </td>
 
-                                    <div className="flex items-center gap-1">
-                                      <input
-                                        type="checkbox"
-                                        id={`donor_app_${item.id}`}
-                                        checked={item.needs_donor_approval}
-                                        onChange={(e) => handleFieldChange(item.id, 'needs_donor_approval', e.target.checked)}
-                                        className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                  {/* 3. Cost Category Professional Dropdown */}
+                                  {globalMode === 'professional' && (
+                                    <td className="p-3 align-middle">
+                                      <Select
+                                        value={item.cost_category || 'Other Direct Costs'}
+                                        onValueChange={(val) => handleFieldChange(item.id, 'cost_category', val)}
+                                      >
+                                        <SelectTrigger className="h-8 text-[10px] bg-transparent font-medium text-slate-600 dark:text-slate-300">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent className="text-xs">
+                                          {categoriesList.map(cat => (
+                                            <SelectItem key={cat} value={cat} className="text-[10px]">{cat}</SelectItem>
+                                          ))}
+                                        </SelectContent>
+                                      </Select>
+                                    </td>
+                                  )}
+
+                                  {/* 4. Volume Input */}
+                                  <td className="p-3 align-middle">
+                                    <Input
+                                      type="number"
+                                      value={item.volume}
+                                      onChange={(e) => handleFieldChange(item.id, 'volume', Number(e.target.value))}
+                                      min={1}
+                                      className="text-xs h-8 text-center bg-transparent"
+                                    />
+                                  </td>
+
+                                  {/* 5. Unit Dropdown */}
+                                  <td className="p-3 align-middle">
+                                    <Select
+                                      value={item.unit || 'Orang'}
+                                      onValueChange={(val) => handleFieldChange(item.id, 'unit', val)}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs bg-transparent">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent className="text-xs">
+                                        <SelectItem value="Orang">Orang</SelectItem>
+                                        <SelectItem value="Hari">Hari</SelectItem>
+                                        <SelectItem value="Paket">Paket</SelectItem>
+                                        <SelectItem value="Unit">Unit</SelectItem>
+                                        <SelectItem value="Bulan">Bulan</SelectItem>
+                                        <SelectItem value="Kegiatan">Kegiatan</SelectItem>
+                                        <SelectItem value="Lembar">Lembar</SelectItem>
+                                        <SelectItem value="Lainnya">Lainnya</SelectItem>
+                                      </SelectContent>
+                                    </Select>
+                                  </td>
+
+                                  {/* 6. Unit Price IDR with PMK-32 Checker button */}
+                                  <td className="p-3 align-middle">
+                                    <div className="flex items-center gap-1.5 relative">
+                                      <Input
+                                        type="number"
+                                        value={item.unit_price_idr}
+                                        onChange={(e) => handleFieldChange(item.id, 'unit_price_idr', Number(e.target.value))}
+                                        className="text-xs h-8 bg-transparent pr-12 font-semibold"
                                       />
-                                      <label htmlFor={`donor_app_${item.id}`} className="text-[9px] text-slate-400 font-semibold cursor-pointer">
-                                        Persetujuan Donor
-                                      </label>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleCheckSbmWithAI(item)}
+                                        title="SBM PMK-32 AI Assistant"
+                                        className="absolute right-1.5 h-6 w-8 rounded bg-amber-50 hover:bg-amber-100 text-amber-600 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 border border-amber-200/50 flex items-center justify-center text-[10px]"
+                                      >
+                                        ✨
+                                      </button>
                                     </div>
-                                  </div>
-                                </td>
-                              )}
+                                  </td>
 
-                              {/* 8. Total automatically calculated */}
-                              <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white align-middle">
-                                Rp {itemTotal.toLocaleString('id-ID')}
-                              </td>
+                                  {/* 7. Funding Source (Professional Only) */}
+                                  {globalMode === 'professional' && (
+                                    <td className="p-3 align-middle">
+                                      <div className="space-y-2">
+                                        <Select
+                                          value={item.funding_source || 'grant'}
+                                          onValueChange={(val) => handleFieldChange(item.id, 'funding_source', val)}
+                                        >
+                                          <SelectTrigger className="h-8 text-[10px] bg-transparent">
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent className="text-xs">
+                                            <SelectItem value="grant">Dana Hibah</SelectItem>
+                                            <SelectItem value="self">Dana Mandiri</SelectItem>
+                                            <SelectItem value="partner">Dana Mitra</SelectItem>
+                                            <SelectItem value="inkind">In-Kind</SelectItem>
+                                          </SelectContent>
+                                        </Select>
 
-                              {/* 9. Delete item action */}
-                              <td className="p-3 text-center align-middle">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  onClick={() => handleDeleteItem(item.id)}
-                                  className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                                        <div className="flex items-center gap-1">
+                                          <input
+                                            type="checkbox"
+                                            id={`donor_app_${item.id}`}
+                                            checked={item.needs_donor_approval}
+                                            onChange={(e) => handleFieldChange(item.id, 'needs_donor_approval', e.target.checked)}
+                                            className="h-3.5 w-3.5 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                                          />
+                                          <label htmlFor={`donor_app_${item.id}`} className="text-[9px] text-slate-400 font-semibold cursor-pointer">
+                                            Persetujuan Donor
+                                          </label>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  )}
+
+                                  {/* 8. Total automatically calculated */}
+                                  <td className="p-3 text-right font-extrabold text-slate-900 dark:text-white align-middle">
+                                    Rp {itemTotal.toLocaleString('id-ID')}
+                                  </td>
+
+                                  {/* 9. Delete item action */}
+                                  <td className="p-3 text-center align-middle">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      onClick={() => handleDeleteItem(item.id)}
+                                      className="h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/20"
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+
+          {/* Bottom Breakdown details (Professional Only) */}
+          {globalMode === 'professional' && budgetItems.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
+              {/* Cost Category breakdown */}
+              <Card className="border shadow-sm">
+                <div className="bg-slate-50 dark:bg-slate-900 p-3 border-b font-bold text-xs uppercase text-slate-800 tracking-wider">
+                  Anggaran per Kategori Biaya (Cost Category)
+                </div>
+                <CardContent className="p-3 space-y-2">
+                  {categoriesList.map(cat => {
+                    const total = categoryTotals[cat] || 0;
+                    const ratio = totalIDR > 0 ? (total / totalIDR) * 100 : 0;
+                    return (
+                      <div key={cat} className="flex justify-between items-center text-xs border-b pb-2 last:border-0 last:pb-0">
+                        <span className="font-medium text-slate-600 dark:text-slate-400">{cat}</span>
+                        <div className="text-right">
+                          <span className="font-extrabold text-slate-800 dark:text-slate-100">Rp {total.toLocaleString('id-ID')}</span>
+                          <span className="text-[10px] text-indigo-500 block">({ratio.toFixed(1)}%)</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+
+              {/* Funding source breakdown */}
+              <Card className="border shadow-sm">
+                <div className="bg-slate-50 dark:bg-slate-900 p-3 border-b font-bold text-xs uppercase text-slate-800 tracking-wider">
+                  Anggaran per Sumber Pendanaan (Funding Source)
+                </div>
+                <CardContent className="p-3 space-y-2">
+                  {fundingSourcesList.map(src => {
+                    const total = fundingSourceTotals[src] || 0;
+                    const ratio = totalIDR > 0 ? (total / totalIDR) * 100 : 0;
+                    return (
+                      <div key={src} className="flex justify-between items-center text-xs border-b pb-2 last:border-0 last:pb-0">
+                        <span className="font-medium text-slate-600 dark:text-slate-400">{fundingSourceLabels[src]}</span>
+                        <div className="text-right">
+                          <span className="font-extrabold text-slate-800 dark:text-slate-100">Rp {total.toLocaleString('id-ID')}</span>
+                          <span className="text-[10px] text-indigo-500 block">({ratio.toFixed(1)}%)</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Tab 2 Content: Realization Tracker */}
+        <TabsContent value="realisasi" className="space-y-6 mt-0">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-4">
+            <div className="flex items-center gap-4">
+              <Badge variant="secondary" className="text-xs py-1.5 px-3 uppercase tracking-wider font-bold">
+                Mode Tampilan: {globalMode === 'simple' ? '🌱 Sederhana' : '🏢 Profesional'}
+              </Badge>
+              
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                {saving ? (
+                  <span className="flex items-center gap-1">
+                    <Loader2 className="h-3 w-3 animate-spin text-primary" /> Menyimpan...
+                  </span>
+                ) : lastSaved ? (
+                  <span className="flex items-center gap-1 text-emerald-600 font-medium">
+                    <Check className="h-3.5 w-3.5" /> Tersimpan ke Supabase
+                  </span>
+                ) : (
+                  <span>Autosave aktif</span>
                 )}
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
-
-      {/* 5. CATEGORY & FUNDING SOURCE BREAKDOWN TABLE ON BOTTOM (Professional Mode only) */}
-      {globalMode === 'professional' && budgetItems.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4">
-          {/* Cost Category breakdown */}
-          <Card className="border shadow-sm">
-            <div className="bg-slate-50 dark:bg-slate-900 p-3 border-b font-bold text-xs uppercase text-slate-800 tracking-wider">
-              Anggaran per Kategori Biaya (Cost Category)
+              </div>
             </div>
-            <CardContent className="p-3 space-y-2">
-              {categoriesList.map(cat => {
-                const total = categoryTotals[cat] || 0;
-                const ratio = totalIDR > 0 ? (total / totalIDR) * 100 : 0;
-                return (
-                  <div key={cat} className="flex justify-between items-center text-xs border-b pb-2 last:border-0 last:pb-0">
-                    <span className="font-medium text-slate-600 dark:text-slate-400">{cat}</span>
-                    <div className="text-right">
-                      <span className="font-extrabold text-slate-800 dark:text-slate-100">Rp {total.toLocaleString('id-ID')}</span>
-                      <span className="text-[10px] text-indigo-500 block">({ratio.toFixed(1)}%)</span>
+
+            <div className="flex items-center gap-3">
+              <Button
+                size="sm"
+                onClick={handleExportRealisasi}
+                className="bg-emerald-600 hover:bg-emerald-500 dark:bg-emerald-600 dark:hover:bg-emerald-500 text-white font-bold flex items-center gap-1.5 text-xs shadow-md"
+              >
+                <Download className="h-3.5 w-3.5" /> Cetak Laporan Realisasi
+              </Button>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {wbsActivities.map((act, actIdx) => {
+              const actItems = budgetItems.filter(i => i.wbs_item_id === act.id);
+              const actTotalPlanned = actItems.reduce((acc, i) => acc + ((Number(i.volume) || 0) * (Number(i.unit_price_idr) || 0)), 0);
+              const actTotalActual = actItems.reduce((acc, i) => acc + (Number(i.actual_amount_idr) || 0), 0);
+              const actVariance = actTotalPlanned - actTotalActual;
+
+              return (
+                <Card key={`real_${act.id}`} className="border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
+                  <div className="bg-slate-50 dark:bg-slate-900/60 px-4 py-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-5 w-5 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 rounded text-[10px] font-bold flex items-center justify-center text-indigo-700">
+                        {actIdx + 1}
+                      </span>
+                      <div className="space-y-0.5">
+                        <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100">{act.name}</span>
+                        <span className="text-[10px] text-slate-400 block font-semibold uppercase tracking-wider">
+                          Timeline: {formatTimeline(act.start_month, act.duration_weeks)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs font-semibold">
+                      <div className="text-left sm:text-right space-y-0.5">
+                        <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-widest">Rencana RAB</span>
+                        <span className="text-slate-500">
+                          Rp {actTotalPlanned.toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                      <div className="text-left sm:text-right space-y-0.5 border-l pl-4">
+                        <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-widest">Realisasi Aktual</span>
+                        <span className="text-emerald-600 font-extrabold">
+                          Rp {actTotalActual.toLocaleString('id-ID')}
+                        </span>
+                      </div>
+                      <div className="text-left sm:text-right space-y-0.5 border-l pl-4">
+                        <span className="text-[9px] text-slate-400 block font-bold uppercase tracking-widest">Selisih (Variance)</span>
+                        <span className={`font-extrabold ${actVariance < 0 ? 'text-rose-500' : 'text-emerald-500'}`}>
+                          Rp {actVariance.toLocaleString('id-ID')}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                );
-              })}
-            </CardContent>
-          </Card>
 
-          {/* Funding source breakdown */}
-          <Card className="border shadow-sm">
-            <div className="bg-slate-50 dark:bg-slate-900 p-3 border-b font-bold text-xs uppercase text-slate-800 tracking-wider">
-              Anggaran per Sumber Pendanaan (Funding Source)
-            </div>
-            <CardContent className="p-3 space-y-2">
-              {fundingSourcesList.map(src => {
-                const total = fundingSourceTotals[src] || 0;
-                const ratio = totalIDR > 0 ? (total / totalIDR) * 100 : 0;
-                return (
-                  <div key={src} className="flex justify-between items-center text-xs border-b pb-2 last:border-0 last:pb-0">
-                    <span className="font-medium text-slate-600 dark:text-slate-400">{fundingSourceLabels[src]}</span>
-                    <div className="text-right">
-                      <span className="font-extrabold text-slate-800 dark:text-slate-100">Rp {total.toLocaleString('id-ID')}</span>
-                      <span className="text-[10px] text-indigo-500 block">({ratio.toFixed(1)}%)</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        </div>
-      )}
+                  <CardContent className="p-0">
+                    {actItems.length === 0 ? (
+                      <div className="p-8 text-center text-muted-foreground italic text-xs border-dashed border-2 m-4 rounded-lg bg-slate-50/20">
+                        Belum ada rincian item anggaran rencana untuk aktivitas ini.
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-xs">
+                          <thead>
+                            <tr className="border-b text-slate-400 font-bold bg-slate-50/30 dark:bg-slate-950/20">
+                              <th className="text-left p-3 w-1/4">Nama Item Biaya (Rencana)</th>
+                              <th className="text-right p-3 w-[12%]">RAB Satuan</th>
+                              <th className="text-right p-3 w-[12%]">RAB Total (Planned)</th>
+                              <th className="text-right p-3 w-[150px]">Realisasi Pengeluaran (Actual IDR)</th>
+                              <th className="text-center p-3 w-[130px]">Tanggal Belanja</th>
+                              {globalMode === 'professional' && (
+                                <th className="text-left p-3 w-1/4">Catatan & Link Bukti (URL)</th>
+                              )}
+                              <th className="text-right p-3 w-[12%]">Varian (Variance)</th>
+                              <th className="text-center p-3 w-[100px]">Status</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {actItems.map(item => {
+                              const plannedTotal = (Number(item.volume) || 0) * (Number(item.unit_price_idr) || 0);
+                              const actualTotal = Number(item.actual_amount_idr) || 0;
+                              const variance = plannedTotal - actualTotal;
+
+                              let statusBadge = 'Belum Realisasi';
+                              let badgeColor = 'bg-slate-100 text-slate-600 dark:bg-slate-900 border-slate-200 dark:border-slate-800';
+                              if (item.actual_amount_idr !== null && item.actual_amount_idr !== undefined && String(item.actual_amount_idr) !== '') {
+                                if (actualTotal > plannedTotal) {
+                                  statusBadge = 'Over budget';
+                                  badgeColor = 'bg-rose-50 text-rose-700 dark:bg-rose-950/20 border-rose-200 dark:border-rose-900/40 font-bold';
+                                } else if (variance <= plannedTotal * 0.05) {
+                                  statusBadge = 'Sesuai';
+                                  badgeColor = 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40 font-bold';
+                                } else {
+                                  statusBadge = 'Efisien';
+                                  badgeColor = 'bg-blue-50 text-blue-700 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900/40 font-bold';
+                                }
+                              }
+
+                              return (
+                                <tr key={`real_row_${item.id}`} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10">
+                                  {/* 1. Item Name - Read-only */}
+                                  <td className="p-3 align-middle font-medium text-slate-700 dark:text-slate-300">
+                                    <div className="space-y-0.5">
+                                      <span>{item.item_name}</span>
+                                      <span className="text-[10px] text-slate-400 block font-semibold">
+                                        Vol Rencana: {item.volume} {item.unit || 'Orang'} • {item.category || 'Lainnya'}
+                                      </span>
+                                    </div>
+                                  </td>
+
+                                  {/* 2. Planned Unit Price - Read-only */}
+                                  <td className="p-3 text-right text-slate-500 align-middle">
+                                    Rp {item.unit_price_idr.toLocaleString('id-ID')}
+                                  </td>
+
+                                  {/* 3. Planned Total - Read-only */}
+                                  <td className="p-3 text-right font-semibold text-slate-600 dark:text-slate-400 align-middle">
+                                    Rp {plannedTotal.toLocaleString('id-ID')}
+                                  </td>
+
+                                  {/* 4. Actual Amount Input */}
+                                  <td className="p-3 align-middle">
+                                    <div className="relative flex items-center">
+                                      <span className="absolute left-2.5 text-slate-400 text-[10px] font-bold">Rp</span>
+                                      <Input
+                                        type="number"
+                                        value={item.actual_amount_idr === null || item.actual_amount_idr === undefined ? '' : item.actual_amount_idr}
+                                        onChange={(e) => {
+                                          const val = e.target.value === '' ? null : Number(e.target.value);
+                                          handleFieldChange(item.id, 'actual_amount_idr', val);
+                                        }}
+                                        placeholder="0"
+                                        className="text-xs h-8 pl-8 font-extrabold bg-transparent text-emerald-600 border-slate-200 dark:border-slate-800"
+                                      />
+                                    </div>
+                                  </td>
+
+                                  {/* 5. Realization Date Input */}
+                                  <td className="p-3 align-middle">
+                                    <Input
+                                      type="date"
+                                      value={item.realisasi_date || ''}
+                                      onChange={(e) => handleFieldChange(item.id, 'realisasi_date', e.target.value || null)}
+                                      className="text-xs h-8 bg-transparent text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800"
+                                    />
+                                  </td>
+
+                                  {/* 6. Notes & Evidence Link (Professional Mode only) */}
+                                  {globalMode === 'professional' && (
+                                    <td className="p-3 align-middle">
+                                      <div className="space-y-1.5">
+                                        <Textarea
+                                          value={item.realisasi_notes || ''}
+                                          onChange={(e) => handleFieldChange(item.id, 'realisasi_notes', e.target.value || null)}
+                                          placeholder="Catatan belanja / nomor kuitansi..."
+                                          rows={1}
+                                          className="text-[10px] p-1.5 min-h-[30px] resize-y bg-transparent"
+                                        />
+                                        <div className="relative flex items-center">
+                                          <LinkIcon className="absolute left-2 h-3 w-3 text-slate-400" />
+                                          <Input
+                                            value={item.realisasi_evidence_url || ''}
+                                            onChange={(e) => handleFieldChange(item.id, 'realisasi_evidence_url', e.target.value || null)}
+                                            placeholder="https://link-bukti-kuitansi.com"
+                                            className="text-[10px] h-6 pl-7 bg-transparent text-indigo-500 font-semibold border-slate-200 dark:border-slate-800"
+                                          />
+                                        </div>
+                                      </div>
+                                    </td>
+                                  )}
+
+                                  {/* 7. Variance calculated */}
+                                  <td className={`p-3 text-right font-extrabold align-middle ${variance < 0 ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>
+                                    Rp {variance.toLocaleString('id-ID')}
+                                  </td>
+
+                                  {/* 8. Status Badge */}
+                                  <td className="p-3 text-center align-middle">
+                                    <Badge variant="outline" className={`text-[10px] py-1 px-2 border ${badgeColor}`}>
+                                      {statusBadge}
+                                    </Badge>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {/* 6. SBM AI DIALOG */}
       <Dialog open={aiCheckOpen} onOpenChange={setAiCheckOpen}>

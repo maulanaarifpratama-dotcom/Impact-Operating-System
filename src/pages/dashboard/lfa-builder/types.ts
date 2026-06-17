@@ -81,6 +81,10 @@ export interface BudgetItem {
   needs_donor_approval: boolean;
   sort_order: number;
   mode: 'simple' | 'professional';
+  actual_amount_idr?: number | null;
+  realisasi_date?: string | null;
+  realisasi_notes?: string | null;
+  realisasi_evidence_url?: string | null;
   created_at?: string;
   updated_at?: string;
 }

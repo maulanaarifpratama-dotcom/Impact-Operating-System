@@ -24,6 +24,8 @@ import { useAuth } from '@/providers/AuthProvider';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MealItem, MealTrackingEntry } from './lfa-builder/types';
 
 type Key = 
   | 'periode' 
@@ -165,6 +167,9 @@ export default function MonthlyImpactReport() {
   // Historical Mock Records to Choose From
   const [selectedHistoryPeriod, setSelectedHistoryPeriod] = useState<string | null>(null);
 
+  // Selected LFA Project ID
+  const [selectedLfaProjectId, setSelectedLfaProjectId] = useState<string>('');
+
   // 1. Fetch organization context
   const { data: membership, isLoading: isMembershipLoading } = useQuery({
     queryKey: ['organization_members', user?.id],
@@ -251,6 +256,113 @@ export default function MonthlyImpactReport() {
     enabled: !!orgId,
   });
 
+  // 6. Fetch LFA Projects of the organization
+  const { data: lfaProjects = [], isLoading: isLfaProjectsLoading } = useQuery({
+    queryKey: ['lfa_projects_report', orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from('lfa_projects')
+        .select('*')
+        .eq('org_id', orgId)
+        .order('name', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!orgId,
+  });
+
+  // Automatically select the first project
+  useEffect(() => {
+    if (lfaProjects.length > 0 && !selectedLfaProjectId) {
+      setSelectedLfaProjectId(lfaProjects[0].id);
+    }
+  }, [lfaProjects, selectedLfaProjectId]);
+
+  // 7. Fetch MEAL items for the selected project
+  const { data: mealItems = [], isLoading: isMealItemsLoading } = useQuery({
+    queryKey: ['meal_items_report', selectedLfaProjectId],
+    queryFn: async () => {
+      if (!selectedLfaProjectId) return [];
+      const { data, error } = await supabase
+        .from('lfa_meal_items')
+        .select('*')
+        .eq('lfa_project_id', selectedLfaProjectId)
+        .order('sort_order', { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedLfaProjectId,
+  });
+
+  // 8. Fetch MEAL tracking entries for the selected project
+  const { data: mealTrackingEntries = [], isLoading: isMealTrackingEntriesLoading } = useQuery({
+    queryKey: ['meal_tracking_entries_report', selectedLfaProjectId],
+    queryFn: async () => {
+      if (!selectedLfaProjectId) return [];
+      const { data, error } = await supabase
+        .from('lfa_meal_tracking_entries')
+        .select('*')
+        .eq('lfa_project_id', selectedLfaProjectId)
+        .order('recorded_date', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!selectedLfaProjectId,
+  });
+
+  // Helper lists to map Indonesian and English month names
+  const monthNamesIndo = useMemo(() => [
+    'januari', 'februari', 'maret', 'april', 'mei', 'juni',
+    'juli', 'agustus', 'september', 'oktober', 'november', 'desember'
+  ], []);
+
+  const monthNamesEn = useMemo(() => [
+    'january', 'february', 'march', 'april', 'may', 'june',
+    'july', 'august', 'september', 'october', 'november', 'december'
+  ], []);
+
+  // Parse Month and Year from Period String
+  const getPeriodMonthYear = useCallback((periodeStr: string) => {
+    const now = new Date();
+    const cleanStr = (periodeStr || '').toLowerCase().trim();
+    let foundMonth = now.getMonth();
+    let foundYear = now.getFullYear();
+    
+    for (let i = 0; i < 12; i++) {
+      if (cleanStr.includes(monthNamesIndo[i]) || cleanStr.includes(monthNamesEn[i])) {
+        foundMonth = i;
+        break;
+      }
+    }
+    
+    const yearMatch = cleanStr.match(/\d{4}/);
+    if (yearMatch) {
+      foundYear = parseInt(yearMatch[0], 10);
+    }
+    
+    return { month: foundMonth, year: foundYear };
+  }, [monthNamesIndo, monthNamesEn]);
+
+  // Filter Tracking Entries by Selected Month/Year
+  const filteredTrackingEntries = useMemo(() => {
+    const { month, year } = getPeriodMonthYear(report.periode || selectedHistoryPeriod || 'Juni 2026');
+    return (mealTrackingEntries as MealTrackingEntry[]).filter((entry) => {
+      if (!entry.recorded_date) return false;
+      const entryDate = new Date(entry.recorded_date);
+      return entryDate.getFullYear() === year && entryDate.getMonth() === month;
+    });
+  }, [mealTrackingEntries, report.periode, selectedHistoryPeriod, getPeriodMonthYear]);
+
+  // Helper to identify beneficiary-related indicators
+  const isBeneficiaryIndicator = useCallback((item: MealItem) => {
+    const text = (item.indicator_text || '').toLowerCase();
+    const unit = (item.target_unit || '').toLowerCase();
+    return ['orang', 'penerima', 'anak', 'peserta', 'keluarga', 'jiwa', 'beneficiary', 'beneficiaries', 'user', 'masyarakat', 'pemuda'].some(
+      (kw) => text.includes(kw) || unit.includes(kw)
+    );
+  }, []);
+
   // Aggregate current MTD database metrics
   const aggregatedData = useMemo(() => {
     // Current month start & end dates
@@ -298,9 +410,70 @@ export default function MonthlyImpactReport() {
     const now = new Date();
     const currentMonthLabel = now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
     
+    const activeProj = lfaProjects.find((p) => p.id === selectedLfaProjectId) || lfaProjects[0];
+    const projectName = activeProj?.name || (programs[0]?.name || 'Program Utama Pemberdayaan');
+
+    // Verify if we have MEAL items
+    if (mealItems.length === 0) {
+      toast.error(
+        <div className="flex flex-col gap-1.5 p-1 text-left">
+          <p className="font-semibold text-xs text-rose-600">Belum Ada Indikator MEAL</p>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            Project ini belum memiliki rancangan indikator MEAL. Silakan buat perencanaan MEAL terlebih dahulu agar sistem dapat mengotomasi penarikan laporan.
+          </p>
+          <Button asChild size="sm" variant="outline" className="mt-1 h-7 text-[10px] w-fit no-print border-rose-500/30 text-rose-600 hover:bg-rose-500/10">
+            <Link to={`/dashboard/lfa-builder/${selectedLfaProjectId || ''}`}>Buka MEAL Planner</Link>
+          </Button>
+        </div>,
+        { duration: 6000 }
+      );
+      return;
+    }
+
+    // Verify tracking entries
+    if (filteredTrackingEntries.length === 0) {
+      toast.warning(
+        <div className="flex flex-col gap-1.5 p-1 text-left">
+          <p className="font-semibold text-xs text-amber-800">Capaian Bulanan Kosong</p>
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            Belum ada catatan capaian MEAL yang diinput untuk periode {currentMonthLabel} pada project ini. Silakan input capaian agar laporan terisi data riil.
+          </p>
+          <Button asChild size="sm" variant="outline" className="mt-1 h-7 text-[10px] w-fit border-amber-500/30 text-amber-800 no-print hover:bg-amber-500/10">
+            <Link to={`/dashboard/lfa-builder/${selectedLfaProjectId || ''}`}>Input Capaian MEAL</Link>
+          </Button>
+        </div>,
+        { duration: 6000 }
+      );
+    }
+
+    // Compute Beneficiaries
+    let beneficiaryCount = 0;
+    let hasBeneficiaryIndicator = false;
+    mealItems.forEach((item) => {
+      if (isBeneficiaryIndicator(item)) {
+        hasBeneficiaryIndicator = true;
+        const itemEntries = filteredTrackingEntries.filter((e) => e.meal_item_id === item.id);
+        beneficiaryCount += itemEntries.reduce((sum, e) => sum + Number(e.recorded_value || 0), 0);
+      }
+    });
+
+    if (!hasBeneficiaryIndicator || beneficiaryCount === 0) {
+      beneficiaryCount = filteredTrackingEntries.reduce((sum, e) => sum + Number(e.recorded_value || 0), 0) || 120;
+    }
+
+    // Generate bullet points
+    const bulletSummaries = mealItems.map((item) => {
+      const itemEntries = filteredTrackingEntries.filter((e) => e.meal_item_id === item.id);
+      const actual = itemEntries.reduce((sum, e) => sum + Number(e.recorded_value || 0), 0);
+      const target = Number(item.target_value || 1);
+      const pct = (actual / target) * 100;
+      const unit = item.target_unit || 'Unit';
+      return `• ${item.indicator_text}: ${actual}/${target} ${unit} (${pct.toFixed(0)}% tercapai)`;
+    }).join('\n');
+
     setReport({
       periode: currentMonthLabel,
-      program: programs[0]?.name || 'Program Utama Pemberdayaan',
+      program: projectName,
       organisasi: 'Yayasan / Organisasi Kami',
       pic: user?.email?.split('@')[0] || 'PIC Program',
       aktivitas: programs.length > 0 
@@ -310,8 +483,10 @@ export default function MonthlyImpactReport() {
       target: 'Masyarakat pra-sejahtera dan anak-anak usia sekolah',
       donasi: formatIDR(aggregatedData.totalRaised),
       donor: `${aggregatedData.uniqueDonors} donor aktif bulan ini`,
-      penerimaManfaat: `${aggregatedData.totalBeneficiaries || 120} jiwa penerima manfaat`,
-      output: `G.R.O.W.T.H Readiness Score: ${aggregatedData.growthScore}/140. ${aggregatedData.activeProgramsCount} Program Aktif berjalan.`,
+      penerimaManfaat: `${beneficiaryCount} jiwa penerima manfaat`,
+      output: mealItems.length > 0
+        ? `Capaian Indikator MEAL (Verified):\n${bulletSummaries}`
+        : `G.R.O.W.T.H Readiness Score: ${aggregatedData.growthScore}/140. ${aggregatedData.activeProgramsCount} Program Aktif berjalan.`,
       outcome: 'Peningkatan tingkat literasi digital dasar, terbangunnya kebiasaan menabung mandiri, dan relawan program yang lebih solid.',
       cerita: 'Santi (10 thn) kini sudah bisa mengoperasikan komputer dasar dengan lancar dan bercita-cita menjadi programmer setelah mengikuti rangkaian bootcamp literasi.',
       dokumentasi: 'https://drive.google.com/drive/folders/impactory-proof-juni-2026',
@@ -397,7 +572,7 @@ export default function MonthlyImpactReport() {
     toast.success(`Berhasil memuat arsip laporan periode ${period}!`);
   };
 
-  const isGlobalLoading = isMembershipLoading || (!!orgId && (isDonationsLoading || isProgramsLoading || isProgramMetricsLoading || isReadinessLoading));
+  const isGlobalLoading = isMembershipLoading || (!!orgId && (isDonationsLoading || isProgramsLoading || isProgramMetricsLoading || isReadinessLoading || isLfaProjectsLoading || isMealItemsLoading || isMealTrackingEntriesLoading));
 
   if (isGlobalLoading) {
     return (
@@ -451,11 +626,38 @@ export default function MonthlyImpactReport() {
               </p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Button onClick={populateWithDbData} variant="outline" className="h-10 border-accent/30 text-accent hover:bg-accent/10">
-              <Sparkles className="mr-2 h-4 w-4" /> Ambil Data Database
-            </Button>
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-accent-foreground shadow-elegant md:h-14 md:w-14">
+          <div className="flex flex-wrap items-center gap-3">
+            {lfaProjects.length > 0 && (
+              <div className="flex flex-col gap-1 no-print text-left">
+                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Project LFA</span>
+                <Select
+                  value={selectedLfaProjectId}
+                  onValueChange={(val) => {
+                    setSelectedLfaProjectId(val);
+                    const selectedName = lfaProjects.find((p) => p.id === val)?.name || '';
+                    toast.info(`Project terpilih: ${selectedName}`);
+                  }}
+                >
+                  <SelectTrigger className="h-10 w-[240px] border-accent/30 bg-background text-xs font-semibold">
+                    <SelectValue placeholder="Pilih Project LFA" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {lfaProjects.map((p) => (
+                      <SelectItem key={p.id} value={p.id} className="text-xs font-medium">
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="flex flex-col gap-1 no-print text-left">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Otomasi</span>
+              <Button onClick={populateWithDbData} variant="outline" className="h-10 border-accent/30 text-accent hover:bg-accent/10 font-bold text-xs">
+                <Sparkles className="mr-2 h-4 w-4" /> Ambil Data Database
+              </Button>
+            </div>
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-accent-foreground shadow-elegant md:h-14 md:w-14 self-end">
               <BarChart3 className="h-6 w-6 md:h-7 md:w-7" />
             </div>
           </div>
@@ -607,22 +809,108 @@ export default function MonthlyImpactReport() {
               </div>
             </section>
 
+            {/* III. Capaian Indikator MEAL (Verified) Table */}
+            <section className="space-y-4 print-break-inside-avoid text-left">
+              <div className="flex items-center justify-between">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-accent">III. Capaian Indikator MEAL (Verified)</h4>
+                <Badge variant="outline" className="border-accent-soft/30 bg-accent-soft/10 text-accent font-medium text-[10px] no-print">
+                  Real-time Database Sync
+                </Badge>
+              </div>
+              
+              {mealItems.length > 0 ? (
+                <div className="overflow-hidden rounded-xl border bg-background/50">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="border-b bg-muted/40 font-bold text-muted-foreground">
+                        <th className="p-3 w-[45%]">Indikator Kinerja</th>
+                        <th className="p-3 text-center w-[15%]">Target</th>
+                        <th className="p-3 text-center w-[15%]">Capaian</th>
+                        <th className="p-3 text-center w-[15%]">Progres</th>
+                        <th className="p-3 text-center w-[10%]">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {mealItems.map((item) => {
+                        const itemEntries = filteredTrackingEntries.filter((e) => e.meal_item_id === item.id);
+                        const actual = itemEntries.reduce((sum, e) => sum + Number(e.recorded_value || 0), 0);
+                        const target = Number(item.target_value || 1);
+                        const pct = (actual / target) * 100;
+                        const unit = item.target_unit || 'Unit';
+
+                        let statusBadge = (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-600">
+                            🔴 Off Track
+                          </span>
+                        );
+                        if (pct >= 80) {
+                          statusBadge = (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">
+                              ✅ On Track
+                            </span>
+                          );
+                        } else if (pct >= 50) {
+                          statusBadge = (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-600">
+                              ⚠️ At Risk
+                            </span>
+                          );
+                        }
+
+                        return (
+                          <tr key={item.id} className="hover:bg-muted/10 transition-colors">
+                            <td className="p-3 font-medium text-foreground">{item.indicator_text}</td>
+                            <td className="p-3 text-center text-muted-foreground font-semibold">
+                              {item.target_value || 0} {unit}
+                            </td>
+                            <td className="p-3 text-center font-bold text-foreground">
+                              {actual} {unit}
+                            </td>
+                            <td className="p-3 text-center text-left">
+                              <div className="flex items-center justify-center gap-2">
+                                <div className="w-16 bg-muted rounded-full h-1.5 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all duration-500 ${
+                                      pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-rose-500'
+                                    }`}
+                                    style={{ width: `${Math.min(pct, 100)}%` }}
+                                  />
+                                </div>
+                                <span className="font-bold text-muted-foreground text-[10px]">
+                                  {pct.toFixed(0)}%
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-3 text-center">{statusBadge}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed p-6 text-center text-xs text-muted-foreground">
+                  Belum ada indikator MEAL yang dirancang untuk program ini.
+                </div>
+              )}
+            </section>
+
             {/* Qualitative Blocks */}
             <div className="grid gap-6 md:grid-cols-2">
-              <Block title="III. Outcome Awal & Dampak Perubahan" value={report.outcome} />
-              <Block title="IV. Cerita Dampak (Impact Highlight)" value={report.cerita} note="Cerita di atas dilindungi oleh persetujuan tertulis penerima manfaat (written consent)." />
+              <Block title="IV. Outcome Awal & Dampak Perubahan" value={report.outcome} />
+              <Block title="V. Cerita Dampak (Impact Highlight)" value={report.cerita} note="Cerita di atas dilindungi oleh persetujuan tertulis penerima manfaat (written consent)." />
             </div>
 
-            <Block title="V. Dokumentasi Pendukung & Transparansi Media" value={report.dokumentasi} />
+            <Block title="VI. Dokumentasi Pendukung & Transparansi Media" value={report.dokumentasi} />
 
             <div className="grid gap-6 md:grid-cols-2">
-              <Block title="VI. Kendala Lapangan" value={report.kendala} />
-              <Block title="VII. Pembelajaran Utama (Key Takeaways)" value={report.pembelajaran} />
+              <Block title="VII. Kendala Lapangan" value={report.kendala} />
+              <Block title="VIII. Pembelajaran Utama (Key Takeaways)" value={report.pembelajaran} />
             </div>
 
             {/* Future Plan */}
             <section className="rounded-xl border bg-gradient-to-br from-background to-accent-soft/10 p-5 space-y-4">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-accent">VIII. Rencana Kerja & Kebutuhan Bulan Depan</h4>
+              <h4 className="text-xs font-bold uppercase tracking-wider text-accent">IX. Rencana Kerja & Kebutuhan Bulan Depan</h4>
               <div className="grid gap-4 md:grid-cols-3 text-sm">
                 <div>
                   <span className="text-xs text-muted-foreground font-medium">Aktivitas Prioritas</span>
@@ -640,8 +928,8 @@ export default function MonthlyImpactReport() {
             </section>
 
             {/* Printed-only Human Review & Authorization Section */}
-            <div className="hidden print:block border-t pt-6 space-y-4 mt-8 print-break-inside-avoid">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-accent">IX. Pengesahan Laporan (Human Review Authorization)</h4>
+            <div className="hidden print:block border-t pt-6 space-y-4 mt-8 print-break-inside-avoid text-left">
+              <h4 className="text-xs font-bold uppercase tracking-wider text-accent">X. Pengesahan Laporan (Human Review Authorization)</h4>
               <div className="grid grid-cols-2 gap-4 text-xs">
                 <div className="space-y-1">
                   <p className="font-semibold text-foreground">Disahkan Oleh Reviewer:</p>

@@ -349,6 +349,52 @@ export default function DashboardHome() {
     enabled: !!orgId,
   });
 
+  // Query all program assessments for the organization to compute average/highest maturity level
+  const { data: assessments = [], isLoading: isAssessmentsLoading } = useQuery({
+    queryKey: ['impact_readiness_assessments', orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from('impact_readiness_assessments')
+        .select('*')
+        .eq('org_id', orgId);
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!orgId,
+  });
+
+  // Compute program maturity level and count
+  const kematanganStats = useMemo(() => {
+    if (!assessments || assessments.length === 0) {
+      return {
+        hasAssessments: false,
+        totalAssessed: 0,
+        bestLevel: 'Belum dinilai',
+        bestLevelText: 'Asesmen kesiapan program belum diisi.',
+      };
+    }
+
+    const levels = assessments.map((a: any) => a.level);
+    let bestLevel = 'Activity-Driven';
+    let bestLevelText = 'Fokus pada penyelesaian aktivitas lapangan sehari-hari.';
+
+    if (levels.includes('impact')) {
+      bestLevel = 'Impact-Driven';
+      bestLevelText = 'Sistem fokus penuh pada perubahan berkelanjutan jangka panjang.';
+    } else if (levels.includes('output')) {
+      bestLevel = 'Output-Driven';
+      bestLevelText = 'Sistem mulai berorientasi pada pencapaian luaran/output.';
+    }
+
+    return {
+      hasAssessments: true,
+      totalAssessed: assessments.length,
+      bestLevel,
+      bestLevelText,
+    };
+  }, [assessments]);
+
   // Query resource access platforms to compute registered platforms count
   const { data: dbPlatforms, isLoading: isPlatformsLoading } = useQuery({
     queryKey: ['resource_access_platforms', orgId],
@@ -572,7 +618,7 @@ export default function DashboardHome() {
       })
     : null;
 
-  if (isMembershipLoading || (!!orgId && (isOrgLoading || isScoresLoading || isProgressLoading))) {
+  if (isMembershipLoading || (!!orgId && (isOrgLoading || isScoresLoading || isProgressLoading || isAssessmentsLoading))) {
     return (
       <div className="flex min-h-[70vh] items-center justify-center bg-background">
         <div className="flex flex-col items-center gap-3">
@@ -665,7 +711,7 @@ export default function DashboardHome() {
       </section>
 
       {/* Main Section Grid: Status Baseline & ZONE 2 Priorities */}
-      <div className="grid gap-6 lg:grid-cols-3">
+      <div className="grid gap-6 lg:grid-cols-4">
         {/* GROWTH Status Baseline Card */}
         <Card className="group relative overflow-hidden flex flex-col justify-between border-border bg-card p-5 shadow-card hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 hover:border-[#155F66]/30">
           <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-500" />
@@ -721,6 +767,51 @@ export default function DashboardHome() {
               className="inline-flex items-center text-xs font-bold text-accent hover:text-accent/95 hover:underline transition-transform duration-200 hover:translate-x-0.5"
             >
               {scoreResult.hasScores ? 'Perbarui Baseline Kesiapan' : 'Mulai Baseline Kesiapan'}
+              <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </Card>
+
+        {/* Kematangan Program Card (Fitur 1 MVP) */}
+        <Card className="group relative overflow-hidden flex flex-col justify-between border-border bg-card p-5 shadow-card hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 hover:border-[#155F66]/30">
+          <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-500" />
+          <div className="space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Kesiapan Dampak</p>
+                <h2 className="mt-1 text-lg font-bold tracking-tight text-foreground">
+                  Kematangan Program
+                </h2>
+              </div>
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-accent/10 text-accent transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+                <Sparkles className="h-5 w-5" />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="rounded-lg bg-muted/40 p-3.5 border border-border">
+                <p className="text-xs font-bold text-accent uppercase tracking-wider mb-1">Maturity Terkini</p>
+                <p className="text-sm font-black text-foreground">{kematanganStats.bestLevel}</p>
+                <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">
+                  {kematanganStats.bestLevelText}
+                </p>
+              </div>
+
+              <div className="flex justify-between items-center text-xs border-t border-border pt-3.5">
+                <span className="text-muted-foreground">Program Dinilai:</span>
+                <Badge variant="outline" className="font-bold border-accent/20 bg-accent/5 text-accent">
+                  {kematanganStats.totalAssessed} Asesmen
+                </Badge>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-5 border-t border-border pt-4">
+            <Link
+              to="/dashboard/readiness?tab=program"
+              className="inline-flex items-center text-xs font-bold text-accent hover:text-accent/95 hover:underline transition-transform duration-200 hover:translate-x-0.5"
+            >
+              Evaluasi Kesiapan Program
               <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
             </Link>
           </div>
