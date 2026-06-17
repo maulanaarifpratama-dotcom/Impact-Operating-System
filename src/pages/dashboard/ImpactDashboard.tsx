@@ -166,7 +166,7 @@ export default function ImpactDashboard() {
       const { data, error } = await supabase
         .from('lfa_projects')
         .select('*')
-        .eq('organization_id', organizationId);
+        .eq('org_id', organizationId);
       if (error) throw error;
       return data || [];
     },

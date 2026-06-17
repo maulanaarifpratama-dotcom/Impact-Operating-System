@@ -218,7 +218,7 @@ export default function MonthlyImpactReport() {
       const { data, error } = await supabase
         .from('lfa_projects')
         .select('*')
-        .eq('organization_id', orgId);
+        .eq('org_id', orgId);
       if (error) throw error;
       return data || [];
     },
