@@ -14,7 +14,8 @@ import {
   Calendar,
   Sparkles,
   Briefcase,
-  Award
+  Award,
+  ChevronRight
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
