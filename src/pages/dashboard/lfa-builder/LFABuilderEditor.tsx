@@ -507,18 +507,6 @@ export default function LFABuilderEditor() {
     }
   };
 
-  const handleExportToGrantwriter = async () => {
-    if (!project) return;
-    const completeness = calculateCompleteness();
-    if (completeness < 60) {
-      if (!confirm(`Tingkat kelengkapan LFA Anda baru ${completeness}%. Kami merekomendasikan kelengkapan di atas 60% sebelum mengekspor agar proposal AI lebih coherent. Lanjutkan?`)) {
-        return;
-      }
-    }
-
-    navigate(`/dashboard/grant-writer?lfa_project_id=${project.id}`);
-  };
-
   // Completeness Metrics
   const calculateCompleteness = () => {
     let score = 0;
@@ -573,6 +561,18 @@ export default function LFABuilderEditor() {
     }
 
     return warnings;
+  };
+
+  const handleExportToGrantwriter = async () => {
+    if (!project) return;
+    const completeness = calculateCompleteness();
+    if (completeness < 60) {
+      if (!confirm(`Tingkat kelengkapan LFA Anda baru ${completeness}%. Kami merekomendasikan kelengkapan di atas 60% sebelum mengekspor agar proposal AI lebih coherent. Lanjutkan?`)) {
+        return;
+      }
+    }
+
+    navigate(`/dashboard/grant-writer?lfa_project_id=${project.id}`);
   };
 
   const validationWarnings = runValidation();

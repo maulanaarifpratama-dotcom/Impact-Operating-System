@@ -395,7 +395,8 @@ export default function MonthlyImpactReport() {
   }, [donations, programs, programMetrics, readinessScores]);
 
   // Synchronize aggregation into the report when loaded
-  const populateWithDbData = () => {
+  const populateWithDbData = (isSilent: boolean | React.MouseEvent = false) => {
+    const silent = isSilent === true;
     const now = new Date();
     const currentMonthLabel = now.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
     
@@ -404,35 +405,39 @@ export default function MonthlyImpactReport() {
 
     // Verify if we have MEAL items
     if (mealItems.length === 0) {
-      toast.error(
-        <div className="flex flex-col gap-1.5 p-1 text-left">
-          <p className="font-semibold text-xs text-rose-600">Belum Ada Indikator MEAL</p>
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            Project ini belum memiliki rancangan indikator MEAL. Silakan buat perencanaan MEAL terlebih dahulu agar sistem dapat mengotomasi penarikan laporan.
-          </p>
-          <Button asChild size="sm" variant="outline" className="mt-1 h-7 text-[10px] w-fit no-print border-rose-500/30 text-rose-600 hover:bg-rose-500/10">
-            <Link to={`/dashboard/lfa-builder/${selectedLfaProjectId || ''}`}>Buka MEAL Planner</Link>
-          </Button>
-        </div>,
-        { duration: 6000 }
-      );
+      if (!silent) {
+        toast.error(
+          <div className="flex flex-col gap-1.5 p-1 text-left">
+            <p className="font-semibold text-xs text-rose-600">Belum Ada Indikator MEAL</p>
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              Project ini belum memiliki rancangan indikator MEAL. Silakan buat perencanaan MEAL terlebih dahulu agar sistem dapat mengotomasi penarikan laporan.
+            </p>
+            <Button asChild size="sm" variant="outline" className="mt-1 h-7 text-[10px] w-fit no-print border-rose-500/30 text-rose-600 hover:bg-rose-500/10">
+              <Link to={`/dashboard/lfa-builder/${selectedLfaProjectId || ''}`}>Buka MEAL Planner</Link>
+            </Button>
+          </div>,
+          { duration: 6000 }
+        );
+      }
       return;
     }
 
     // Verify tracking entries
     if (filteredTrackingEntries.length === 0) {
-      toast.warning(
-        <div className="flex flex-col gap-1.5 p-1 text-left">
-          <p className="font-semibold text-xs text-amber-800">Capaian Bulanan Kosong</p>
-          <p className="text-[10px] text-muted-foreground leading-relaxed">
-            Belum ada catatan capaian MEAL yang diinput untuk periode {currentMonthLabel} pada project ini. Silakan input capaian agar laporan terisi data riil.
-          </p>
-          <Button asChild size="sm" variant="outline" className="mt-1 h-7 text-[10px] w-fit border-amber-500/30 text-amber-800 no-print hover:bg-amber-500/10">
-            <Link to={`/dashboard/lfa-builder/${selectedLfaProjectId || ''}`}>Input Capaian MEAL</Link>
-          </Button>
-        </div>,
-        { duration: 6000 }
-      );
+      if (!silent) {
+        toast.warning(
+          <div className="flex flex-col gap-1.5 p-1 text-left">
+            <p className="font-semibold text-xs text-amber-800">Capaian Bulanan Kosong</p>
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              Belum ada catatan capaian MEAL yang diinput untuk periode {currentMonthLabel} pada project ini. Silakan input capaian agar laporan terisi data riil.
+            </p>
+            <Button asChild size="sm" variant="outline" className="mt-1 h-7 text-[10px] w-fit border-amber-500/30 text-amber-800 no-print hover:bg-amber-500/10">
+              <Link to={`/dashboard/lfa-builder/${selectedLfaProjectId || ''}`}>Input Capaian MEAL</Link>
+            </Button>
+          </div>,
+          { duration: 6000 }
+        );
+      }
     }
 
     // Compute Beneficiaries
@@ -486,13 +491,15 @@ export default function MonthlyImpactReport() {
       cta: 'Dukung program edukasi berkelanjutan dengan donasi bulanan mulai Rp 100.000 per anak.',
     });
 
-    toast.success('Data riil dari database berhasil ditarik dan disematkan!');
+    if (!silent) {
+      toast.success('Data riil dari database berhasil ditarik dan disematkan!');
+    }
   };
 
   // Prepopulate form on mount or when aggregatedData updates
   useEffect(() => {
     if (orgId && programs.length > 0) {
-      populateWithDbData();
+      populateWithDbData(true);
     }
   }, [orgId, programs, aggregatedData]);
 
