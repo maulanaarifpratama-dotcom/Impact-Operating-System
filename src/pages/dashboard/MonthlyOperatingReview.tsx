@@ -148,7 +148,7 @@ export default function MonthlyOperatingReview() {
   };
 
   // 1. Fetch organization context
-  const { data: membership, isLoading: isMembershipLoading } = useQuery({
+  const { data: membership, isLoading: isMembershipLoading, isError: isMembershipError, error: membershipError } = useQuery({
     queryKey: ['organization_members', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -173,7 +173,7 @@ export default function MonthlyOperatingReview() {
   }, [membership]);
 
   // Fetch LFA Projects of the organization
-  const { data: lfaProjects = [], isLoading: isLfaProjectsLoading } = useQuery({
+  const { data: lfaProjects = [], isLoading: isLfaProjectsLoading, isError: isLfaProjectsError, error: lfaProjectsError } = useQuery({
     queryKey: ['lfa_projects_mor', orgId],
     queryFn: async () => {
       if (!orgId) return [];
@@ -196,7 +196,7 @@ export default function MonthlyOperatingReview() {
   }, [lfaProjects, selectedLfaProjectId]);
 
   // Fetch MEAL items for selected project
-  const { data: mealItems = [], isLoading: isMealItemsLoading } = useQuery({
+  const { data: mealItems = [], isLoading: isMealItemsLoading, isError: isMealItemsError, error: mealItemsError } = useQuery({
     queryKey: ['meal_items_mor', selectedLfaProjectId],
     queryFn: async () => {
       if (!selectedLfaProjectId) return [];
@@ -212,7 +212,7 @@ export default function MonthlyOperatingReview() {
   });
 
   // Fetch MEAL tracking entries for selected project
-  const { data: mealTrackingEntries = [], isLoading: isMealTrackingEntriesLoading } = useQuery({
+  const { data: mealTrackingEntries = [], isLoading: isMealTrackingEntriesLoading, isError: isMealTrackingEntriesError, error: mealTrackingEntriesError } = useQuery({
     queryKey: ['meal_tracking_entries_mor', selectedLfaProjectId],
     queryFn: async () => {
       if (!selectedLfaProjectId) return [];
@@ -228,7 +228,7 @@ export default function MonthlyOperatingReview() {
   });
 
   // 2. Fetch MOR Session history
-  const { data: sessions = [], isLoading: isSessionsLoading } = useQuery<MorSession[]>({
+  const { data: sessions = [], isLoading: isSessionsLoading, isError: isSessionsError, error: sessionsError } = useQuery<MorSession[]>({
     queryKey: ['mor_sessions', orgId],
     queryFn: async () => {
       if (!orgId) return [];
@@ -659,7 +659,25 @@ export default function MonthlyOperatingReview() {
     toast.success('Draf review taktis berbasis AI berhasil disematkan!');
   };
 
+  const isGlobalError = isMembershipError || isSessionsError || isLfaProjectsError || isMealItemsError || isMealTrackingEntriesError;
+  const globalError = membershipError || sessionsError || lfaProjectsError || mealItemsError || mealTrackingEntriesError;
+
   const isGlobalLoading = isMembershipLoading || (!!orgId && (isSessionsLoading || isLfaProjectsLoading || isMealItemsLoading || isMealTrackingEntriesLoading));
+
+  if (isGlobalError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 p-6 text-center">
+        <p className="text-red-500 text-sm">
+          Gagal memuat data: {(globalError as Error)?.message ?? 'Kesalahan tidak diketahui'}
+        </p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="text-sm text-teal-600 underline">
+          Muat Ulang
+        </button>
+      </div>
+    );
+  }
 
   if (isGlobalLoading) {
     return (

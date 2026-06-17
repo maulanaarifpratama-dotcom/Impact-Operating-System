@@ -171,7 +171,7 @@ export default function MonthlyImpactReport() {
   const [selectedLfaProjectId, setSelectedLfaProjectId] = useState<string>('');
 
   // 1. Fetch organization context
-  const { data: membership, isLoading: isMembershipLoading } = useQuery({
+  const { data: membership, isLoading: isMembershipLoading, isError: isMembershipError, error: membershipError } = useQuery({
     queryKey: ['organization_members', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -196,7 +196,7 @@ export default function MonthlyImpactReport() {
   }, [membership]);
 
   // 2. Fetch Donations for MTD calculations
-  const { data: donations = [], isLoading: isDonationsLoading } = useQuery({
+  const { data: donations = [], isLoading: isDonationsLoading, isError: isDonationsError, error: donationsError } = useQuery({
     queryKey: ['donations_report', orgId],
     queryFn: async () => {
       if (!orgId) return [];
@@ -211,7 +211,7 @@ export default function MonthlyImpactReport() {
   });
 
   // 3. Fetch Programs
-  const { data: programs = [], isLoading: isProgramsLoading } = useQuery({
+  const { data: programs = [], isLoading: isProgramsLoading, isError: isProgramsError, error: programsError } = useQuery({
     queryKey: ['programs_report', orgId],
     queryFn: async () => {
       if (!orgId) return [];
@@ -226,7 +226,7 @@ export default function MonthlyImpactReport() {
   });
 
   // 4. Fetch Program Metrics (for Beneficiary Calculations)
-  const { data: programMetrics = [], isLoading: isProgramMetricsLoading } = useQuery({
+  const { data: programMetrics = [], isLoading: isProgramMetricsLoading, isError: isProgramMetricsError, error: programMetricsError } = useQuery({
     queryKey: ['program_metrics_report', orgId],
     queryFn: async () => {
       if (!orgId) return [];
@@ -241,7 +241,7 @@ export default function MonthlyImpactReport() {
   });
 
   // 5. Fetch Readiness Maturity Score
-  const { data: readinessScores, isLoading: isReadinessLoading } = useQuery({
+  const { data: readinessScores, isLoading: isReadinessLoading, isError: isReadinessError, error: readinessError } = useQuery({
     queryKey: ['readiness_scores_report', orgId],
     queryFn: async () => {
       if (!orgId) return null;
@@ -257,7 +257,7 @@ export default function MonthlyImpactReport() {
   });
 
   // 6. Fetch LFA Projects of the organization
-  const { data: lfaProjects = [], isLoading: isLfaProjectsLoading } = useQuery({
+  const { data: lfaProjects = [], isLoading: isLfaProjectsLoading, isError: isLfaProjectsError, error: lfaProjectsError } = useQuery({
     queryKey: ['lfa_projects_report', orgId],
     queryFn: async () => {
       if (!orgId) return [];
@@ -280,7 +280,7 @@ export default function MonthlyImpactReport() {
   }, [lfaProjects, selectedLfaProjectId]);
 
   // 7. Fetch MEAL items for the selected project
-  const { data: mealItems = [], isLoading: isMealItemsLoading } = useQuery({
+  const { data: mealItems = [], isLoading: isMealItemsLoading, isError: isMealItemsError, error: mealItemsError } = useQuery({
     queryKey: ['meal_items_report', selectedLfaProjectId],
     queryFn: async () => {
       if (!selectedLfaProjectId) return [];
@@ -296,7 +296,7 @@ export default function MonthlyImpactReport() {
   });
 
   // 8. Fetch MEAL tracking entries for the selected project
-  const { data: mealTrackingEntries = [], isLoading: isMealTrackingEntriesLoading } = useQuery({
+  const { data: mealTrackingEntries = [], isLoading: isMealTrackingEntriesLoading, isError: isMealTrackingEntriesError, error: mealTrackingEntriesError } = useQuery({
     queryKey: ['meal_tracking_entries_report', selectedLfaProjectId],
     queryFn: async () => {
       if (!selectedLfaProjectId) return [];
@@ -572,7 +572,25 @@ export default function MonthlyImpactReport() {
     toast.success(`Berhasil memuat arsip laporan periode ${period}!`);
   };
 
+  const isGlobalError = isMembershipError || isDonationsError || isProgramsError || isProgramMetricsError || isReadinessError || isLfaProjectsError || isMealItemsError || isMealTrackingEntriesError;
+  const globalError = membershipError || donationsError || programsError || programMetricsError || readinessError || lfaProjectsError || mealItemsError || mealTrackingEntriesError;
+
   const isGlobalLoading = isMembershipLoading || (!!orgId && (isDonationsLoading || isProgramsLoading || isProgramMetricsLoading || isReadinessLoading || isLfaProjectsLoading || isMealItemsLoading || isMealTrackingEntriesLoading));
+
+  if (isGlobalError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 p-6 text-center">
+        <p className="text-red-500 text-sm">
+          Gagal memuat data: {(globalError as Error)?.message ?? 'Kesalahan tidak diketahui'}
+        </p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="text-sm text-teal-600 underline">
+          Muat Ulang
+        </button>
+      </div>
+    );
+  }
 
   if (isGlobalLoading) {
     return (

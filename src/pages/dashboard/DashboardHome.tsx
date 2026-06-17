@@ -293,7 +293,7 @@ export default function DashboardHome() {
   const [hasManuallySelected, setHasManuallySelected] = useState(false);
 
   // Query organization memberships for the current user
-  const { data: membership, isLoading: isMembershipLoading } = useQuery({
+  const { data: membership, isLoading: isMembershipLoading, isError: isMembershipError, error: membershipError } = useQuery({
     queryKey: ['organization_members', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -318,7 +318,7 @@ export default function DashboardHome() {
   }, [membership]);
 
   // Query organization details
-  const { data: organization, isLoading: isOrgLoading } = useQuery({
+  const { data: organization, isLoading: isOrgLoading, isError: isOrgError, error: orgError } = useQuery({
     queryKey: ['organization', orgId],
     queryFn: async () => {
       if (!orgId) return null;
@@ -334,7 +334,7 @@ export default function DashboardHome() {
   });
 
   // Query readiness scores from Supabase
-  const { data: dbScores, isLoading: isScoresLoading } = useQuery({
+  const { data: dbScores, isLoading: isScoresLoading, isError: isScoresError, error: scoresError } = useQuery({
     queryKey: ['readiness_scores', orgId],
     queryFn: async () => {
       if (!orgId) return null;
@@ -350,7 +350,7 @@ export default function DashboardHome() {
   });
 
   // Query all program assessments for the organization to compute average/highest maturity level
-  const { data: assessments = [], isLoading: isAssessmentsLoading } = useQuery({
+  const { data: assessments = [], isLoading: isAssessmentsLoading, isError: isAssessmentsError, error: assessmentsError } = useQuery({
     queryKey: ['impact_readiness_assessments', orgId],
     queryFn: async () => {
       if (!orgId) return [];
@@ -375,7 +375,7 @@ export default function DashboardHome() {
       };
     }
 
-    const levels = assessments.map((a: any) => a.level);
+    const levels = (assessments ?? []).map((a: any) => a.level);
     let bestLevel = 'Activity-Driven';
     let bestLevelText = 'Fokus pada penyelesaian aktivitas lapangan sehari-hari.';
 
@@ -396,7 +396,7 @@ export default function DashboardHome() {
   }, [assessments]);
 
   // Query resource access platforms to compute registered platforms count
-  const { data: dbPlatforms, isLoading: isPlatformsLoading } = useQuery({
+  const { data: dbPlatforms, isLoading: isPlatformsLoading, isError: isPlatformsError, error: platformsError } = useQuery({
     queryKey: ['resource_access_platforms', orgId],
     queryFn: async () => {
       if (!orgId) return [];
@@ -411,7 +411,7 @@ export default function DashboardHome() {
   });
 
   // Query 90-day plan progress from Supabase
-  const { data: dbProgress, isLoading: isProgressLoading, refetch: refetchProgress } = useQuery({
+  const { data: dbProgress, isLoading: isProgressLoading, isError: isProgressError, error: progressError, refetch: refetchProgress } = useQuery({
     queryKey: ['day_plan_progress', orgId],
     queryFn: async () => {
       if (!orgId) return [];
@@ -434,11 +434,10 @@ export default function DashboardHome() {
     }
   }, [dbScores]);
 
-  // Synchronize 90-day plan checklists from database into local state
   useEffect(() => {
     if (dbProgress) {
       const mapped: Record<string, boolean> = {};
-      dbProgress.forEach((item) => {
+      (dbProgress ?? []).forEach((item) => {
         const sectionId = Object.keys(SECTION_PHASE_MAP).find(
           (k) => SECTION_PHASE_MAP[k] === item.phase
         );
@@ -457,7 +456,7 @@ export default function DashboardHome() {
     const categoryScores = CATEGORIES.map((category, order) => {
       const score = Array.from({ length: category.itemsCount }).reduce<number>((sum, _, index) => {
         const key = `${category.code}-${index}`;
-        return sum + (scores[key] ?? 0);
+        return (sum ?? 0) + (scores[key] ?? 0);
       }, 0);
       const max = category.itemsCount * 5;
 
@@ -472,7 +471,7 @@ export default function DashboardHome() {
       };
     });
 
-    const total = categoryScores.reduce<number>((sum, category) => sum + category.score, 0);
+    const total = categoryScores.reduce<number>((sum, category) => (sum ?? 0) + (category.score ?? 0), 0);
     const hasScores = Object.keys(scores).length > 0;
 
     // Determine Top 3 lowest ratio categories to trigger dynamic action steps
@@ -502,9 +501,9 @@ export default function DashboardHome() {
 
   // 90-Day Plan Checklist Calculations
   const planStats = useMemo(() => {
-    const totalTasks = PLAN_SECTIONS.reduce((sum, sec) => sum + sec.tasks.length, 0);
+    const totalTasks = PLAN_SECTIONS.reduce((sum, sec) => (sum ?? 0) + (sec.tasks?.length ?? 0), 0);
     const completedTasks = PLAN_SECTIONS.reduce((sum, sec) => {
-      return sum + sec.tasks.filter((task) => planTasks[`${sec.id}-${task}`]).length;
+      return (sum ?? 0) + (sec.tasks?.filter((task) => planTasks[`${sec.id}-${task}`])?.length ?? 0);
     }, 0);
 
     return {
@@ -517,8 +516,8 @@ export default function DashboardHome() {
   // Handle phase progress details
   const phasesProgress = useMemo(() => {
     return PLAN_SECTIONS.map((sec) => {
-      const completedCount = sec.tasks.filter((task) => planTasks[`${sec.id}-${task}`]).length;
-      const totalCount = sec.tasks.length;
+      const completedCount = (sec.tasks ?? []).filter((task) => planTasks[`${sec.id}-${task}`]).length;
+      const totalCount = sec.tasks?.length ?? 0;
       const ratio = totalCount === 0 ? 0 : completedCount / totalCount;
       const percentage = Math.round(ratio * 100);
 
@@ -552,7 +551,7 @@ export default function DashboardHome() {
   // Compute registered platforms count using dbPlatforms query data
   const registeredPlatformsCount = useMemo(() => {
     if (!dbPlatforms) return 0;
-    return dbPlatforms.filter((p: any) => p.status && p.status !== 'not_started').length;
+    return (dbPlatforms ?? []).filter((p: any) => p.status && p.status !== 'not_started').length;
   }, [dbPlatforms]);
 
   const handleToggleTask = async (sectionId: string, task: string) => {
@@ -580,16 +579,12 @@ export default function DashboardHome() {
           completed_at: nextState ? new Date().toISOString() : null,
         }, { onConflict: 'organization_id,phase,item_key' });
 
-      if (error) {
-        console.error('[DashboardHome] error saving progress:', error);
-        toast.error('Gagal memperbarui status tugas');
-        // Revert on failure
-        setPlanTasks((current) => ({ ...current, [key]: !nextState }));
-      } else {
-        void refetchProgress();
-      }
-    } catch (e) {
-      console.error('[DashboardHome] exception saving progress:', e);
+      if (error) throw error;
+      void refetchProgress();
+      toast.success('Progress berhasil diperbarui');
+    } catch (err) {
+      console.error('[Impactory] Error:', err);
+      toast.error('Gagal memperbarui status tugas: ' + ((err as Error)?.message ?? 'Silakan coba lagi.'));
       // Revert on failure
       setPlanTasks((current) => ({ ...current, [key]: !nextState }));
     }
@@ -617,6 +612,24 @@ export default function DashboardHome() {
         year: 'numeric',
       })
     : null;
+
+  const isAnyError = isMembershipError || isOrgError || isScoresError || isAssessmentsError || isPlatformsError || isProgressError;
+  const anyError = membershipError || orgError || scoresError || assessmentsError || platformsError || progressError;
+
+  if (isAnyError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 p-6 text-center">
+        <p className="text-red-500 text-sm">
+          Gagal memuat data: {(anyError as Error)?.message ?? 'Kesalahan tidak diketahui'}
+        </p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="text-sm text-teal-600 underline">
+          Muat Ulang
+        </button>
+      </div>
+    );
+  }
 
   if (isMembershipLoading || (!!orgId && (isOrgLoading || isScoresLoading || isProgressLoading || isAssessmentsLoading))) {
     return (

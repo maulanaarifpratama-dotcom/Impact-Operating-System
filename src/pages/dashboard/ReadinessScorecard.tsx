@@ -256,7 +256,7 @@ export default function ReadinessScorecard() {
   };
 
   // 1. Organization context
-  const { data: membership, isLoading: isMembershipLoading } = useQuery({
+  const { data: membership, isLoading: isMembershipLoading, isError: isMembershipError, error: membershipError } = useQuery({
     queryKey: ['organization_members', user?.id],
     queryFn: async () => {
       if (!user?.id) return null;
@@ -284,7 +284,7 @@ export default function ReadinessScorecard() {
   const [scores, setScores] = useState<Record<string, number>>({});
 
   // Load persistent baseline scores
-  const { data: dbScores, isLoading: isScoresLoading, refetch: refetchScores } = useQuery({
+  const { data: dbScores, isLoading: isScoresLoading, isError: isScoresError, error: scoresError, refetch: refetchScores } = useQuery({
     queryKey: ['readiness_scores', orgId],
     queryFn: async () => {
       if (!orgId) return null;
@@ -313,7 +313,7 @@ export default function ReadinessScorecard() {
   const activeProjectId = selectedProjectId === 'org_level' ? null : selectedProjectId;
 
   // Query projects for dropdown
-  const { data: projects = [], isLoading: isProjectsLoading } = useQuery({
+  const { data: projects = [], isLoading: isProjectsLoading, isError: isProjectsError, error: projectsError } = useQuery({
     queryKey: ['lfa_projects', orgId],
     queryFn: async () => {
       if (!orgId) return [];
@@ -329,7 +329,7 @@ export default function ReadinessScorecard() {
   });
 
   // Query existing active assessment
-  const { data: assessment, isLoading: isAssessmentLoading, refetch: refetchAssessment } = useQuery({
+  const { data: assessment, isLoading: isAssessmentLoading, isError: isAssessmentError, error: assessmentError, refetch: refetchAssessment } = useQuery({
     queryKey: ['impact_readiness_assessment', orgId, activeProjectId],
     queryFn: async () => {
       if (!orgId) return null;
@@ -446,7 +446,7 @@ export default function ReadinessScorecard() {
     CATEGORIES.forEach((category) => {
       catScores[category.code] = category.items.reduce((sum, _, index) => {
         const key = itemId(category.code, index);
-        return sum + (updatedScores[key] ?? 0);
+        return (sum ?? 0) + (updatedScores[key] ?? 0);
       }, 0);
     });
 
@@ -465,14 +465,12 @@ export default function ReadinessScorecard() {
           details: updatedScores,
         }, { onConflict: 'organization_id' });
 
-      if (error) {
-        console.error('[ReadinessScorecard] error saving scores:', error);
-        toast.error('Gagal menyimpan skor ke server');
-      } else {
-        void refetchScores();
-      }
-    } catch (e) {
-      console.error('[ReadinessScorecard] exception saving scores:', e);
+      if (error) throw error;
+      void refetchScores();
+      toast.success('Skor berhasil disimpan');
+    } catch (err) {
+      console.error('[Impactory] Error:', err);
+      toast.error('Gagal menyimpan skor: ' + ((err as Error)?.message ?? 'Silakan coba lagi.'));
     }
   };
 
@@ -484,15 +482,12 @@ export default function ReadinessScorecard() {
         .from('readiness_scores')
         .delete()
         .eq('organization_id', orgId);
-      if (error) {
-        console.error('[ReadinessScorecard] error deleting scores:', error);
-        toast.error('Gagal menghapus skor di server');
-      } else {
-        void refetchScores();
-        toast.success('Baseline berhasil di-reset');
-      }
-    } catch (e) {
-      console.error('[ReadinessScorecard] exception resetting scores:', e);
+      if (error) throw error;
+      void refetchScores();
+      toast.success('Baseline berhasil di-reset');
+    } catch (err) {
+      console.error('[Impactory] Error:', err);
+      toast.error('Gagal me-reset baseline: ' + ((err as Error)?.message ?? 'Silakan coba lagi.'));
     }
   };
 
@@ -545,6 +540,24 @@ export default function ReadinessScorecard() {
   const handlePrint = () => {
     window.print();
   };
+
+  const isGlobalError = isMembershipError || isScoresError || isProjectsError || isAssessmentError;
+  const globalError = membershipError || scoresError || projectsError || assessmentError;
+
+  if (isGlobalError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 p-6 text-center">
+        <p className="text-red-500 text-sm">
+          Gagal memuat data: {(globalError as Error)?.message ?? 'Kesalahan tidak diketahui'}
+        </p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="text-sm text-teal-600 underline">
+          Muat Ulang
+        </button>
+      </div>
+    );
+  }
 
   const isGlobalLoading = isMembershipLoading || (!!orgId && (isScoresLoading || isProjectsLoading || isAssessmentLoading));
 
@@ -833,7 +846,7 @@ export default function ReadinessScorecard() {
                 className="h-10 px-3 py-1.5 text-xs font-medium rounded-lg border border-border bg-background text-foreground shadow-sm focus:border-accent focus:ring-1 focus:ring-accent w-full sm:w-64 focus:outline-none"
               >
                 <option value="org_level">🏢 Tingkat Organisasi (Sistem Utama)</option>
-                {projects.map((project) => (
+                {(projects ?? []).map((project) => (
                   <option key={project.id} value={project.id}>
                     🎯 Program: {project.name}
                   </option>

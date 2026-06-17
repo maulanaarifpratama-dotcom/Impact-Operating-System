@@ -40,6 +40,7 @@ export default function SROICalculator({
   const [config, setConfig] = useState<LfaSroiConfig | null>(null);
   const [outcomes, setOutcomes] = useState<LfaSroiOutcome[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -65,7 +66,9 @@ export default function SROICalculator({
 
   // Load configuration and SROI outcomes
   const loadData = useCallback(async () => {
+    if (!orgId) return;
     setLoading(true);
+    setError(null);
     try {
       // 1. Fetch config
       const { data: configData, error: configErr } = await supabase
@@ -94,6 +97,7 @@ export default function SROICalculator({
       }
     } catch (err: any) {
       console.error('Error loading SROI data:', err);
+      setError(err as Error);
       toast({
         title: 'Gagal memuat SROI',
         description: err.message || 'Terjadi kesalahan saat memuat data SROI.',
@@ -102,7 +106,7 @@ export default function SROICalculator({
     } finally {
       setLoading(false);
     }
-  }, [projectId, toast]);
+  }, [projectId, orgId, toast]);
 
   useEffect(() => {
     void loadData();
@@ -112,6 +116,7 @@ export default function SROICalculator({
   // Auto-Import & Re-Sync Logic
   // ---------------------------------------------------------------------------
   const triggerAutoImport = async (isManualSync = false) => {
+    if (!orgId) return;
     if (isManualSync) setSyncing(true);
     try {
       // A. Import total investment from lfa_budget_items
@@ -124,11 +129,11 @@ export default function SROICalculator({
 
       let totalBudgetCost = 0;
       if (budgetItems) {
-        totalBudgetCost = budgetItems.reduce((sum, item) => sum + (item.volume * item.unit_price_idr), 0);
+        totalBudgetCost = (budgetItems ?? []).reduce((sum, item) => sum + ((item?.volume ?? 0) * (item?.unit_price_idr ?? 0)), 0);
       }
 
       // Calculate timeline duration in years
-      const computedYears = Math.max(1, Math.ceil(programDurationMonths / 12));
+      const computedYears = Math.max(1, Math.ceil((programDurationMonths ?? 12) / 12));
 
       // Fetch existing config or create new
       let currentConfig: LfaSroiConfig;
@@ -166,7 +171,7 @@ export default function SROICalculator({
             total_investment_idr: totalBudgetCost,
             analysis_period_years: computedYears,
             discount_rate: 0.035,
-            beneficiary_count: projectCheck?.beneficiary_count || null,
+            beneficiary_count: projectCheck?.beneficiary_count ?? null,
             mode: 'simple',
             sroi_ratio: 0,
             total_gross_value_idr: 0,
@@ -196,26 +201,26 @@ export default function SROICalculator({
           .select('meal_item_id')
           .eq('lfa_project_id', projectId);
 
-        const existingMealIds = new Set(existingOutcomes?.map(o => o.meal_item_id).filter(Boolean));
+        const existingMealIds = new Set((existingOutcomes ?? []).map(o => o?.meal_item_id).filter(Boolean));
 
-        let orderIdx = existingOutcomes?.length || 0;
+        let orderIdx = existingOutcomes?.length ?? 0;
 
-        for (const item of mealItems as MealItem[]) {
-          if (existingMealIds.has(item.id)) continue;
+        for (const item of (mealItems ?? []) as MealItem[]) {
+          if (item?.id && existingMealIds.has(item.id)) continue;
 
           // Standard default estimates
-          const defProxy = SROI_PROXIES_INDONESIA.find(p => p.category.toLowerCase() === sector.toLowerCase()) || 
-                           SROI_PROXIES_INDONESIA[0];
+          const defProxy = (SROI_PROXIES_INDONESIA ?? []).find(p => p?.category?.toLowerCase() === sector?.toLowerCase()) || 
+                           SROI_PROXIES_INDONESIA?.[0];
 
           const { data: inserted, error: insErr } = await supabase
             .from('lfa_sroi_outcomes')
             .insert({
               lfa_project_id: projectId,
               org_id: orgId,
-              meal_item_id: item.id,
-              outcome_name: item.indicator_text,
-              quantity: item.target_value || 1,
-              unit: item.target_unit || 'orang',
+              meal_item_id: item?.id,
+              outcome_name: item?.indicator_text ?? '',
+              quantity: item?.target_value ?? 1,
+              unit: item?.target_unit ?? 'orang',
               proxy_value_idr: 0, // Let user choose from reference or enter manually
               duration_years: computedYears,
               attribution_pct: 80,
@@ -224,7 +229,7 @@ export default function SROICalculator({
               dropoff_pct_per_year: 0,
               gross_value_idr: 0,
               present_value_idr: 0,
-              mode: currentConfig.mode,
+              mode: currentConfig?.mode ?? 'simple',
               sort_order: orderIdx++
             })
             .select()
@@ -272,17 +277,18 @@ export default function SROICalculator({
   // SROI Calculations (Strict Deterministic)
   // ---------------------------------------------------------------------------
   const calculateOutcomeValues = (outcome: LfaSroiOutcome, discountRate: number) => {
-    const gross = outcome.quantity * outcome.proxy_value_idr;
+    const gross = (outcome?.quantity ?? 0) * (outcome?.proxy_value_idr ?? 0);
     
     const net = gross 
-      * (outcome.attribution_pct / 100) 
-      * (1 - outcome.deadweight_pct / 100) 
-      * (1 - outcome.displacement_pct / 100);
+      * ((outcome?.attribution_pct ?? 0) / 100) 
+      * (1 - (outcome?.deadweight_pct ?? 0) / 100) 
+      * (1 - (outcome?.displacement_pct ?? 0) / 100);
 
     let presentValueTotal = 0;
-    for (let year = 1; year <= outcome.duration_years; year++) {
-      const yearVal = net * Math.pow(1 - outcome.dropoff_pct_per_year / 100, year - 1);
-      const presentValYear = yearVal / Math.pow(1 + discountRate, year);
+    const durationYears = outcome?.duration_years ?? 1;
+    for (let year = 1; year <= durationYears; year++) {
+      const yearVal = net * Math.pow(1 - (outcome?.dropoff_pct_per_year ?? 0) / 100, year - 1);
+      const presentValYear = yearVal / Math.pow(1 + (discountRate ?? 0.035), year);
       presentValueTotal += presentValYear;
     }
 
@@ -293,13 +299,14 @@ export default function SROICalculator({
   };
 
   const recalculateAndSave = async (curConfig: LfaSroiConfig, curOutcomes: LfaSroiOutcome[]) => {
+    if (!orgId) return;
     setSaving(true);
     try {
       let totalGross = 0;
       let totalPresentValue = 0;
 
-      const updatedOutcomes = curOutcomes.map(out => {
-        const { gross_value, present_value } = calculateOutcomeValues(out, curConfig.discount_rate);
+      const updatedOutcomes = (curOutcomes ?? []).map(out => {
+        const { gross_value, present_value } = calculateOutcomeValues(out, curConfig?.discount_rate ?? 0.035);
         totalGross += gross_value;
         totalPresentValue += present_value;
 
@@ -311,8 +318,9 @@ export default function SROICalculator({
       });
 
       // Avoid divide-by-zero
-      const sroiRatio = curConfig.total_investment_idr > 0 
-        ? parseFloat((totalPresentValue / curConfig.total_investment_idr).toFixed(2))
+      const totalInvestment = curConfig?.total_investment_idr ?? 0;
+      const sroiRatio = totalInvestment > 0 
+        ? parseFloat((totalPresentValue / totalInvestment).toFixed(2))
         : 0;
 
       // Update outcomes locally
@@ -320,13 +328,15 @@ export default function SROICalculator({
 
       // Save outcomes in database in parallel background
       for (const item of updatedOutcomes) {
-        await supabase
-          .from('lfa_sroi_outcomes')
-          .update({
-            gross_value_idr: item.gross_value_idr,
-            present_value_idr: item.present_value_idr
-          })
-          .eq('id', item.id);
+        if (item?.id) {
+          await supabase
+            .from('lfa_sroi_outcomes')
+            .update({
+              gross_value_idr: item.gross_value_idr,
+              present_value_idr: item.present_value_idr
+            })
+            .eq('id', item.id);
+        }
       }
 
       // Update config locally & remotely
@@ -335,21 +345,28 @@ export default function SROICalculator({
         sroi_ratio: sroiRatio,
         total_gross_value_idr: totalGross,
         total_present_value_idr: totalPresentValue
-      };
+      } as LfaSroiConfig;
       setConfig(updatedConfig);
 
-      await supabase
-        .from('lfa_sroi_config')
-        .update({
-          sroi_ratio: sroiRatio,
-          total_gross_value_idr: totalGross,
-          total_present_value_idr: totalPresentValue
-        })
-        .eq('id', curConfig.id);
+      if (curConfig?.id) {
+        await supabase
+          .from('lfa_sroi_config')
+          .update({
+            sroi_ratio: sroiRatio,
+            total_gross_value_idr: totalGross,
+            total_present_value_idr: totalPresentValue
+          })
+          .eq('id', curConfig.id);
+      }
 
       setLastSaved(new Date());
-    } catch (err) {
+    } catch (err: any) {
       console.error('Recalculation save failed:', err);
+      toast({
+        title: 'Gagal Menyimpan Rekalkulasi SROI',
+        description: err?.message || 'Silakan coba lagi.',
+        variant: 'destructive'
+      });
     } finally {
       setSaving(false);
     }
@@ -359,6 +376,8 @@ export default function SROICalculator({
   // Debounced Saves for Inputs & Sliders (1.5 seconds)
   // ---------------------------------------------------------------------------
   const debounceSaveConfig = (newConfig: LfaSroiConfig) => {
+    if (!orgId) return;
+    if (!newConfig?.id) return;
     const key = `config-${newConfig.id}`;
     if (debounceTimers.current[key]) {
       clearTimeout(debounceTimers.current[key]);
@@ -372,13 +391,13 @@ export default function SROICalculator({
         const { error } = await supabase
           .from('lfa_sroi_config')
           .update({
-            total_investment_idr: newConfig.total_investment_idr,
-            discount_rate: newConfig.discount_rate,
-            analysis_period_years: newConfig.analysis_period_years,
-            beneficiary_count: newConfig.beneficiary_count,
-            mode: newConfig.mode,
-            ai_narrative: newConfig.ai_narrative,
-            sensitivity_result: newConfig.sensitivity_result
+            total_investment_idr: newConfig?.total_investment_idr ?? 0,
+            discount_rate: newConfig?.discount_rate ?? 0.035,
+            analysis_period_years: newConfig?.analysis_period_years ?? 1,
+            beneficiary_count: newConfig?.beneficiary_count ?? null,
+            mode: newConfig?.mode ?? 'simple',
+            ai_narrative: newConfig?.ai_narrative ?? null,
+            sensitivity_result: newConfig?.sensitivity_result ?? null
           })
           .eq('id', newConfig.id);
 
@@ -396,38 +415,41 @@ export default function SROICalculator({
   };
 
   const debounceSaveOutcome = (newOutcome: LfaSroiOutcome) => {
+    if (!orgId) return;
+    if (!newOutcome?.id) return;
     const key = `outcome-${newOutcome.id}`;
     if (debounceTimers.current[key]) {
       clearTimeout(debounceTimers.current[key]);
     }
 
     // Update locally instantly for responsive feel
-    const updated = outcomes.map(o => o.id === newOutcome.id ? newOutcome : o);
+    const updated = (outcomes ?? []).map(o => o?.id === newOutcome?.id ? newOutcome : o);
     setOutcomes(updated);
 
     debounceTimers.current[key] = setTimeout(async () => {
       setSaving(true);
       try {
-        const { gross_value, present_value } = calculateOutcomeValues(newOutcome, config!.discount_rate);
+        const discountRate = config?.discount_rate ?? 0.035;
+        const { gross_value, present_value } = calculateOutcomeValues(newOutcome, discountRate);
 
         const { error } = await supabase
           .from('lfa_sroi_outcomes')
           .update({
-            outcome_name: newOutcome.outcome_name,
-            quantity: newOutcome.quantity,
-            unit: newOutcome.unit,
-            proxy_value_idr: newOutcome.proxy_value_idr,
-            proxy_source: newOutcome.proxy_source,
-            proxy_citation: newOutcome.proxy_citation,
-            proxy_category: newOutcome.proxy_category,
-            duration_years: newOutcome.duration_years,
-            attribution_pct: newOutcome.attribution_pct,
-            deadweight_pct: newOutcome.deadweight_pct,
-            displacement_pct: newOutcome.displacement_pct,
-            dropoff_pct_per_year: newOutcome.dropoff_pct_per_year,
+            outcome_name: newOutcome?.outcome_name ?? '',
+            quantity: newOutcome?.quantity ?? 0,
+            unit: newOutcome?.unit ?? '',
+            proxy_value_idr: newOutcome?.proxy_value_idr ?? 0,
+            proxy_source: newOutcome?.proxy_source ?? null,
+            proxy_citation: newOutcome?.proxy_citation ?? null,
+            proxy_category: newOutcome?.proxy_category ?? null,
+            duration_years: newOutcome?.duration_years ?? 1,
+            attribution_pct: newOutcome?.attribution_pct ?? 80,
+            deadweight_pct: newOutcome?.deadweight_pct ?? 20,
+            displacement_pct: newOutcome?.displacement_pct ?? 0,
+            dropoff_pct_per_year: newOutcome?.dropoff_pct_per_year ?? 0,
             gross_value_idr: gross_value,
             present_value_idr: present_value,
-            mode: newOutcome.mode
+            mode: newOutcome?.mode ?? 'simple'
           })
           .eq('id', newOutcome.id);
 
@@ -435,7 +457,9 @@ export default function SROICalculator({
         setLastSaved(new Date());
 
         // Perform global recalculation
-        recalculateAndSave(config!, updated);
+        if (config) {
+          recalculateAndSave(config, updated);
+        }
       } catch (err) {
         console.error('Debounced save outcome failed:', err);
       } finally {
@@ -448,12 +472,13 @@ export default function SROICalculator({
   // Action Handlers
   // ---------------------------------------------------------------------------
   const handleModeToggle = (mode: 'simple' | 'professional') => {
+    if (!orgId) return;
     if (!config) return;
     const updatedConfig = { ...config, mode };
     debounceSaveConfig(updatedConfig);
 
     // Also update outcomes mode for consistency
-    const updatedOutcomes = outcomes.map(o => ({ ...o, mode }));
+    const updatedOutcomes = (outcomes ?? []).map(o => ({ ...o, mode }));
     setOutcomes(updatedOutcomes);
 
     // Bulk save in DB
@@ -467,25 +492,26 @@ export default function SROICalculator({
   };
 
   const handleApplyProxyReference = (outcomeId: string, proxy: SroiProxyItem) => {
-    const target = outcomes.find(o => o.id === outcomeId);
+    const target = (outcomes ?? []).find(o => o?.id === outcomeId);
     if (!target) return;
 
     const updated = {
       ...target,
-      proxy_value_idr: proxy.value_idr,
-      proxy_source: proxy.source,
-      proxy_citation: proxy.citation,
-      proxy_category: proxy.category
+      proxy_value_idr: proxy?.value_idr ?? 0,
+      proxy_source: proxy?.source ?? null,
+      proxy_citation: proxy?.citation ?? null,
+      proxy_category: proxy?.category ?? null
     };
 
     debounceSaveOutcome(updated);
     toast({
       title: 'Proxy Diaplikasikan',
-      description: `Proxy "${proxy.name}" berhasil diterapkan.`
+      description: `Proxy "${proxy?.name ?? ''}" berhasil diterapkan.`
     });
   };
 
   const handleDeleteOutcome = async (id: string) => {
+    if (!orgId) return;
     if (!confirm('Hapus analisa outcome SROI ini?')) return;
     setSaving(true);
     try {
@@ -496,7 +522,7 @@ export default function SROICalculator({
 
       if (error) throw error;
 
-      const updated = outcomes.filter(o => o.id !== id);
+      const updated = (outcomes ?? []).filter(o => o?.id !== id);
       setOutcomes(updated);
       recalculateAndSave(config!, updated);
 
@@ -507,7 +533,7 @@ export default function SROICalculator({
     } catch (err: any) {
       toast({
         title: 'Gagal Menghapus',
-        description: err.message,
+        description: err?.message || 'Terjadi kesalahan.',
         variant: 'destructive'
       });
     } finally {
@@ -516,10 +542,11 @@ export default function SROICalculator({
   };
 
   const handleAddManualOutcome = async () => {
+    if (!orgId) return;
     if (!config) return;
     setSaving(true);
     try {
-      const newOrder = outcomes.length;
+      const newOrder = outcomes?.length ?? 0;
       const { data, error } = await supabase
         .from('lfa_sroi_outcomes')
         .insert({
@@ -529,12 +556,12 @@ export default function SROICalculator({
           quantity: 1,
           unit: 'orang',
           proxy_value_idr: 0,
-          duration_years: config.analysis_period_years,
+          duration_years: config?.analysis_period_years ?? 1,
           attribution_pct: 80,
           deadweight_pct: 20,
           displacement_pct: 0,
           dropoff_pct_per_year: 0,
-          mode: config.mode,
+          mode: config?.mode ?? 'simple',
           sort_order: newOrder
         })
         .select()
@@ -542,7 +569,7 @@ export default function SROICalculator({
 
       if (error) throw error;
 
-      const updated = [...outcomes, data as LfaSroiOutcome];
+      const updated = [...(outcomes ?? []), data as LfaSroiOutcome];
       setOutcomes(updated);
       recalculateAndSave(config, updated);
 
@@ -553,7 +580,7 @@ export default function SROICalculator({
     } catch (err: any) {
       toast({
         title: 'Gagal Menambah',
-        description: err.message,
+        description: err?.message || 'Terjadi kesalahan.',
         variant: 'destructive'
       });
     } finally {
@@ -565,18 +592,20 @@ export default function SROICalculator({
   // AI Operations Integration (Isolated Edge Function)
   // ---------------------------------------------------------------------------
   const handleAiProxySuggest = async (outcome: LfaSroiOutcome) => {
+    if (!orgId) return;
+    if (!outcome?.id) return;
     setAiProxyLoading(outcome.id);
     try {
       const { data, error } = await supabase.functions.invoke('sroi-ai-suggest', {
-        body: {
-          operation: 'proxy_suggest',
-          payload: {
-            outcome_name: outcome.outcome_name,
-            sector: sector,
-            location: 'Indonesia',
-            beneficiary_type: outcome.unit
-          }
-        }
+         body: {
+           operation: 'proxy_suggest',
+           payload: {
+             outcome_name: outcome?.outcome_name ?? '',
+             sector: sector,
+             location: 'Indonesia',
+             beneficiary_type: outcome?.unit ?? 'orang'
+           }
+         }
       });
 
       if (error) throw error;
@@ -585,8 +614,8 @@ export default function SROICalculator({
         const updated = {
           ...outcome,
           proxy_value_idr: data.recommendedProxyValueIdr,
-          proxy_source: data.proxySource || 'Rekomendasi AI SROI',
-          proxy_citation: `${data.proxyCitation || ''} (${data.reasoning || ''})`,
+          proxy_source: data?.proxySource || 'Rekomendasi AI SROI',
+          proxy_citation: `${data?.proxyCitation || ''} (${data?.reasoning || ''})`,
           proxy_category: sector
         };
         debounceSaveOutcome(updated);
@@ -608,26 +637,27 @@ export default function SROICalculator({
   };
 
   const handleAiNarrativeGenerate = async () => {
+    if (!orgId) return;
     if (!config || outcomes.length === 0) return;
     setAiNarrativeLoading(true);
     try {
-      const sortedOutcomes = [...outcomes].sort((a, b) => b.present_value_idr - a.present_value_idr);
-      const topOutcomes = sortedOutcomes.slice(0, 3).map(o => ({
-        name: o.outcome_name,
-        value_idr: o.present_value_idr,
-        pct: parseFloat(((o.present_value_idr / config.total_present_value_idr) * 100).toFixed(1)) || 0
+      const sortedOutcomes = [...(outcomes ?? [])].sort((a, b) => (b?.present_value_idr ?? 0) - (a?.present_value_idr ?? 0));
+      const topOutcomes = (sortedOutcomes ?? []).slice(0, 3).map(o => ({
+        name: o?.outcome_name ?? '',
+        value_idr: o?.present_value_idr ?? 0,
+        pct: parseFloat(((o?.present_value_idr ?? 0) / (config?.total_present_value_idr ?? 1) * 100).toFixed(1)) || 0
       }));
 
       const { data, error } = await supabase.functions.invoke('sroi-ai-suggest', {
         body: {
           operation: 'narrative_generate',
           payload: {
-            program_context: `Sektor: ${sector}, Beneficiary: ${config.beneficiary_count || 'Masyarakat umum'}`,
-            sroi_ratio: config.sroi_ratio,
-            total_investment: config.total_investment_idr,
-            total_present_value: config.total_present_value_idr,
+            program_context: `Sektor: ${sector}, Beneficiary: ${config?.beneficiary_count || 'Masyarakat umum'}`,
+            sroi_ratio: config?.sroi_ratio ?? 0,
+            total_investment: config?.total_investment_idr ?? 0,
+            total_present_value: config?.total_present_value_idr ?? 0,
             top_outcomes: topOutcomes,
-            assumptions: `Tingkat diskonto sosial: ${config.discount_rate * 100}%, Periode analisis: ${config.analysis_period_years} tahun.`
+            assumptions: `Tingkat diskonto sosial: ${(config?.discount_rate ?? 0.035) * 100}%, Periode analisis: ${config?.analysis_period_years ?? 1} tahun.`
           }
         }
       });
@@ -638,7 +668,7 @@ export default function SROICalculator({
         const updatedConfig = {
           ...config,
           ai_narrative: data.narrative
-        };
+        } as LfaSroiConfig;
         setConfig(updatedConfig);
         await supabase
           .from('lfa_sroi_config')
@@ -654,7 +684,7 @@ export default function SROICalculator({
       console.error('AI Narrative failed:', err);
       toast({
         title: 'Gagal Membuat Narasi',
-        description: err.message,
+        description: err?.message || 'Terjadi kesalahan.',
         variant: 'destructive'
       });
     } finally {
@@ -663,13 +693,14 @@ export default function SROICalculator({
   };
 
   const handleAiSensitivityGenerate = async () => {
+    if (!orgId) return;
     if (!config || outcomes.length === 0) return;
     setAiSensitivityLoading(true);
     try {
-      const currentDataSummary = outcomes.map(o => ({
-        name: o.outcome_name,
-        gross: o.gross_value_idr,
-        pv: o.present_value_idr
+      const currentDataSummary = (outcomes ?? []).map(o => ({
+        name: o?.outcome_name ?? '',
+        gross: o?.gross_value_idr ?? 0,
+        pv: o?.present_value_idr ?? 0
       }));
 
       const { data, error } = await supabase.functions.invoke('sroi-ai-suggest', {
@@ -677,8 +708,8 @@ export default function SROICalculator({
           operation: 'sensitivity_analysis',
           payload: {
             current_sroi_data: currentDataSummary,
-            ratio: config.sroi_ratio,
-            assumptions: `Discount rate: ${config.discount_rate * 100}%, Investment: Rp ${config.total_investment_idr}`
+            ratio: config?.sroi_ratio ?? 0,
+            assumptions: `Discount rate: ${(config?.discount_rate ?? 0.035) * 100}%, Investment: Rp ${config?.total_investment_idr ?? 0}`
           }
         }
       });
@@ -689,7 +720,7 @@ export default function SROICalculator({
         const updatedConfig = {
           ...config,
           sensitivity_result: data
-        };
+        } as LfaSroiConfig;
         setConfig(updatedConfig);
         await supabase
           .from('lfa_sroi_config')
@@ -705,7 +736,7 @@ export default function SROICalculator({
       console.error('AI Sensitivity failed:', err);
       toast({
         title: 'Gagal Menganalisis',
-        description: err.message,
+        description: err?.message || 'Terjadi kesalahan.',
         variant: 'destructive'
       });
     } finally {
@@ -725,35 +756,35 @@ export default function SROICalculator({
     const isSimple = config.mode === 'simple';
     const ratioColor = config.sroi_ratio < 1 ? '#EF4444' : config.sroi_ratio <= 2 ? '#F59E0B' : config.sroi_ratio <= 4 ? '#10B981' : '#3B82F6';
 
-    const topOutcomesMarkup = outcomes
-      .sort((a, b) => b.present_value_idr - a.present_value_idr)
+    const topOutcomesMarkup = [...(outcomes ?? [])]
+      .sort((a, b) => (b?.present_value_idr ?? 0) - (a?.present_value_idr ?? 0))
       .slice(0, 3)
       .map(o => `
         <div style="border-bottom: 1px solid #E2E8F0; padding: 10px 0;">
           <div style="display:flex; justify-content:space-between; font-weight: 600;">
-            <span>${o.outcome_name}</span>
-            <span>Rp ${o.present_value_idr.toLocaleString('id-ID')}</span>
+            <span>${o?.outcome_name ?? ''}</span>
+            <span>Rp ${(o?.present_value_idr ?? 0).toLocaleString('id-ID')}</span>
           </div>
-          <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748B;">Adjustment: Kontribusi ${o.attribution_pct}%, Deadweight ${o.deadweight_pct}%</p>
+          <p style="margin: 4px 0 0 0; font-size: 11px; color: #64748B;">Adjustment: Kontribusi ${o?.attribution_pct ?? 0}%, Deadweight ${o?.deadweight_pct ?? 0}%</p>
         </div>
       `).join('');
 
-    const allOutcomesTableRows = outcomes.map((o, idx) => `
+    const allOutcomesTableRows = (outcomes ?? []).map((o, idx) => `
       <tr>
         <td style="border: 1px solid #CBD5E1; padding: 8px;">${idx + 1}</td>
-        <td style="border: 1px solid #CBD5E1; padding: 8px; font-weight:600;">${o.outcome_name}</td>
-        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right;">${o.quantity} ${o.unit || ''}</td>
-        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right;">Rp ${o.proxy_value_idr.toLocaleString('id-ID')}</td>
-        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right;">Rp ${o.gross_value_idr.toLocaleString('id-ID')}</td>
-        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${o.attribution_pct}%</td>
-        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${o.deadweight_pct}%</td>
-        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${o.displacement_pct}%</td>
-        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${o.dropoff_pct_per_year}%</td>
-        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right; font-weight:700;">Rp ${o.present_value_idr.toLocaleString('id-ID')}</td>
+        <td style="border: 1px solid #CBD5E1; padding: 8px; font-weight:600;">${o?.outcome_name ?? ''}</td>
+        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right;">${o?.quantity ?? 0} ${o?.unit || ''}</td>
+        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right;">Rp ${(o?.proxy_value_idr ?? 0).toLocaleString('id-ID')}</td>
+        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right;">Rp ${(o?.gross_value_idr ?? 0).toLocaleString('id-ID')}</td>
+        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${o?.attribution_pct ?? 0}%</td>
+        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${o?.deadweight_pct ?? 0}%</td>
+        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${o?.displacement_pct ?? 0}%</td>
+        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${o?.dropoff_pct_per_year ?? 0}%</td>
+        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right; font-weight:700;">Rp ${(o?.present_value_idr ?? 0).toLocaleString('id-ID')}</td>
       </tr>
     `).join('');
 
-    const sensitivityMarkup = config.sensitivity_result ? `
+    const sensitivityMarkup = config?.sensitivity_result ? `
       <div style="margin-top: 30px;">
         <h3>Analisis Sensitivitas Proyeksi SROI</h3>
         <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
@@ -766,12 +797,12 @@ export default function SROICalculator({
             </tr>
           </thead>
           <tbody>
-            ${config.sensitivity_result.scenarios?.map((s: any) => `
+            ${(config?.sensitivity_result?.scenarios ?? []).map((s: any) => `
               <tr>
-                <td style="border: 1px solid #CBD5E1; padding: 8px; font-weight:bold;">${s.name}</td>
-                <td style="border: 1px solid #CBD5E1; padding: 8px;">${s.assumptionChange}</td>
-                <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center; font-weight:bold; color: #1E293B;">${s.sroiRatio}</td>
-                <td style="border: 1px solid #CBD5E1; padding: 8px;">${s.notes}</td>
+                <td style="border: 1px solid #CBD5E1; padding: 8px; font-weight:bold;">${s?.name ?? ''}</td>
+                <td style="border: 1px solid #CBD5E1; padding: 8px;">${s?.assumptionChange ?? ''}</td>
+                <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center; font-weight:bold; color: #1E293B;">${s?.sroiRatio ?? ''}</td>
+                <td style="border: 1px solid #CBD5E1; padding: 8px;">${s?.notes ?? ''}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -1014,18 +1045,35 @@ export default function SROICalculator({
   };
 
   const getSroiOutcomeChartData = () => {
-    return outcomes.map(o => ({
-      name: o.outcome_name.length > 25 ? `${o.outcome_name.substring(0, 25)}...` : o.outcome_name,
-      value: o.present_value_idr,
-    })).filter(d => d.value > 0);
+    return (outcomes ?? [])
+      .map(o => ({
+        name: o?.outcome_name ? (o.outcome_name.length > 25 ? `${o.outcome_name.substring(0, 25)}...` : o.outcome_name) : '',
+        value: o?.present_value_idr ?? 0,
+      }))
+      .filter(d => d.value > 0);
   };
 
   const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
 
   if (loading) {
     return (
-      <div className="flex h-[400px] items-center justify-center text-muted-foreground">
-        <Loader2 className="mr-2 h-6 w-6 animate-spin text-primary" /> Memuat Modul Kalkulator SROI...
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 p-6 text-center">
+        <p className="text-red-500 text-sm">
+          Gagal memuat data.
+        </p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="text-sm text-teal-600 underline">
+          Muat Ulang
+        </button>
       </div>
     );
   }

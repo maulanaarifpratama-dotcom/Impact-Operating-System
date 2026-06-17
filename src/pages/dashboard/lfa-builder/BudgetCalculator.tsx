@@ -37,6 +37,7 @@ export default function BudgetCalculator({
   const [wbsActivities, setWbsActivities] = useState<WbsItem[]>([]);
   const [budgetItems, setBudgetItems] = useState<BudgetItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [globalMode, setGlobalMode] = useState<'simple' | 'professional'>('simple');
@@ -149,6 +150,7 @@ export default function BudgetCalculator({
 
     } catch (err: any) {
       console.error('Failed to load budget calculator data:', err);
+      setError(err);
       toast({
         title: 'Gagal memuat anggaran',
         description: err.message,
@@ -1101,9 +1103,24 @@ export default function BudgetCalculator({
     printWindow.document.close();
   };
 
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 p-6 text-center bg-white dark:bg-slate-950 rounded-xl border border-rose-100 dark:border-rose-950">
+        <p className="text-red-500 text-sm font-semibold">
+          Gagal memuat anggaran: {error.message ?? 'Kesalahan tidak diketahui'}
+        </p>
+        <button 
+          onClick={() => { setError(null); void loadData(); }}
+          className="text-xs text-white bg-teal-600 px-4 py-1.5 rounded-lg font-medium hover:bg-teal-500 transition-colors">
+          Muat Ulang
+        </button>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div className="flex h-[350px] items-center justify-center text-muted-foreground">
+      <div className="flex h-[350px] items-center justify-center text-muted-foreground bg-white dark:bg-slate-950 rounded-xl border">
         <Loader2 className="mr-2 h-5 w-5 animate-spin text-primary" /> Memuat lembar anggaran program...
       </div>
     );

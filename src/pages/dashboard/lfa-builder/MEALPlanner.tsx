@@ -62,6 +62,7 @@ export default function MEALPlanner({
   
   // UI States
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [globalMode, setGlobalMode] = useState<'simple' | 'professional'>('simple');
@@ -155,6 +156,7 @@ export default function MEALPlanner({
       }
     } catch (err: any) {
       console.error('Failed to load MEAL Planner data:', err);
+      setError(err);
       toast({
         title: 'Gagal memuat MEAL Planner',
         description: err.message,
@@ -1135,6 +1137,21 @@ export default function MEALPlanner({
 
     printWindow.document.close();
   };
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 p-6 text-center bg-white rounded-xl border border-rose-100">
+        <p className="text-red-500 text-sm font-semibold">
+          Gagal memuat MEAL Planner: {error.message ?? 'Kesalahan tidak diketahui'}
+        </p>
+        <button 
+          onClick={() => { setError(null); void loadData(); }}
+          className="text-xs text-white bg-teal-600 px-4 py-1.5 rounded-lg font-medium hover:bg-teal-500 transition-colors">
+          Muat Ulang
+        </button>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

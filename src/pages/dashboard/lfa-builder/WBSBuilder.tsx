@@ -32,6 +32,7 @@ export default function WBSBuilder({
   const { toast } = useToast();
   const [wbsItems, setWbsItems] = useState<WbsItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [globalMode, setGlobalMode] = useState<'simple' | 'professional'>('simple');
@@ -59,32 +60,36 @@ export default function WBSBuilder({
 
   // CPM / Critical Path Calculation
   const getCpmStatus = () => {
-    const activities = wbsItems.filter((i) => i.level === 2);
+    const activities = (wbsItems ?? []).filter((i) => i.level === 2);
     const es: Record<string, number> = {};
     const ef: Record<string, number> = {};
 
     // Initialize early start/finish in weeks
     activities.forEach((act) => {
-      const startWeek = (act.start_month - 1) * 4;
-      es[act.id] = startWeek;
-      ef[act.id] = startWeek + act.duration_weeks;
+      if (act) {
+        const startWeek = ((act.start_month ?? 1) - 1) * 4;
+        es[act.id] = startWeek;
+        ef[act.id] = startWeek + (act.duration_weeks ?? 0);
+      }
     });
 
     // Forward pass relaxation
     for (let k = 0; k < activities.length; k++) {
       let changed = false;
       activities.forEach((act) => {
-        const deps = act.dependencies || [];
-        let maxDepFinish = (act.start_month - 1) * 4;
-        deps.forEach((depId) => {
-          if (ef[depId] !== undefined && ef[depId] > maxDepFinish) {
-            maxDepFinish = ef[depId];
+        if (act) {
+          const deps = act.dependencies || [];
+          let maxDepFinish = ((act.start_month ?? 1) - 1) * 4;
+          deps.forEach((depId) => {
+            if (ef[depId] !== undefined && ef[depId] > maxDepFinish) {
+              maxDepFinish = ef[depId];
+            }
+          });
+          if (es[act.id] < maxDepFinish) {
+            es[act.id] = maxDepFinish;
+            ef[act.id] = maxDepFinish + (act.duration_weeks ?? 0);
+            changed = true;
           }
-        });
-        if (es[act.id] < maxDepFinish) {
-          es[act.id] = maxDepFinish;
-          ef[act.id] = maxDepFinish + act.duration_weeks;
-          changed = true;
         }
       });
       if (!changed) break;
@@ -95,24 +100,28 @@ export default function WBSBuilder({
     const ls: Record<string, number> = {};
     const maxFinish = Math.max(...Object.values(ef), 0);
     activities.forEach((act) => {
-      lf[act.id] = maxFinish;
-      ls[act.id] = maxFinish - act.duration_weeks;
+      if (act) {
+        lf[act.id] = maxFinish;
+        ls[act.id] = maxFinish - (act.duration_weeks ?? 0);
+      }
     });
 
     for (let k = 0; k < activities.length; k++) {
       let changed = false;
       activities.forEach((act) => {
-        const dependents = activities.filter((dep) => dep.dependencies?.includes(act.id));
-        let minDepStart = maxFinish;
-        dependents.forEach((dep) => {
-          if (ls[dep.id] !== undefined && ls[dep.id] < minDepStart) {
-            minDepStart = ls[dep.id];
+        if (act) {
+          const dependents = activities.filter((dep) => dep && dep.dependencies?.includes(act.id));
+          let minDepStart = maxFinish;
+          dependents.forEach((dep) => {
+            if (dep && ls[dep.id] !== undefined && ls[dep.id] < minDepStart) {
+              minDepStart = ls[dep.id];
+            }
+          });
+          if (lf[act.id] > minDepStart) {
+            lf[act.id] = minDepStart;
+            ls[act.id] = minDepStart - (act.duration_weeks ?? 0);
+            changed = true;
           }
-        });
-        if (lf[act.id] > minDepStart) {
-          lf[act.id] = minDepStart;
-          ls[act.id] = minDepStart - act.duration_weeks;
-          changed = true;
         }
       });
       if (!changed) break;
@@ -120,11 +129,13 @@ export default function WBSBuilder({
 
     const criticalPathIds = new Set<string>();
     activities.forEach((act) => {
-      const slack = ls[act.id] - es[act.id];
-      const hasChain = (act.dependencies && act.dependencies.length > 0) ||
-                        activities.some((dep) => dep.dependencies?.includes(act.id));
-      if (slack <= 0 && hasChain) {
-        criticalPathIds.add(act.id);
+      if (act) {
+        const slack = ls[act.id] - es[act.id];
+        const hasChain = (act.dependencies && act.dependencies.length > 0) ||
+                          activities.some((dep) => dep && dep.dependencies?.includes(act.id));
+        if (slack <= 0 && hasChain) {
+          criticalPathIds.add(act.id);
+        }
       }
     });
 
@@ -147,6 +158,7 @@ export default function WBSBuilder({
   };
 
   const loadBudgetTotals = async () => {
+    if (!orgId) return;
     try {
       const { data, error } = await supabase
         .from('lfa_budget_items')
@@ -156,7 +168,7 @@ export default function WBSBuilder({
       if (!error && data) {
         const totals: Record<string, number> = {};
         data.forEach((item) => {
-          if (item.wbs_item_id) {
+          if (item && item.wbs_item_id) {
             const vol = Number(item.volume) || 1;
             const price = Number(item.unit_price_idr) || 0;
             totals[item.wbs_item_id] = (totals[item.wbs_item_id] || 0) + (vol * price);
@@ -171,17 +183,19 @@ export default function WBSBuilder({
 
   // Load WBS Items
   const loadWbsItems = async () => {
+    if (!orgId) return;
     setLoading(true);
+    setError(null);
     try {
       void loadBudgetTotals();
 
-      const { data, error } = await supabase
+      const { data, error: wbsError } = await supabase
         .from('lfa_wbs_items')
         .select('*')
         .eq('lfa_project_id', projectId)
         .order('sort_order', { ascending: true });
 
-      if (error) throw error;
+      if (wbsError) throw wbsError;
 
       if (!data || data.length === 0) {
         // Trigger Auto-import from LFA
@@ -194,9 +208,11 @@ export default function WBSBuilder({
         }
       }
     } catch (err: any) {
+      console.error('[Impactory] Error loading WBS items:', err);
+      setError(err instanceof Error ? err : new Error(err?.message || 'Gagal memuat WBS'));
       toast({
         title: 'Gagal memuat WBS',
-        description: err.message,
+        description: err?.message || 'Gagal memuat WBS',
         variant: 'destructive',
       });
     } finally {
@@ -206,6 +222,7 @@ export default function WBSBuilder({
 
   // Perform Auto-Import
   const performAutoImport = async () => {
+    if (!orgId) return;
     try {
       // 1. Fetch LFA Entries
       const { data: entries, error: eErr } = await supabase
@@ -216,8 +233,8 @@ export default function WBSBuilder({
 
       if (eErr) throw eErr;
 
-      const outputs = (entries || []).filter((e) => e.level === 'output');
-      const activities = (entries || []).filter((e) => e.level === 'activity');
+      const outputs = (entries || []).filter((e) => e && e.level === 'output');
+      const activities = (entries || []).filter((e) => e && e.level === 'activity');
 
       if (outputs.length === 0) {
         setWbsItems([]);
@@ -228,49 +245,53 @@ export default function WBSBuilder({
       let globalSortOrder = 0;
 
       for (const out of outputs) {
-        const level1Id = crypto.randomUUID();
-        const level1Item: WbsItem = {
-          id: level1Id,
-          lfa_project_id: projectId,
-          org_id: orgId,
-          level: 1,
-          parent_id: null,
-          name: out.description || 'Output Hasil Tanpa Judul',
-          start_month: 1,
-          duration_weeks: 4,
-          sort_order: globalSortOrder++,
-          mode: 'simple',
-          dependencies: []
-        };
-        newWbsItems.push(level1Item);
-
-        // Map child activities
-        const childActs = activities.filter((act) => act.parent_id === out.id);
-        for (const act of childActs) {
-          const level2Id = crypto.randomUUID();
-          
-          // Calculate duration in weeks from timeline
-          let durationW = 4;
-          if (act.timeline_start && act.timeline_end) {
-            durationW = Math.max(4, (act.timeline_end - act.timeline_start + 1) * 4);
-          }
-
-          const level2Item: WbsItem = {
-            id: level2Id,
+        if (out) {
+          const level1Id = crypto.randomUUID();
+          const level1Item: WbsItem = {
+            id: level1Id,
             lfa_project_id: projectId,
             org_id: orgId,
-            level: 2,
-            parent_id: level1Id,
-            name: act.description || 'Aktivitas Tanpa Judul',
-            start_month: act.timeline_start || 1,
-            duration_weeks: durationW,
-            pic: act.responsible_party || '',
+            level: 1,
+            parent_id: null,
+            name: out.description || 'Output Hasil Tanpa Judul',
+            start_month: 1,
+            duration_weeks: 4,
             sort_order: globalSortOrder++,
             mode: 'simple',
-            dependencies: [],
-            indicator: act.indicator || ''
+            dependencies: []
           };
-          newWbsItems.push(level2Item);
+          newWbsItems.push(level1Item);
+
+          // Map child activities
+          const childActs = activities.filter((act) => act && act.parent_id === out.id);
+          for (const act of childActs) {
+            if (act) {
+              const level2Id = crypto.randomUUID();
+              
+              // Calculate duration in weeks from timeline
+              let durationW = 4;
+              if (act.timeline_start && act.timeline_end) {
+                durationW = Math.max(4, (act.timeline_end - act.timeline_start + 1) * 4);
+              }
+
+              const level2Item: WbsItem = {
+                id: level2Id,
+                lfa_project_id: projectId,
+                org_id: orgId,
+                level: 2,
+                parent_id: level1Id,
+                name: act.description || 'Aktivitas Tanpa Judul',
+                start_month: act.timeline_start || 1,
+                duration_weeks: durationW,
+                pic: act.responsible_party || '',
+                sort_order: globalSortOrder++,
+                mode: 'simple',
+                dependencies: [],
+                indicator: act.indicator || ''
+              };
+              newWbsItems.push(level2Item);
+            }
+          }
         }
       }
 
@@ -290,10 +311,10 @@ export default function WBSBuilder({
         if (onWbsSaved) onWbsSaved();
       }
     } catch (err: any) {
-      console.error('Auto import failed:', err);
+      console.error('[Impactory] Auto import failed:', err);
       toast({
         title: 'Auto-import Gagal',
-        description: err.message,
+        description: err?.message || 'Terjadi kesalahan.',
         variant: 'destructive',
       });
     }
@@ -307,7 +328,7 @@ export default function WBSBuilder({
 
   // Sync mode changes to DB
   useEffect(() => {
-    if (wbsItems.length === 0) return;
+    if (!wbsItems || wbsItems.length === 0) return;
     const firstMode = wbsItems[0]?.mode;
     if (firstMode !== globalMode) {
       const updated = wbsItems.map((item) => ({ ...item, mode: globalMode }));
@@ -315,6 +336,7 @@ export default function WBSBuilder({
       
       // Update DB
       void (async () => {
+        if (!orgId) return;
         setSaving(true);
         try {
           for (const item of updated) {
@@ -325,7 +347,7 @@ export default function WBSBuilder({
           }
           setLastSaved(new Date());
         } catch (err) {
-          console.error('Failed to sync global mode to DB:', err);
+          console.error('[Impactory] Failed to sync global mode to DB:', err);
         } finally {
           setSaving(false);
         }
@@ -335,7 +357,7 @@ export default function WBSBuilder({
 
   // Local state update helper
   const updateItemLocally = (updated: WbsItem) => {
-    setWbsItems((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+    setWbsItems((prev) => (prev ?? []).map((item) => (item.id === updated.id ? updated : item)));
   };
 
   // Trigger Autosave with Debounce
@@ -346,6 +368,7 @@ export default function WBSBuilder({
 
     setSaving(true);
     debounceTimers.current[item.id] = setTimeout(async () => {
+      if (!orgId) return;
       try {
         const { error } = await supabase
           .from('lfa_wbs_items')
@@ -367,7 +390,7 @@ export default function WBSBuilder({
         setLastSaved(new Date());
         if (onWbsSaved) onWbsSaved();
       } catch (err) {
-        console.error('Failed to autosave WBS item:', err);
+        console.error('[Impactory] Failed to autosave WBS item:', err);
       } finally {
         setSaving(false);
       }
@@ -376,15 +399,16 @@ export default function WBSBuilder({
 
   // Add Level 3 (Sub-aktivitas)
   const handleAddSubActivity = async (parentActivityId: string) => {
+    if (!orgId) return;
     setSaving(true);
     try {
       const newId = crypto.randomUUID();
-      const parentItem = wbsItems.find((i) => i.id === parentActivityId);
+      const parentItem = (wbsItems ?? []).find((i) => i.id === parentActivityId);
       if (!parentItem) return;
 
       // Find children to determine sort_order
-      const children = wbsItems.filter((i) => i.parent_id === parentActivityId);
-      const parentIdx = wbsItems.findIndex((i) => i.id === parentActivityId);
+      const children = (wbsItems ?? []).filter((i) => i.parent_id === parentActivityId);
+      const parentIdx = (wbsItems ?? []).findIndex((i) => i.id === parentActivityId);
 
       const newItem: WbsItem = {
         id: newId,
@@ -401,7 +425,7 @@ export default function WBSBuilder({
       };
 
       // Insert locally
-      const updatedList = [...wbsItems];
+      const updatedList = [...(wbsItems ?? [])];
       updatedList.splice(parentIdx + children.length + 1, 0, newItem);
       // Re-index sort order
       const reindexed = updatedList.map((item, idx) => ({ ...item, sort_order: idx }));
@@ -426,10 +450,12 @@ export default function WBSBuilder({
       setWbsItems(reindexed);
       setLastSaved(new Date());
       if (onWbsSaved) onWbsSaved();
+      toast({ title: 'Tersimpan' });
     } catch (err: any) {
+      console.error('[Impactory] Error adding sub-activity:', err);
       toast({
-        title: 'Gagal menambah sub-aktivitas',
-        description: err.message,
+        title: 'Gagal menyimpan',
+        description: err?.message ?? 'Silakan coba lagi.',
         variant: 'destructive',
       });
     } finally {
@@ -439,14 +465,15 @@ export default function WBSBuilder({
 
   // Add Level 4 (Task)
   const handleAddTask = async (parentSubId: string) => {
+    if (!orgId) return;
     setSaving(true);
     try {
       const newId = crypto.randomUUID();
-      const parentItem = wbsItems.find((i) => i.id === parentSubId);
+      const parentItem = (wbsItems ?? []).find((i) => i.id === parentSubId);
       if (!parentItem) return;
 
-      const children = wbsItems.filter((i) => i.parent_id === parentSubId);
-      const parentIdx = wbsItems.findIndex((i) => i.id === parentSubId);
+      const children = (wbsItems ?? []).filter((i) => i.parent_id === parentSubId);
+      const parentIdx = (wbsItems ?? []).findIndex((i) => i.id === parentSubId);
 
       const newItem: WbsItem = {
         id: newId,
@@ -462,7 +489,7 @@ export default function WBSBuilder({
         dependencies: []
       };
 
-      const updatedList = [...wbsItems];
+      const updatedList = [...(wbsItems ?? [])];
       updatedList.splice(parentIdx + children.length + 1, 0, newItem);
       const reindexed = updatedList.map((item, idx) => ({ ...item, sort_order: idx }));
 
@@ -486,10 +513,12 @@ export default function WBSBuilder({
       setWbsItems(reindexed);
       setLastSaved(new Date());
       if (onWbsSaved) onWbsSaved();
+      toast({ title: 'Tersimpan' });
     } catch (err: any) {
+      console.error('[Impactory] Error adding task:', err);
       toast({
-        title: 'Gagal menambah task',
-        description: err.message,
+        title: 'Gagal menyimpan',
+        description: err?.message ?? 'Silakan coba lagi.',
         variant: 'destructive',
       });
     } finally {
@@ -499,6 +528,7 @@ export default function WBSBuilder({
 
   // Delete Item
   const handleDeleteItem = async (itemId: string) => {
+    if (!orgId) return;
     if (!confirm('Apakah Anda yakin ingin menghapus item ini beserta turunannya?')) return;
     setSaving(true);
     try {
@@ -513,15 +543,17 @@ export default function WBSBuilder({
       // Filter locally
       const filterOutRecursive = (id: string, list: WbsItem[]): string[] => {
         const ids = [id];
-        const children = list.filter((item) => item.parent_id === id);
+        const children = (list ?? []).filter((item) => item.parent_id === id);
         children.forEach((c) => {
-          ids.push(...filterOutRecursive(c.id, list));
+          if (c) {
+            ids.push(...filterOutRecursive(c.id, list));
+          }
         });
         return ids;
       };
 
       const deletedIds = filterOutRecursive(itemId, wbsItems);
-      const remaining = wbsItems.filter((item) => !deletedIds.includes(item.id));
+      const remaining = (wbsItems ?? []).filter((item) => !(deletedIds ?? []).includes(item.id));
       const reindexed = remaining.map((item, idx) => ({ ...item, sort_order: idx }));
 
       setWbsItems(reindexed);
@@ -532,9 +564,10 @@ export default function WBSBuilder({
         description: 'WBS tree diperbarui.',
       });
     } catch (err: any) {
+      console.error('[Impactory] Error deleting item:', err);
       toast({
         title: 'Gagal menghapus item',
-        description: err.message,
+        description: err?.message ?? 'Silakan coba lagi.',
         variant: 'destructive',
       });
     } finally {
@@ -856,8 +889,23 @@ export default function WBSBuilder({
 
   if (loading) {
     return (
-      <div className="flex h-[350px] items-center justify-center text-muted-foreground">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat lembar WBS Builder...
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 p-6 text-center">
+        <p className="text-red-500 text-sm">
+          Gagal memuat data.
+        </p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="text-sm text-teal-600 underline">
+          Muat Ulang
+        </button>
       </div>
     );
   }

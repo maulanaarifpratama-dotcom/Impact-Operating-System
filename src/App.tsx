@@ -1,3 +1,4 @@
+import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { Toaster as Sonner } from '@/components/ui/sonner';
@@ -34,6 +35,67 @@ import SROIStandalone from './pages/dashboard/SROIStandalone';
 
 
 
+
+class DashboardErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error }
+  }
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    console.error('[Impactory] Dashboard error:', error, info)
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{
+          display:'flex',flexDirection:'column',
+          alignItems:'center',justifyContent:'center',
+          minHeight:'100vh',gap:'16px',padding:'32px',
+          backgroundColor:'#f9fafb'
+        }}>
+          <div style={{fontSize:'48px'}}>⚠️</div>
+          <h2 style={{fontSize:'18px',fontWeight:600,
+            color:'#111827'}}>
+            Terjadi kesalahan pada halaman ini.
+          </h2>
+          <p style={{fontSize:'14px',color:'#6b7280',
+            textAlign:'center',maxWidth:'400px'}}>
+            {this.state.error?.message ?? 
+             'Kesalahan tidak diketahui'}
+          </p>
+          <button
+            onClick={() => {
+              this.setState({hasError:false,error:null})
+              window.location.reload()
+            }}
+            style={{
+              padding:'10px 24px',
+              backgroundColor:'#0f6e56',
+              color:'white',borderRadius:'8px',
+              border:'none',cursor:'pointer',
+              fontSize:'14px',fontWeight:500
+            }}
+          >
+            Muat Ulang Halaman
+          </button>
+          <a href="/dashboard" style={{
+            fontSize:'14px',color:'#0f6e56',
+            textDecoration:'underline'
+          }}>
+            Kembali ke Dashboard
+          </a>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -74,7 +136,9 @@ const App = () => (
             <Route
               element={
                 <ProtectedRoute>
-                  <DashboardLayout />
+                  <DashboardErrorBoundary>
+                    <DashboardLayout />
+                  </DashboardErrorBoundary>
                 </ProtectedRoute>
               }
             >
