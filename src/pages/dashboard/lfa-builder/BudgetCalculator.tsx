@@ -453,6 +453,7 @@ export default function BudgetCalculator({
   };
 
   // Calculations & Metrics
+  const durationMonths = projectData?.duration_months || programDurationMonths || 12;
   const totalIDR = budgetItems.reduce((acc, i) => acc + ((Number(i.volume) || 0) * (Number(i.unit_price_idr) || 0)), 0);
   const totalUSD = totalIDR / (exchangeRate || 16000);
 
@@ -476,7 +477,6 @@ export default function BudgetCalculator({
   }).length;
 
   // Program Duration
-  const durationMonths = projectData?.duration_months || programDurationMonths || 12;
 
   // Monthly burn rate
   const burnRateIDR = totalIDR / durationMonths;
