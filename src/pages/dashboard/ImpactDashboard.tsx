@@ -164,7 +164,7 @@ export default function ImpactDashboard() {
     queryKey: ['programs_dashboard', organizationId],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('programs')
+        .from('lfa_projects')
         .select('*')
         .eq('organization_id', organizationId);
       if (error) throw error;
