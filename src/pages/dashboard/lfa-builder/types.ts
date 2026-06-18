@@ -198,6 +198,12 @@ export interface LfaSroiOutcome {
   present_value_idr: number;
   mode: 'simple' | 'professional';
   sort_order: number;
+  is_registry_linked?: boolean;
+  outcome?: string;
+  proxy_value?: number;
+  duration?: number;
+  attribution?: number;
+  dropoff?: number;
   created_at?: string;
   updated_at?: string;
 }

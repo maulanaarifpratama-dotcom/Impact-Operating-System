@@ -3,6 +3,7 @@
 // Tailored for Indonesian NGOs and donor-ready reporting.
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { LfaSroiConfig, LfaSroiOutcome, MealItem } from './types';
@@ -44,6 +45,53 @@ export default function SROICalculator({
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [syncing, setSyncing] = useState(false);
+
+  // Local states for virtual registry-linked outcome
+  const [registryProxyValueIdr, setRegistryProxyValueIdr] = useState(0);
+  const [registryDurationYears, setRegistryDurationYears] = useState(1);
+  const [registryAttributionPct, setRegistryAttributionPct] = useState(100);
+  const [registryDeadweightPct, setRegistryDeadweightPct] = useState(0);
+  const [registryDisplacementPct, setRegistryDisplacementPct] = useState(0);
+  const [registryDropoffPctPerYear, setRegistryDropoffPctPerYear] = useState(0);
+
+  const registryRef = useRef({
+    proxy_value_idr: 0,
+    duration_years: 1,
+    attribution_pct: 100,
+    deadweight_pct: 0,
+    displacement_pct: 0,
+    dropoff_pct_per_year: 0
+  });
+
+  // Sync state changes to ref
+  useEffect(() => {
+    registryRef.current = {
+      proxy_value_idr: registryProxyValueIdr,
+      duration_years: registryDurationYears,
+      attribution_pct: registryAttributionPct,
+      deadweight_pct: registryDeadweightPct,
+      displacement_pct: registryDisplacementPct,
+      dropoff_pct_per_year: registryDropoffPctPerYear
+    };
+  }, [registryProxyValueIdr, registryDurationYears, registryAttributionPct, registryDeadweightPct, registryDisplacementPct, registryDropoffPctPerYear]);
+
+  // Fetch verified beneficiaries count from Beneficiary Registry
+  const { data: registryCount = 0 } = useQuery({
+    queryKey: ['registry-beneficiary-count', projectId],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from('beneficiaries')
+        .select('*', { count: 'exact', head: true })
+        .eq('lfa_project_id', projectId);
+
+      if (error) {
+        console.warn('Registry fetch failed', error);
+        return 0;
+      }
+
+      return count || 0;
+    }
+  });
 
   // Simple Mode Wizard Steps: 1, 2, 3, 4
   const [wizardStep, setStep] = useState<number>(1);
@@ -317,6 +365,39 @@ export default function SROICalculator({
         };
       });
 
+      // Inject the virtual registry outcome calculation to the SROI totals if registryCount > 0
+      if (registryCount > 0) {
+        const registryRow: LfaSroiOutcome = {
+          id: 'registry-linked',
+          lfa_project_id: projectId,
+          org_id: orgId,
+          meal_item_id: null,
+          outcome_name: 'Penerima Manfaat (Terverifikasi)',
+          outcome: 'Penerima Manfaat (Terverifikasi)',
+          quantity: registryCount,
+          unit: 'orang',
+          proxy_value_idr: registryRef.current.proxy_value_idr,
+          proxy_value: registryRef.current.proxy_value_idr,
+          duration_years: registryRef.current.duration_years,
+          duration: registryRef.current.duration_years,
+          attribution_pct: registryRef.current.attribution_pct,
+          attribution: registryRef.current.attribution_pct === 100 ? 1 : registryRef.current.attribution_pct / 100,
+          deadweight_pct: registryRef.current.deadweight_pct,
+          displacement_pct: registryRef.current.displacement_pct,
+          dropoff_pct_per_year: registryRef.current.dropoff_pct_per_year,
+          dropoff: registryRef.current.dropoff_pct_per_year,
+          gross_value_idr: 0,
+          present_value_idr: 0,
+          mode: curConfig?.mode ?? 'simple',
+          sort_order: curOutcomes.length,
+          is_registry_linked: true
+        };
+
+        const { gross_value, present_value } = calculateOutcomeValues(registryRow, curConfig?.discount_rate ?? 0.035);
+        totalGross += gross_value;
+        totalPresentValue += present_value;
+      }
+
       // Avoid divide-by-zero
       const totalInvestment = curConfig?.total_investment_idr ?? 0;
       const sroiRatio = totalInvestment > 0 
@@ -422,6 +503,41 @@ export default function SROICalculator({
       clearTimeout(debounceTimers.current[key]);
     }
 
+    if (newOutcome.id === 'registry-linked') {
+      // Instant local state update for responsive feel
+      setRegistryProxyValueIdr(newOutcome.proxy_value_idr);
+      setRegistryDurationYears(newOutcome.duration_years);
+      setRegistryAttributionPct(newOutcome.attribution_pct);
+      setRegistryDeadweightPct(newOutcome.deadweight_pct || 0);
+      setRegistryDisplacementPct(newOutcome.displacement_pct || 0);
+      setRegistryDropoffPctPerYear(newOutcome.dropoff_pct_per_year || 0);
+
+      registryRef.current = {
+        proxy_value_idr: newOutcome.proxy_value_idr,
+        duration_years: newOutcome.duration_years,
+        attribution_pct: newOutcome.attribution_pct,
+        deadweight_pct: newOutcome.deadweight_pct || 0,
+        displacement_pct: newOutcome.displacement_pct || 0,
+        dropoff_pct_per_year: newOutcome.dropoff_pct_per_year || 0
+      };
+
+      debounceTimers.current[key] = setTimeout(async () => {
+        setSaving(true);
+        try {
+          setLastSaved(new Date());
+          if (config) {
+            recalculateAndSave(config, outcomesRef.current);
+          }
+        } catch (err) {
+          console.error('Debounced save virtual registry outcome failed:', err);
+        } finally {
+          setSaving(false);
+        }
+      }, 1500);
+
+      return;
+    }
+
     // Update locally instantly for responsive feel
     const updated = (outcomes ?? []).map(o => o?.id === newOutcome?.id ? newOutcome : o);
     setOutcomes(updated);
@@ -492,6 +608,41 @@ export default function SROICalculator({
   };
 
   const handleApplyProxyReference = (outcomeId: string, proxy: SroiProxyItem) => {
+    if (outcomeId === 'registry-linked') {
+      const updated: LfaSroiOutcome = {
+        id: 'registry-linked',
+        lfa_project_id: projectId,
+        org_id: orgId,
+        meal_item_id: null,
+        outcome_name: 'Penerima Manfaat (Terverifikasi)',
+        outcome: 'Penerima Manfaat (Terverifikasi)',
+        quantity: registryCount,
+        unit: 'orang',
+        proxy_value_idr: proxy?.value_idr ?? 0,
+        proxy_value: proxy?.value_idr ?? 0,
+        proxy_source: proxy?.source ?? 'Beneficiary Registry',
+        proxy_citation: proxy?.citation ?? '',
+        proxy_category: proxy?.category ?? 'Penerima Manfaat',
+        duration_years: registryRef.current.duration_years,
+        duration: registryRef.current.duration_years,
+        attribution_pct: registryRef.current.attribution_pct,
+        attribution: registryRef.current.attribution_pct === 100 ? 1 : registryRef.current.attribution_pct / 100,
+        deadweight_pct: registryRef.current.deadweight_pct,
+        displacement_pct: registryRef.current.displacement_pct,
+        dropoff_pct_per_year: registryRef.current.dropoff_pct_per_year,
+        dropoff: registryRef.current.dropoff_pct_per_year,
+        is_registry_linked: true,
+        sort_order: outcomes.length
+      };
+
+      debounceSaveOutcome(updated);
+      toast({
+        title: 'Proxy Diaplikasikan',
+        description: `Proxy "${proxy?.name ?? ''}" berhasil diterapkan.`
+      });
+      return;
+    }
+
     const target = (outcomes ?? []).find(o => o?.id === outcomeId);
     if (!target) return;
 
@@ -638,10 +789,10 @@ export default function SROICalculator({
 
   const handleAiNarrativeGenerate = async () => {
     if (!orgId) return;
-    if (!config || outcomes.length === 0) return;
+    if (!config || combinedOutcomes.length === 0) return;
     setAiNarrativeLoading(true);
     try {
-      const sortedOutcomes = [...(outcomes ?? [])].sort((a, b) => (b?.present_value_idr ?? 0) - (a?.present_value_idr ?? 0));
+      const sortedOutcomes = [...(combinedOutcomes ?? [])].sort((a, b) => (b?.present_value_idr ?? 0) - (a?.present_value_idr ?? 0));
       const topOutcomes = (sortedOutcomes ?? []).slice(0, 3).map(o => ({
         name: o?.outcome_name ?? '',
         value_idr: o?.present_value_idr ?? 0,
@@ -694,10 +845,10 @@ export default function SROICalculator({
 
   const handleAiSensitivityGenerate = async () => {
     if (!orgId) return;
-    if (!config || outcomes.length === 0) return;
+    if (!config || combinedOutcomes.length === 0) return;
     setAiSensitivityLoading(true);
     try {
-      const currentDataSummary = (outcomes ?? []).map(o => ({
+      const currentDataSummary = (combinedOutcomes ?? []).map(o => ({
         name: o?.outcome_name ?? '',
         gross: o?.gross_value_idr ?? 0,
         pv: o?.present_value_idr ?? 0
@@ -756,7 +907,7 @@ export default function SROICalculator({
     const isSimple = config.mode === 'simple';
     const ratioColor = config.sroi_ratio < 1 ? '#EF4444' : config.sroi_ratio <= 2 ? '#F59E0B' : config.sroi_ratio <= 4 ? '#10B981' : '#3B82F6';
 
-    const topOutcomesMarkup = [...(outcomes ?? [])]
+    const topOutcomesMarkup = [...(combinedOutcomes ?? [])]
       .sort((a, b) => (b?.present_value_idr ?? 0) - (a?.present_value_idr ?? 0))
       .slice(0, 3)
       .map(o => `
@@ -769,7 +920,7 @@ export default function SROICalculator({
         </div>
       `).join('');
 
-    const allOutcomesTableRows = (outcomes ?? []).map((o, idx) => `
+    const allOutcomesTableRows = (combinedOutcomes ?? []).map((o, idx) => `
       <tr>
         <td style="border: 1px solid #CBD5E1; padding: 8px;">${idx + 1}</td>
         <td style="border: 1px solid #CBD5E1; padding: 8px; font-weight:600;">${o?.outcome_name ?? ''}</td>
@@ -1044,8 +1195,49 @@ export default function SROICalculator({
     return { color, label, minMax, needleDeg };
   };
 
+  // Construct the virtual registry row and combined outcomes list
+  const registryRow: LfaSroiOutcome = {
+    id: 'registry-linked',
+    lfa_project_id: projectId,
+    org_id: orgId,
+    meal_item_id: null,
+    outcome_name: 'Penerima Manfaat (Terverifikasi)',
+    outcome: 'Penerima Manfaat (Terverifikasi)',
+    quantity: registryCount,
+    unit: 'orang',
+    proxy_value_idr: registryProxyValueIdr,
+    proxy_value: registryProxyValueIdr,
+    proxy_source: 'Beneficiary Registry',
+    proxy_citation: '',
+    proxy_category: 'Penerima Manfaat',
+    duration_years: registryDurationYears,
+    duration: registryDurationYears,
+    attribution_pct: registryAttributionPct,
+    attribution: registryAttributionPct === 100 ? 1 : registryAttributionPct / 100,
+    deadweight_pct: registryDeadweightPct,
+    displacement_pct: registryDisplacementPct,
+    dropoff_pct_per_year: registryDropoffPctPerYear,
+    dropoff: registryDropoffPctPerYear,
+    gross_value_idr: 0,
+    present_value_idr: 0,
+    mode: config?.mode ?? 'simple',
+    sort_order: outcomes.length,
+    is_registry_linked: true
+  };
+
+  if (registryCount > 0) {
+    const { gross_value, present_value } = calculateOutcomeValues(registryRow, config?.discount_rate ?? 0.035);
+    registryRow.gross_value_idr = gross_value;
+    registryRow.present_value_idr = present_value;
+  }
+
+  const combinedOutcomes = [
+    ...outcomes,
+    ...(registryCount > 0 ? [registryRow] : [])
+  ];
+
   const getSroiOutcomeChartData = () => {
-    return (outcomes ?? [])
+    return (combinedOutcomes ?? [])
       .map(o => ({
         name: o?.outcome_name ? (o.outcome_name.length > 25 ? `${o.outcome_name.substring(0, 25)}...` : o.outcome_name) : '',
         value: o?.present_value_idr ?? 0,
@@ -1242,7 +1434,7 @@ export default function SROICalculator({
                       <p className="text-muted-foreground text-[11px]">Tautkan indikator MEAL kamu ke referensi nilai keuangan (proxy) di Indonesia.</p>
                     </div>
 
-                    {outcomes.length === 0 ? (
+                    {combinedOutcomes.length === 0 ? (
                       <div className="text-center p-8 border rounded-lg bg-slate-50/50 text-muted-foreground text-xs space-y-3">
                         <AlertTriangle className="h-6 w-6 text-amber-500 mx-auto" />
                         <p>Belum ada outcome terdaftar. Silakan sinkronisasikan ulang dengan tombol di kanan atas.</p>
@@ -1250,32 +1442,62 @@ export default function SROICalculator({
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {outcomes.map((out, idx) => (
+                        {combinedOutcomes.map((out, idx) => (
                           <div key={out.id} className="p-4 border rounded-lg bg-slate-50/20 dark:bg-slate-900/5 space-y-3">
                             <div className="flex justify-between items-start">
                               <span className="h-6 w-6 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700">{idx + 1}</span>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => handleDeleteOutcome(out.id)}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
+                              {!out.is_registry_linked ? (
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => handleDeleteOutcome(out.id)}>
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </Button>
+                              ) : (
+                                <Badge variant="secondary" className="text-[10px]">Sistem</Badge>
+                              )}
                             </div>
 
                             <div className="space-y-1.5">
-                              <Label className="font-bold text-slate-700 dark:text-slate-300">Pernyataan Outcome / Indikator</Label>
+                              <Label className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                                Pernyataan Outcome / Indikator
+                                {out.is_registry_linked && (
+                                  <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-300 border-0 text-[10px] py-0 px-1.5">🔗 Registry</Badge>
+                                )}
+                              </Label>
                               <Input
                                 value={out.outcome_name}
                                 onChange={(e) => debounceSaveOutcome({ ...out, outcome_name: e.target.value })}
                                 placeholder="Indikator outcome dari MEAL Planner..."
+                                disabled={out.is_registry_linked}
                               />
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
                               <div className="space-y-1">
                                 <Label className="font-semibold text-slate-600">Volume (Jumlah)</Label>
-                                <Input
-                                  type="number"
-                                  value={out.quantity || ''}
-                                  onChange={(e) => debounceSaveOutcome({ ...out, quantity: parseFloat(e.target.value) || 0 })}
-                                />
+                                {out.is_registry_linked ? (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <div className="relative">
+                                          <Input
+                                            type="number"
+                                            value={out.quantity || ''}
+                                            disabled
+                                            className="bg-slate-100 dark:bg-slate-900 cursor-not-allowed text-xs"
+                                          />
+                                        </div>
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Jumlah otomatis dari Beneficiary Registry</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                ) : (
+                                  <Input
+                                    type="number"
+                                    value={out.quantity || ''}
+                                    onChange={(e) => debounceSaveOutcome({ ...out, quantity: parseFloat(e.target.value) || 0 })}
+                                  />
+                                )}
                               </div>
                               <div className="space-y-1">
                                 <Label className="font-semibold text-slate-600">Satuan (Unit)</Label>
@@ -1283,6 +1505,7 @@ export default function SROICalculator({
                                   value={out.unit || ''}
                                   onChange={(e) => debounceSaveOutcome({ ...out, unit: e.target.value })}
                                   placeholder="e.g. orang, KK, kasus"
+                                  disabled={out.is_registry_linked}
                                 />
                               </div>
                             </div>
@@ -1392,10 +1615,15 @@ export default function SROICalculator({
                     </div>
 
                     <div className="space-y-5">
-                      {outcomes.map((out, idx) => (
+                      {combinedOutcomes.map((out, idx) => (
                         <div key={out.id} className="p-4 border rounded-lg bg-slate-50/20 dark:bg-slate-900/5 space-y-4">
                           <div>
-                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-0.5">Outcome #{idx + 1}:</span>
+                            <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300 block mb-0.5">
+                              Outcome #{idx + 1}:
+                              {out.is_registry_linked && (
+                                <Badge className="ml-1.5 bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-300 border-0 text-[10px] py-0 px-1.5">🔗 Registry</Badge>
+                              )}
+                            </span>
                             <p className="font-semibold text-xs leading-relaxed text-slate-900 dark:text-slate-100">{out.outcome_name}</p>
                           </div>
 
@@ -1628,30 +1856,56 @@ export default function SROICalculator({
                   </tr>
                 </thead>
                 <tbody>
-                  {outcomes.length === 0 ? (
+                  {combinedOutcomes.length === 0 ? (
                     <tr>
                       <td colSpan={12} className="p-8 text-center text-muted-foreground">
                         Belum ada outcome terdaftar. Klik "Sinkronisasi Ulang" di kanan atas.
                       </td>
                     </tr>
                   ) : (
-                    outcomes.map((out, idx) => (
+                    combinedOutcomes.map((out, idx) => (
                       <tr key={out.id} className="border-b hover:bg-slate-50/50 dark:hover:bg-slate-900/5">
                         <td className="p-2 text-center border-r bg-slate-50/50 dark:bg-slate-900/10 font-bold text-slate-500">{idx + 1}</td>
                         <td className="p-1.5 border-r">
-                          <Input
-                            value={out.outcome_name}
-                            onChange={(e) => debounceSaveOutcome({ ...out, outcome_name: e.target.value })}
-                            className="h-8 border-0 bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 py-0.5 text-xs font-semibold text-slate-800 dark:text-slate-200"
-                          />
+                          <div className="flex items-center gap-1">
+                            <Input
+                              value={out.outcome_name}
+                              onChange={(e) => debounceSaveOutcome({ ...out, outcome_name: e.target.value })}
+                              className="h-8 border-0 bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 py-0.5 text-xs font-semibold text-slate-800 dark:text-slate-200 flex-1"
+                              disabled={out.is_registry_linked}
+                            />
+                            {out.is_registry_linked && (
+                              <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-300 border-0 text-[9px] py-0 px-1 shrink-0">🔗 Registry</Badge>
+                            )}
+                          </div>
                         </td>
                         <td className="p-1.5 border-r">
-                          <Input
-                            type="number"
-                            value={out.quantity || ''}
-                            onChange={(e) => debounceSaveOutcome({ ...out, quantity: parseFloat(e.target.value) || 0 })}
-                            className="h-8 border-0 bg-transparent hover:bg-slate-100 focus:bg-white text-right text-xs"
-                          />
+                          {out.is_registry_linked ? (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="relative">
+                                    <Input
+                                      type="number"
+                                      value={out.quantity || ''}
+                                      disabled
+                                      className="h-8 border-0 bg-slate-100 dark:bg-slate-900 cursor-not-allowed text-right text-xs"
+                                    />
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Jumlah otomatis dari Beneficiary Registry</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          ) : (
+                            <Input
+                              type="number"
+                              value={out.quantity || ''}
+                              onChange={(e) => debounceSaveOutcome({ ...out, quantity: parseFloat(e.target.value) || 0 })}
+                              className="h-8 border-0 bg-transparent hover:bg-slate-100 focus:bg-white text-right text-xs"
+                            />
+                          )}
                         </td>
                         <td className="p-1.5 border-r">
                           <Input
@@ -1659,6 +1913,7 @@ export default function SROICalculator({
                             onChange={(e) => debounceSaveOutcome({ ...out, unit: e.target.value })}
                             className="h-8 border-0 bg-transparent hover:bg-slate-100 focus:bg-white text-xs"
                             placeholder="e.g. KK, orang"
+                            disabled={out.is_registry_linked}
                           />
                         </td>
                         <td className="p-1.5 border-r space-y-1">
@@ -1724,9 +1979,13 @@ export default function SROICalculator({
                           Rp {(out.present_value_idr || 0).toLocaleString('id-ID')}
                         </td>
                         <td className="p-2 text-center">
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => handleDeleteOutcome(out.id)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {!out.is_registry_linked ? (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => handleDeleteOutcome(out.id)}>
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          ) : (
+                            <Badge variant="secondary" className="text-[10px]">Sistem</Badge>
+                          )}
                         </td>
                       </tr>
                     ))
@@ -1772,7 +2031,7 @@ export default function SROICalculator({
                 <CardDescription className="text-[9px] mt-0.5">Proporsi pembentukan present value per outcome indikator.</CardDescription>
               </CardHeader>
               <CardContent className="p-4 flex items-center justify-center">
-                {outcomes.length === 0 || outcomes.every(o => o.present_value_idr === 0) ? (
+                {combinedOutcomes.length === 0 || combinedOutcomes.every(o => o.present_value_idr === 0) ? (
                   <div className="h-48 flex items-center justify-center text-muted-foreground text-xs italic">
                     Belum ada data visualisasi (Proxy Rp 0 atau no data).
                   </div>
