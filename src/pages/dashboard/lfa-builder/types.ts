@@ -60,6 +60,11 @@ export interface WbsItem {
   dependencies?: string[] | null;
   sort_order: number;
   mode: 'simple' | 'professional';
+  carbon_enabled?: boolean | null;
+  carbon_factor?: number | null;
+  carbon_unit?: string | null;
+  carbon_source?: string | null;
+  carbon_description?: string | null;
   created_at?: string;
   updated_at?: string;
 }

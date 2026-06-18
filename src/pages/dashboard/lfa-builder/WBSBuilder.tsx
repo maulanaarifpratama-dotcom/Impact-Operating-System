@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { WbsItem, LfaEntry, LfaProject } from './types';
+import { CARBON_FACTORS_INDONESIA } from '@/data/carbon-factors-indonesia';
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
   AlertTriangle, Milestone, Calendar, User, AlignLeft, Flag, Network
@@ -37,6 +38,7 @@ export default function WBSBuilder({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [globalMode, setGlobalMode] = useState<'simple' | 'professional'>('simple');
   const [budgetTotals, setBudgetTotals] = useState<Record<string, number>>({});
+  const [carbonMode, setCarbonMode] = useState(false);
 
 
   // AI Suggestion Dialog States
@@ -382,7 +384,12 @@ export default function WBSBuilder({
             notes: item.notes,
             dependencies: item.dependencies || [],
             sort_order: item.sort_order,
-            mode: item.mode
+            mode: item.mode,
+            carbon_enabled: item.carbon_enabled,
+            carbon_factor: item.carbon_factor,
+            carbon_unit: item.carbon_unit,
+            carbon_source: item.carbon_source,
+            carbon_description: item.carbon_description
           })
           .eq('id', item.id);
 
@@ -965,6 +972,20 @@ export default function WBSBuilder({
             </button>
           </div>
 
+          {/* Carbon Analysis Toggle */}
+          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 px-3 rounded-lg border">
+            <input
+              type="checkbox"
+              id="carbonModeToggle"
+              checked={carbonMode}
+              onChange={(e) => setCarbonMode(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+            />
+            <label htmlFor="carbonModeToggle" className="text-[11px] font-semibold cursor-pointer select-none text-slate-700 dark:text-slate-300 flex items-center gap-1">
+              🌱 Aktifkan Analisis Lingkungan (Opsional)
+            </label>
+          </div>
+
           <Button variant="outline" size="sm" onClick={handleExportPrintPDF} className="text-xs font-semibold">
             <Download className="mr-1.5 h-3.5 w-3.5" /> Export PDF
           </Button>
@@ -1023,208 +1044,375 @@ export default function WBSBuilder({
               if (item.level === 4 && globalMode === 'simple') return null;
 
               return (
-                <div key={item.id} className={`${rowStyle} ${indentStyle}`}>
-                  {/* Row Body Left Side */}
-                  <div className="flex-1 flex items-center gap-1.5 min-w-0">
-                    {/* Row level tag */}
-                    {item.level === 1 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-800 text-white shrink-0">H</span>}
-                    {item.level === 2 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-600 text-white shrink-0">K</span>}
-                    {item.level === 3 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-500 text-white shrink-0">Sub</span>}
-                    {item.level === 4 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-400 text-white shrink-0">Task</span>}
+                <Fragment key={item.id}>
+                  <div className={`${rowStyle} ${indentStyle}`}>
+                    {/* Row Body Left Side */}
+                    <div className="flex-1 flex items-center gap-1.5 min-w-0">
+                      {/* Row level tag */}
+                      {item.level === 1 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-800 text-white shrink-0">H</span>}
+                      {item.level === 2 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-600 text-white shrink-0">K</span>}
+                      {item.level === 3 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-500 text-white shrink-0">Sub</span>}
+                      {item.level === 4 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-400 text-white shrink-0">Task</span>}
 
-                    {/* Inline edit input */}
-                    {item.level === 1 ? (
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate py-1" title={item.name}>
-                        {item.name}
-                      </span>
-                    ) : (
-                      <input
-                        type="text"
-                        value={item.name}
-                        data-testid="wbs-activity-name-input"
-                        placeholder={
-                          item.level === 2 ? 'Ketik nama aktivitas...' :
-                          item.level === 3 ? 'Ketik sub-aktivitas...' : 'Ketik detail task...'
-                        }
-                        onChange={(e) => {
-                          const updated = { ...item, name: e.target.value };
-                          updateItemLocally(updated);
-                          triggerAutosave(updated);
-                        }}
-                        className="text-xs w-full bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:border-primary focus:outline-none py-0.5 font-medium truncate"
-                      />
-                    )}
-                  </div>
+                      {/* Inline edit input */}
+                      {item.level === 1 ? (
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate py-1" title={item.name}>
+                          {item.name}
+                        </span>
+                      ) : (
+                        <input
+                          type="text"
+                          value={item.name}
+                          data-testid="wbs-activity-name-input"
+                          placeholder={
+                            item.level === 2 ? 'Ketik nama aktivitas...' :
+                            item.level === 3 ? 'Ketik sub-aktivitas...' : 'Ketik detail task...'
+                          }
+                          onChange={(e) => {
+                            const updated = { ...item, name: e.target.value };
+                            updateItemLocally(updated);
+                            triggerAutosave(updated);
+                          }}
+                          className="text-xs w-full bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:border-primary focus:outline-none py-0.5 font-medium truncate"
+                        />
+                      )}
+                    </div>
 
-                  {/* Monthly starting column */}
-                  <div className="w-16 text-center">
-                    {item.level === 2 ? (
-                      <input
-                        type="number"
-                        min={1}
-                        max={programDurationMonths}
-                        value={item.start_month}
-                        onChange={(e) => {
-                          const val = Math.max(1, Math.min(programDurationMonths, parseInt(e.target.value) || 1));
-                          const updated = { ...item, start_month: val };
-                          updateItemLocally(updated);
-                          triggerAutosave(updated);
-                        }}
-                        className="w-10 text-center text-xs border rounded p-0.5 h-6 bg-transparent dark:border-slate-800"
-                        title="Bulan mulai"
-                      />
-                    ) : item.level === 3 && globalMode === 'professional' ? (
-                      // start_month input for level 3 pic duration
-                      <span className="text-[10px] text-muted-foreground">-</span>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground">-</span>
-                    )}
-                  </div>
-
-                  {/* Weeks / Days duration columns */}
-                  <div className="w-16 text-center flex items-center justify-center gap-0.5">
-                    {item.level === 2 ? (
-                      <div className="flex items-center gap-1">
+                    {/* Monthly starting column */}
+                    <div className="w-16 text-center">
+                      {item.level === 2 ? (
                         <input
                           type="number"
                           min={1}
-                          value={item.duration_weeks}
+                          max={programDurationMonths}
+                          value={item.start_month}
                           onChange={(e) => {
-                            const val = Math.max(1, parseInt(e.target.value) || 4);
-                            const updated = { ...item, duration_weeks: val };
+                            const val = Math.max(1, Math.min(programDurationMonths, parseInt(e.target.value) || 1));
+                            const updated = { ...item, start_month: val };
                             updateItemLocally(updated);
                             triggerAutosave(updated);
                           }}
                           className="w-10 text-center text-xs border rounded p-0.5 h-6 bg-transparent dark:border-slate-800"
+                          title="Bulan mulai"
                         />
-                        <button
-                          onClick={() => void handleRequestAiSuggest(item)}
-                          className="text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20 p-0.5 rounded transition-all shrink-0"
-                          title="✨ Tanya Saran AI untuk Estimasi Durasi"
-                        >
-                          <Sparkles className="h-3 w-3" />
-                        </button>
-                      </div>
-                    ) : item.level === 3 && globalMode === 'professional' ? (
-                      <div className="flex items-center gap-0.5">
-                        <input
-                          type="number"
-                          min={1}
-                          value={item.duration_weeks} // level 3 duration in days
-                          onChange={(e) => {
-                            const val = Math.max(1, parseInt(e.target.value) || 1);
-                            const updated = { ...item, duration_weeks: val };
-                            updateItemLocally(updated);
-                            triggerAutosave(updated);
-                          }}
-                          className="w-8 text-center text-[10px] border rounded p-0.5 h-6 bg-transparent dark:border-slate-800"
-                        />
-                        <span className="text-[9px] text-muted-foreground">Hari</span>
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-muted-foreground">-</span>
-                    )}
-                  </div>
-
-                  {/* PIC column */}
-                  <div className="w-24">
-                    {item.level === 1 ? (
-                      <span className="text-[10px] text-muted-foreground">-</span>
-                    ) : (
-                      <input
-                        type="text"
-                        value={item.pic || ''}
-                        data-testid="wbs-pic-input"
-                        placeholder={item.level === 2 && globalMode === 'professional' ? 'Nama + Jabatan + Org' : 'PIC'}
-                        onChange={(e) => {
-                          const updated = { ...item, pic: e.target.value };
-                          updateItemLocally(updated);
-                          triggerAutosave(updated);
-                        }}
-                        className="text-[10px] w-full bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:outline-none py-0.5 font-normal truncate"
-                      />
-                    )}
-                  </div>
-
-                  {/* Method dropdown for professional mode (Level 2 only) */}
-                  {globalMode === 'professional' && (
-                    <div className="w-24">
-                      {item.level === 2 ? (
-                        <select
-                          value={item.method || ''}
-                          onChange={(e) => {
-                            const val = e.target.value as any;
-                            const updated = { ...item, method: val ? val : null };
-                            updateItemLocally(updated);
-                            triggerAutosave(updated);
-                          }}
-                          className="text-[10px] w-full border bg-transparent rounded px-1 h-6 focus:outline-none dark:border-slate-800"
-                        >
-                          <option value="">-- Metode --</option>
-                          <option value="Workshop">Workshop</option>
-                          <option value="FGD">FGD</option>
-                          <option value="Survey">Survey</option>
-                          <option value="Pelatihan">Pelatihan</option>
-                          <option value="Pendampingan">Pendampingan</option>
-                          <option value="Rapat">Rapat</option>
-                          <option value="Lainnya">Lainnya</option>
-                        </select>
+                      ) : item.level === 3 && globalMode === 'professional' ? (
+                        // start_month input for level 3 pic duration
+                        <span className="text-[10px] text-muted-foreground">-</span>
                       ) : (
                         <span className="text-[10px] text-muted-foreground">-</span>
                       )}
                     </div>
-                  )}
 
-                  {/* Action Buttons Right Side */}
-                  <div className="w-8 flex items-center justify-end gap-1 shrink-0">
-                    {item.level === 1 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
-                        onClick={() => void handleAddSubActivity(item.id)}
-                        title="Tambah Aktivitas"
-                        disabled={true} // Read-only from LFA Matrix!
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </Button>
+                    {/* Weeks / Days duration columns */}
+                    <div className="w-16 text-center flex items-center justify-center gap-0.5">
+                      {item.level === 2 ? (
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={1}
+                            value={item.duration_weeks}
+                            onChange={(e) => {
+                              const val = Math.max(1, parseInt(e.target.value) || 4);
+                              const updated = { ...item, duration_weeks: val };
+                              updateItemLocally(updated);
+                              triggerAutosave(updated);
+                            }}
+                            className="w-10 text-center text-xs border rounded p-0.5 h-6 bg-transparent dark:border-slate-800"
+                          />
+                          <button
+                            onClick={() => void handleRequestAiSuggest(item)}
+                            className="text-amber-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20 p-0.5 rounded transition-all shrink-0"
+                            title="✨ Tanya Saran AI untuk Estimasi Durasi"
+                          >
+                            <Sparkles className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ) : item.level === 3 && globalMode === 'professional' ? (
+                        <div className="flex items-center gap-0.5">
+                          <input
+                            type="number"
+                            min={1}
+                            value={item.duration_weeks} // level 3 duration in days
+                            onChange={(e) => {
+                              const val = Math.max(1, parseInt(e.target.value) || 1);
+                              const updated = { ...item, duration_weeks: val };
+                              updateItemLocally(updated);
+                              triggerAutosave(updated);
+                            }}
+                            className="w-8 text-center text-[10px] border rounded p-0.5 h-6 bg-transparent dark:border-slate-800"
+                          />
+                          <span className="text-[9px] text-muted-foreground">Hari</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">-</span>
+                      )}
+                    </div>
+
+                    {/* PIC column */}
+                    <div className="w-24">
+                      {item.level === 1 ? (
+                        <span className="text-[10px] text-muted-foreground">-</span>
+                      ) : (
+                        <input
+                          type="text"
+                          value={item.pic || ''}
+                          data-testid="wbs-pic-input"
+                          placeholder={item.level === 2 && globalMode === 'professional' ? 'Nama + Jabatan + Org' : 'PIC'}
+                          onChange={(e) => {
+                            const updated = { ...item, pic: e.target.value };
+                            updateItemLocally(updated);
+                            triggerAutosave(updated);
+                          }}
+                          className="text-[10px] w-full bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:outline-none py-0.5 font-normal truncate"
+                        />
+                      )}
+                    </div>
+
+                    {/* Method dropdown for professional mode (Level 2 only) */}
+                    {globalMode === 'professional' && (
+                      <div className="w-24">
+                        {item.level === 2 ? (
+                          <select
+                            value={item.method || ''}
+                            onChange={(e) => {
+                              const val = e.target.value as any;
+                              const updated = { ...item, method: val ? val : null };
+                              updateItemLocally(updated);
+                              triggerAutosave(updated);
+                            }}
+                            className="text-[10px] w-full border bg-transparent rounded px-1 h-6 focus:outline-none dark:border-slate-800"
+                          >
+                            <option value="">-- Metode --</option>
+                            <option value="Workshop">Workshop</option>
+                            <option value="FGD">FGD</option>
+                            <option value="Survey">Survey</option>
+                            <option value="Pelatihan">Pelatihan</option>
+                            <option value="Pendampingan">Pendampingan</option>
+                            <option value="Rapat">Rapat</option>
+                            <option value="Lainnya">Lainnya</option>
+                          </select>
+                        ) : (
+                          <span className="text-[10px] text-muted-foreground">-</span>
+                        )}
+                      </div>
                     )}
-                    {item.level === 2 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        data-testid="wbs-add-item-button"
-                        className="h-6 w-6 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
-                        onClick={() => void handleAddSubActivity(item.id)}
-                        title="Tambah Sub-aktivitas"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                    {item.level === 3 && globalMode === 'professional' && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
-                        onClick={() => void handleAddTask(item.id)}
-                        title="Tambah Task Detail"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
-                    {item.level !== 1 && (
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
-                        onClick={() => void handleDeleteItem(item.id)}
-                        title="Hapus"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    )}
+
+                    {/* Action Buttons Right Side */}
+                    <div className="w-8 flex items-center justify-end gap-1 shrink-0">
+                      {item.level === 1 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                          onClick={() => void handleAddSubActivity(item.id)}
+                          title="Tambah Aktivitas"
+                          disabled={true} // Read-only from LFA Matrix!
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {item.level === 2 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          data-testid="wbs-add-item-button"
+                          className="h-6 w-6 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
+                          onClick={() => void handleAddSubActivity(item.id)}
+                          title="Tambah Sub-aktivitas"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {item.level === 3 && globalMode === 'professional' && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
+                          onClick={() => void handleAddTask(item.id)}
+                          title="Tambah Task Detail"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {item.level !== 1 && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
+                          onClick={() => void handleDeleteItem(item.id)}
+                          title="Hapus"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
+
+                  {/* Level 2 Carbon tracking fields under carbonMode */}
+                  {item.level === 2 && carbonMode && (
+                    <div className="pl-8 pr-4 py-3 bg-emerald-50/20 dark:bg-emerald-950/5 border-b border-t border-slate-100 dark:border-slate-800/50 flex flex-col gap-2 min-w-[500px] w-full">
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          id={`carbon-enabled-${item.id}`}
+                          checked={item.carbon_enabled || false}
+                          onChange={(e) => {
+                            const enabled = e.target.checked;
+                            const updated = {
+                              ...item,
+                              carbon_enabled: enabled,
+                              carbon_factor: enabled ? (item.carbon_factor ?? 0) : null,
+                              carbon_unit: enabled ? (item.carbon_unit ?? 'kg_co2_per_unit') : null,
+                              carbon_source: enabled ? (item.carbon_source ?? '') : null,
+                              carbon_description: enabled ? (item.carbon_description ?? '') : null
+                            };
+                            updateItemLocally(updated);
+                            triggerAutosave(updated);
+                          }}
+                          className="h-3.5 w-3.5 rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+                        />
+                        <label
+                          htmlFor={`carbon-enabled-${item.id}`}
+                          className="text-xs font-bold text-teal-700 dark:text-teal-400 cursor-pointer select-none flex items-center gap-1.5"
+                        >
+                          🌱 Aktifkan Carbon Tracking per Aktivitas
+                        </label>
+                      </div>
+
+                      {item.carbon_enabled && (
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-1.5 p-3 bg-white dark:bg-slate-900 border rounded-lg shadow-inner">
+                          {/* Template factor selection dropdown */}
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Template Faktor Emisi</label>
+                            <select
+                              value={CARBON_FACTORS_INDONESIA.find(f => f.factor === item.carbon_factor && f.unit === item.carbon_unit)?.id || 'custom'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val === 'custom') {
+                                  const updated = {
+                                    ...item,
+                                    carbon_source: 'Custom / Manual Input',
+                                  };
+                                  updateItemLocally(updated);
+                                  triggerAutosave(updated);
+                                } else {
+                                  const factorObj = CARBON_FACTORS_INDONESIA.find(f => f.id === val);
+                                  if (factorObj) {
+                                    const updated = {
+                                      ...item,
+                                      carbon_factor: factorObj.factor,
+                                      carbon_unit: factorObj.unit,
+                                      carbon_source: factorObj.source,
+                                      carbon_description: factorObj.name_id,
+                                    };
+                                    updateItemLocally(updated);
+                                    triggerAutosave(updated);
+                                  }
+                                }
+                              }}
+                              className="text-xs border rounded px-2 h-8 bg-transparent dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                            >
+                              <option value="custom">Custom / Manual Input</option>
+                              {CARBON_FACTORS_INDONESIA.map((f) => (
+                                <option key={f.id} value={f.id}>
+                                  {f.name} ({f.factor > 0 ? `+${f.factor}` : f.factor} {f.unit_label})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Value input */}
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Nilai Emisi (kg CO₂)</label>
+                            <input
+                              type="number"
+                              step="any"
+                              value={item.carbon_factor !== null && item.carbon_factor !== undefined ? item.carbon_factor : ''}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                                const updated = {
+                                  ...item,
+                                  carbon_factor: val,
+                                };
+                                updateItemLocally(updated);
+                                triggerAutosave(updated);
+                              }}
+                              placeholder="Masukkan nilai emisi..."
+                              className="text-xs border rounded px-2 h-8 bg-transparent dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                            />
+                          </div>
+
+                          {/* Unit dropdown */}
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Satuan Emisi</label>
+                            <select
+                              value={item.carbon_unit || 'kg_co2_per_unit'}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                const updated = {
+                                  ...item,
+                                  carbon_unit: val,
+                                };
+                                updateItemLocally(updated);
+                                triggerAutosave(updated);
+                              }}
+                              className="text-xs border rounded px-2 h-8 bg-transparent dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                            >
+                              <option value="kg_co2_per_unit">kg CO₂ / unit</option>
+                              <option value="kg_co2_per_km">kg CO₂ / km</option>
+                              <option value="kg_co2_per_kwh">kg CO₂ / kWh</option>
+                              <option value="kg_co2_per_event">kg CO₂ / event</option>
+                            </select>
+                          </div>
+
+                          {/* Source and Description Inputs */}
+                          <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-slate-100 dark:border-slate-800/50 pt-2.5 mt-1">
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Sumber Data Referensi</label>
+                              <input
+                                type="text"
+                                value={item.carbon_source || ''}
+                                onChange={(e) => {
+                                  const updated = {
+                                    ...item,
+                                    carbon_source: e.target.value,
+                                  };
+                                  updateItemLocally(updated);
+                                  triggerAutosave(updated);
+                                }}
+                                placeholder="Contoh: IPCC, GHG Protocol, PLN Indonesia"
+                                className="text-[11px] border rounded px-2 h-7 bg-transparent dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                              />
+                            </div>
+                            <div className="flex flex-col gap-1">
+                              <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Keterangan Dampak Lingkungan</label>
+                              <input
+                                type="text"
+                                value={item.carbon_description || ''}
+                                onChange={(e) => {
+                                  const updated = {
+                                    ...item,
+                                    carbon_description: e.target.value,
+                                  };
+                                  updateItemLocally(updated);
+                                  triggerAutosave(updated);
+                                }}
+                                placeholder="Keterangan singkat dampak lingkungan..."
+                                className="text-[11px] border rounded px-2 h-7 bg-transparent dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Helper Info Footer */}
+                          <p className="text-[10px] text-muted-foreground/80 md:col-span-3 flex items-center gap-1.5 mt-1 italic select-none">
+                            <span>💡</span>
+                            <span>Contoh: Pelatihan offline ≈ 2.0 kg CO₂/event. Gunakan nilai negatif (-) jika aktivitas bersifat mereduksi atau menyerap emisi (misal: penanaman pohon).</span>
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </Fragment>
               );
             })
           )}
