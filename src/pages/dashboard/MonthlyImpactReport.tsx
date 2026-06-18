@@ -300,6 +300,64 @@ export default function MonthlyImpactReport() {
     enabled: !!selectedLfaProjectId,
   });
 
+  // 8.5. Fetch beneficiaries for registry auto-fill
+  const { data: beneficiariesList = [], isLoading: isBeneficiariesLoading } = useQuery({
+    queryKey: ['beneficiaries_report', orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      try {
+        const { data, error } = await supabase
+          .from('beneficiaries')
+          .select('id, status, lfa_project_id')
+          .eq('org_id', orgId);
+        
+        if (error) {
+          if (
+            error.message?.includes('does not exist') ||
+            error.message?.includes('Could not find the table') ||
+            error.code?.includes('42P01') ||
+            error.code === 'PGRST116' ||
+            error.code === 'PGRST205'
+          ) {
+            console.warn('Using localStorage fallback for report beneficiaries:', error);
+            const saved = localStorage.getItem('impactory_local_beneficiaries');
+            const parsed = saved ? JSON.parse(saved) : [];
+            return parsed.map((b: any) => ({
+              id: b.id,
+              status: b.status,
+              lfa_project_id: b.lfa_project_id,
+            }));
+          }
+          throw error;
+        }
+        return data || [];
+      } catch (err) {
+        console.warn('Beneficiaries query failed in report, falling back to localStorage:', err);
+        const saved = localStorage.getItem('impactory_local_beneficiaries');
+        const parsed = saved ? JSON.parse(saved) : [];
+        return parsed.map((b: any) => ({
+          id: b.id,
+          status: b.status,
+          lfa_project_id: b.lfa_project_id,
+        }));
+      }
+    },
+    enabled: !!orgId,
+  });
+
+  const handleFillFromRegistry = () => {
+    if (!selectedLfaProjectId) {
+      toast.warning('Silakan pilih Project LFA terlebih dahulu.');
+      return;
+    }
+    const count = beneficiariesList.filter(
+      (b: any) => b.lfa_project_id === selectedLfaProjectId
+    ).length;
+
+    update('penerimaManfaat', `${count} jiwa penerima manfaat`);
+    toast.success(`Berhasil mengambil ${count} penerima manfaat dari registry program ini!`);
+  };
+
   // Helper lists to map Indonesian and English month names
   const monthNamesIndo = useMemo(() => [
     'januari', 'februari', 'maret', 'april', 'mei', 'juni',
@@ -568,7 +626,7 @@ export default function MonthlyImpactReport() {
     toast.success(`Berhasil memuat arsip laporan periode ${period}!`);
   };
 
-  const isGlobalLoading = isMembershipLoading || (!!orgId && (isDonationsLoading || isProgramsLoading || isProgramMetricsLoading || isReadinessLoading || isLfaProjectsLoading || isMealItemsLoading || isMealTrackingEntriesLoading));
+  const isGlobalLoading = isMembershipLoading || (!!orgId && (isDonationsLoading || isProgramsLoading || isProgramMetricsLoading || isReadinessLoading || isLfaProjectsLoading || isMealItemsLoading || isMealTrackingEntriesLoading || isBeneficiariesLoading));
 
   if (isGlobalLoading) {
     return (
@@ -736,6 +794,25 @@ export default function MonthlyImpactReport() {
                           rows={4}
                           className="text-xs"
                         />
+                      ) : field.key === 'penerimaManfaat' ? (
+                        <div className="flex gap-2">
+                          <Input
+                            id={field.key}
+                            value={report[field.key]}
+                            onChange={(e) => update(field.key, e.target.value)}
+                            placeholder={field.placeholder}
+                            className="text-xs h-9 flex-1"
+                          />
+                          <Button
+                            type="button"
+                            onClick={handleFillFromRegistry}
+                            variant="outline"
+                            size="sm"
+                            className="h-9 px-3 border-accent/30 text-accent hover:bg-accent/10 text-xs font-semibold shrink-0 animate-pulse-subtle"
+                          >
+                            <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Ambil dari Registry
+                          </Button>
+                        </div>
                       ) : (
                         <Input
                           id={field.key}

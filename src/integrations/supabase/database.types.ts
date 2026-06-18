@@ -456,6 +456,52 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['day_plan_progress']['Insert']>;
         Relationships: [];
       };
+      beneficiaries: {
+        Row: {
+          id: string;
+          org_id: string;
+          lfa_project_id: string | null;
+          full_name: string;
+          gender: 'M' | 'F' | 'other' | null;
+          age: number | null;
+          village: string | null;
+          city: string | null;
+          status: 'active' | 'alumni' | 'inactive';
+          nik: string | null;
+          vulnerable_categories: string[];
+          start_date: string | null;
+          contact: string | null;
+          photo_url: string | null;
+          pdp_consent: boolean;
+          notes: string | null;
+          mode: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          org_id: string;
+          lfa_project_id?: string | null;
+          full_name: string;
+          gender?: 'M' | 'F' | 'other' | null;
+          age?: number | null;
+          village?: string | null;
+          city?: string | null;
+          status?: 'active' | 'alumni' | 'inactive';
+          nik?: string | null;
+          vulnerable_categories?: string[];
+          start_date?: string | null;
+          contact?: string | null;
+          photo_url?: string | null;
+          pdp_consent?: boolean;
+          notes?: string | null;
+          mode?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['beneficiaries']['Insert']>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {

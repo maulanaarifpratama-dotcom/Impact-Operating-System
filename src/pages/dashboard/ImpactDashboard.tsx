@@ -194,6 +194,43 @@ export default function ImpactDashboard() {
     enabled: !!organizationId,
   });
 
+  // 10. Fetch Beneficiaries Summaries
+  const { data: beneficiariesSummary = [], isLoading: isBeneficiariesSummaryLoading } = useQuery({
+    queryKey: ['beneficiaries_summary_exec_summary', organizationId],
+    queryFn: async () => {
+      if (!organizationId) return [];
+      try {
+        const { data, error } = await supabase
+          .from('beneficiaries')
+          .select('id, status')
+          .eq('org_id', organizationId);
+        
+        if (error) {
+          if (
+            error.message?.includes('does not exist') ||
+            error.message?.includes('Could not find the table') ||
+            error.code?.includes('42P01') ||
+            error.code === 'PGRST116' ||
+            error.code === 'PGRST205'
+          ) {
+            console.warn('Using localStorage fallback for executive summary beneficiaries count:', error);
+            const saved = localStorage.getItem('impactory_local_beneficiaries');
+            const parsed = saved ? JSON.parse(saved) : [];
+            return parsed.map((b: any) => ({ id: b.id, status: b.status }));
+          }
+          throw error;
+        }
+        return data || [];
+      } catch (err) {
+        console.warn('Beneficiaries query failed in dashboard, falling back to localStorage:', err);
+        const saved = localStorage.getItem('impactory_local_beneficiaries');
+        const parsed = saved ? JSON.parse(saved) : [];
+        return parsed.map((b: any) => ({ id: b.id, status: b.status }));
+      }
+    },
+    enabled: !!organizationId,
+  });
+
   // Global Loading State
   const isLoading =
     isMembershipLoading ||
@@ -204,7 +241,8 @@ export default function ImpactDashboard() {
     isDonationsLoading ||
     isGwProjectsLoading ||
     isSroiLoading ||
-    isAssessmentsLoading;
+    isAssessmentsLoading ||
+    isBeneficiariesSummaryLoading;
 
   // Formatting Date Helper
   const formattedToday = useMemo(() => {
@@ -267,6 +305,11 @@ export default function ImpactDashboard() {
       latestAssessmentLevel = getImpactReadinessLevel(latestAssessmentScore);
     }
 
+    // BENEFICIARIES SUMMARY
+    const totalBeneficiariesCount = beneficiariesSummary.length;
+    const activeBeneficiariesCount = beneficiariesSummary.filter((b: any) => b.status === 'active').length;
+    const alumniBeneficiariesCount = beneficiariesSummary.filter((b: any) => b.status === 'alumni').length;
+
     // NEXT ACTIONS (AI-free, Rule-based, max 3)
     const nextActions: { text: string; href: string }[] = [];
     if (growthTotalScore < 100) {
@@ -307,9 +350,12 @@ export default function ImpactDashboard() {
       sroiProjectName,
       latestAssessmentScore,
       latestAssessmentLevel,
+      totalBeneficiariesCount,
+      activeBeneficiariesCount,
+      alumniBeneficiariesCount,
       nextActions: nextActions.slice(0, 3),
     };
-  }, [readinessScore, programs, donors, donations, gwProjects, sroiConfigs, assessments]);
+  }, [readinessScore, programs, donors, donations, gwProjects, sroiConfigs, assessments, beneficiariesSummary]);
 
   if (isLoading) {
     return (
@@ -444,6 +490,47 @@ export default function ImpactDashboard() {
               className="text-xs font-bold text-[#155F66] hover:text-[#0F3D4F] flex items-center gap-1 transition-all"
             >
               Kelola Program <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </Card>
+
+        {/* 3.5. PENERIMA MANFAAT */}
+        <Card className="border border-slate-150 shadow-elegant bg-white dark:bg-slate-950 flex flex-col justify-between">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-400">
+              Penerima Manfaat
+            </CardTitle>
+            <CardDescription className="text-xs">Database & sebaran penerima manfaat program</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex items-baseline gap-2">
+              <span className="text-5xl font-black text-[#155F66] dark:text-teal-400">
+                {metrics.totalBeneficiariesCount}
+              </span>
+              <span className="text-sm text-slate-400 font-semibold">Total Penerima</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 pt-2">
+              <div className="bg-[#0f6e56]/5 border border-[#0f6e56]/10 rounded-lg p-3">
+                <span className="text-[10px] font-extrabold text-[#0f6e56] block uppercase">Aktif</span>
+                <span className="text-xl font-bold text-slate-800 dark:text-slate-200">
+                  {metrics.activeBeneficiariesCount} Jiwa
+                </span>
+              </div>
+              <div className="bg-amber-500/5 border border-amber-500/10 rounded-lg p-3">
+                <span className="text-[10px] font-extrabold text-amber-600 block uppercase">Alumni</span>
+                <span className="text-xl font-bold text-slate-800 dark:text-slate-200">
+                  {metrics.alumniBeneficiariesCount} Jiwa
+                </span>
+              </div>
+            </div>
+          </CardContent>
+          <div className="p-4 bg-slate-50 dark:bg-slate-900/40 border-t flex justify-end rounded-b-xl">
+            <Link
+              to="/dashboard/beneficiary"
+              className="text-xs font-bold text-[#155F66] hover:text-[#0F3D4F] flex items-center gap-1 transition-all"
+            >
+              Kelola Registry <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </Card>

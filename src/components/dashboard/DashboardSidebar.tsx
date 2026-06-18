@@ -69,6 +69,7 @@ const PROGRAM_DESIGN_ITEMS: NavItem[] = [
 
 const IMPACT_ITEMS: NavItem[] = [
   { name: 'Impact Library', href: '/dashboard/impactory-library', icon: BookOpen },
+  { name: 'Beneficiary Registry', href: '/dashboard/beneficiary', icon: Users },
   { name: 'Campaign Builder', href: '/dashboard/impactory-ads', icon: Megaphone },
   { name: 'Impact Dashboard', href: '/dashboard/impact', icon: BarChart2 },
   { name: 'SROI Calculator', href: '/dashboard/sroi', icon: TrendingUp },
