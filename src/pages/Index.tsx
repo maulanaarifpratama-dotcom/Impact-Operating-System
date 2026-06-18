@@ -16,7 +16,11 @@ import {
   ClipboardCheck,
   Share2,
   FolderSync,
-  Globe
+  Globe,
+  BarChart3,
+  Users,
+  Leaf,
+  ClipboardList
 } from 'lucide-react';
 import { Navbar } from '@/components/landing/Navbar';
 import { Footer } from '@/components/landing/Footer';
@@ -134,7 +138,12 @@ export default function Index() {
       Coins,          // Standalone SROI
       LibraryBig,     // Impact Library
       FolderSync,     // OneDrive sync
-      Sparkles        // AI Assist
+      Sparkles,       // AI Assist
+      BarChart3,      // Impact Dashboard
+      FileText,       // Monthly Impact Report
+      Users,          // Beneficiary Registry
+      Leaf,           // E-ROI Carbon Tracker
+      ClipboardList   // Monthly Operating Review
     ];
     return icons[index] || ShieldCheck;
   };
@@ -586,8 +595,22 @@ export default function Index() {
                       }}
                     >
                       <div className="flex items-start justify-between gap-3">
-                        <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 transition-transform duration-300 group-hover:scale-105">
-                          <Icon className="h-4.5 w-4.5" />
+                        <div className="flex items-center gap-2.5">
+                          <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 transition-transform duration-300 group-hover:scale-105">
+                            <Icon className="h-4.5 w-4.5" />
+                          </div>
+                          {module.badge && (
+                            <Badge 
+                              variant="outline" 
+                              className={`font-bold px-2 py-0.5 rounded-md text-[9px] uppercase tracking-wider whitespace-nowrap ${
+                                module.badgeVariant === 'w' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' :
+                                module.badgeVariant === 't' ? 'border-amber-500/30 bg-amber-500/10 text-amber-400' :
+                                'border-indigo-500/30 bg-indigo-500/10 text-indigo-300'
+                              }`}
+                            >
+                              {module.badge}
+                            </Badge>
+                          )}
                         </div>
                         <ArrowRight className="h-4 w-4 text-slate-500 transition-transform duration-300 group-hover:translate-x-1 group-hover:text-teal-400" />
                       </div>

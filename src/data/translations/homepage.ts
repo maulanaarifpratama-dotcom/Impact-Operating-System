@@ -61,6 +61,8 @@ export interface HomepageTranslation {
       disabled?: boolean;
       size?: "small" | "wide" | "hero" | "full";
       variant?: "default" | "highlight" | "hero" | "ai";
+      badge?: string;
+      badgeVariant?: "w" | "t" | "h";
     }>;
   };
   evidenceAndReporting: {
@@ -163,20 +165,20 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         {
           letter: "W",
           title: "Work Evidence & Proof",
-          description: "Catat capaian indikator dan simpan bukti pelaksanaan program langsung di cloud.",
-          modules: ["MEAL Tracker", "OneDrive Evidence Sync", "Impact Library"]
+          description: "Catat capaian indikator, simpan bukti pelaksanaan program langsung di cloud, dan kelola data penerima manfaat secara terstruktur.",
+          modules: ["MEAL Tracker", "OneDrive Evidence Sync", "Impact Library", "Beneficiary Registry"]
         },
         {
           letter: "T",
           title: "Tracking & Monitoring",
-          description: "Rencanakan indikator pemantauan, dashboard real-time, dan laporan bulanan otomatis.",
-          modules: ["MEAL Planner", "Impact Dashboard", "Monthly Report"]
+          description: "Rencanakan indikator pemantauan, pantau capaian program secara real-time melalui dashboard, dan hasilkan laporan berkala tanpa rekap manual.",
+          modules: ["MEAL Planner", "Impact Dashboard", "Monthly Report", "Operating Review"]
         },
         {
           letter: "H",
           title: "High-Impact Reporting",
-          description: "Kalkulasikan nilai dampak sosial program dan buat draf laporan proposal otomatis dengan AI.",
-          modules: ["SROI Calculator", "Monthly Impact Report", "AI Assist Writer"]
+          description: "Kalkulasikan nilai dampak sosial dan lingkungan program, hasilkan executive summary dan insight dashboard, serta draf proposal berbasis data dengan AI.",
+          modules: ["SROI Calculator", "E-ROI Carbon", "Monthly Impact Report", "AI Assist Writer"]
         }
       ]
     },
@@ -224,7 +226,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
       cards: [
         {
           title: "Guided Onboarding",
-          description: "Mulai perjalanan digitalisasi organisasi Anda dengan setup profil dan pemetaan aset terpadu.",
+          description: "Mulai perjalanan digitalisasi organisasi dengan setup profil dan pemetaan aset terpadu sesuai standar G.R.O.W.T.H.",
           cta: "Mulai Onboarding",
           href: "/onboarding",
           size: "small",
@@ -232,7 +234,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "LFA Builder",
-          description: "Desain matriks Logical Framework Approach yang komprehensif, menghubungkan tujuan, output, aktivitas, dan asumsi.",
+          description: "Desain matriks Logical Framework Approach yang komprehensif, menghubungkan tujuan, output, aktivitas, dan asumsi program secara terstruktur.",
           cta: "Buka LFA Builder",
           href: "/dashboard/lfa-builder",
           size: "hero",
@@ -240,7 +242,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "WBS Builder",
-          description: "Pecah aktivitas program menjadi paket kerja (Work Breakdown Structure) yang jelas dan terstruktur.",
+          description: "Pecah aktivitas program menjadi paket kerja terstruktur dengan Gantt chart otomatis dan estimasi durasi berbasis AI.",
           cta: "Desain Aktivitas",
           href: "/dashboard/lfa-builder",
           size: "small",
@@ -248,7 +250,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Budget Calculator",
-          description: "Kalkulasi anggaran operasional dan aktivitas yang terhubung langsung dengan alur logis program.",
+          description: "Kalkulasi anggaran operasional dan aktivitas yang terhubung langsung dengan alur logis program dan referensi SBM 2026.",
           cta: "Kalkulasi Anggaran",
           href: "/dashboard/lfa-builder",
           size: "small",
@@ -256,7 +258,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "MEAL Planner",
-          description: "Rumuskan indikator, baseline, target, dan metode pengumpulan data pemantauan program secara praktis.",
+          description: "Rumuskan indikator, baseline, target, dan metode pengumpulan data pemantauan program secara praktis dan terstandar.",
           cta: "Rencanakan MEAL",
           href: "/dashboard/lfa-builder",
           size: "wide",
@@ -264,23 +266,23 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "MEAL Tracker",
-          description: "Catat dan telusuri realisasi capaian aktual indikator secara real-time, lengkap dengan catatan verifikasi.",
+          description: "Catat dan telusuri capaian aktual indikator secara real-time, lengkap dengan catatan verifikasi dan bukti lapangan.",
           cta: "Telusuri Capaian",
           href: "/dashboard/lfa-builder",
           size: "small",
           variant: "default"
         },
         {
-          title: "Kalkulator SROI Terintegrasi",
-          description: "Hitung nilai Social Return on Investment (SROI) secara otomatis yang diimpor dari indikator MEAL & anggaran LFA.",
+          title: "LFA Builder (SROI Terintegrasi)",
+          description: "Hitung nilai Social Return on Investment secara otomatis dari indikator MEAL dan anggaran LFA yang sudah tersimpan.",
           cta: "Lihat SROI Terintegrasi",
           href: "/dashboard/lfa-builder",
           size: "wide",
           variant: "highlight"
         },
         {
-          title: "Kalkulator SROI Mandiri",
-          description: "Hitung rasio SROI secara instan tanpa LFA dengan memasukkan data investasi dan manfaat sosial secara manual.",
+          title: "SROI Calculator Standalone",
+          description: "Hitung rasio SROI secara instan tanpa LFA, dan konversikan dampak sosial program menjadi insight siap pakai untuk executive summary dan proposal.",
           cta: "Gunakan SROI Mandiri",
           href: "/dashboard/sroi",
           size: "small",
@@ -288,7 +290,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Impact Library",
-          description: "Ubah tumpukan dokumen lama, proposal lama, laporan, dan cerita sukses menjadi knowledge base AI.",
+          description: "Ubah dokumen, proposal, dan laporan lama menjadi knowledge base AI yang dapat digunakan kembali untuk insight dan penulisan otomatis.",
           cta: "Buka Library",
           href: "/dashboard/impactory-library",
           size: "small",
@@ -296,7 +298,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "OneDrive Evidence Sync",
-          description: "Kelola bukti fisik dan dokumen pendukung dengan sinkronisasi otomatis ke folder cloud Microsoft OneDrive.",
+          description: "Sinkronisasi bukti kegiatan secara otomatis ke folder cloud Microsoft OneDrive untuk menjaga transparansi dan akuntabilitas data program.",
           cta: "Kelola Bukti Dampak",
           href: "/dashboard/impactory-library",
           size: "small",
@@ -304,11 +306,57 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "AI Assist (RAG & Copilot)",
-          description: "Gunakan asisten AI berbasis pengetahuan internal Anda sendiri untuk mempercepat penulisan draf proposal, laporan dampak, dan pembuatan salinan kampanye digital.",
+          description: "Gunakan AI berbasis knowledge internal organisasi untuk menghasilkan executive summary dampak, insight dari dashboard, proposal, laporan, dan materi kampanye secara cepat dan konsisten.",
           cta: "Buka AI Assist",
           href: "/dashboard/impactory-library",
           size: "full",
           variant: "ai"
+        },
+        {
+          title: "Impact Dashboard",
+          description: "Tampilkan transparansi capaian program, statistik donasi, dan tingkat kesiapan organisasi dalam satu pandang untuk leadership dan donor.",
+          cta: "Buka Dashboard",
+          href: "/dashboard/impact",
+          size: "small",
+          variant: "default"
+        },
+        {
+          title: "Monthly Impact Report",
+          description: "Kompilasikan laporan dampak bulanan sebagai proof system yang terverifikasi untuk donor dan funder secara otomatis.",
+          cta: "Buat Laporan",
+          href: "/dashboard/monthly-report",
+          size: "small",
+          variant: "default"
+        },
+        {
+          title: "Beneficiary Registry",
+          description: "Database penerima manfaat per program dengan mode sederhana dan profesional. Rekam data demografis, kelompok rentan, dan consent PDP. Export CSV/PDF siap untuk pelaporan donor.",
+          cta: "Buka Registry",
+          href: "/dashboard/beneficiary",
+          size: "small",
+          variant: "default",
+          badge: "Work Evidence",
+          badgeVariant: "w"
+        },
+        {
+          title: "E-ROI Carbon Tracker",
+          description: "Ukur dan laporkan dampak lingkungan program berbasis faktor emisi IPCC 2019 dan PLN Indonesia 2023. Terintegrasi ke SROI Calculator dan Grant Writer untuk proposal ESG-ready.",
+          cta: "Buka E-ROI",
+          href: "/dashboard/eroi",
+          size: "small",
+          variant: "default",
+          badge: "High-Impact",
+          badgeVariant: "h"
+        },
+        {
+          title: "Monthly Operating Review",
+          description: "Review bulanan kinerja program, capaian indikator MEAL, dan dokumentasi keputusan adaptif berbasis data lapangan. Fondasi akuntabilitas internal organisasi.",
+          cta: "Buka Review",
+          href: "/dashboard/operating-review",
+          size: "small",
+          variant: "default",
+          badge: "Tracking",
+          badgeVariant: "t"
         }
       ]
     },
@@ -434,20 +482,20 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         {
           letter: "W",
           title: "Work Evidence & Proof",
-          description: "Log actual indicator accomplishments and secure physical evidence in the cloud.",
-          modules: ["MEAL Tracker", "OneDrive Evidence Sync", "Impact Library"]
+          description: "Log indicator accomplishments, store program evidence directly in the cloud, and manage beneficiary data in a structured manner.",
+          modules: ["MEAL Tracker", "OneDrive Evidence Sync", "Impact Library", "Beneficiary Registry"]
         },
         {
           letter: "T",
           title: "Tracking & Monitoring",
-          description: "Formulate monitoring metrics, manage live dashboards, and compile monthly progress reports.",
-          modules: ["MEAL Planner", "Impact Dashboard", "Monthly Report"]
+          description: "Plan monitoring indicators, track program progress in real-time through the dashboard, and generate periodic reports without manual compiling.",
+          modules: ["MEAL Planner", "Impact Dashboard", "Monthly Report", "Operating Review"]
         },
         {
           letter: "H",
           title: "High-Impact Reporting",
-          description: "Quantify social return on investment and draft polished, AI-assisted reports.",
-          modules: ["SROI Calculator", "Monthly Impact Report", "AI Assist Writer"]
+          description: "Calculate social and environmental impacts, generate executive summaries and dashboard insights, and draft data-driven proposals with AI.",
+          modules: ["SROI Calculator", "E-ROI Carbon", "Monthly Impact Report", "AI Assist Writer"]
         }
       ]
     },
@@ -495,7 +543,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
       cards: [
         {
           title: "Guided Onboarding",
-          description: "Kickstart your digital transformation with automated profiling and resource mapping.",
+          description: "Begin your organization's digitalization journey with unified profile setup and asset mapping aligned with G.R.O.W.T.H. standards.",
           cta: "Start Onboarding",
           href: "/onboarding",
           size: "small",
@@ -503,7 +551,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "LFA Builder",
-          description: "Design standard Logical Framework Approach matrices connecting goals, outcomes, outputs, and assumptions.",
+          description: "Design a comprehensive Logical Framework Approach matrix, connecting program objectives, outputs, activities, and assumptions in a structured manner.",
           cta: "Open LFA Builder",
           href: "/dashboard/lfa-builder",
           size: "hero",
@@ -511,7 +559,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "WBS Builder",
-          description: "Deconstruct program activities into structured, clear, and executable Work Breakdown Structures.",
+          description: "Deconstruct program activities into structured work packages with automated Gantt charts and AI-based duration estimation.",
           cta: "Design Activities",
           href: "/dashboard/lfa-builder",
           size: "small",
@@ -519,7 +567,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Budget Calculator",
-          description: "Perform precise budget estimations that link directly to your WBS framework.",
+          description: "Calculate operational and activity budgets directly linked to the logical flow of the program and SBM 2026 references.",
           cta: "Calculate Budget",
           href: "/dashboard/lfa-builder",
           size: "small",
@@ -527,7 +575,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "MEAL Planner",
-          description: "Formulate metrics, baseline numbers, targets, and data collection plans logically.",
+          description: "Formulate monitoring indicators, baselines, targets, and data collection methods practically and in a standardized manner.",
           cta: "Plan MEAL",
           href: "/dashboard/lfa-builder",
           size: "wide",
@@ -535,7 +583,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "MEAL Tracker",
-          description: "Log and monitor real-time actual progress of indicator accomplishments with verification notes.",
+          description: "Record and track real-time actual progress of indicators, complete with verification notes and field evidence.",
           cta: "Track Outcomes",
           href: "/dashboard/lfa-builder",
           size: "small",
@@ -543,7 +591,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Integrated SROI Calculator",
-          description: "Generate SROI ratios instantly utilizing data imported from MEAL targets and LFA budgets.",
+          description: "Calculate Social Return on Investment values automatically from stored MEAL indicators and LFA budgets.",
           cta: "View Integrated SROI",
           href: "/dashboard/lfa-builder",
           size: "wide",
@@ -551,7 +599,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Standalone SROI Calculator",
-          description: "Estimate SROI quickly without LFA configuration by typing investment and outcome metrics manually.",
+          description: "Calculate SROI ratios instantly without LFA, and convert program social impact into ready-to-use insights for executive summaries and proposals.",
           cta: "Use Standalone SROI",
           href: "/dashboard/sroi",
           size: "small",
@@ -559,7 +607,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Impact Library",
-          description: "Turn piles of past files, previous proposals, and reports into a secure AI-powered search database.",
+          description: "Turn old documents, proposals, and reports into an AI knowledge base reusable for insights and automated writing.",
           cta: "Open Library",
           href: "/dashboard/impactory-library",
           size: "small",
@@ -567,7 +615,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "OneDrive Evidence Sync",
-          description: "Manage physical evidence and reports with automated folder syncs to Microsoft OneDrive.",
+          description: "Synchronize activity evidence automatically to Microsoft OneDrive cloud folders to maintain transparency and accountability of program data.",
           cta: "Manage Evidence",
           href: "/dashboard/impactory-library",
           size: "small",
@@ -575,11 +623,57 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "AI Assist (RAG & Copilot)",
-          description: "Leverage AI grounded on your private organizational history to speed up drafting proposals, reports, and copy.",
+          description: "Use AI based on private organizational knowledge to quickly and consistently generate impact executive summaries, dashboard insights, proposals, reports, and campaign copy.",
           cta: "Open AI Assist",
           href: "/dashboard/impactory-library",
           size: "full",
           variant: "ai"
+        },
+        {
+          title: "Impact Dashboard",
+          description: "Display program accomplishment transparency, donation statistics, and organizational readiness level in one view for leadership and donors.",
+          cta: "Open Dashboard",
+          href: "/dashboard/impact",
+          size: "small",
+          variant: "default"
+        },
+        {
+          title: "Monthly Impact Report",
+          description: "Compile monthly impact reports as a verified proof system for donors and funders automatically.",
+          cta: "Create Report",
+          href: "/dashboard/monthly-report",
+          size: "small",
+          variant: "default"
+        },
+        {
+          title: "Beneficiary Registry",
+          description: "Database of beneficiaries per program with simple and professional modes. Record demographic data, vulnerable groups, and PDP consent. Export CSV/PDF ready for donor reporting.",
+          cta: "Open Registry",
+          href: "/dashboard/beneficiary",
+          size: "small",
+          variant: "default",
+          badge: "Work Evidence",
+          badgeVariant: "w"
+        },
+        {
+          title: "E-ROI Carbon Tracker",
+          description: "Measure and report program environmental impact based on IPCC 2019 and PLN Indonesia 2023 emission factors. Integrated into SROI Calculator and Grant Writer for ESG-ready proposals.",
+          cta: "Open E-ROI",
+          href: "/dashboard/eroi",
+          size: "small",
+          variant: "default",
+          badge: "High-Impact",
+          badgeVariant: "h"
+        },
+        {
+          title: "Monthly Operating Review",
+          description: "Monthly review of program performance, MEAL indicator achievements, and documentation of adaptive decisions based on field data. Foundation of internal organizational accountability.",
+          cta: "Open Review",
+          href: "/dashboard/operating-review",
+          size: "small",
+          variant: "default",
+          badge: "Tracking",
+          badgeVariant: "t"
         }
       ]
     },
