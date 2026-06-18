@@ -20,9 +20,11 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
   AlertTriangle, Percent, TrendingUp, HelpCircle, ArrowRight, Settings, Info,
-  BarChart2, RefreshCw, Layers, FileText
+  BarChart2, RefreshCw, Layers, FileText, Leaf
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
+import { getProjectCarbonSummary } from '@/lib/carbon/aggregation';
+
 
 interface SROICalculatorProps {
   projectId: string;
@@ -91,6 +93,17 @@ export default function SROICalculator({
 
       return count || 0;
     }
+  });
+
+  // Fetch carbon tracking summary for current project
+  const { data: carbonSummary } = useQuery({
+    queryKey: ['project-carbon', projectId],
+    queryFn: async () => {
+      if (!projectId || !orgId) return null;
+      return getProjectCarbonSummary(projectId, orgId);
+    },
+    enabled: !!projectId && !!orgId,
+    staleTime: 60000
   });
 
   // Simple Mode Wizard Steps: 1, 2, 3, 4
@@ -2161,6 +2174,178 @@ export default function SROICalculator({
           </Card>
         </div>
       )}
+
+      {/* 🌱 Environmental Return on Investment (E-ROI) Section */}
+      <Card className="border shadow-elegant overflow-hidden mt-6">
+        <CardHeader className="bg-slate-50 dark:bg-slate-900/50 py-4 px-5 border-b flex flex-row items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center gap-2">
+            <Leaf className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            <div>
+              <CardTitle className="text-sm font-bold uppercase tracking-wider flex items-center gap-1.5">
+                Dampak Lingkungan & E-ROI Proyek
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Integrasi analisis jejak karbon dan kontribusi hijau dengan investasi program.
+              </CardDescription>
+            </div>
+          </div>
+          {carbonSummary && carbonSummary.activitiesWithCarbon > 0 && (
+            <Badge
+              className={`${
+                carbonSummary.netImpact === 'reduction'
+                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                  : carbonSummary.netImpact === 'emission'
+                  ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                  : 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20'
+              } text-[10px] font-bold uppercase tracking-wider`}
+              variant="outline"
+            >
+              {carbonSummary.netImpact === 'reduction'
+                ? 'Net Reduction 🌱'
+                : carbonSummary.netImpact === 'emission'
+                ? 'Net Emission ⚠️'
+                : 'Net Neutral ⚖️'}
+            </Badge>
+          )}
+        </CardHeader>
+        <CardContent className="p-5">
+          {carbonSummary && carbonSummary.activitiesWithCarbon > 0 ? (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Total Carbon Impact */}
+                <div className="p-4 border rounded-lg bg-slate-50/30 dark:bg-slate-900/5 space-y-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Netto Dampak Karbon</span>
+                  <div className="flex items-baseline gap-1.5">
+                    <span className={`text-2xl font-black ${
+                      carbonSummary.totalCarbonKg < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+                    }`}>
+                      {carbonSummary.totalCarbonKg < 0 ? '-' : ''}
+                      {Math.abs(carbonSummary.totalCarbonKg).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                    </span>
+                    <span className="text-xs text-slate-400 font-semibold">kg CO₂</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground leading-relaxed">
+                    {carbonSummary.netImpact === 'reduction'
+                      ? 'Proyek ini secara netto menyerap emisi karbon dari udara.'
+                      : carbonSummary.netImpact === 'emission'
+                      ? 'Proyek ini melepaskan emisi karbon bersih ke atmosfer.'
+                      : 'Proyek ini memiliki dampak emisi karbon netral.'}
+                  </p>
+                </div>
+
+                {/* Reduction & Emission Breakdown */}
+                <div className="p-4 border rounded-lg bg-slate-50/30 dark:bg-slate-900/5 space-y-3">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Rincian Perubahan</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="bg-emerald-500/5 border border-emerald-500/10 rounded p-2 text-center">
+                      <span className="text-[8px] font-extrabold text-emerald-600 block uppercase">Pereduksian</span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {carbonSummary.reductionKg.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg
+                      </span>
+                    </div>
+                    <div className="bg-amber-500/5 border border-amber-500/10 rounded p-2 text-center">
+                      <span className="text-[8px] font-extrabold text-amber-600 block uppercase">Pelepasan</span>
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        {carbonSummary.emissionKg.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Tree / Household Equivalent */}
+                <div className="p-4 border rounded-lg bg-slate-50/30 dark:bg-slate-900/5 flex items-center gap-3">
+                  <div className="text-3xl">🌳</div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">Setara Penyerapan</span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200 block">
+                      {carbonSummary.equivalentTrees.toLocaleString('id-ID', { maximumFractionDigits: 1 })} pohon / tahun
+                    </span>
+                    <p className="text-[9px] text-muted-foreground leading-normal">
+                      Setara jumlah pohon dewasa yang menyerap karbon per tahun.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* DUAL IMPACT SECTION (Professional Mode Only) */}
+              {config.mode === 'professional' && (() => {
+                const safeRatio = typeof config?.sroi_ratio === 'number' ? config.sroi_ratio : 0;
+                return (
+                  <div className="mt-6 border-t pt-5 space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-amber-500" />
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        Dual Impact Analytics (SROI & E-ROI)
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {/* Social Impact Return */}
+                      <div className="p-4 border border-blue-100 dark:border-blue-900 bg-blue-50/20 dark:bg-blue-950/10 rounded-lg flex items-start gap-3">
+                        <div className="p-2 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg">
+                          <Percent className="h-4 w-4" />
+                        </div>
+                        <div className="space-y-1">
+                          <span className="text-[10px] font-extrabold text-blue-600 dark:text-blue-400 block uppercase">Social Return Ratio (SROI)</span>
+                          <span className="text-lg font-black text-slate-800 dark:text-slate-200">
+                            Rp {safeRatio.toFixed(2)} per Rp1
+                          </span>
+                          <p className="text-[10px] text-muted-foreground leading-relaxed">
+                            Rasio pengembalian sosial ter-asemen yang mencerminkan present value dari outcome sosial dibandingkan total investasi program.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Environmental Carbon Impact */}
+                      <div className={`p-4 border ${
+                        carbonSummary.totalCarbonKg < 0
+                          ? 'border-emerald-100 dark:border-emerald-900 bg-emerald-50/20 dark:bg-emerald-950/10'
+                          : 'border-amber-100 dark:border-amber-900 bg-amber-50/20 dark:bg-amber-950/10'
+                      } rounded-lg flex items-start gap-3`}>
+                        <div className={`p-2 rounded-lg ${
+                          carbonSummary.totalCarbonKg < 0
+                            ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400'
+                            : 'bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'
+                        }`}>
+                          <Leaf className="h-4 w-4" />
+                        </div>
+                        <div className="space-y-1">
+                          <span className={`text-[10px] font-extrabold ${
+                            carbonSummary.totalCarbonKg < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+                          } block uppercase`}>
+                            Environmental Impact Value (E-ROI)
+                          </span>
+                          <span className="text-lg font-black text-slate-800 dark:text-slate-200">
+                            {carbonSummary.totalCarbonKg < 0 ? '-' : ''}
+                            {Math.abs(carbonSummary.totalCarbonKg).toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg CO₂
+                          </span>
+                          <p className="text-[10px] text-muted-foreground leading-relaxed">
+                            {carbonSummary.netImpact === 'reduction'
+                              ? 'Organisasi Anda menciptakan dampak ekologis bersih sebesar penyisihan karbon di atas secara paralel dengan pengembalian sosial.'
+                              : carbonSummary.netImpact === 'emission'
+                              ? 'Paralel dengan penciptaan nilai sosial, perhatikan pelepasan emisi karbon neto yang perlu dikompensasi di masa mendatang.'
+                              : 'Program ini mencapai keseimbangan emisi karbon bersih paralel dengan penciptaan nilai sosial.'}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-8 text-center bg-slate-50/50 dark:bg-slate-900/10 rounded-lg border border-dashed">
+              <Leaf className="h-8 w-8 text-slate-300 dark:text-slate-700 mb-2 stroke-1" />
+              <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                Analisis Dampak Lingkungan (E-ROI) Belum Aktif
+              </p>
+              <p className="text-[10px] text-muted-foreground max-w-sm mt-1 px-4 leading-normal">
+                Belum ada aktivitas program yang dihubungkan dengan pelacak emisi karbon atau status pelacakan tidak aktif.
+                Aktifkan opsi "Aktifkan Analisis Karbon" di tab **WBS Builder** dan pilih faktor emisi untuk memulai visualisasi di sini.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

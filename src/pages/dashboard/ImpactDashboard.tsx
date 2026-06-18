@@ -15,10 +15,13 @@ import {
   Sparkles,
   Briefcase,
   Award,
-  ChevronRight
+  ChevronRight,
+  Leaf
 } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { getOrgCarbonSummary } from '@/lib/carbon/aggregation';
+
 
 // Helpers for score card maturity levels
 function getLevel(score: number) {
@@ -231,6 +234,17 @@ export default function ImpactDashboard() {
     enabled: !!organizationId,
   });
 
+  // 11. Fetch Cumulative Carbon Summary
+  const { data: carbonData, isLoading: isCarbonLoading } = useQuery({
+    queryKey: ['org-carbon-summary', organizationId],
+    queryFn: async () => {
+      if (!organizationId) return null;
+      return getOrgCarbonSummary(organizationId);
+    },
+    enabled: !!organizationId,
+    staleTime: 60000
+  });
+
   // Global Loading State
   const isLoading =
     isMembershipLoading ||
@@ -242,7 +256,8 @@ export default function ImpactDashboard() {
     isGwProjectsLoading ||
     isSroiLoading ||
     isAssessmentsLoading ||
-    isBeneficiariesSummaryLoading;
+    isBeneficiariesSummaryLoading ||
+    isCarbonLoading;
 
   // Formatting Date Helper
   const formattedToday = useMemo(() => {
@@ -618,6 +633,99 @@ export default function ImpactDashboard() {
               className="text-xs font-bold text-[#155F66] hover:text-[#0F3D4F] flex items-center gap-1 transition-all"
             >
               Hitung SROI <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+        </Card>
+
+        {/* 🌱 Dampak Lingkungan (E-ROI) Card */}
+        <Card className="border border-slate-150 shadow-elegant bg-white dark:bg-slate-950 flex flex-col justify-between">
+          <CardHeader className="pb-4">
+            <div className="flex justify-between items-start">
+              <div>
+                <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                  <Leaf className="h-4 w-4 text-emerald-500" />
+                  Dampak Lingkungan (E-ROI)
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Analisis jejak karbon dan kontribusi hijau organisasi
+                </CardDescription>
+              </div>
+              {carbonData && carbonData.activitiesWithCarbon > 0 && (
+                <Badge
+                  className={`${
+                    carbonData.netImpact === 'reduction'
+                      ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
+                      : carbonData.netImpact === 'emission'
+                      ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
+                      : 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20'
+                  } text-[10px] font-bold uppercase tracking-wider`}
+                  variant="outline"
+                >
+                  {carbonData.netImpact === 'reduction'
+                    ? 'Net Reduction 🌱'
+                    : carbonData.netImpact === 'emission'
+                    ? 'Net Emission ⚠️'
+                    : 'Net Neutral ⚖️'}
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-6 flex-grow">
+            {carbonData && carbonData.activitiesWithCarbon > 0 ? (
+              <div className="space-y-4">
+                <div className="flex items-baseline gap-2">
+                  <span className={`text-4xl font-black ${
+                    carbonData.totalCarbonKg < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+                  }`}>
+                    {carbonData.totalCarbonKg < 0 ? '-' : ''}
+                    {Math.abs(carbonData.totalCarbonKg).toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-sm text-slate-400 font-semibold">kg CO₂</span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="bg-emerald-500/5 border border-emerald-500/10 rounded-lg p-2.5">
+                    <span className="text-[9px] font-extrabold text-emerald-600 block uppercase">Pereduksian</span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                      {carbonData.reductionKg.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg
+                    </span>
+                  </div>
+                  <div className="bg-amber-500/5 border border-amber-500/10 rounded-lg p-2.5">
+                    <span className="text-[9px] font-extrabold text-amber-600 block uppercase">Pelepasan</span>
+                    <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                      {carbonData.emissionKg.toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg
+                    </span>
+                  </div>
+                </div>
+
+                {carbonData.equivalentTrees > 0 && (
+                  <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-lg flex items-center gap-3">
+                    <div className="text-2xl">🌳</div>
+                    <div>
+                      <span className="text-[9px] font-extrabold text-[#155F66] dark:text-teal-400 block uppercase leading-none">Setara Penyerapan</span>
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-1">
+                        {carbonData.equivalentTrees.toLocaleString('id-ID', { maximumFractionDigits: 1 })} pohon / tahun
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-8 text-center h-full">
+                <Leaf className="h-8 w-4 text-slate-300 dark:text-slate-700 mb-2 stroke-1" />
+                <p className="text-xs text-muted-foreground">Belum ada aktivitas dengan tracking karbon</p>
+                <p className="text-[10px] text-muted-foreground/60 max-w-[200px] mt-1">
+                  Aktifkan Analisis Karbon di WBS Builder program Anda untuk melihat ringkasan.
+                </p>
+              </div>
+            )}
+          </CardContent>
+          <div className="p-4 bg-slate-50 dark:bg-slate-900/40 border-t flex justify-end rounded-b-xl">
+            <Link
+              to="/dashboard/lfa-builder"
+              className="text-xs font-bold text-[#155F66] hover:text-[#0F3D4F] flex items-center gap-1 transition-all"
+            >
+              Kelola Program <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </Card>
