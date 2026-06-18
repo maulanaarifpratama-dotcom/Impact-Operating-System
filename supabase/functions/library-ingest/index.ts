@@ -1,6 +1,6 @@
 // supabase/functions/library-ingest/index.ts
 // Ingests a document (PDF or plain-text) into the Impactory Library:
-//   1. Parses base64 encoded document (using pdf-parse for PDF)
+//   1. Parses base64 encoded document (using native extraction for PDF)
 //   2. Splits the text into safe chunks (~800 tokens / 3500 characters, ~400 char overlap)
 //   3. Embeds chunks in batches of MAX 10 (Cost control)
 //   4. Inserts row into library_documents with source_module & source_record_id
@@ -69,6 +69,73 @@ function chunkText(text: string): string[] {
   return chunks.filter((c) => c.length > 0);
 }
 
+function extractTextFromPdf(bytes: Uint8Array): string {
+  const content = new TextDecoder('latin1').decode(bytes);
+  
+  // Try extracting text blocks between BT and ET
+  const btEtRegex = /BT[\s\S]*?ET/g;
+  let match;
+  let textFromBlocks = '';
+  
+  while ((match = btEtRegex.exec(content)) !== null) {
+    const block = match[0];
+    const parenRegex = /\(((?:[^\\)]|\\.)*)\)/g;
+    let textMatch;
+    while ((textMatch = parenRegex.exec(block)) !== null) {
+      textFromBlocks += textMatch[1]
+        .replace(/\\([\(\)])/g, '$1')
+        .replace(/\\r/g, '\n')
+        .replace(/\\n/g, '\n')
+        .replace(/\\t/g, '\t') + ' ';
+    }
+    textFromBlocks += '\n';
+  }
+  
+  let result = textFromBlocks
+    .replace(/[^\x20-\x7E\s]/g, '') // strip non-printable chars
+    .replace(/\s+/g, ' ')
+    .trim();
+    
+  if (result.length > 50) {
+    return result;
+  }
+  
+  // Fallback: Search all parentheses in the whole document, but filter out binary-looking strings
+  let textFromParens = '';
+  const generalParenRegex = /\(((?:[^\\)]|\\.)*)\)/g;
+  while ((match = generalParenRegex.exec(content)) !== null) {
+    const candidate = match[1]
+      .replace(/\\([\(\)])/g, '$1')
+      .replace(/[^\x20-\x7E\s]/g, '') // remove non-printable
+      .trim();
+    
+    // Ignore candidate if it has weird PDF keywords or is mostly non-alphabetic
+    if (candidate.length > 3 && !/^[0-9a-fA-F\s]+$/.test(candidate) && !/^(identity|f\d+|font|procset|colorspace)/i.test(candidate)) {
+      textFromParens += candidate + ' ';
+    }
+  }
+  
+  result = textFromParens.replace(/\s+/g, ' ').trim();
+  if (result.length > 50) {
+    return result;
+  }
+  
+  // Last fallback: strip stream chunks and pdf commands
+  const stripped = content
+    .replace(/\/[\w\-\d]+/g, '') // remove pdf dictionary keys
+    .replace(/<<[\s\S]*?>>/g, '') // remove pdf dictionaries
+    .replace(/stream[\s\S]*?endstream/g, '') // remove binary stream data
+    .replace(/[^\x20-\x7E\n\t]/g, '') // strip non-printable
+    .replace(/\s+/g, ' ')
+    .trim();
+    
+  if (stripped.length > 20) {
+    return stripped;
+  }
+  
+  return "Gagal mengekstrak teks terkompresi dari dokumen PDF.";
+}
+
 serve(async (req) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -82,8 +149,15 @@ serve(async (req) => {
     let title = body.file_name || body.title || 'Untitled Document';
     let text = '';
     const mimeType = body.file_type || body.mime_type || null;
+    const fileTypeLower = (body.file_type || '').toLowerCase();
+    const isPdf = fileTypeLower.includes('pdf') || (mimeType && mimeType.includes('pdf')) || (title && title.toLowerCase().endsWith('.pdf'));
+    const isDocx = fileTypeLower.includes('docx') || (mimeType && mimeType.includes('docx')) || (title && title.toLowerCase().endsWith('.docx'));
 
     if (body.file_base64) {
+      if (isDocx) {
+        return json({ error: 'Format file DOCX tidak didukung saat ini (skip).' }, 400);
+      }
+
       // Decode base64 using native atob
       const binaryString = atob(body.file_base64);
       const bytes = new Uint8Array(binaryString.length);
@@ -91,13 +165,9 @@ serve(async (req) => {
         bytes[i] = binaryString.charCodeAt(i);
       }
 
-      const isPdf = (mimeType && mimeType.includes('pdf')) || (title && title.toLowerCase().endsWith('.pdf'));
-
       if (isPdf) {
         try {
-          const pdfParse = (await import('npm:pdf-parse')).default;
-          const data = await pdfParse(bytes);
-          text = data.text || '';
+          text = extractTextFromPdf(bytes);
         } catch (parseErr) {
           console.error('PDF parsing error:', parseErr);
           return json({ error: 'Gagal mengurai file PDF: ' + (parseErr as Error).message }, 400);
@@ -111,6 +181,9 @@ serve(async (req) => {
         }
       }
     } else if (body.text) {
+      if (isDocx) {
+        return json({ error: 'Format file DOCX tidak didukung saat ini (skip).' }, 400);
+      }
       text = body.text;
     }
 
