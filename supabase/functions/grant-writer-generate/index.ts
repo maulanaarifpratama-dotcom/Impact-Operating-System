@@ -227,7 +227,7 @@ Deno.serve(async (req: Request) => {
     }
 
     const finalSystemPrompt = SYSTEM_PROMPT + ragContext;
-    const promptWithBeneficiaries = finalSystemPrompt.replace('{{beneficiaries}}', String(beneficiaryCount));
+    const promptWithBeneficiaries = finalSystemPrompt.replaceAll('{{beneficiaries}}', String(beneficiaryCount));
 
     const { data: result, usage, model } = await chatJson<{
       matrix: LfaMatrix;
