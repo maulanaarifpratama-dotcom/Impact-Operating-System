@@ -1,42 +1,40 @@
 // supabase/functions/library-ingest/index.ts
-// Ingests a plain-text document into the Impactory Library:
-//   1. Inserts a row into library_documents
-//   2. Splits the text into ~800-char chunks (with ~120 char overlap)
-//   3. Embeds each chunk via Foundry
-//   4. Inserts rows into library_chunks
+// Ingests a document (PDF or plain-text) into the Impactory Library:
+//   1. Parses base64 encoded document (using pdf-parse for PDF)
+//   2. Splits the text into safe chunks (~800 tokens / 3500 characters, ~400 char overlap)
+//   3. Embeds chunks in batches of MAX 10 (Cost control)
+//   4. Inserts row into library_documents with source_module & source_record_id
+//   5. Inserts chunks bulk
 //
-// =========================================================================
-// TODO (USER):
-//   - Set Foundry secrets (see foundry.ts).
-//   - This function expects PLAIN TEXT. For PDF/DOCX, parse on the client first
-//     (recommended: pdf.js or mammoth in the browser) OR add a parser here later.
-//   - Deploy: supabase functions deploy library-ingest
 // =========================================================================
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { getUserAndOrg, adminClient } from '../_shared/auth.ts';
-import { foundryEmbed, embed } from '../_shared/foundry.ts';
+import { embed } from '../_shared/foundry.ts';
 
 interface IngestInput {
-  title: string;
+  // Legacy fields
+  title?: string;
+  text?: string;
   source_url?: string;
-  text: string;
   tags?: string[];
   metadata?: Record<string, unknown>;
-  // OneDrive integration fields
-  storage_provider?: string;
-  storage_path?: string;
-  storage_item_id?: string;
-  drive_id?: string;
-  web_url?: string;
-  original_file_name?: string;
   size_bytes?: number;
   mime_type?: string;
+  original_file_name?: string;
+
+  // New fields
+  org_id?: string;
+  file_base64?: string;
+  file_name?: string;
+  file_type?: string;
+  source_module?: string;
+  source_record_id?: string;
 }
 
-const CHUNK_SIZE = 800;
-const CHUNK_OVERLAP = 120;
+const CHUNK_SIZE = 3500; // ~800 tokens
+const CHUNK_OVERLAP = 400; // ~400 chars overlap
 
 function chunkText(text: string): string[] {
   const clean = text.replace(/\r\n/g, '\n').replace(/\n{3,}/g, '\n\n').trim();
@@ -77,10 +75,47 @@ serve(async (req) => {
 
   let docId: string | null = null;
   try {
-    const { user, organization_id } = await getUserAndOrg(req);
+    const { user, organization_id: authOrgId } = await getUserAndOrg(req);
     const body = (await req.json()) as IngestInput;
-    if (!body.title || !body.text || body.text.length < 50) {
-      return json({ error: 'title and text (>=50 chars) are required' }, 400);
+    const organization_id = body.org_id || authOrgId;
+
+    let title = body.file_name || body.title || 'Untitled Document';
+    let text = '';
+    const mimeType = body.file_type || body.mime_type || null;
+
+    if (body.file_base64) {
+      // Decode base64 using native atob
+      const binaryString = atob(body.file_base64);
+      const bytes = new Uint8Array(binaryString.length);
+      for (let i = 0; i < binaryString.length; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+
+      const isPdf = (mimeType && mimeType.includes('pdf')) || (title && title.toLowerCase().endsWith('.pdf'));
+
+      if (isPdf) {
+        try {
+          const pdfParse = (await import('npm:pdf-parse')).default;
+          const data = await pdfParse(bytes);
+          text = data.text || '';
+        } catch (parseErr) {
+          console.error('PDF parsing error:', parseErr);
+          return json({ error: 'Gagal mengurai file PDF: ' + (parseErr as Error).message }, 400);
+        }
+      } else {
+        try {
+          text = new TextDecoder().decode(bytes);
+        } catch (decodeErr) {
+          console.error('Text decoding error:', decodeErr);
+          return json({ error: 'Gagal membaca isi file sebagai teks.' }, 400);
+        }
+      }
+    } else if (body.text) {
+      text = body.text;
+    }
+
+    if (!text || text.trim().length < 10) {
+      return json({ error: 'Isi file atau teks dokumen terlalu pendek atau tidak terbaca.' }, 400);
     }
 
     const admin = adminClient();
@@ -94,36 +129,45 @@ serve(async (req) => {
       .insert({
         organization_id,
         uploaded_by: user.id,
-        title: body.title,
+        title: title,
         source_url: body.source_url ?? null,
         metadata: mergedMetadata,
         status: 'processing',
-        storage_provider: body.storage_provider ?? null,
-        storage_path: body.storage_path ?? null,
-        storage_item_id: body.storage_item_id ?? null,
-        drive_id: body.drive_id ?? null,
-        web_url: body.web_url ?? null,
-        size_bytes: body.size_bytes ?? null,
-        mime_type: body.mime_type ?? null,
-        original_file_name: body.original_file_name ?? null,
+        storage_provider: 'local',
+        size_bytes: body.size_bytes ?? (body.file_base64 ? Math.ceil(body.file_base64.length * 0.75) : text.length),
+        mime_type: mimeType,
+        original_file_name: body.file_name ?? body.original_file_name ?? null,
+        source_module: body.source_module ?? null,
+        source_record_id: body.source_record_id ?? null,
       })
       .select('id')
       .single();
+
     if (docErr || !doc) return json({ error: docErr?.message ?? 'insert failed' }, 500);
     docId = doc.id;
 
-    const chunks = chunkText(body.text);
+    const chunks = chunkText(text);
     let inserted = 0;
     const errors: string[] = [];
 
+    // COST CONTROL: Batch embedding MAX 10 chunks per call
+    const embeddings: any[] = [];
+    const batchSize = 10;
+
     try {
-      // Batch embed all chunks in a single API call to Azure OpenAI / Foundry
-      const embedRes = await embed(chunks);
-      const embeddings = embedRes.data;
+      for (let i = 0; i < chunks.length; i += batchSize) {
+        const batch = chunks.slice(i, i + batchSize);
+        const embedRes = await embed(batch);
+        const batchEmbeddings = embedRes.data.map((item: any, idx: number) => ({
+          embedding: item.embedding,
+          index: i + (item.index !== undefined ? item.index : idx),
+        }));
+        embeddings.push(...batchEmbeddings);
+      }
 
       // Map chunks to database inserts
       const insertPayloads = chunks.map((c, idx) => {
-        const embObj = embeddings.find((e) => e.index === idx) || embeddings[idx];
+        const embObj = embeddings.find((e) => e.index === idx);
         return {
           document_id: doc.id,
           organization_id,
@@ -168,7 +212,15 @@ serve(async (req) => {
       });
     }
 
-    return json({ document_id: doc.id, chunks_inserted: inserted, errors });
+    // MANDATORY LOGGING
+    const estimatedTokens = Math.ceil(text.length / 4);
+    console.log(JSON.stringify({
+      feature: "library_ingest",
+      chunkCount: inserted,
+      estimatedTokens
+    }));
+
+    return json({ document_id: doc.id, chunk_count: inserted, errors });
   } catch (err) {
     if (docId) {
       try {
@@ -184,7 +236,7 @@ serve(async (req) => {
         console.error('Failed to update document status in outer catch:', updateErr);
       }
     }
-    return json({ error: 'Terjadi kesalahan internal saat memproses pengindeksan dokumen.' }, 500);
+    return json({ error: 'Terjadi kesalahan internal saat memproses pengindeksan dokumen: ' + (err as Error).message }, 500);
   }
 });
 
@@ -194,3 +246,4 @@ function json(body: unknown, status = 200) {
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
 }
+

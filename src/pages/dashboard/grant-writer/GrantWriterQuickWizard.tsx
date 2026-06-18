@@ -29,6 +29,7 @@ import { QUICK_STEPS } from '@/lib/grant-writer/types';
 import type { QuickWizardData } from '@/lib/grant-writer/types';
 import { GrantWriterChat } from '@/components/grant-writer/chat/GrantWriterChat';
 import { LibraryReferencesSidebar } from '@/components/grant-writer/LibraryReferencesSidebar';
+import { DocumentChatPanel } from '@/components/shared/DocumentChatPanel';
 import { useAuth } from '@/providers/AuthProvider';
 import { renderQuickProposalMarkdown } from '@/lib/grant-writer/quickGenerator';
 
@@ -429,6 +430,11 @@ export default function GrantWriterQuickWizard() {
           />
         </div>
       </aside>
+      <DocumentChatPanel
+        orgId={project.organization_id}
+        sourceModule="grant_writer"
+        sourceRecordId={project.id}
+      />
     </div>
   );
 }

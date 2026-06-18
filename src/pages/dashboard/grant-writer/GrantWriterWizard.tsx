@@ -29,6 +29,7 @@ import { useWizardProject } from '@/lib/grant-writer/useWizardProject';
 import { WIZARD_STEPS, WizardData, IndicatorItem, AssumptionItem } from '@/lib/grant-writer/types';
 import { GrantWriterChat } from '@/components/grant-writer/chat/GrantWriterChat';
 import { LibraryReferencesSidebar } from '@/components/grant-writer/LibraryReferencesSidebar';
+import { DocumentChatPanel } from '@/components/shared/DocumentChatPanel';
 import { LfaProject, LfaEntry } from '../lfa-builder/types';
 import { generateLfaMatrix, renderProposalMarkdown } from '@/lib/grant-writer/generator';
 import { useAuth } from '@/providers/AuthProvider';
@@ -742,6 +743,11 @@ export default function GrantWriterWizard() {
           />
         </div>
       </aside>
+      <DocumentChatPanel
+        orgId={project.organization_id}
+        sourceModule="grant_writer"
+        sourceRecordId={project.id}
+      />
     </div>
   );
 }
