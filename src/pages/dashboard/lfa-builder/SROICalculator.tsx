@@ -2224,6 +2224,9 @@ export default function SROICalculator({
                     </span>
                     <span className="text-xs text-slate-400 font-semibold">kg CO₂</span>
                   </div>
+                  <p className="text-[9px] text-slate-400 italic text-center">
+                    *Estimasi berbasis durasi program sebagai proxy jumlah aktivitas (sementara)
+                  </p>
                   <p className="text-[10px] text-muted-foreground leading-relaxed">
                     {carbonSummary.netImpact === 'reduction'
                       ? 'Proyek ini secara netto menyerap emisi karbon dari udara.'
@@ -2318,6 +2321,9 @@ export default function SROICalculator({
                             {carbonSummary.totalCarbonKg < 0 ? '-' : ''}
                             {Math.abs(carbonSummary.totalCarbonKg).toLocaleString('id-ID', { maximumFractionDigits: 2 })} kg CO₂
                           </span>
+                          <p className="text-[9px] text-slate-400 italic">
+                            *proxy durasi
+                          </p>
                           <p className="text-[10px] text-muted-foreground leading-relaxed">
                             {carbonSummary.netImpact === 'reduction'
                               ? 'Organisasi Anda menciptakan dampak ekologis bersih sebesar penyisihan karbon di atas secara paralel dengan pengembalian sosial.'

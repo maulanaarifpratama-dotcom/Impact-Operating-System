@@ -709,6 +709,10 @@ export default function ImpactDashboard() {
                     </div>
                   </div>
                 )}
+                
+                <p className="text-[9px] text-slate-400 italic text-center mt-1">
+                  *Estimasi berbasis durasi program sebagai proxy jumlah aktivitas (sementara)
+                </p>
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-8 text-center h-full">
