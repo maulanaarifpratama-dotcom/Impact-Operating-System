@@ -22,6 +22,8 @@ import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 
 interface GenerateRequest {
   projectId: string;
+  lfa_project_id?: string;
+  org_id?: string;
   /** Optional override of the donor standard for this generation. */
   donorStandard?: 'un_oecd_dac' | 'world_bank' | 'usaid' | 'eu' | 'generic';
   /** Optional beneficiaryCount passed from frontend */
@@ -93,7 +95,26 @@ Rules:
   qualitative framing when data is missing, and explicitly mark assumptions.
 - If "lfa_context" is present in the payload, you MUST strictly align your intervention logic (Goal, Outcomes, Outputs, Activities, Indicators, and Assumptions) with the data inside "lfa_context.entries". Elaborate upon and enrich this exact structure rather than inventing divergent outcomes/outputs.
 - Jumlah penerima manfaat terverifikasi: {{beneficiaries}} orang. Anda wajib menyebutkan angka {{beneficiaries}} penerima manfaat terverifikasi secara eksplisit di dalam narasi proposal (misalnya pada bagian Executive Summary atau Problem Statement) sebagai data aktual. Namun, jika angka ini adalah 0, jangan merekayasa atau memalsukan angka, melainkan sebutkan bahwa saat ini terdapat 0 penerima manfaat terverifikasi di dalam sistem. Tetap patuhi batasan dan jangan menimpa angka target pengguna lainnya.
+- {{carbon_impact}}
 - Output ONLY valid JSON. No markdown fences around the JSON.`;
+
+function computeCarbonSummary(rows: Array<{ carbon_factor: number | null; duration_weeks: number | null }> | null) {
+  let total = 0;
+
+  for (const item of rows || []) {
+    if (item.carbon_factor == null) continue;
+
+    // IMPORTANT:
+    // duration = TEMP proxy
+    const multiplier = item.duration_weeks ?? 1;
+
+    const impact = item.carbon_factor * multiplier;
+
+    total += impact;
+  }
+
+  return total;
+}
 
 Deno.serve(async (req: Request) => {
   const cors = handleCors(req);
@@ -107,6 +128,8 @@ Deno.serve(async (req: Request) => {
     const ctx = await authenticate(req);
     const body = (await req.json()) as GenerateRequest;
     if (!body.projectId) return errorResponse('projectId is required');
+
+
 
     // 1. Load project (RLS enforces org membership)
     const { data: project, error: pErr } = await ctx.supabase
@@ -169,6 +192,19 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    const targetLfaProjectId = body.lfa_project_id ?? lfaProjectId ?? body.projectId;
+    const targetOrgId = body.org_id ?? project.organization_id;
+
+    const { data: carbonRows } = await ctx.supabase
+      .from('lfa_wbs_items')
+      .select('carbon_factor, duration_weeks')
+      .eq('lfa_project_id', targetLfaProjectId)
+      .eq('org_id', targetOrgId)
+      .eq('carbon_enabled', true)
+      .eq('level', 2);
+
+    const carbonImpactKg = computeCarbonSummary(carbonRows);
+
     // 3. Call Foundry with the wizard data
     const userPayload = {
       project: {
@@ -227,14 +263,41 @@ Deno.serve(async (req: Request) => {
     }
 
     const finalSystemPrompt = SYSTEM_PROMPT + ragContext;
-    const promptWithBeneficiaries = finalSystemPrompt.replaceAll('{{beneficiaries}}', String(beneficiaryCount));
+    let systemPrompt = finalSystemPrompt.replaceAll('{{beneficiaries}}', String(beneficiaryCount));
+
+    if (systemPrompt.includes('{{carbon_impact}}')) {
+      if (carbonImpactKg !== 0) {
+        const absValue = Math.abs(carbonImpactKg).toFixed(1);
+
+        const carbonDirection = carbonImpactKg < 0
+          ? `diproyeksikan dapat mengurangi emisi karbon sebesar ${absValue} kg CO₂`
+          : `diproyeksikan menghasilkan emisi karbon sebesar ${absValue} kg CO₂`;
+
+        const carbonNote = carbonImpactKg < 0
+          ? `Dampak ini setara dengan penyerapan karbon dari ${Math.round(Math.abs(carbonImpactKg) / 5)} pohon per tahun.`
+          : `Program ini berkomitmen untuk meminimalkan jejak karbon melalui pendekatan berbasis bukti.`;
+
+        const carbonText =
+          `Program ini ${carbonDirection}, berdasarkan estimasi saat ini. ${carbonNote} (Estimasi berbasis faktor emisi IPCC 2019 + PLN Indonesia 2023.)`;
+
+        systemPrompt = systemPrompt.replaceAll(
+          '{{carbon_impact}}',
+          carbonText
+        );
+      } else {
+        systemPrompt = systemPrompt
+          .replaceAll('- {{carbon_impact}}', '')
+          .replaceAll('{{carbon_impact}}', '')
+          .replace(/\n\s*\n/g, '\n');
+      }
+    }
 
     const { data: result, usage, model } = await chatJson<{
       matrix: LfaMatrix;
       proposal_markdown: string;
     }>({
       messages: [
-        { role: 'system', content: promptWithBeneficiaries },
+        { role: 'system', content: systemPrompt },
         {
           role: 'user',
           content: `Generate the LFA matrix and donor-ready proposal for this project.\\n\\n${JSON.stringify(userPayload, null, 2)}`,

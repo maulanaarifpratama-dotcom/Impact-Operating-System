@@ -360,7 +360,14 @@ export default function GrantWriterWizard() {
       // if it were a real AI-generated proposal.
       const { data: fnData, error: fnError } = await supabase.functions.invoke(
         'grant-writer-generate',
-        { body: { projectId, beneficiaryCount } },
+        {
+          body: {
+            projectId,
+            lfa_project_id: lfaProjectId || projectId,
+            org_id: project?.organization_id,
+            beneficiaryCount
+          }
+        },
       );
 
       if (!fnError && !fnData?.error && fnData?.document) {
