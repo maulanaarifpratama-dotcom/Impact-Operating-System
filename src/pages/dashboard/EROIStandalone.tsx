@@ -1,0 +1,445 @@
+// src/pages/dashboard/EROIStandalone.tsx
+// Standalone E-ROI Carbon Tracker page for Sprint 4
+
+import { useState, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from '@/providers/AuthProvider';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Leaf,
+  ArrowRight,
+  AlertTriangle,
+  Building2,
+  Calendar,
+  Layers,
+  Trees as TreesIcon,
+  TrendingDown,
+  TrendingUp,
+  Info,
+  Activity,
+  ArrowUpRight,
+  ExternalLink,
+  Loader2
+} from 'lucide-react';
+
+interface SummaryMetrics {
+  total: number;
+  reduction: number;
+  emission: number;
+  trees: number;
+  count: number;
+}
+
+export default function EROIStandalone() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [selectedProject, setSelectedProject] = useState<'all' | string>('all');
+
+  // --- QUERY 1: ORG NAME (Retrieved via membership) ---
+  const { data: membership } = useQuery({
+    queryKey: ['organization_members_eroi', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null;
+      const { data, error } = await supabase
+        .from('organization_members')
+        .select('organization_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const orgId = useMemo(() => {
+    if (!membership) return undefined;
+    if (Array.isArray(membership)) {
+      return membership[0]?.organization_id;
+    }
+    return (membership as any)?.organization_id;
+  }, [membership]);
+
+  // Fetch organization name/details for the badge
+  const { data: organization } = useQuery({
+    queryKey: ['organization_eroi', orgId],
+    queryFn: async () => {
+      if (!orgId) return null;
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('id', orgId)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!orgId,
+  });
+
+  // --- QUERY 2: PROGRAM LIST ---
+  const { data: projects, isLoading: isProjectsLoading } = useQuery({
+    queryKey: ['projects', orgId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('lfa_projects')
+        .select('id, name')
+        .eq('org_id', orgId);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!orgId
+  });
+
+  // --- QUERY 3: MAIN DATA (SINGLE SOURCE) ---
+  const { data: tableData, isLoading: isTableLoading } = useQuery({
+    queryKey: ['eroi-data', orgId, selectedProject],
+    queryFn: async () => {
+      let query = supabase
+        .from('lfa_wbs_items')
+        .select(`
+          name,
+          carbon_factor,
+          carbon_unit,
+          carbon_source,
+          duration_weeks,
+          lfa_projects (name)
+        `)
+        .eq('org_id', orgId)
+        .eq('carbon_enabled', true)
+        .eq('level', 2)
+        .order('created_at', { ascending: false })
+        .limit(200);
+
+      if (selectedProject !== 'all') {
+        query = query.eq('lfa_project_id', selectedProject);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!orgId
+  });
+
+  // --- COMPUTE SUMMARY (NO EXTRA QUERY) ---
+  const summary = useMemo<SummaryMetrics>(() => {
+    if (!tableData) {
+      return { total: 0, reduction: 0, emission: 0, trees: 0, count: 0 };
+    }
+
+    let total = 0;
+    let reduction = 0;
+    let emission = 0;
+
+    for (const item of tableData) {
+      if (!item.carbon_factor) continue;
+
+      const multiplier = item.duration_weeks ?? 1;
+      const impact = item.carbon_factor * multiplier;
+
+      total += impact;
+      if (impact < 0) reduction += Math.abs(impact);
+      else emission += impact;
+    }
+
+    return {
+      total,
+      reduction,
+      emission,
+      trees: Math.abs(total) / 5,
+      count: tableData.length
+    };
+  }, [tableData]);
+
+  // Loading state
+  const globalLoading = isProjectsLoading || isTableLoading;
+
+  return (
+    <div id="eroi-standalone-root" data-testid="eroi-standalone-root" className="container mx-auto p-4 md:p-6 space-y-6 max-w-7xl">
+      
+      {/* HEADER SECTION */}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-white dark:bg-slate-950 p-6 rounded-2xl border shadow-elegant">
+        <div>
+          <div className="flex items-center gap-3">
+            <span className="p-3 bg-gradient-to-tr from-emerald-500 to-teal-400 text-white rounded-xl text-2xl shadow-sm flex items-center justify-center">
+              <Leaf className="h-6 w-6" />
+            </span>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                  E-ROI Carbon Tracker
+                </h1>
+                <Badge variant="secondary" className="bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 font-semibold border-emerald-100 dark:border-emerald-900/50">
+                  🌱 Carbon Standalone
+                </Badge>
+              </div>
+              <p className="text-xs md:text-sm text-muted-foreground mt-1 max-w-2xl leading-relaxed">
+                Pantau emisi, reduksi, dan net impact karbon dari seluruh aktivitas program LFA secara real-time.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:items-end gap-1.5 shrink-0">
+          <span className="text-[10px] text-slate-400 uppercase tracking-wider font-semibold">Organisasi Terdaftar</span>
+          <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-900 border px-3 py-1.5 rounded-lg">
+            <Building2 className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              {organization?.name || 'Mengambil data...'}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* FILTER & PROGRAM SELECTOR CONTAINER */}
+      <div className="bg-slate-50 dark:bg-slate-900/40 p-4 border rounded-xl flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="space-y-1">
+          <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">Filter Berdasarkan Program LFA</h4>
+          <p className="text-[11px] text-muted-foreground">Pilih program tertentu untuk menyaring data emisi dan kalkulasi ringkasan.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {globalLoading && <Loader2 className="h-4 w-4 animate-spin text-emerald-600 mr-1" />}
+          <select
+            id="eroi-program-select"
+            data-testid="eroi-program-select"
+            value={selectedProject}
+            onChange={(e) => setSelectedProject(e.target.value)}
+            className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 max-w-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer shadow-sm min-w-[200px]"
+          >
+            <option value="all">Semua Program</option>
+            {projects?.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* MAIN LAYOUT */}
+      {summary.count === 0 ? (
+        /* EMPTY STATE FOR ALL CARDS AND TABLES */
+        <Card className="border border-dashed border-slate-300 dark:border-slate-800 p-12 text-center max-w-2xl mx-auto space-y-4 shadow-sm rounded-2xl">
+          <div className="p-4 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 rounded-full w-16 h-16 flex items-center justify-center mx-auto">
+            <Leaf className="h-8 w-8" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+              Belum ada data carbon tracking
+            </h2>
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-md mx-auto">
+              Aktivitas pada program yang dipilih belum mengaktifkan pelacakan karbon. Anda dapat mengonfigurasi faktor emisi karbon di WBS Builder untuk masing-masing aktivitas.
+            </p>
+          </div>
+          <Button
+            onClick={() => navigate('/dashboard/lfa-builder')}
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs h-10 px-5 rounded-lg flex items-center gap-1.5 mx-auto shadow-sm"
+          >
+            Buka LFA Builder <ArrowRight className="h-3.5 w-3.5" />
+          </Button>
+        </Card>
+      ) : (
+        /* SUMMARY CARDS & DATA TABLE */
+        <div className="space-y-6">
+          {/* SUMMARY CARDS (4) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            
+            {/* NET IMPACT CARBON */}
+            <Card className="border shadow-elegant overflow-hidden">
+              <CardHeader className="py-3 px-4 border-b bg-slate-50/50 dark:bg-slate-900/10 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Total Carbon Net Impact
+                </CardTitle>
+                {summary.total <= 0 ? (
+                  <TrendingDown className="h-4 w-4 text-emerald-500" />
+                ) : (
+                  <TrendingUp className="h-4 w-4 text-amber-500" />
+                )}
+              </CardHeader>
+              <CardContent className="p-5 space-y-2">
+                <div className="flex items-baseline gap-1">
+                  <span className={`text-2xl md:text-3xl font-extrabold tracking-tight ${
+                    summary.total <= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'
+                  }`}>
+                    {summary.total <= 0 ? '' : '+'}{summary.total.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-xs text-muted-foreground font-semibold">kg CO₂</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <Badge variant="outline" className={`text-[10px] py-0 px-1.5 font-bold ${
+                    summary.total <= 0
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-300'
+                      : 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-300'
+                  }`}>
+                    {summary.total <= 0 ? 'Carbon Negative / Offset' : 'Carbon Positive / Emisi'}
+                  </Badge>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* CARBON REDUCTION */}
+            <Card className="border shadow-elegant overflow-hidden">
+              <CardHeader className="py-3 px-4 border-b bg-slate-50/50 dark:bg-slate-900/10 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Total Reduksi Karbon
+                </CardTitle>
+                <TrendingDown className="h-4 w-4 text-emerald-500" />
+              </CardHeader>
+              <CardContent className="p-5 space-y-2">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl md:text-3xl font-extrabold tracking-tight text-emerald-600 dark:text-emerald-400">
+                    -{summary.reduction.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-xs text-muted-foreground font-semibold">kg CO₂</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  Total akumulasi dampak aktivitas hijau yang mengabsorpsi emisi.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* GROSS EMISSIONS */}
+            <Card className="border shadow-elegant overflow-hidden">
+              <CardHeader className="py-3 px-4 border-b bg-slate-50/50 dark:bg-slate-900/10 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Total Emisi Kotor
+                </CardTitle>
+                <TrendingUp className="h-4 w-4 text-amber-500" />
+              </CardHeader>
+              <CardContent className="p-5 space-y-2">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl md:text-3xl font-extrabold tracking-tight text-amber-600 dark:text-amber-400">
+                    +{summary.emission.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                  </span>
+                  <span className="text-xs text-muted-foreground font-semibold">kg CO₂</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  Total akumulasi emisi karbon kotor yang diproduksi aktivitas operasional.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* TREES EQUIVALENT */}
+            <Card className="border shadow-elegant overflow-hidden">
+              <CardHeader className="py-3 px-4 border-b bg-slate-50/50 dark:bg-slate-900/10 flex flex-row items-center justify-between">
+                <CardTitle className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Ekuivalen Penanaman Pohon
+                </CardTitle>
+                <TreesIcon className="h-4 w-4 text-emerald-600" />
+              </CardHeader>
+              <CardContent className="p-5 space-y-2">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-2xl md:text-3xl font-extrabold tracking-tight text-indigo-600 dark:text-indigo-400">
+                    {summary.trees.toLocaleString('id-ID', { maximumFractionDigits: 1 })}
+                  </span>
+                  <span className="text-xs text-muted-foreground font-semibold">pohon</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground leading-relaxed">
+                  Rerata penyerapan setara {summary.total <= 0 ? 'menyerap emisi kotor' : 'butuh penanaman tambahan'} selama durasi program.
+                </p>
+              </CardContent>
+            </Card>
+
+          </div>
+
+          {/* TABLE COMPONENT CARD */}
+          <Card className="border shadow-elegant overflow-hidden">
+            <CardHeader className="py-4 px-5 border-b bg-slate-50/30 dark:bg-slate-900/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <CardTitle className="text-sm font-bold flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-emerald-500" />
+                  <span>Daftar Rincian Aktivitas Carbon Tracking</span>
+                </CardTitle>
+                <CardDescription className="text-xs text-muted-foreground mt-0.5">
+                  Menampilkan aktivitas yang diaktifkan pelacakan emisi (Dibatasi maksimal 200 aktivitas).
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="bg-white dark:bg-slate-950 text-xs font-semibold py-0.5 px-2 self-start sm:self-center">
+                Terlacak: {summary.count} Aktivitas
+              </Badge>
+            </CardHeader>
+            <CardContent className="p-0 overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b bg-slate-50 dark:bg-slate-900/30 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+                    <th className="py-3 px-4 font-bold">Nama Aktivitas</th>
+                    <th className="py-3 px-4 font-bold">Program</th>
+                    <th className="py-3 px-4 font-bold text-right">Faktor Emisi</th>
+                    <th className="py-3 px-4 font-bold">Unit</th>
+                    <th className="py-3 px-4 font-bold text-center">Durasi</th>
+                    <th className="py-3 px-4 font-bold text-right">Dampak (kg CO₂)</th>
+                    <th className="py-3 px-4 font-bold">Sumber Data</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y text-slate-700 dark:text-slate-300">
+                  {tableData?.map((item: any, idx: number) => {
+                    const duration = item.duration_weeks ?? 1;
+                    const factor = item.carbon_factor ?? 0;
+                    const impact = factor * duration;
+                    const prName = item.lfa_projects
+                      ? Array.isArray(item.lfa_projects)
+                        ? item.lfa_projects[0]?.name
+                        : item.lfa_projects.name
+                      : 'Manual / Tanpa Program';
+
+                    return (
+                      <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 transition-colors">
+                        <td className="py-3.5 px-4 font-medium max-w-xs truncate" title={item.name}>
+                          {item.name}
+                        </td>
+                        <td className="py-3.5 px-4 font-semibold text-slate-500 max-w-[180px] truncate" title={prName}>
+                          {prName}
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-mono">
+                          {factor > 0 ? '+' : ''}{factor.toLocaleString('id-ID', { maximumFractionDigits: 4 })}
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-500">
+                          {item.carbon_unit || '-'}
+                        </td>
+                        <td className="py-3.5 px-4 text-center font-semibold text-slate-500">
+                          {duration} mgg
+                        </td>
+                        <td className="py-3.5 px-4 text-right font-bold">
+                          <span className={impact < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
+                            {impact < 0 ? '' : '+'}{impact.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-slate-500 max-w-[150px] truncate" title={item.carbon_source}>
+                          {item.carbon_source || 'Referensi Internal'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {/* METHODOLOGY CARD (WAJIB) */}
+      <Card className="border border-indigo-50 dark:border-indigo-950/40 shadow-elegant bg-indigo-50/10 dark:bg-indigo-950/10 overflow-hidden">
+        <CardHeader className="py-3.5 px-5 border-b bg-indigo-50/20 dark:bg-indigo-950/20 flex flex-row items-center gap-2.5">
+          <Info className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+          <CardTitle className="text-xs font-bold text-indigo-800 dark:text-indigo-300 uppercase tracking-wider">
+            Metodologi & Landasan Teori Perhitungan
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-5 text-xs text-slate-600 dark:text-slate-400 space-y-2 leading-relaxed">
+          <p className="font-semibold text-slate-800 dark:text-slate-200">🔍 PEMBERITAHUAN METODOLOGI & ESTIMASI:</p>
+          <p>
+            Metodologi perhitungan menggunakan faktor emisi <strong>IPCC 2019</strong> dan <strong>PLN Indonesia 2023</strong>.
+          </p>
+          <p>
+            Estimasi berbasis durasi program sebagai proxy jumlah aktivitas (sementara). Data ini berguna untuk estimasi awal dalam pelaporan net-zero dan penyusunan proposal pendanaan hijau kepada donor internasional.
+          </p>
+        </CardContent>
+      </Card>
+
+    </div>
+  );
+}

@@ -32,6 +32,7 @@ import MonthlyOperatingReview from './pages/dashboard/MonthlyOperatingReview';
 import LFABuilderIndex from './pages/dashboard/lfa-builder/LFABuilderIndex';
 import LFABuilderEditor from './pages/dashboard/lfa-builder/LFABuilderEditor';
 import SROIStandalone from './pages/dashboard/SROIStandalone';
+import EROIStandalone from './pages/dashboard/EROIStandalone';
 import BeneficiaryRegistry from './pages/dashboard/BeneficiaryRegistry';
 
 
@@ -167,6 +168,7 @@ const App = () => (
               <Route path="/dashboard/lfa-builder" element={<LFABuilderIndex />} />
               <Route path="/dashboard/lfa-builder/:projectId" element={<LFABuilderEditor />} />
               <Route path="/dashboard/sroi" element={<SROIStandalone />} />
+              <Route path="/dashboard/eroi" element={<EROIStandalone />} />
               <Route path="/dashboard/beneficiary" element={<BeneficiaryRegistry />} />
 
 
