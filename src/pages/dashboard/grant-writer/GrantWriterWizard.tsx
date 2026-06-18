@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft,
   ArrowRight,
@@ -55,6 +56,27 @@ export default function GrantWriterWizard() {
   const [lfaEntries, setLfaEntries] = useState<LfaEntry[]>([]);
 
   const lfaProjectId = (project?.wizard_data as Record<string, unknown> | undefined)?.lfa_project_id as string | undefined;
+
+  // Fetch verified beneficiaries count from Beneficiary Registry
+  const { data: beneficiaryCount = 0 } = useQuery({
+    queryKey: ['grant-beneficiary-count', lfaProjectId || projectId],
+    queryFn: async () => {
+      const targetId = lfaProjectId || projectId;
+      if (!targetId) return 0;
+      const { count, error } = await supabase
+        .from('beneficiaries')
+        .select('*', { count: 'exact', head: true })
+        .eq('lfa_project_id', targetId);
+
+      if (error) {
+        console.warn('Beneficiary fetch error', error);
+        return 0;
+      }
+
+      return count || 0;
+    },
+    enabled: !!(lfaProjectId || projectId),
+  });
 
   useEffect(() => {
     if (!lfaProjectId) return;
@@ -338,7 +360,7 @@ export default function GrantWriterWizard() {
       // if it were a real AI-generated proposal.
       const { data: fnData, error: fnError } = await supabase.functions.invoke(
         'grant-writer-generate',
-        { body: { projectId } },
+        { body: { projectId, beneficiaryCount } },
       );
 
       if (!fnError && !fnData?.error && fnData?.document) {

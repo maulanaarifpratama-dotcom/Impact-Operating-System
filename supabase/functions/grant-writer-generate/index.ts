@@ -24,6 +24,8 @@ interface GenerateRequest {
   projectId: string;
   /** Optional override of the donor standard for this generation. */
   donorStandard?: 'un_oecd_dac' | 'world_bank' | 'usaid' | 'eu' | 'generic';
+  /** Optional beneficiaryCount passed from frontend */
+  beneficiaryCount?: number;
 }
 
 interface LfaMatrix {
@@ -90,6 +92,7 @@ Rules:
 - Do not invent specific numbers that were not provided. Use ranges and
   qualitative framing when data is missing, and explicitly mark assumptions.
 - If "lfa_context" is present in the payload, you MUST strictly align your intervention logic (Goal, Outcomes, Outputs, Activities, Indicators, and Assumptions) with the data inside "lfa_context.entries". Elaborate upon and enrich this exact structure rather than inventing divergent outcomes/outputs.
+- Jumlah penerima manfaat terverifikasi: {{beneficiaries}} orang. Anda wajib menyebutkan angka {{beneficiaries}} penerima manfaat terverifikasi secara eksplisit di dalam narasi proposal (misalnya pada bagian Executive Summary atau Problem Statement) sebagai data aktual. Namun, jika angka ini adalah 0, jangan merekayasa atau memalsukan angka, melainkan sebutkan bahwa saat ini terdapat 0 penerima manfaat terverifikasi di dalam sistem. Tetap patuhi batasan dan jangan menimpa angka target pengguna lainnya.
 - Output ONLY valid JSON. No markdown fences around the JSON.`;
 
 Deno.serve(async (req: Request) => {
@@ -148,6 +151,24 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Retrieve beneficiary count (with fallback headcount query)
+    let beneficiaryCount = body.beneficiaryCount;
+    if (beneficiaryCount === undefined) {
+      // Direct query from database as a redundant fallback
+      const targetLfaProjectId = lfaProjectId || body.projectId;
+      const { count, error: bErr } = await ctx.supabase
+        .from('beneficiaries')
+        .select('*', { count: 'exact', head: true })
+        .eq('lfa_project_id', targetLfaProjectId);
+
+      if (bErr) {
+        console.warn('Fallback beneficiary query error:', bErr.message);
+        beneficiaryCount = 0;
+      } else {
+        beneficiaryCount = count || 0;
+      }
+    }
+
     // 3. Call Foundry with the wizard data
     const userPayload = {
       project: {
@@ -160,6 +181,7 @@ Deno.serve(async (req: Request) => {
         donor_standard: donorStandard,
         target_donor: project.target_donor,
       },
+      beneficiaries: beneficiaryCount,
       wizard_data: project.wizard_data,
       ...(lfaContext ? { lfa_context: lfaContext } : {})
     };
@@ -205,13 +227,14 @@ Deno.serve(async (req: Request) => {
     }
 
     const finalSystemPrompt = SYSTEM_PROMPT + ragContext;
+    const promptWithBeneficiaries = finalSystemPrompt.replace('{{beneficiaries}}', String(beneficiaryCount));
 
     const { data: result, usage, model } = await chatJson<{
       matrix: LfaMatrix;
       proposal_markdown: string;
     }>({
       messages: [
-        { role: 'system', content: finalSystemPrompt },
+        { role: 'system', content: promptWithBeneficiaries },
         {
           role: 'user',
           content: `Generate the LFA matrix and donor-ready proposal for this project.\\n\\n${JSON.stringify(userPayload, null, 2)}`,
