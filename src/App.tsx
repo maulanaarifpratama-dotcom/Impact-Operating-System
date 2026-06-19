@@ -12,6 +12,11 @@ import NotFound from './pages/NotFound';
 import Login from './pages/auth/Login';
 import Signup from './pages/auth/Signup';
 import AuthCallback from './pages/auth/Callback';
+import AboutPage from './pages/landing/AboutPage';
+import ContactPage from './pages/landing/ContactPage';
+import PricingPage from './pages/landing/PricingPage';
+import PrivacyPolicyPage from './pages/landing/PrivacyPolicyPage';
+import TermsPage from './pages/landing/TermsPage';
 import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
 import DashboardHome from './pages/dashboard/DashboardHome';
 import ReadinessScorecard from './pages/dashboard/ReadinessScorecard';
@@ -116,6 +121,11 @@ const App = () => (
           <Routes>
             {/* Public */}
             <Route path="/" element={<Index />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/contact" element={<ContactPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/terms" element={<TermsPage />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
