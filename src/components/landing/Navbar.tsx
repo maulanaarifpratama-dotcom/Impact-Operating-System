@@ -24,9 +24,12 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
   }, []);
 
   const links = [
-    { href: '#problem', label: t.navbar.problem },
-    { href: '#growth-system', label: t.navbar.growth },
-    { href: '#modules', label: t.navbar.products },
+    { href: '/#problem', label: t.navbar.problem },
+    { href: '/#growth-system', label: t.navbar.growth },
+    { href: '/#modules', label: t.navbar.products },
+    { to: '/pricing', label: lang === 'id' ? 'Harga' : 'Pricing' },
+    { to: '/about', label: lang === 'id' ? 'Tentang' : 'About' },
+    { to: '/contact', label: lang === 'id' ? 'Kontak' : 'Contact' },
   ];
 
   return (
@@ -44,7 +47,15 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
         </Link>
 
         <nav className="hidden items-center gap-7 md:flex" aria-label="Navigasi utama">
-          {links.map((l) => (
+          {links.map((l) => l.to ? (
+            <Link
+              key={l.to}
+              to={l.to}
+              className="text-sm font-medium text-slate-300 transition-colors hover:text-white"
+            >
+              {l.label}
+            </Link>
+          ) : (
             <a
               key={l.href}
               href={l.href}
@@ -104,7 +115,16 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
       {open && (
         <div className="md:hidden border-t border-white/10 bg-[#0A1D25]">
           <div className="container flex flex-col gap-1 py-4 bg-[#0A1D25]">
-            {links.map((l) => (
+            {links.map((l) => l.to ? (
+              <Link
+                key={l.to}
+                to={l.to}
+                onClick={() => setOpen(false)}
+                className="rounded-md px-3 py-2 text-sm text-slate-300 hover:bg-white/5 hover:text-white"
+              >
+                {l.label}
+              </Link>
+            ) : (
               <a
                 key={l.href}
                 href={l.href}

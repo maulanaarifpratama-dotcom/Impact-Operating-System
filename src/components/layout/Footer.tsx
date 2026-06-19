@@ -21,7 +21,7 @@ export function Footer() {
             </p>
             <div className="flex items-center gap-3 pt-2">
               <a 
-                href="https://linkedin.com" 
+                href="https://linkedin.com/company/impactory" 
                 target="_blank" 
                 rel="noreferrer noopener"
                 className="h-8 w-8 rounded-lg bg-white/5 hover:bg-teal-500/10 hover:text-teal-400 border border-white/5 transition-colors flex items-center justify-center text-slate-400"
@@ -29,7 +29,7 @@ export function Footer() {
                 <Linkedin className="h-4 w-4" />
               </a>
               <a 
-                href="https://instagram.com" 
+                href="https://instagram.com/impactoryindonesia" 
                 target="_blank" 
                 rel="noreferrer noopener"
                 className="h-8 w-8 rounded-lg bg-white/5 hover:bg-teal-500/10 hover:text-teal-400 border border-white/5 transition-colors flex items-center justify-center text-slate-400"
@@ -37,7 +37,7 @@ export function Footer() {
                 <Instagram className="h-4 w-4" />
               </a>
               <a 
-                href="https://x.com" 
+                href="https://x.com/impactoryid" 
                 target="_blank" 
                 rel="noreferrer noopener"
                 className="h-8 w-8 rounded-lg bg-white/5 hover:bg-teal-500/10 hover:text-teal-400 border border-white/5 transition-colors flex items-center justify-center text-slate-400"
@@ -52,13 +52,13 @@ export function Footer() {
             <h4 className="text-xs font-bold text-slate-100 uppercase tracking-widest">Produk</h4>
             <ul className="space-y-2.5 text-xs">
               <li>
-                <Link to="/" className="text-slate-400 hover:text-teal-400 transition-colors">Fitur</Link>
+                <a href="/#features" className="text-slate-400 hover:text-teal-400 transition-colors">Fitur</a>
               </li>
               <li>
-                <Link to="/pricing" className="text-slate-400 hover:text-teal-400 transition-colors">Pricing</Link>
+                <Link to="/pricing" className="text-slate-400 hover:text-teal-400 transition-colors">Harga</Link>
               </li>
               <li>
-                <Link to="/grantfinder" className="text-slate-400 hover:text-teal-400 transition-colors">Grant Finder</Link>
+                <Link to="/dashboard/grant-finder" className="text-slate-400 hover:text-teal-400 transition-colors">Grant Finder</Link>
               </li>
             </ul>
           </div>
@@ -68,10 +68,10 @@ export function Footer() {
             <h4 className="text-xs font-bold text-slate-100 uppercase tracking-widest">Perusahaan</h4>
             <ul className="space-y-2.5 text-xs">
               <li>
-                <Link to="/about" className="text-slate-400 hover:text-teal-400 transition-colors">About</Link>
+                <Link to="/about" className="text-slate-400 hover:text-teal-400 transition-colors">Tentang</Link>
               </li>
               <li>
-                <Link to="/contact" className="text-slate-400 hover:text-teal-400 transition-colors">Contact</Link>
+                <Link to="/contact" className="text-slate-400 hover:text-teal-400 transition-colors">Kontak</Link>
               </li>
             </ul>
           </div>
@@ -84,7 +84,7 @@ export function Footer() {
                 <Link to="/privacy" className="text-slate-400 hover:text-teal-400 transition-colors">Privacy Policy</Link>
               </li>
               <li>
-                <Link to="/terms" className="text-slate-400 hover:text-teal-400 transition-colors">Terms of Service</Link>
+                <Link to="/terms" className="text-slate-400 hover:text-teal-400 transition-colors">Syarat Layanan</Link>
               </li>
             </ul>
           </div>
@@ -94,13 +94,13 @@ export function Footer() {
             <h4 className="text-xs font-bold text-slate-100 uppercase tracking-widest">Sosial</h4>
             <ul className="space-y-2.5 text-xs">
               <li>
-                <a href="https://linkedin.com" target="_blank" rel="noreferrer noopener" className="text-slate-400 hover:text-teal-400 transition-colors">LinkedIn</a>
+                <a href="https://linkedin.com/company/impactory" target="_blank" rel="noreferrer noopener" className="text-slate-400 hover:text-teal-400 transition-colors">LinkedIn</a>
               </li>
               <li>
-                <a href="https://instagram.com" target="_blank" rel="noreferrer noopener" className="text-slate-400 hover:text-teal-400 transition-colors">Instagram</a>
+                <a href="https://instagram.com/impactoryindonesia" target="_blank" rel="noreferrer noopener" className="text-slate-400 hover:text-teal-400 transition-colors">Instagram</a>
               </li>
               <li>
-                <a href="https://x.com" target="_blank" rel="noreferrer noopener" className="text-slate-400 hover:text-teal-400 transition-colors">Twitter/X</a>
+                <a href="https://x.com/impactoryid" target="_blank" rel="noreferrer noopener" className="text-slate-400 hover:text-teal-400 transition-colors">Twitter/X</a>
               </li>
             </ul>
           </div>
