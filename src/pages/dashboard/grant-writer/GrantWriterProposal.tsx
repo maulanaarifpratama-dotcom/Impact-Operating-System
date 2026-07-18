@@ -1,12 +1,25 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Download, FileText, Loader2, Printer, Sparkles } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  Download, 
+  FileText, 
+  Loader2, 
+  Printer, 
+  Sparkles, 
+  CheckCircle2, 
+  XCircle, 
+  Play, 
+  ArrowRight,
+  HelpCircle
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/database.types';
+import { INKINDO_PROVINCE_MULTIPLIERS, INKINDO_DIRECT_COST_MULTIPLIERS } from '@/data/inkindo2026';
 
 type LfaDoc = Database['public']['Tables']['gw_lfa_documents']['Row'];
 type Project = Database['public']['Tables']['gw_projects']['Row'];
@@ -79,12 +92,31 @@ function renderMarkdown(md: string): string {
   return out.join('\n');
 }
 
+interface MaterializeStep {
+  id: 'program' | 'lfa' | 'wbs' | 'budget' | 'meal';
+  label: string;
+  status: 'idle' | 'running' | 'success' | 'failed' | 'skipped';
+  message?: string;
+}
+
 export default function GrantWriterProposal() {
   const { projectId } = useParams<{ projectId: string }>();
   const { toast } = useToast();
   const [project, setProject] = useState<Project | null>(null);
   const [doc, setDoc] = useState<LfaDoc | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Materialization States
+  const [steps, setSteps] = useState<MaterializeStep[]>([
+    { id: 'program', label: 'Program Workspace Creation', status: 'idle' },
+    { id: 'lfa', label: 'Logical Framework Matrix (LFA) Seed', status: 'idle' },
+    { id: 'wbs', label: 'Work Breakdown Structure (WBS) Seed', status: 'idle' },
+    { id: 'budget', label: 'SBM/INKINDO Budget Skeleton Seed', status: 'idle' },
+    { id: 'meal', label: 'MEAL Framework Indicators Seed', status: 'idle' },
+  ]);
+  const [materializing, setMaterializing] = useState(false);
+  const [completed, setCompleted] = useState(false);
+  const [targetLfaProjectId, setTargetLfaProjectId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!projectId) return;
@@ -104,6 +136,21 @@ export default function GrantWriterProposal() {
       if (cancelled) return;
       setProject(p ?? null);
       setDoc(d ?? null);
+
+      // Check if project has already been materialized
+      if (p) {
+        const { data: existingLfa } = await supabase
+          .from('lfa_projects')
+          .select('id')
+          .eq('linked_grant_id', projectId)
+          .maybeSingle();
+        if (existingLfa) {
+          setTargetLfaProjectId(existingLfa.id);
+          setCompleted(true);
+          setSteps(prev => prev.map(s => ({ ...s, status: 'success' as const })));
+        }
+      }
+
       setLoading(false);
     })();
     return () => {
@@ -136,6 +183,490 @@ export default function GrantWriterProposal() {
     };
     window.addEventListener('afterprint', restore);
     window.print();
+  };
+
+  const handleMaterialize = async () => {
+    if (!project) return;
+    setMaterializing(true);
+    setCompleted(false);
+    
+    // Reset steps
+    setSteps([
+      { id: 'program', label: 'Program Workspace Creation', status: 'idle' },
+      { id: 'lfa', label: 'Logical Framework Matrix (LFA) Seed', status: 'idle' },
+      { id: 'wbs', label: 'Work Breakdown Structure (WBS) Seed', status: 'idle' },
+      { id: 'budget', label: 'SBM/INKINDO Budget Skeleton Seed', status: 'idle' },
+      { id: 'meal', label: 'MEAL Framework Indicators Seed', status: 'idle' },
+    ]);
+
+    let currentLfaProjId = targetLfaProjectId;
+
+    try {
+      // 1. CREATE PROGRAM
+      setSteps(prev => prev.map(s => s.id === 'program' ? { ...s, status: 'running' } : s));
+      await new Promise(r => setTimeout(r, 600));
+
+      const { data: existingProj, error: checkErr } = await supabase
+        .from('lfa_projects')
+        .select('*')
+        .eq('linked_grant_id', project.id)
+        .maybeSingle();
+
+      if (checkErr) throw checkErr;
+
+      if (existingProj) {
+        currentLfaProjId = existingProj.id;
+        setSteps(prev => prev.map(s => s.id === 'program' ? { ...s, status: 'skipped', message: 'Program sudah terdaftar' } : s));
+      } else {
+        const { data: newProj, error: insertErr } = await supabase
+          .from('lfa_projects')
+          .insert({
+            org_id: project.organization_id,
+            name: project.title,
+            location: project.geography || 'DKI Jakarta',
+            linked_grant_id: project.id,
+            duration_months: project.duration_months || 12
+          })
+          .select('*')
+          .single();
+
+        if (insertErr) throw insertErr;
+        currentLfaProjId = newProj.id;
+
+        const updatedWizard = {
+          ...(project.wizard_data as any || {}),
+          lfa_project_id: newProj.id
+        };
+        await supabase
+          .from('gw_projects')
+          .update({ wizard_data: updatedWizard as any, status: 'completed' })
+          .eq('id', project.id);
+
+        setSteps(prev => prev.map(s => s.id === 'program' ? { ...s, status: 'success' } : s));
+      }
+      setTargetLfaProjectId(currentLfaProjId);
+
+      // 2. SEED LFA MATRIX
+      setSteps(prev => prev.map(s => s.id === 'lfa' ? { ...s, status: 'running' } : s));
+      await new Promise(r => setTimeout(r, 600));
+
+      const { data: existingEntries, error: entriesErr } = await supabase
+        .from('lfa_entries')
+        .select('*')
+        .eq('project_id', currentLfaProjId);
+
+      if (entriesErr) throw entriesErr;
+
+      if (existingEntries && existingEntries.some(e => e.level === 'output' || e.level === 'activity')) {
+        setSteps(prev => prev.map(s => s.id === 'lfa' ? { ...s, status: 'skipped', message: 'LFA Matrix sudah terisi' } : s));
+      } else {
+        const { data: lfaDoc } = await supabase
+          .from('gw_lfa_documents')
+          .select('*')
+          .eq('project_id', project.id)
+          .order('version', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        const matrix = lfaDoc?.matrix as any;
+
+        // Seed Goal
+        let goalEntry = existingEntries?.find(e => e.level === 'goal');
+        const goalDesc = matrix?.goal?.intervention || project.summary || '';
+        const goalInd = matrix?.goal?.indicators?.[0] || '';
+        const goalMov = matrix?.goal?.meansOfVerification?.[0] || '';
+        const goalAsmp = matrix?.goal?.assumptions?.[0] || '';
+
+        if (goalEntry) {
+          if (!goalEntry.description) {
+            await supabase.from('lfa_entries').update({
+              description: goalDesc,
+              indicator: goalInd,
+              means_of_verification: goalMov,
+              assumption: goalAsmp
+            }).eq('id', goalEntry.id);
+          }
+        } else {
+          await supabase.from('lfa_entries').insert({
+            project_id: currentLfaProjId,
+            org_id: project.organization_id,
+            level: 'goal',
+            sequence: 1,
+            description: goalDesc,
+            indicator: goalInd,
+            means_of_verification: goalMov,
+            assumption: goalAsmp
+          });
+        }
+
+        // Seed Purpose
+        let purposeEntry = existingEntries?.find(e => e.level === 'purpose');
+        const outcomeDesc = matrix?.outcomes?.[0]?.intervention || '';
+        const outcomeInd = matrix?.outcomes?.[0]?.indicators?.[0] || '';
+        const outcomeMov = matrix?.outcomes?.[0]?.meansOfVerification?.[0] || '';
+        const outcomeAsmp = matrix?.outcomes?.[0]?.assumptions?.[0] || '';
+
+        if (purposeEntry) {
+          if (!purposeEntry.description) {
+            await supabase.from('lfa_entries').update({
+              description: outcomeDesc,
+              indicator: outcomeInd,
+              means_of_verification: outcomeMov,
+              assumption: outcomeAsmp
+            }).eq('id', purposeEntry.id);
+          }
+        } else {
+          await supabase.from('lfa_entries').insert({
+            project_id: currentLfaProjId,
+            org_id: project.organization_id,
+            level: 'purpose',
+            sequence: 1,
+            description: outcomeDesc,
+            indicator: outcomeInd,
+            means_of_verification: outcomeMov,
+            assumption: outcomeAsmp
+          });
+        }
+
+        // Seed Outputs & Activities
+        const outputs = matrix?.outputs || [];
+        const matrixActivities = matrix?.activities || [];
+
+        for (let i = 0; i < outputs.length; i++) {
+          const out = outputs[i];
+          const { data: outEntry, error: outErr } = await supabase
+            .from('lfa_entries')
+            .insert({
+              project_id: currentLfaProjId,
+              org_id: project.organization_id,
+              level: 'output',
+              sequence: i + 1,
+              description: out.intervention || '',
+              indicator: out.indicators?.[0] || '',
+              means_of_verification: out.meansOfVerification?.[0] || '',
+              assumption: out.assumptions?.[0] || '',
+            })
+            .select()
+            .single();
+
+          if (outErr) throw outErr;
+
+          const actObj = matrixActivities[i];
+          if (actObj && actObj.items) {
+            for (let k = 0; k < actObj.items.length; k++) {
+              const actText = actObj.items[k];
+              await supabase
+                .from('lfa_entries')
+                .insert({
+                  project_id: currentLfaProjId,
+                  org_id: project.organization_id,
+                  level: 'activity',
+                  sequence: k + 1,
+                  parent_id: outEntry.id,
+                  description: actText,
+                  indicator: '',
+                  means_of_verification: '',
+                  assumption: '',
+                  timeline_start: 1,
+                  timeline_end: project.duration_months || 12,
+                });
+            }
+          }
+        }
+        setSteps(prev => prev.map(s => s.id === 'lfa' ? { ...s, status: 'success' } : s));
+      }
+
+      // 3. SEED WBS ACTIVITIES
+      setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'running' } : s));
+      await new Promise(r => setTimeout(r, 600));
+
+      const { data: existingWbs, error: wbsErr } = await supabase
+        .from('lfa_wbs_items')
+        .select('*')
+        .eq('lfa_project_id', currentLfaProjId);
+
+      if (wbsErr) throw wbsErr;
+
+      if (existingWbs && existingWbs.length > 0) {
+        setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'skipped', message: 'Struktur WBS sudah terisi' } : s));
+      } else {
+        const { data: lfaEntries } = await supabase
+          .from('lfa_entries')
+          .select('*')
+          .eq('project_id', currentLfaProjId);
+
+        const seededOutputs = (lfaEntries || []).filter(e => e.level === 'output');
+        const seededActivities = (lfaEntries || []).filter(e => e.level === 'activity');
+
+        const newWbsItems: any[] = [];
+        let globalSortOrder = 0;
+
+        for (const out of seededOutputs) {
+          const level1Id = crypto.randomUUID();
+          newWbsItems.push({
+            id: level1Id,
+            lfa_project_id: currentLfaProjId,
+            org_id: project.organization_id,
+            level: 1,
+            parent_id: null,
+            name: out.description || 'Output Hasil Tanpa Judul',
+            start_month: 1,
+            duration_weeks: 4,
+            sort_order: globalSortOrder++,
+            mode: 'simple',
+            dependencies: []
+          });
+
+          const childActs = seededActivities.filter(a => a.parent_id === out.id);
+          for (const act of childActs) {
+            const level2Id = crypto.randomUUID();
+            let durationW = 4;
+            if (act.timeline_start && act.timeline_end) {
+              durationW = Math.max(4, (act.timeline_end - act.timeline_start + 1) * 4);
+            }
+            newWbsItems.push({
+              id: level2Id,
+              lfa_project_id: currentLfaProjId,
+              org_id: project.organization_id,
+              level: 2,
+              parent_id: level1Id,
+              name: act.description || 'Aktivitas Tanpa Judul',
+              start_month: act.timeline_start || 1,
+              duration_weeks: durationW,
+              pic: act.responsible_party || '',
+              sort_order: globalSortOrder++,
+              mode: 'simple',
+              dependencies: [],
+              indicator: act.indicator || ''
+            });
+          }
+        }
+
+        if (newWbsItems.length > 0) {
+          const { error } = await supabase
+            .from('lfa_wbs_items')
+            .insert(newWbsItems);
+          if (error) throw error;
+        }
+        setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'success' } : s));
+      }
+
+      // 4. SEED BUDGET SKELETON
+      setSteps(prev => prev.map(s => s.id === 'budget' ? { ...s, status: 'running' } : s));
+      await new Promise(r => setTimeout(r, 600));
+
+      const { data: existingBudget } = await supabase
+        .from('lfa_budget_items')
+        .select('*')
+        .eq('lfa_project_id', currentLfaProjId);
+
+      if (existingBudget && existingBudget.length > 0) {
+        setSteps(prev => prev.map(s => s.id === 'budget' ? { ...s, status: 'skipped', message: 'Draf Anggaran sudah terisi' } : s));
+      } else {
+        const { data: seededActivitiesWbs } = await supabase
+          .from('lfa_wbs_items')
+          .select('*')
+          .eq('lfa_project_id', currentLfaProjId)
+          .eq('level', 2);
+
+        const province = project.geography || 'DKI Jakarta';
+        const personnelMul = INKINDO_PROVINCE_MULTIPLIERS[province] || 1.0;
+        const directMul = INKINDO_DIRECT_COST_MULTIPLIERS[province] || 1.0;
+        const ngoFactor = 0.7;
+
+        const skeletonItems: any[] = [];
+        let sortOrder = 0;
+
+        const inferMethodFromName = (name: string): 'Workshop' | 'FGD' | 'Survey' | 'Pelatihan' | 'Pendampingan' | 'Rapat' | 'Lainnya' => {
+          const lower = name.toLowerCase();
+          if (lower.includes('workshop') || lower.includes('lokakarya')) return 'Workshop';
+          if (lower.includes('fgd') || lower.includes('focus group') || lower.includes('diskusi terfokus')) return 'FGD';
+          if (lower.includes('survey') || lower.includes('survei') || lower.includes('riset') || lower.includes('penelitian') || lower.includes('monitoring') || lower.includes('evaluasi')) return 'Survey';
+          if (lower.includes('pelatihan') || lower.includes('training') || lower.includes('kapasitas') || lower.includes('capacity')) return 'Pelatihan';
+          if (lower.includes('pendampingan') || lower.includes('mentoring') || lower.includes('coaching')) return 'Pendampingan';
+          if (lower.includes('rapat') || lower.includes('meeting') || lower.includes('koordinasi')) return 'Rapat';
+          return 'Lainnya';
+        };
+
+        if (seededActivitiesWbs && seededActivitiesWbs.length > 0) {
+          seededActivitiesWbs.forEach((act: any) => {
+            const method = inferMethodFromName(act.name);
+            let templates: Array<{ name: string; category: string; unit: string; volume: number; price: number }> = [];
+
+            if (method === 'Pelatihan' || method === 'Pendampingan') {
+              templates = [
+                { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 2, price: 750000 },
+                { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 25, price: 117000 },
+                { name: 'Hotel Bintang 3', category: 'Akomodasi', unit: 'Hari', volume: 1, price: 750000 },
+                { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 25, price: 150000 }
+              ];
+            } else if (method === 'Survey') {
+              templates = [
+                { name: 'Petugas Lapangan', category: 'Honorarium', unit: 'Hari', volume: 5, price: 250000 },
+                { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 5, price: 150000 },
+                { name: 'Uang Harian Dalam Kota', category: 'Transport', unit: 'Hari', volume: 5, price: 380000 }
+              ];
+            } else if (method === 'Workshop') {
+              templates = [
+                { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 1, price: 750000 },
+                { name: 'Modul/Materi Pelatihan', category: 'ATK', unit: 'Paket', volume: 15, price: 50000 },
+                { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 15, price: 117000 }
+              ];
+            } else if (method === 'FGD') {
+              templates = [
+                { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 1, price: 750000 },
+                { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 10, price: 117000 },
+                { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 10, price: 150000 }
+              ];
+            } else {
+              templates = [
+                { name: 'Makan Siang', category: 'Konsumsi', unit: 'Orang', volume: 8, price: 60000 },
+                { name: 'Snack', category: 'Konsumsi', unit: 'Orang', volume: 8, price: 30000 }
+              ];
+            }
+
+            templates.forEach((tpl) => {
+              let finalPrice = tpl.price;
+              if (tpl.category === 'Honorarium') {
+                finalPrice = Math.round(tpl.price * personnelMul * ngoFactor);
+              } else {
+                finalPrice = Math.round(tpl.price * directMul);
+              }
+
+              skeletonItems.push({
+                lfa_project_id: currentLfaProjId,
+                org_id: project.organization_id,
+                wbs_item_id: act.id,
+                activity_name: act.name,
+                category: tpl.category,
+                cost_category: tpl.category === 'Honorarium' ? 'Personnel & Consultants' : 'Direct Operational Costs',
+                item_name: tpl.name,
+                volume: tpl.volume,
+                unit: tpl.unit,
+                unit_price_idr: finalPrice,
+                funding_source: 'grant',
+                justification: `[AUTO_GENERATED] Berdasarkan metode ${method} untuk aktivitas: ${act.name}`,
+                needs_donor_approval: false,
+                sort_order: sortOrder++,
+                mode: 'simple'
+              });
+            });
+          });
+
+          if (skeletonItems.length > 0) {
+            const { error } = await supabase
+              .from('lfa_budget_items')
+              .insert(skeletonItems);
+            if (error) throw error;
+          }
+        }
+        setSteps(prev => prev.map(s => s.id === 'budget' ? { ...s, status: 'success' } : s));
+      }
+
+      // 5. SEED MEAL FRAMEWORK
+      setSteps(prev => prev.map(s => s.id === 'meal' ? { ...s, status: 'running' } : s));
+      await new Promise(r => setTimeout(r, 600));
+
+      const { data: existingMeal } = await supabase
+        .from('lfa_meal_items')
+        .select('*')
+        .eq('lfa_project_id', currentLfaProjId);
+
+      if (existingMeal && existingMeal.length > 0) {
+        setSteps(prev => prev.map(s => s.id === 'meal' ? { ...s, status: 'skipped', message: 'Kerangka MEAL sudah terisi' } : s));
+      } else {
+        const { data: seededEntries } = await supabase
+          .from('lfa_entries')
+          .select('*')
+          .eq('project_id', currentLfaProjId);
+
+        if (seededEntries && seededEntries.length > 0) {
+          const mealInserts = seededEntries
+            .filter(entry => entry.indicator && entry.indicator.trim() !== '')
+            .map((entry, index) => {
+              let levelMap: 'goal' | 'purpose' | 'output' = 'output';
+              if (entry.level === 'goal') levelMap = 'goal';
+              if (entry.level === 'purpose') levelMap = 'purpose';
+
+              return {
+                lfa_project_id: currentLfaProjId,
+                org_id: project.organization_id,
+                lfa_level: levelMap,
+                indicator_text: entry.indicator || '',
+                baseline: null,
+                target_value: null,
+                target_unit: '',
+                collection_method: null,
+                collection_tool: null,
+                frequency: null,
+                pic: '',
+                status: 'Belum Mulai',
+                secondary_source: entry.means_of_verification || null,
+                data_assumption: entry.assumption || null,
+                monitoring_risk: '',
+                mode: 'simple',
+                sort_order: index,
+                disaggregation: []
+              };
+            });
+
+          if (mealInserts.length === 0) {
+            const fallbackInserts = seededEntries.map((entry, index) => {
+              let levelMap: 'goal' | 'purpose' | 'output' = 'output';
+              if (entry.level === 'goal') levelMap = 'goal';
+              if (entry.level === 'purpose') levelMap = 'purpose';
+
+              return {
+                lfa_project_id: currentLfaProjId,
+                org_id: project.organization_id,
+                lfa_level: levelMap,
+                indicator_text: entry.indicator || `Indikator untuk: ${entry.description || entry.level}`,
+                baseline: null,
+                target_value: null,
+                target_unit: '',
+                collection_method: null,
+                collection_tool: null,
+                frequency: null,
+                pic: '',
+                status: 'Belum Mulai',
+                secondary_source: entry.means_of_verification || null,
+                data_assumption: entry.assumption || null,
+                monitoring_risk: '',
+                mode: 'simple',
+                sort_order: index,
+                disaggregation: []
+              };
+            });
+            mealInserts.push(...fallbackInserts);
+          }
+
+          if (mealInserts.length > 0) {
+            const { error } = await supabase
+              .from('lfa_meal_items')
+              .insert(mealInserts);
+            if (error) throw error;
+          }
+        }
+        setSteps(prev => prev.map(s => s.id === 'meal' ? { ...s, status: 'success' } : s));
+      }
+
+      setCompleted(true);
+      toast({
+        title: 'Materialisasi Berhasil! 🚀✨',
+        description: 'Seluruh struktur Logical Framework, WBS, Budget, dan MEAL telah berhasil disinkronisasi.',
+      });
+
+    } catch (err: any) {
+      console.error('Materialization error:', err);
+      setSteps(prev => prev.map(s => s.status === 'running' ? { ...s, status: 'failed', message: err.message } : s));
+      toast({
+        title: 'Materialisasi Gagal',
+        description: err.message || 'Terjadi kesalahan saat memproses data.',
+        variant: 'destructive',
+      });
+    } finally {
+      setMaterializing(false);
+    }
   };
 
   if (loading) {
@@ -208,19 +739,129 @@ export default function GrantWriterProposal() {
         </Card>
       ) : (
         <>
+          {/* SPRINT 4: HIGH-FIDELITY MATERIALIZATION CARD PANEL */}
+          <Card className="border-indigo-200/50 bg-gradient-to-br from-indigo-50/40 via-purple-50/10 to-transparent dark:from-indigo-950/20 dark:via-purple-950/5 dark:to-transparent backdrop-blur-md shadow-lg no-print overflow-hidden">
+            <div className="p-6">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="space-y-1 max-w-xl">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-indigo-500 animate-pulse" />
+                    <h2 className="text-lg font-bold tracking-tight bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent dark:from-indigo-400 dark:to-purple-400">
+                      Materialisasikan Program Workspace
+                    </h2>
+                  </div>
+                  <p className="text-sm text-muted-foreground leading-relaxed">
+                    Ubah draf proposal hasil AI ini menjadi modul program operasional yang tersinkronisasi. Sistem akan otomatis melakukan seeding ke logframe, jadwal WBS, perhitungan draf RAB berbasis INKINDO 2026, dan indikator MEAL secara asynchronous & idempotent.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  {completed && targetLfaProjectId && (
+                    <Button variant="outline" className="border-indigo-200 hover:bg-indigo-50/50 dark:border-indigo-800" asChild>
+                      <Link to={`/dashboard/lfa-builder/${targetLfaProjectId}?tab=lfa`}>
+                        Buka Program Workspace <ArrowRight className="ml-1.5 h-4 w-4" />
+                      </Link>
+                    </Button>
+                  )}
+                  <Button 
+                    variant="default" 
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200/50 dark:shadow-none"
+                    disabled={materializing} 
+                    onClick={handleMaterialize}
+                  >
+                    {materializing ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Memproses...
+                      </>
+                    ) : (
+                      <>
+                        <Play className="mr-1.5 h-4 w-4 fill-current" /> {completed ? 'Sinkronisasi Ulang' : 'Materialisasikan Sekarang'}
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {/* Progress Steps List */}
+              <div className="mt-6 border-t border-indigo-100/50 dark:border-indigo-900/40 pt-6">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                  {steps.map((step, idx) => {
+                    const isIdle = step.status === 'idle';
+                    const isRunning = step.status === 'running';
+                    const isSuccess = step.status === 'success';
+                    const isSkipped = step.status === 'skipped';
+                    const isFailed = step.status === 'failed';
+
+                    return (
+                      <div 
+                        key={step.id} 
+                        className={`relative rounded-xl p-4 transition-all duration-300 border ${
+                          isRunning 
+                            ? 'border-indigo-300 bg-indigo-50/30 dark:border-indigo-800 dark:bg-indigo-950/20 shadow-sm shadow-indigo-100/30 animate-pulse'
+                            : isSuccess
+                            ? 'border-emerald-200 bg-emerald-50/10 dark:border-emerald-950/30 dark:bg-emerald-950/5'
+                            : isSkipped
+                            ? 'border-slate-200 bg-slate-50/20 dark:border-slate-800 dark:bg-slate-900/10'
+                            : isFailed
+                            ? 'border-rose-200 bg-rose-50/10 dark:border-rose-950/30'
+                            : 'border-slate-100 bg-transparent dark:border-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="mt-0.5">
+                            {isRunning && (
+                              <Loader2 className="h-5 w-5 text-indigo-500 animate-spin" />
+                            )}
+                            {isSuccess && (
+                              <CheckCircle2 className="h-5 w-5 text-emerald-500 fill-emerald-50" />
+                            )}
+                            {isSkipped && (
+                              <CheckCircle2 className="h-5 w-5 text-indigo-400 fill-indigo-50/50" />
+                            )}
+                            {isFailed && (
+                              <XCircle className="h-5 w-5 text-rose-500 fill-rose-50" />
+                            )}
+                            {isIdle && (
+                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-xs font-semibold text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                                {idx + 1}
+                              </span>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                              {step.label}
+                            </h4>
+                            <p className="text-[10px] text-muted-foreground leading-normal">
+                              {isRunning && 'Mengevaluasi & seeding...'}
+                              {isSuccess && 'Berhasil diselesaikan'}
+                              {isSkipped && (step.message || 'Ditemukan, dilewati')}
+                              {isFailed && (step.message || 'Gagal, klik coba lagi')}
+                              {isIdle && 'Menunggu giliran'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </Card>
+
           <Card className="border-accent/30 bg-accent-soft/40 p-5 shadow-card no-print">
             <h2 className="font-semibold">Draft untuk direview</h2>
             <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Output ini adalah draft kerja. Cek kembali requirement donor, eligibility, angka program, budget, dan
+              Output ini adalah draf kerja. Cek kembali requirement donor, eligibility, angka program, budget, dan
               narasi impact sebelum digunakan.
             </p>
           </Card>
+
           <Card>
             <CardContent className="py-8">
-            <article
-              className="prose prose-slate max-w-none prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-xl prose-h2:mt-8 prose-h3:text-base prose-table:my-4 prose-p:leading-relaxed"
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
+              <article
+                className="prose prose-slate max-w-none prose-headings:font-semibold prose-h1:text-3xl prose-h2:text-xl prose-h2:mt-8 prose-h3:text-base prose-table:my-4 prose-p:leading-relaxed"
+                dangerouslySetInnerHTML={{ __html: html }}
+              />
             </CardContent>
           </Card>
         </>
