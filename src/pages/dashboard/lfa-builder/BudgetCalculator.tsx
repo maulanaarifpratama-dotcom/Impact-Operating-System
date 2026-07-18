@@ -168,16 +168,145 @@ export default function BudgetCalculator({
         .order('sort_order', { ascending: true });
 
       if (bgtErr) throw bgtErr;
-      const items = (bgt || []) as BudgetItem[];
-      setBudgetItems(items);
+      let items = (bgt || []) as BudgetItem[];
 
-      // Trigger first-time toast if there are activities but no budget items yet
+      // SPRINT 3: DETECT PROPOSAL AND GENERATE BUDGET SKELETON IF EMPTY
       if (items.length === 0 && activities.length > 0) {
+        let linkedProposal = null;
+        if (proj?.linked_grant_id) {
+          const { data: prop } = await supabase
+            .from('gw_projects')
+            .select('*')
+            .eq('id', proj.linked_grant_id)
+            .maybeSingle();
+          linkedProposal = prop;
+        }
+
+        if (!linkedProposal && orgId) {
+          const { data: props } = await supabase
+            .from('gw_projects')
+            .select('*')
+            .eq('organization_id', orgId)
+            .order('updated_at', { ascending: false })
+            .limit(1);
+          if (props && props.length > 0) {
+            linkedProposal = props[0];
+          }
+        }
+
+        if (linkedProposal) {
+          const province = proj?.location || linkedProposal.geography || 'DKI Jakarta';
+          const personnelMul = INKINDO_PROVINCE_MULTIPLIERS[province] || 1.0;
+          const directMul = INKINDO_DIRECT_COST_MULTIPLIERS[province] || 1.0;
+          const ngoFactor = 0.7; // default NGO Mode is active (70% rate discount)
+
+          const skeletonItems: any[] = [];
+          let sortOrder = 0;
+
+          const inferMethodFromName = (name: string): 'Workshop' | 'FGD' | 'Survey' | 'Pelatihan' | 'Pendampingan' | 'Rapat' | 'Lainnya' => {
+            const lower = name.toLowerCase();
+            if (lower.includes('workshop') || lower.includes('lokakarya')) return 'Workshop';
+            if (lower.includes('fgd') || lower.includes('focus group') || lower.includes('diskusi terfokus')) return 'FGD';
+            if (lower.includes('survey') || lower.includes('survei') || lower.includes('riset') || lower.includes('penelitian') || lower.includes('monitoring') || lower.includes('evaluasi')) return 'Survey';
+            if (lower.includes('pelatihan') || lower.includes('training') || lower.includes('kapasitas') || lower.includes('capacity')) return 'Pelatihan';
+            if (lower.includes('pendampingan') || lower.includes('mentoring') || lower.includes('coaching')) return 'Pendampingan';
+            if (lower.includes('rapat') || lower.includes('meeting') || lower.includes('koordinasi')) return 'Rapat';
+            return 'Lainnya';
+          };
+
+          activities.forEach((act) => {
+            const method = act.method || inferMethodFromName(act.name);
+            let templates: Array<{ name: string; category: string; unit: string; volume: number; price: number }> = [];
+
+            if (method === 'Pelatihan' || method === 'Pendampingan') {
+              templates = [
+                { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 2, price: 750000 },
+                { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 25, price: 117000 },
+                { name: 'Hotel Bintang 3', category: 'Akomodasi', unit: 'Hari', volume: 1, price: 750000 },
+                { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 25, price: 150000 }
+              ];
+            } else if (method === 'Survey') {
+              templates = [
+                { name: 'Petugas Lapangan', category: 'Honorarium', unit: 'Hari', volume: 5, price: 250000 },
+                { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 5, price: 150000 },
+                { name: 'Uang Harian Dalam Kota', category: 'Transport', unit: 'Hari', volume: 5, price: 380000 }
+              ];
+            } else if (method === 'Workshop') {
+              templates = [
+                { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 1, price: 750000 },
+                { name: 'Modul/Materi Pelatihan', category: 'ATK', unit: 'Paket', volume: 15, price: 50000 },
+                { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 15, price: 117000 }
+              ];
+            } else if (method === 'FGD') {
+              templates = [
+                { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 1, price: 750000 },
+                { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 10, price: 117000 },
+                { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 10, price: 150000 }
+              ];
+            } else {
+              templates = [
+                { name: 'Makan Siang', category: 'Konsumsi', unit: 'Orang', volume: 8, price: 60000 },
+                { name: 'Snack', category: 'Konsumsi', unit: 'Orang', volume: 8, price: 30000 }
+              ];
+            }
+
+            templates.forEach((tpl) => {
+              let finalPrice = tpl.price;
+              if (tpl.category === 'Honorarium') {
+                finalPrice = Math.round(tpl.price * personnelMul * ngoFactor);
+              } else {
+                finalPrice = Math.round(tpl.price * directMul);
+              }
+
+              skeletonItems.push({
+                lfa_project_id: projectId,
+                org_id: orgId,
+                wbs_item_id: act.id,
+                activity_name: act.name,
+                category: tpl.category,
+                cost_category: tpl.category === 'Honorarium' ? 'Personnel & Consultants' : 'Direct Operational Costs',
+                item_name: tpl.name,
+                volume: tpl.volume,
+                unit: tpl.unit,
+                unit_price_idr: finalPrice,
+                funding_source: 'grant',
+                justification: `[AUTO_GENERATED] Berdasarkan metode ${method} untuk aktivitas: ${act.name}`,
+                needs_donor_approval: false,
+                sort_order: sortOrder++,
+                mode: globalMode
+              });
+            });
+          });
+
+          if (skeletonItems.length > 0) {
+            const { data: inserted, error: insertErr } = await supabase
+              .from('lfa_budget_items')
+              .insert(skeletonItems)
+              .select('*');
+
+            if (insertErr) throw insertErr;
+            if (inserted) {
+              items = inserted as BudgetItem[];
+              toast({
+                title: 'Draf Anggaran Otomatis Disusun! 📋✨',
+                description: `Berhasil menyusun draf rincian anggaran awal dari proposal "${linkedProposal.title}" menggunakan SBM & INKINDO 2026.`,
+              });
+            }
+          }
+        } else {
+          toast({
+            title: 'Aktivitas Diimpor dari WBS 📋',
+            description: 'Aktivitas diimpor dari WBS kamu. Tambahkan item biaya per aktivitas.',
+          });
+        }
+      } else if (items.length === 0 && activities.length > 0) {
         toast({
           title: 'Aktivitas Diimpor dari WBS 📋',
           description: 'Aktivitas diimpor dari WBS kamu. Tambahkan item biaya per aktivitas.',
         });
       }
+
+      setBudgetItems(items);
 
       // Sync global mode from first item if exists
       if (items[0]?.mode) {
@@ -2113,12 +2242,19 @@ export default function BudgetCalculator({
                                   {/* 1. Item Name Input with smart autocomplete */}
                                   <td className="p-3 relative align-middle">
                                     <div className="space-y-1">
-                                      <Input
-                                        value={item.item_name}
-                                        onChange={(e) => handleItemNameTyping(item.id, e.target.value, item.category || 'Lainnya')}
-                                        placeholder="Mis. Narasumber, Sewa LCD..."
-                                        className="text-xs h-8 bg-transparent"
-                                      />
+                                      <div className="flex items-center gap-1.5">
+                                        <Input
+                                          value={item.item_name}
+                                          onChange={(e) => handleItemNameTyping(item.id, e.target.value, item.category || 'Lainnya')}
+                                          placeholder="Mis. Narasumber, Sewa LCD..."
+                                          className="text-xs h-8 bg-transparent flex-1"
+                                        />
+                                        {item.justification?.includes('AUTO_GENERATED') && (
+                                          <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 text-[8px] font-bold px-1.5 py-0 h-5 whitespace-nowrap">
+                                            Auto-Draft
+                                          </Badge>
+                                        )}
+                                      </div>
 
                                       {/* Custom Autocomplete Suggestions Popover */}
                                       {isSuggested && filteredSuggestions.length > 0 && (
