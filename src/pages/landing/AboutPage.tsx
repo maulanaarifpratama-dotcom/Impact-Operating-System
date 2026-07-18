@@ -26,7 +26,7 @@ export default function AboutPage() {
 
   const growthFramework = [
     { code: "G", title: "Grant and Resource Access", desc: "Akses dan persiapan pendanaan serta manajemen prospek filantropi secara tersentralisasi.", icon: Coins, color: "from-amber-500 to-orange-600" },
-    { code: "R", title: "Readiness and Baseline", desc: "Asesmen kepatuhan internal organisasi dan standarisasi operasional minimum standar donor.", icon: ShieldAlert, color: "from-teal-500 to-[brand-accent]" },
+    { code: "R", title: "Readiness and Baseline", desc: "Asesmen kepatuhan internal organisasi dan standarisasi operasional minimum standar donor.", icon: ShieldAlert, color: "from-teal-500 to-brand-accent" },
     { code: "O", title: "Operating Program", desc: "Eksekusi alur kerja logis (LFA), penjadwalan WBS, manajemen anggaran, dan registrasi penerima manfaat.", icon: Zap, color: "from-blue-500 to-indigo-600" },
     { code: "W", title: "Work Evidence and Proof", desc: "Pengumpulan bukti kerja lapangan, sinkronisasi file awan, dan validasi fisik aktivitas program.", icon: BookOpen, color: "from-purple-500 to-pink-600" },
     { code: "T", title: "Tracking and Monitoring", desc: "Pengawasan performa indikator keberhasilan secara dinamis menggunakan metrik SROI dan E-ROI.", icon: LineChart, color: "from-rose-500 to-red-600" },
@@ -34,7 +34,7 @@ export default function AboutPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[brand-surface] text-white selection:bg-teal-500 selection:text-white flex flex-col">
+    <div className="landing-page-wrap min-h-screen bg-brand-surface text-white selection:bg-teal-500 selection:text-white flex flex-col">
       <Navbar />
 
       {/* Hero Section */}
@@ -88,9 +88,9 @@ export default function AboutPage() {
             {/* Right side: Photo Card */}
             <div className="md:col-span-5 flex justify-center">
               <div className="relative group">
-                <div className="absolute -inset-0.5 bg-gradient-to-r from-teal-500 to-[brand-accent] rounded-3xl blur opacity-30 group-hover:opacity-50 transition-opacity" />
-                <Card className="relative bg-[brand-surface-mid] border-white/10 rounded-3xl p-8 flex flex-col items-center justify-center text-center w-64 h-64 shadow-2xl">
-                  <div className="h-24 w-24 rounded-full bg-gradient-to-tr from-teal-500 to-[brand-accent] flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-teal-500/20 mb-4">
+                <div className="absolute -inset-0.5 bg-gradient-to-r from-teal-500 to-brand-accent rounded-3xl blur opacity-30 group-hover:opacity-50 transition-opacity" />
+                <Card className="premium-glass-card relative rounded-3xl p-8 flex flex-col items-center justify-center text-center w-64 h-64">
+                  <div className="h-24 w-24 rounded-full bg-gradient-to-tr from-teal-500 to-brand-accent flex items-center justify-center text-white text-3xl font-black shadow-lg shadow-teal-500/20 mb-4">
                     MAP
                   </div>
                   <h3 className="font-bold text-sm text-slate-200">Maulana Arif Pratama</h3>
@@ -103,7 +103,7 @@ export default function AboutPage() {
       </section>
 
       {/* Mission Section */}
-      <section className="py-16 sm:py-24 bg-[brand-surface-deep] border-b border-white/5 relative">
+      <section className="py-16 sm:py-24 bg-brand-surface-deep border-b border-white/5 relative">
         <div className="container max-w-4xl mx-auto px-4 text-center">
           <div className="inline-flex h-12 w-12 rounded-2xl bg-teal-500/10 items-center justify-center text-teal-400 border border-teal-500/20 mb-6">
             <Flag className="h-5 w-5" />
@@ -120,9 +120,9 @@ export default function AboutPage() {
         <div className="container max-w-5xl mx-auto px-4">
           <div className="grid md:grid-cols-3 gap-6">
             {metrics.map((m, idx) => (
-              <Card key={idx} className="bg-[brand-surface-mid]/40 border-white/5 hover:border-white/10 transition-all rounded-2xl p-6 sm:p-8 flex flex-col justify-between h-full relative group shadow-lg">
+              <Card key={idx} className="premium-glass-card rounded-2xl p-6 sm:p-8 flex flex-col justify-between h-full relative group">
                 <div className="space-y-4">
-                  <span className="text-3xl sm:text-4xl font-black bg-gradient-to-r from-teal-400 to-[brand-accent] bg-clip-text text-transparent">
+                  <span className="text-3xl sm:text-4xl font-black bg-gradient-to-r from-teal-400 to-brand-accent bg-clip-text text-transparent">
                     {m.value}
                   </span>
                   <div>
@@ -137,7 +137,7 @@ export default function AboutPage() {
       </section>
 
       {/* G.R.O.W.T.H Framework Section */}
-      <section className="py-16 sm:py-24 relative overflow-hidden bg-[brand-surface-deep]">
+      <section className="py-16 sm:py-24 relative overflow-hidden bg-brand-surface-deep">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-teal-500/5 rounded-full blur-[140px] pointer-events-none" />
         
         <div className="container max-w-5xl mx-auto px-4 relative z-10">
@@ -153,7 +153,7 @@ export default function AboutPage() {
 
           <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
             {growthFramework.map((f) => (
-              <Card key={f.code} className="bg-[brand-surface-mid]/50 border-white/5 hover:border-white/10 hover:-translate-y-1 transition-all duration-300 rounded-2xl p-6 flex flex-col justify-between shadow-xl">
+              <Card key={f.code} className="premium-glass-card rounded-2xl p-6 flex flex-col justify-between">
                 <div>
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-2xl font-black text-teal-400">{f.code}</span>

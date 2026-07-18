@@ -90,11 +90,11 @@ class DashboardErrorBoundary extends React.Component<
               this.setState({hasError:false,error:null,lang: this.state.lang})
               window.location.reload()
             }}
-            className="px-6 py-2.5 bg-[brand-green] text-white rounded-lg border-none cursor-pointer text-sm font-medium hover:bg-[#0d5d48]"
+            className="px-6 py-2.5 bg-brand-green text-white rounded-lg border-none cursor-pointer text-sm font-medium hover:bg-[#0d5d48]"
           >
             {t.reload}
           </button>
-          <a href="/dashboard" className="text-sm text-[brand-green] underline hover:text-[#0d5d48]">
+          <a href="/dashboard" className="text-sm text-brand-green underline hover:text-[#0d5d48]">
             {t.back}
           </a>
         </div>

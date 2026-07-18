@@ -127,7 +127,7 @@ export default function Onboarding() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-[brand-active] via-[brand-border] to-[brand-accent] px-4 py-12 md:px-8">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-brand-active via-brand-border to-brand-accent px-4 py-12 md:px-8">
       {/* Visual background decoration */}
       <div className="absolute inset-0 overflow-hidden">
         <div className="absolute -top-40 -left-40 h-96 w-96 rounded-full bg-accent/15 blur-3xl" />
@@ -142,7 +142,7 @@ export default function Onboarding() {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-[brand-active]/60 p-6 shadow-elegant backdrop-blur-xl md:p-8 text-white">
+        <div className="rounded-2xl border border-white/10 bg-brand-active/60 p-6 shadow-elegant backdrop-blur-xl md:p-8 text-white">
           <div className="mb-6 flex items-center gap-3 border-b border-white/10 pb-5">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/20 text-accent">
               <Building2 className="h-5 w-5" />
@@ -188,12 +188,12 @@ export default function Onboarding() {
                 <SelectTrigger id="o-sector" className="bg-white/5 border-white/15 text-white focus:border-accent">
                   <SelectValue placeholder="Pilih sektor utama" />
                 </SelectTrigger>
-                <SelectContent className="bg-[brand-active] border-white/10 text-white">
+                <SelectContent className="bg-brand-active border-white/10 text-white">
                   {SECTORS.map((s) => (
                     <SelectItem
                       key={s.value}
                       value={s.value}
-                      className="hover:bg-[brand-border]/60 focus:bg-[brand-border]/60 focus:text-white"
+                      className="hover:bg-brand-border/60 focus:bg-brand-border/60 focus:text-white"
                     >
                       {s.label}
                     </SelectItem>
@@ -217,12 +217,12 @@ export default function Onboarding() {
                 <SelectTrigger id="o-size" className="bg-white/5 border-white/15 text-white focus:border-accent">
                   <SelectValue placeholder="Pilih ukuran tim" />
                 </SelectTrigger>
-                <SelectContent className="bg-[brand-active] border-white/10 text-white">
+                <SelectContent className="bg-brand-active border-white/10 text-white">
                   {SIZES.map((size) => (
                     <SelectItem
                       key={size.value}
                       value={size.value}
-                      className="hover:bg-[brand-border]/60 focus:bg-[brand-border]/60 focus:text-white"
+                      className="hover:bg-brand-border/60 focus:bg-brand-border/60 focus:text-white"
                     >
                       {size.label}
                     </SelectItem>

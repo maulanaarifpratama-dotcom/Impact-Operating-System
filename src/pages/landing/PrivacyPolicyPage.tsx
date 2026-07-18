@@ -5,7 +5,7 @@ import { ShieldCheck, Calendar, Mail } from 'lucide-react';
 
 export default function PrivacyPolicyPage() {
   return (
-    <div className="min-h-screen bg-[brand-surface] text-white selection:bg-teal-500 selection:text-white flex flex-col">
+    <div className="min-h-screen bg-brand-surface text-white selection:bg-teal-500 selection:text-white flex flex-col">
       <Navbar />
 
       {/* Main Content Area */}
@@ -32,7 +32,7 @@ export default function PrivacyPolicyPage() {
           </div>
 
           {/* Legal Document Paper Card */}
-          <div className="bg-[brand-surface-mid]/40 border border-white/5 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8 text-sm text-slate-300 leading-relaxed">
+          <div className="bg-brand-surface-mid/40 border border-white/5 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8 text-sm text-slate-300 leading-relaxed">
             
             <p className="italic">
               Impactory berkomitmen untuk menghormati dan melindungi privasi data pribadi pengguna kami sesuai dengan ketentuan <strong>Undang-Undang Perlindungan Data Pribadi (UU PDP) No. 27 Tahun 2022</strong> Republik Indonesia. Kebijakan Privasi ini menjelaskan bagaimana kami mengumpulkan, menggunakan, menyimpan, dan melindungi data pribadi Anda saat menggunakan platform kami.

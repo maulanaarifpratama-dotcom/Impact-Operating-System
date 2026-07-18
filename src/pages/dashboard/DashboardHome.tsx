@@ -645,7 +645,7 @@ export default function DashboardHome() {
   return (
     <div className="mx-auto max-w-6xl space-y-8 animate-fade-in-up">
       {/* ZONE 1: Status Header */}
-      <section className="relative overflow-hidden rounded-2xl border border-[brand-border]/30 bg-[brand-active] p-6 text-white shadow-elegant md:p-8 animate-fade-in-up">
+      <section className="relative overflow-hidden rounded-2xl border border-brand-border/30 bg-brand-active p-6 text-white shadow-elegant md:p-8 animate-fade-in-up">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-32 -left-32 h-64 w-64 rounded-full bg-accent/25 blur-3xl animate-pulse" />
           <div className="absolute -bottom-32 -right-32 h-64 w-64 rounded-full bg-emerald-500/15 blur-3xl" />
@@ -657,7 +657,7 @@ export default function DashboardHome() {
               <Badge className="border-white/30 bg-white/15 text-white hover:bg-white/15">
                 NGO Growth OS Command Center
               </Badge>
-              <Badge className="border-accent/40 bg-[brand-amber]/20 text-[brand-amber] font-medium animate-pulse-glow">
+              <Badge className="border-accent/40 bg-brand-amber/20 text-brand-amber font-medium animate-pulse-glow">
                 Sistem Aktif
               </Badge>
             </div>
@@ -726,7 +726,7 @@ export default function DashboardHome() {
       {/* Main Section Grid: Status Baseline & ZONE 2 Priorities */}
       <div className="grid gap-6 lg:grid-cols-4">
         {/* GROWTH Status Baseline Card */}
-        <Card className="group relative overflow-hidden flex flex-col justify-between border-border bg-card p-5 shadow-card hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 hover:border-[brand-border]/30">
+        <Card className="group relative overflow-hidden flex flex-col justify-between border-border bg-card p-5 shadow-card hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 hover:border-brand-border/30">
           <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-500" />
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3">
@@ -786,7 +786,7 @@ export default function DashboardHome() {
         </Card>
 
         {/* Kematangan Program Card (Fitur 1 MVP) */}
-        <Card className="group relative overflow-hidden flex flex-col justify-between border-border bg-card p-5 shadow-card hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 hover:border-[brand-border]/30">
+        <Card className="group relative overflow-hidden flex flex-col justify-between border-border bg-card p-5 shadow-card hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 hover:border-brand-border/30">
           <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-500" />
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3">
@@ -832,7 +832,7 @@ export default function DashboardHome() {
 
         {/* ZONE 2: Rekomendasi Prioritas Utama */}
         <Card className="group/priorities relative overflow-hidden p-5 shadow-card border-border bg-card lg:col-span-2 flex flex-col justify-between transition-all duration-300 hover:shadow-elegant">
-          <div className="absolute top-0 left-0 h-1 w-0 bg-[brand-border] group-hover/priorities:w-full transition-all duration-500" />
+          <div className="absolute top-0 left-0 h-1 w-0 bg-brand-border group-hover/priorities:w-full transition-all duration-500" />
           <div>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold tracking-tight">Rekomendasi Prioritas Utama</h2>
@@ -924,7 +924,7 @@ export default function DashboardHome() {
         {/* Global Progress Bar */}
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted border border-border mb-6">
           <div
-            className="h-full bg-gradient-to-r from-accent via-[brand-border] to-[brand-accent] transition-all duration-500"
+            className="h-full bg-gradient-to-r from-accent via-brand-border to-brand-accent transition-all duration-500"
             style={{ width: `${planStats.percentage}%` }}
           />
         </div>
@@ -951,7 +951,7 @@ export default function DashboardHome() {
                   className={cn(
                     "relative z-10 flex-1 flex flex-col items-center p-3 rounded-xl border text-center transition-all duration-300 focus:outline-none focus:ring-1 focus:ring-accent",
                     isActive
-                      ? "bg-[brand-active] border-[brand-border]/50 text-white shadow-elegant scale-[1.02]"
+                      ? "bg-brand-active border-brand-border/50 text-white shadow-elegant scale-[1.02]"
                       : isDone
                       ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/15"
                       : isInProgress
@@ -964,7 +964,7 @@ export default function DashboardHome() {
                     className={cn(
                       "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold mb-1.5 border shadow-sm transition-all duration-300",
                       isActive
-                        ? "bg-white text-[brand-active] border-white"
+                        ? "bg-white text-brand-active border-white"
                         : isDone
                         ? "bg-emerald-500 text-white border-emerald-400"
                         : isInProgress
@@ -1103,7 +1103,7 @@ export default function DashboardHome() {
               <Card className="relative overflow-hidden h-full p-5 shadow-card transition-all duration-300 group-hover:-translate-y-1.5 group-hover:border-accent/20 group-hover:shadow-elegant bg-card">
                 <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-300" />
                 <div className="flex items-start justify-between gap-3">
-                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[brand-active] to-[brand-border] text-white transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-brand-active to-brand-border text-white transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
                     <Icon className="h-5 w-5" />
                   </div>
                   <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-500 font-semibold text-[10px] shadow-sm transition-all duration-300 group-hover:bg-emerald-500/25">

@@ -53,12 +53,12 @@ export function NewsletterSection() {
   };
 
   return (
-    <section className="py-16 sm:py-24 border-t border-b border-white/5 relative overflow-hidden bg-[brand-surface-deep]">
+    <section className="py-16 sm:py-24 border-t border-b border-white/5 relative overflow-hidden bg-brand-surface-deep">
       {/* Background glow effects */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[300px] bg-teal-500/5 rounded-full blur-[100px] pointer-events-none" />
 
       <div className="container max-w-4xl mx-auto px-4 relative z-10">
-        <Card className="bg-[brand-surface-mid]/40 border border-white/5 hover:border-teal-500/10 transition-all rounded-3xl p-8 sm:p-12 shadow-2xl relative overflow-hidden text-center">
+        <Card className="bg-brand-surface-mid/40 border border-white/5 hover:border-teal-500/10 transition-all rounded-3xl p-8 sm:p-12 shadow-2xl relative overflow-hidden text-center">
           
           <div className="max-w-2xl mx-auto space-y-6">
             <div className="inline-flex h-12 w-12 rounded-2xl bg-teal-500/10 items-center justify-center text-teal-400 border border-teal-500/20 mb-2">
@@ -87,7 +87,7 @@ export function NewsletterSection() {
               <Button
                 type="submit"
                 disabled={loading}
-                className="bg-gradient-to-r from-teal-500 to-[brand-accent] hover:from-teal-600 hover:to-teal-700 text-white font-bold rounded-xl px-8 py-6 text-xs transition-all shadow-lg flex items-center gap-2 shrink-0"
+                className="bg-gradient-to-r from-teal-500 to-brand-accent hover:from-teal-600 hover:to-teal-700 text-white font-bold rounded-xl px-8 py-6 text-xs transition-all shadow-lg flex items-center gap-2 shrink-0"
               >
                 {loading ? 'Mendaftarkan...' : 'Daftar sekarang'}
               </Button>

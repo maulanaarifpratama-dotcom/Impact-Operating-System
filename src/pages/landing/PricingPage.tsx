@@ -47,7 +47,7 @@ export default function PricingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[brand-surface] text-white selection:bg-teal-500 selection:text-white flex flex-col">
+    <div className="landing-page-wrap min-h-screen bg-brand-surface text-white selection:bg-teal-500 selection:text-white flex flex-col">
       <Navbar />
 
       {/* Pricing Hero */}
@@ -84,7 +84,7 @@ export default function PricingPage() {
           <div className="grid md:grid-cols-3 gap-8 items-stretch">
             
             {/* Tier 1 — Gratis */}
-            <Card className="bg-[brand-surface-mid]/40 border-white/5 hover:border-white/10 transition-all rounded-3xl p-6 sm:p-8 flex flex-col justify-between h-full shadow-xl">
+            <Card className="premium-glass-card rounded-3xl p-6 sm:p-8 flex flex-col justify-between h-full">
               <div>
                 <div className="flex justify-between items-center gap-2">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plan Dasar</span>
@@ -133,12 +133,12 @@ export default function PricingPage() {
 
             {/* Tier 2 — Pro (FEATURED) */}
             <div className="relative group flex flex-col h-full">
-              <div className="absolute -inset-1 bg-gradient-to-b from-teal-500 to-[brand-accent] rounded-3xl blur opacity-30 group-hover:opacity-40 transition-opacity" />
-              <Card className="relative bg-[brand-surface-mid] border-teal-500/30 rounded-3xl p-6 sm:p-8 flex flex-col justify-between h-full shadow-2xl scale-100 md:scale-105 border-2">
+              <div className="absolute -inset-1 bg-gradient-to-b from-teal-500 to-brand-accent rounded-3xl blur opacity-30 group-hover:opacity-40 transition-opacity" />
+              <Card className="premium-glass-card relative rounded-3xl p-6 sm:p-8 flex flex-col justify-between h-full scale-100 md:scale-105 border-2 border-teal-500/50">
                 <div>
                   <div className="flex justify-between items-center gap-2">
                     <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">Plan Menengah</span>
-                    <Badge className="bg-gradient-to-r from-teal-500 to-[brand-accent] text-white px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg border-none">
+                    <Badge className="bg-gradient-to-r from-teal-500 to-brand-accent text-white px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg border-none">
                       Paling populer
                     </Badge>
                   </div>
@@ -177,14 +177,14 @@ export default function PricingPage() {
                     </li>
                   </ul>
                 </div>
-                <Button asChild className="w-full bg-gradient-to-r from-teal-500 to-[brand-accent] hover:from-teal-600 hover:to-teal-700 text-white font-bold rounded-xl py-6 mt-8 text-xs shadow-lg shadow-teal-500/20">
+                <Button asChild className="w-full bg-gradient-to-r from-teal-500 to-brand-accent hover:from-teal-600 hover:to-teal-700 text-white font-bold rounded-xl py-6 mt-8 text-xs shadow-lg shadow-teal-500/20">
                   <a href={proWaUrl} target="_blank" rel="noreferrer noopener">Hubungi via WhatsApp</a>
                 </Button>
               </Card>
             </div>
 
             {/* Tier 3 — Tahunan */}
-            <Card className="bg-[brand-surface-mid]/40 border-white/5 hover:border-white/10 transition-all rounded-3xl p-6 sm:p-8 flex flex-col justify-between h-full shadow-xl">
+            <Card className="premium-glass-card rounded-3xl p-6 sm:p-8 flex flex-col justify-between h-full">
               <div>
                 <div className="flex justify-between items-center gap-2">
                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plan Korporasi</span>
@@ -233,7 +233,7 @@ export default function PricingPage() {
       </section>
 
       {/* FAQ Accordion Section */}
-      <section className="py-16 sm:py-24 bg-[brand-surface-deep] relative">
+      <section className="py-16 sm:py-24 bg-brand-surface-deep relative">
         <div className="container max-w-3xl mx-auto px-4">
           <div className="text-center mb-12">
             <span className="text-xs font-bold text-teal-400 uppercase tracking-widest">Pusat Informasi</span>
@@ -247,7 +247,7 @@ export default function PricingPage() {
               <AccordionItem 
                 key={i} 
                 value={`item-${i}`} 
-                className="border-white/5 bg-[brand-surface-mid]/20 rounded-2xl px-6 py-2 shadow-lg"
+                className="border-white/5 bg-brand-surface-mid/20 rounded-2xl px-6 py-2 shadow-lg"
               >
                 <AccordionTrigger className="hover:no-underline font-bold text-sm text-slate-200 py-4">
                   <span className="flex items-center gap-2.5 text-left">

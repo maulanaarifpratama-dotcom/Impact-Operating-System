@@ -376,7 +376,7 @@ export default function ImpactDashboard() {
     return (
       <div className="flex h-[70vh] items-center justify-center">
         <div className="flex flex-col items-center gap-3">
-          <Loader2 className="h-10 w-10 animate-spin text-[brand-border]" />
+          <Loader2 className="h-10 w-10 animate-spin text-brand-border" />
           <p className="text-sm text-muted-foreground animate-pulse">Menyiapkan Executive Summary…</p>
         </div>
       </div>
@@ -388,7 +388,7 @@ export default function ImpactDashboard() {
       {/* 1. HEADER */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b pb-6 border-slate-100 dark:border-slate-800">
         <div>
-          <h1 className="text-3xl font-extrabold tracking-tight text-[brand-active] dark:text-white">
+          <h1 className="text-3xl font-extrabold tracking-tight text-brand-active dark:text-white">
             Executive Summary
           </h1>
           <p className="text-slate-500 text-sm mt-1">
@@ -397,7 +397,7 @@ export default function ImpactDashboard() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {organization && (
-            <Badge className="bg-[brand-border] text-white px-3 py-1 text-xs font-semibold hover:bg-[brand-border]/90">
+            <Badge className="bg-brand-border text-white px-3 py-1 text-xs font-semibold hover:bg-brand-border/90">
               <Building2 className="h-3 w-3 mr-1.5" />
               {organization.name}
             </Badge>
@@ -428,7 +428,7 @@ export default function ImpactDashboard() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-baseline gap-2">
-              <span className="text-5xl font-black text-[brand-border] dark:text-teal-400">
+              <span className="text-5xl font-black text-brand-border dark:text-teal-400">
                 {metrics.growthTotalScore}
               </span>
               <span className="text-sm text-slate-400 font-semibold">/ 150</span>
@@ -461,7 +461,7 @@ export default function ImpactDashboard() {
           <div className="p-4 bg-slate-50 dark:bg-slate-900/40 border-t flex justify-end rounded-b-xl">
             <Link
               to="/dashboard/readiness"
-              className="text-xs font-bold text-[brand-border] hover:text-[brand-active] flex items-center gap-1 transition-all"
+              className="text-xs font-bold text-brand-border hover:text-brand-active flex items-center gap-1 transition-all"
             >
               Lihat Detail <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -478,7 +478,7 @@ export default function ImpactDashboard() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-baseline gap-2">
-              <span className="text-5xl font-black text-[brand-border] dark:text-teal-400">
+              <span className="text-5xl font-black text-brand-border dark:text-teal-400">
                 {metrics.totalPrograms}
               </span>
               <span className="text-sm text-slate-400 font-semibold">Total Program</span>
@@ -502,7 +502,7 @@ export default function ImpactDashboard() {
           <div className="p-4 bg-slate-50 dark:bg-slate-900/40 border-t flex justify-end rounded-b-xl">
             <Link
               to="/dashboard/lfa-builder"
-              className="text-xs font-bold text-[brand-border] hover:text-[brand-active] flex items-center gap-1 transition-all"
+              className="text-xs font-bold text-brand-border hover:text-brand-active flex items-center gap-1 transition-all"
             >
               Kelola Program <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -519,15 +519,15 @@ export default function ImpactDashboard() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-baseline gap-2">
-              <span className="text-5xl font-black text-[brand-border] dark:text-teal-400">
+              <span className="text-5xl font-black text-brand-border dark:text-teal-400">
                 {metrics.totalBeneficiariesCount}
               </span>
               <span className="text-sm text-slate-400 font-semibold">Total Penerima</span>
             </div>
 
             <div className="grid grid-cols-2 gap-4 pt-2">
-              <div className="bg-[brand-green]/5 border border-[brand-green]/10 rounded-lg p-3">
-                <span className="text-[10px] font-extrabold text-[brand-green] block uppercase">Aktif</span>
+              <div className="bg-brand-green/5 border border-brand-green/10 rounded-lg p-3">
+                <span className="text-[10px] font-extrabold text-brand-green block uppercase">Aktif</span>
                 <span className="text-xl font-bold text-slate-800 dark:text-slate-200">
                   {metrics.activeBeneficiariesCount} Jiwa
                 </span>
@@ -543,7 +543,7 @@ export default function ImpactDashboard() {
           <div className="p-4 bg-slate-50 dark:bg-slate-900/40 border-t flex justify-end rounded-b-xl">
             <Link
               to="/dashboard/beneficiary"
-              className="text-xs font-bold text-[brand-border] hover:text-[brand-active] flex items-center gap-1 transition-all"
+              className="text-xs font-bold text-brand-border hover:text-brand-active flex items-center gap-1 transition-all"
             >
               Kelola Registry <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -560,7 +560,7 @@ export default function ImpactDashboard() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-[brand-border] dark:text-teal-400 whitespace-nowrap">
+              <span className="text-3xl font-black text-brand-border dark:text-teal-400 whitespace-nowrap">
                 {new Intl.NumberFormat('id-ID', {
                   style: 'currency',
                   currency: 'IDR',
@@ -588,7 +588,7 @@ export default function ImpactDashboard() {
           <div className="p-4 bg-slate-50 dark:bg-slate-900/40 border-t flex justify-end rounded-b-xl">
             <Link
               to="/dashboard/grant-pipeline"
-              className="text-xs font-bold text-[brand-border] hover:text-[brand-active] flex items-center gap-1 transition-all"
+              className="text-xs font-bold text-brand-border hover:text-brand-active flex items-center gap-1 transition-all"
             >
               Lihat Pipeline <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -607,13 +607,13 @@ export default function ImpactDashboard() {
             {metrics.highestSroiRatio > 0 ? (
               <div className="space-y-4">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-black text-[brand-border] dark:text-teal-400">
+                  <span className="text-5xl font-black text-brand-border dark:text-teal-400">
                     Rp {metrics.highestSroiRatio.toFixed(2)}
                   </span>
                   <span className="text-xs text-slate-400 font-semibold">per Rp1 Terinvestasi</span>
                 </div>
                 <div className="p-3 bg-teal-500/5 border border-teal-500/10 rounded-lg">
-                  <span className="text-[10px] font-extrabold text-[brand-border] block uppercase">
+                  <span className="text-[10px] font-extrabold text-brand-border block uppercase">
                     Program Terbaik
                   </span>
                   <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-0.5 truncate">
@@ -630,7 +630,7 @@ export default function ImpactDashboard() {
           <div className="p-4 bg-slate-50 dark:bg-slate-900/40 border-t flex justify-end rounded-b-xl">
             <Link
               to="/dashboard/sroi"
-              className="text-xs font-bold text-[brand-border] hover:text-[brand-active] flex items-center gap-1 transition-all"
+              className="text-xs font-bold text-brand-border hover:text-brand-active flex items-center gap-1 transition-all"
             >
               Hitung SROI <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -702,7 +702,7 @@ export default function ImpactDashboard() {
                   <div className="p-3 bg-emerald-500/5 border border-emerald-500/10 rounded-lg flex items-center gap-3">
                     <div className="text-2xl">🌳</div>
                     <div>
-                      <span className="text-[9px] font-extrabold text-[brand-border] dark:text-teal-400 block uppercase leading-none">Setara Penyerapan</span>
+                      <span className="text-[9px] font-extrabold text-brand-border dark:text-teal-400 block uppercase leading-none">Setara Penyerapan</span>
                       <p className="text-xs font-bold text-slate-800 dark:text-slate-200 mt-1">
                         {carbonData.equivalentTrees.toLocaleString('id-ID', { maximumFractionDigits: 1 })} pohon / tahun
                       </p>
@@ -727,7 +727,7 @@ export default function ImpactDashboard() {
           <div className="p-4 bg-slate-50 dark:bg-slate-900/40 border-t flex justify-end rounded-b-xl">
             <Link
               to="/dashboard/lfa-builder"
-              className="text-xs font-bold text-[brand-border] hover:text-[brand-active] flex items-center gap-1 transition-all"
+              className="text-xs font-bold text-brand-border hover:text-brand-active flex items-center gap-1 transition-all"
             >
               Kelola Program <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -746,7 +746,7 @@ export default function ImpactDashboard() {
             {assessments.length > 0 ? (
               <div className="space-y-4">
                 <div className="flex items-baseline gap-2">
-                  <span className="text-5xl font-black text-[brand-border] dark:text-teal-400">
+                  <span className="text-5xl font-black text-brand-border dark:text-teal-400">
                     {metrics.latestAssessmentScore}
                   </span>
                   <span className="text-sm text-slate-400 font-semibold">/ 25</span>
@@ -769,7 +769,7 @@ export default function ImpactDashboard() {
           <div className="p-4 bg-slate-50 dark:bg-slate-900/40 border-t flex justify-end rounded-b-xl">
             <Link
               to="/dashboard/readiness?tab=program"
-              className="text-xs font-bold text-[brand-border] hover:text-[brand-active] flex items-center gap-1 transition-all"
+              className="text-xs font-bold text-brand-border hover:text-brand-active flex items-center gap-1 transition-all"
             >
               Ukur Kesiapan Dampak <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -779,7 +779,7 @@ export default function ImpactDashboard() {
         {/* 7. NEXT ACTIONS */}
         <Card className="border border-slate-150 shadow-elegant bg-white dark:bg-slate-950 flex flex-col justify-between">
           <CardHeader className="pb-4">
-            <CardTitle className="text-sm font-bold uppercase tracking-wider text-[brand-border] flex items-center gap-1.5">
+            <CardTitle className="text-sm font-bold uppercase tracking-wider text-brand-border flex items-center gap-1.5">
               <Sparkles className="h-4 w-4 text-amber-500" />
               Rekomendasi Tindakan Strategis
             </CardTitle>
@@ -793,12 +793,12 @@ export default function ImpactDashboard() {
                 <Link
                   key={i}
                   to={action.href}
-                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-[brand-border] hover:bg-slate-50/50 dark:border-slate-800 dark:hover:border-teal-500 dark:hover:bg-slate-900/50 transition-all group"
+                  className="flex items-center justify-between p-3 rounded-lg border border-slate-100 hover:border-brand-border hover:bg-slate-50/50 dark:border-slate-800 dark:hover:border-teal-500 dark:hover:bg-slate-900/50 transition-all group"
                 >
                   <span className="text-xs font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-white">
                     {action.text}
                   </span>
-                  <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-[brand-border] dark:group-hover:text-teal-400 transition-all" />
+                  <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-brand-border dark:group-hover:text-teal-400 transition-all" />
                 </Link>
               ))
             ) : (

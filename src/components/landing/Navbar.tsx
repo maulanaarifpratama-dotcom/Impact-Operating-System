@@ -37,7 +37,7 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
       className={cn(
         'sticky top-0 z-50 w-full transition-all',
         scrolled
-          ? 'border-b border-border/60 bg-[brand-surface]/90 backdrop-blur-md shadow-card'
+          ? 'border-b border-border/60 bg-brand-surface/90 backdrop-blur-md shadow-card'
           : 'border-b border-transparent bg-background/0',
       )}
     >
@@ -75,7 +75,7 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
               className={cn(
                 'rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all duration-300',
                 lang === 'id'
-                  ? 'bg-gradient-to-r from-teal-500 to-[brand-accent] text-white shadow-md shadow-teal-500/10'
+                  ? 'bg-gradient-to-r from-teal-500 to-brand-accent text-white shadow-md shadow-teal-500/10'
                   : 'text-slate-400 hover:text-white',
               )}
             >
@@ -86,7 +86,7 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
               className={cn(
                 'rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all duration-300',
                 lang === 'en'
-                  ? 'bg-gradient-to-r from-teal-500 to-[brand-accent] text-white shadow-md shadow-teal-500/10'
+                  ? 'bg-gradient-to-r from-teal-500 to-brand-accent text-white shadow-md shadow-teal-500/10'
                   : 'text-slate-400 hover:text-white',
               )}
             >
@@ -97,7 +97,7 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
           <Button asChild variant="ghost" size="sm" className="text-slate-300 hover:text-white hover:bg-white/5">
             <Link to="/login">{t.navbar.login}</Link>
           </Button>
-          <Button asChild size="sm" className="bg-gradient-to-r from-teal-500 to-[brand-accent] text-white font-bold hover:from-teal-600 hover:to-teal-700 shadow-elegant rounded-xl">
+          <Button asChild size="sm" className="bg-gradient-to-r from-teal-500 to-brand-accent text-white font-bold hover:from-teal-600 hover:to-teal-700 shadow-elegant rounded-xl">
             <Link to="/dashboard/readiness">{t.navbar.startScorecard}</Link>
           </Button>
         </div>
@@ -114,8 +114,8 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
       </div>
 
       {open && (
-        <div id="mobile-menu" className="md:hidden border-t border-white/10 bg-[brand-surface]">
-          <div className="container flex flex-col gap-1 py-4 bg-[brand-surface]">
+        <div id="mobile-menu" className="md:hidden border-t border-white/10 bg-brand-surface">
+          <div className="container flex flex-col gap-1 py-4 bg-brand-surface">
             {links.map((l) => l.to ? (
               <Link
                 key={l.to}
@@ -149,7 +149,7 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
                   }}
                   className={cn(
                     'rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all duration-300',
-                    lang === 'id' ? 'bg-[brand-accent] text-white' : 'text-slate-400 hover:text-white',
+                    lang === 'id' ? 'bg-brand-accent text-white' : 'text-slate-400 hover:text-white',
                   )}
                 >
                   ID
@@ -161,7 +161,7 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
                   }}
                   className={cn(
                     'rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all duration-300',
-                    lang === 'en' ? 'bg-[brand-accent] text-white' : 'text-slate-400 hover:text-white',
+                    lang === 'en' ? 'bg-brand-accent text-white' : 'text-slate-400 hover:text-white',
                   )}
                 >
                   EN
@@ -173,7 +173,7 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
               <Button asChild variant="outline" className="flex-1 border-white/10 text-white bg-transparent hover:bg-white/5">
                 <Link to="/login" onClick={() => setOpen(false)}>{t.navbar.login}</Link>
               </Button>
-              <Button asChild className="flex-1 bg-gradient-to-r from-teal-500 to-[brand-accent] text-white" onClick={() => setOpen(false)}>
+              <Button asChild className="flex-1 bg-gradient-to-r from-teal-500 to-brand-accent text-white" onClick={() => setOpen(false)}>
                 <Link to="/dashboard/readiness">{t.navbar.startScorecard}</Link>
               </Button>
             </div>
