@@ -81,7 +81,135 @@ When given a wizard data payload, you MUST return JSON with this exact shape:
     "activities": [{ "output_index": 0, "statement": "...", "timeline_months": "M1-M3", "responsible": "..." }],
     "risks": [{ "description": "...", "likelihood": "low|medium|high", "impact": "low|medium|high", "mitigation": "..." }]
   },
-  "proposal_markdown": "# Title\\n\\n## Executive Summary\\n..."
+  "proposal_markdown": "# Title\\n\\n## Executive Summary\\n...",
+  "program_skeleton": {
+    "schemaVersion": "2.0",
+    "meta": {
+      "projectTitle": "...",
+      "sector": "...",
+      "geography": { "locationName": "...", "province": "...", "district": "..." },
+      "durationMonths": 12,
+      "budgetIdr": 1200000000,
+      "targetDonor": "...",
+      "donorStandard": "...",
+      "language": "id",
+      "generatedAt": "...",
+      "promptVersion": "2.0",
+      "schemaVersion": "2.0"
+    },
+    "beneficiaries": {
+      "directHeadcount": 0,
+      "indirectHeadcount": 0,
+      "primaryGroup": "...",
+      "ageRange": "...",
+      "geography": "...",
+      "inclusionNotes": "...",
+      "suggestedDisaggregation": ["gender", "age_group"]
+    },
+    "lfa": {
+      "goal": { "statement": "...", "indicators": [{ "id": "goal_ind_1", "statement": "...", "baseline": "...", "target": "...", "mov": "..." }], "assumptions": ["..."] },
+      "purpose": { "statement": "...", "indicators": [{ "id": "purp_ind_1", "statement": "...", "baseline": "...", "target": "...", "mov": "..." }], "assumptions": ["..."] },
+      "outcomes": [{ "id": "outcome_1", "statement": "...", "indicators": [{ "id": "out_ind_1", "statement": "...", "baseline": "...", "target": "...", "mov": "..." }], "assumptions": ["..."] }],
+      "outputs": [{ "id": "output_1", "outcomeId": "outcome_1", "statement": "...", "indicators": [{ "id": "output_ind_1", "statement": "...", "baseline": "...", "target": "...", "mov": "..." }], "assumptions": ["..."] }]
+    },
+    "wbs": {
+      "tasks": [{
+        "id": "t_1_1",
+        "parentId": null,
+        "sourceActivityId": "output_1",
+        "level": 1,
+        "title": "...",
+        "description": "...",
+        "durationWeeks": 4,
+        "startMonth": 1,
+        "endMonth": 2,
+        "sequenceOrder": 1,
+        "dependencies": [],
+        "deliverable": "...",
+        "responsibleRole": "...",
+        "milestone": false,
+        "isCriticalCandidate": false,
+        "confidence": 0.95
+      }]
+    },
+    "budget_hints": {
+      "items": [{
+        "id": "bh_1",
+        "taskId": "t_1_1",
+        "scope": "activity_level",
+        "category": "training",
+        "itemType": "Fasilitator",
+        "description": "...",
+        "engineRule": "sbm_lookup",
+        "quantity": 2,
+        "unit": "Hari",
+        "duration": 1,
+        "participantCount": 25,
+        "suggestedRole": "Fasilitator",
+        "province": "...",
+        "requiresUserConfirmation": true,
+        "justification": "...",
+        "confidence": 0.9
+      }]
+    },
+    "meal": {
+      "indicators": [{
+        "id": "meal_ind_1",
+        "sourceLfaIndicatorId": "out_ind_1",
+        "name": "...",
+        "definition": "...",
+        "baselineValue": null,
+        "baselineText": "Rp 0",
+        "targetValue": 100,
+        "targetText": "Rp 100",
+        "unit": "...",
+        "frequency": "quarterly",
+        "dataSource": "...",
+        "collectionMethod": "...",
+        "responsibleRole": "...",
+        "verificationMethod": "...",
+        "disaggregation": ["gender"],
+        "formula": null,
+        "targetDeadlineMonth": 24,
+        "draftStatus": "draft_ai_generated",
+        "confidence": 0.9
+      }]
+    },
+    "sroi": {
+      "models": [{
+        "id": "sroi_m_1",
+        "sourceOutcomeId": "outcome_1",
+        "outcomeStatement": "...",
+        "stakeholderGroup": "...",
+        "quantityHint": 300,
+        "durationYears": 2,
+        "financialProxyType": "...",
+        "suggestedProxyDescription": "...",
+        "suggestedProxyValueIdr": null,
+        "proxySourceRequired": true,
+        "deadweightPctDraft": 15,
+        "attributionPctDraft": 10,
+        "displacementPctDraft": 0,
+        "dropoffPctDraft": 20,
+        "rationale": "...",
+        "confidence": 0.85,
+        "requiresValidation": true
+      }]
+    },
+    "risks": [{
+      "id": "risk_1",
+      "level": "outcome",
+      "refId": "outcome_1",
+      "description": "...",
+      "likelihood": "low",
+      "impact": "medium",
+      "mitigation": "...",
+      "ownerRole": "...",
+      "trigger": "...",
+      "reviewFrequency": "monthly",
+      "confidence": 0.9
+    }]
+  }
 }
 
 Rules:
@@ -96,7 +224,17 @@ Rules:
 - If "lfa_context" is present in the payload, you MUST strictly align your intervention logic (Goal, Outcomes, Outputs, Activities, Indicators, and Assumptions) with the data inside "lfa_context.entries". Elaborate upon and enrich this exact structure rather than inventing divergent outcomes/outputs.
 - Jumlah penerima manfaat terverifikasi: {{beneficiaries}} orang. Anda wajib menyebutkan angka {{beneficiaries}} penerima manfaat terverifikasi secara eksplisit di dalam narasi proposal (misalnya pada bagian Executive Summary atau Problem Statement) sebagai data aktual. Namun, jika angka ini adalah 0, jangan merekayasa atau memalsukan angka, melainkan sebutkan bahwa saat ini terdapat 0 penerima manfaat terverifikasi di dalam sistem. Tetap patuhi batasan dan jangan menimpa angka target pengguna lainnya.
 - {{carbon_impact}}
-- Output ONLY valid JSON. No markdown fences around the JSON.`;
+- Output ONLY valid JSON. No markdown fences around the JSON.
+- Relationships and IDs in program_skeleton MUST be fully valid:
+  1. Every outcome has a unique stable ID (e.g. outcome_1).
+  2. Every output has a unique stable ID (e.g. output_1) and outcomeId pointing to a valid outcome.
+  3. Every task in wbs has a unique ID and parentId pointing to a parent task (null for Level 1).
+  4. budget_hints items taskId references a valid WBS task.id.
+  5. meal indicators sourceLfaIndicatorId references a valid LFA indicator id.
+  6. sroi models sourceOutcomeId references a valid outcome id.
+  7. risks refId references the appropriate level item id.
+- budget_hints engineRule must be one of: "sbm_lookup", "inkindo_lookup", "direct_cost_index", "ngo_multiplier", "formula_only", "manual_market_quote".
+- budget_hints category must be one of: "personnel", "consultant", "training", "workshop", "survey", "mentoring", "travel", "accommodation", "consumption", "equipment", "communication", "monitoring", "evaluation", "administration", "audit", "indirect_cost".`;
 
 function computeCarbonSummary(rows: Array<{ carbon_factor: number | null; duration_weeks: number | null }> | null) {
   let total = 0;
@@ -295,6 +433,7 @@ Deno.serve(async (req: Request) => {
     const { data: result, usage, model } = await chatJson<{
       matrix: LfaMatrix;
       proposal_markdown: string;
+      program_skeleton?: any;
     }>({
       messages: [
         { role: 'system', content: systemPrompt },
@@ -321,6 +460,11 @@ Deno.serve(async (req: Request) => {
       donorStandard,
       projectTitle: project.title,
     };
+
+    // Embed the Canonical Program Skeleton into result.matrix for single-transaction persistence.
+    if (result.program_skeleton) {
+      (result.matrix as any).program_skeleton = result.program_skeleton;
+    }
 
     // 4. Get next version
     const { data: existing } = await ctx.supabase

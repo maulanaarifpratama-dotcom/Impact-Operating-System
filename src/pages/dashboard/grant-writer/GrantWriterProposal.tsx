@@ -93,7 +93,7 @@ function renderMarkdown(md: string): string {
 }
 
 interface MaterializeStep {
-  id: 'program' | 'lfa' | 'wbs' | 'budget' | 'meal';
+  id: 'program' | 'lfa' | 'wbs' | 'budget' | 'meal' | 'sroi';
   label: string;
   status: 'idle' | 'running' | 'success' | 'failed' | 'skipped';
   message?: string;
@@ -113,6 +113,7 @@ export default function GrantWriterProposal() {
     { id: 'wbs', label: 'Work Breakdown Structure (WBS) Seed', status: 'idle' },
     { id: 'budget', label: 'SBM/INKINDO Budget Skeleton Seed', status: 'idle' },
     { id: 'meal', label: 'MEAL Framework Indicators Seed', status: 'idle' },
+    { id: 'sroi', label: 'SROI Impact Model Seed', status: 'idle' },
   ]);
   const [materializing, setMaterializing] = useState(false);
   const [completed, setCompleted] = useState(false);
@@ -197,6 +198,7 @@ export default function GrantWriterProposal() {
       { id: 'wbs', label: 'Work Breakdown Structure (WBS) Seed', status: 'idle' },
       { id: 'budget', label: 'SBM/INKINDO Budget Skeleton Seed', status: 'idle' },
       { id: 'meal', label: 'MEAL Framework Indicators Seed', status: 'idle' },
+      { id: 'sroi', label: 'SROI Impact Model Seed', status: 'idle' },
     ]);
 
     let currentLfaProjId = targetLfaProjectId;
@@ -257,397 +259,802 @@ export default function GrantWriterProposal() {
 
       if (entriesErr) throw entriesErr;
 
-      if (existingEntries && existingEntries.some(e => e.level === 'output' || e.level === 'activity')) {
-        setSteps(prev => prev.map(s => s.id === 'lfa' ? { ...s, status: 'skipped', message: 'LFA Matrix sudah terisi' } : s));
-      } else {
-        const { data: lfaDoc } = await supabase
-          .from('gw_lfa_documents')
-          .select('*')
-          .eq('project_id', project.id)
-          .order('version', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+      const { data: lfaDoc } = await supabase
+        .from('gw_lfa_documents')
+        .select('*')
+        .eq('project_id', project.id)
+        .order('version', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-        const matrix = lfaDoc?.matrix as any;
+      const matrix = lfaDoc?.matrix as any;
+      const skeleton = matrix?.program_skeleton;
 
-        // Seed Goal
-        let goalEntry = existingEntries?.find(e => e.level === 'goal');
-        const goalDesc = matrix?.goal?.intervention || project.summary || '';
-        const goalInd = matrix?.goal?.indicators?.[0] || '';
-        const goalMov = matrix?.goal?.meansOfVerification?.[0] || '';
-        const goalAsmp = matrix?.goal?.assumptions?.[0] || '';
+      console.log('[E2E-S5-BROWSER-DEBUG] lfaDoc:', lfaDoc);
+      console.log('[E2E-S5-BROWSER-DEBUG] matrix:', matrix);
+      console.log('[E2E-S5-BROWSER-DEBUG] skeleton:', skeleton);
 
-        if (goalEntry) {
-          if (!goalEntry.description) {
-            await supabase.from('lfa_entries').update({
-              description: goalDesc,
-              indicator: goalInd,
-              means_of_verification: goalMov,
-              assumption: goalAsmp
-            }).eq('id', goalEntry.id);
-          }
+      const outputIdToDbId: Record<string, string> = {};
+      const taskIdToWbsId: Record<string, string> = {};
+
+      if (skeleton) {
+        // V2 PATHWAY - SKELETON MATERIALIZER
+        if (existingEntries && existingEntries.some(e => e.level === 'output' || e.level === 'activity')) {
+          setSteps(prev => prev.map(s => s.id === 'lfa' ? { ...s, status: 'skipped', message: 'LFA Matrix sudah terisi' } : s));
+          
+          // Reconstruct output mapping from existing database rows by matching descriptions
+          const existingOutputs = existingEntries.filter(e => e.level === 'output');
+          const skeletonOutputs = skeleton.lfa?.outputs || [];
+          skeletonOutputs.forEach((skOut: any) => {
+            const matched = existingOutputs.find(eo => eo.description === skOut.statement);
+            if (matched) outputIdToDbId[skOut.id] = matched.id;
+          });
         } else {
+          // Seed Goal (V2)
+          const goal = skeleton.lfa?.goal;
+          const firstGoalInd = goal?.indicators?.[0];
           await supabase.from('lfa_entries').insert({
             project_id: currentLfaProjId,
             org_id: project.organization_id,
             level: 'goal',
             sequence: 1,
-            description: goalDesc,
-            indicator: goalInd,
-            means_of_verification: goalMov,
-            assumption: goalAsmp
+            description: goal?.statement || '',
+            indicator: firstGoalInd?.statement || firstGoalInd || '',
+            means_of_verification: firstGoalInd?.mov || '',
+            assumption: goal?.assumptions?.[0] || ''
           });
-        }
 
-        // Seed Purpose
-        let purposeEntry = existingEntries?.find(e => e.level === 'purpose');
-        const outcomeDesc = matrix?.outcomes?.[0]?.intervention || '';
-        const outcomeInd = matrix?.outcomes?.[0]?.indicators?.[0] || '';
-        const outcomeMov = matrix?.outcomes?.[0]?.meansOfVerification?.[0] || '';
-        const outcomeAsmp = matrix?.outcomes?.[0]?.assumptions?.[0] || '';
-
-        if (purposeEntry) {
-          if (!purposeEntry.description) {
-            await supabase.from('lfa_entries').update({
-              description: outcomeDesc,
-              indicator: outcomeInd,
-              means_of_verification: outcomeMov,
-              assumption: outcomeAsmp
-            }).eq('id', purposeEntry.id);
-          }
-        } else {
-          await supabase.from('lfa_entries').insert({
+          // Seed Purpose / Primary Outcome (V2)
+          const purpose = skeleton.lfa?.purpose || skeleton.lfa?.outcomes?.[0];
+          const firstPurpInd = purpose?.indicators?.[0];
+          const { data: purpRow, error: purpErr } = await supabase.from('lfa_entries').insert({
             project_id: currentLfaProjId,
             org_id: project.organization_id,
             level: 'purpose',
             sequence: 1,
-            description: outcomeDesc,
-            indicator: outcomeInd,
-            means_of_verification: outcomeMov,
-            assumption: outcomeAsmp
-          });
-        }
+            description: purpose?.statement || '',
+            indicator: firstPurpInd?.statement || firstPurpInd || '',
+            means_of_verification: firstPurpInd?.mov || '',
+            assumption: purpose?.assumptions?.[0] || ''
+          }).select().single();
 
-        // Seed Outputs & Activities
-        const outputs = matrix?.outputs || [];
-        const matrixActivities = matrix?.activities || [];
+          if (purpErr) throw purpErr;
 
-        for (let i = 0; i < outputs.length; i++) {
-          const out = outputs[i];
-          const { data: outEntry, error: outErr } = await supabase
-            .from('lfa_entries')
-            .insert({
+          const outcomeIdToDbId: Record<string, string> = {};
+          if (purpose && purpose.id && purpRow) {
+            outcomeIdToDbId[purpose.id] = purpRow.id;
+          }
+
+          // Seed Additional Outcomes (V2)
+          const outcomes = skeleton.lfa?.outcomes || [];
+          for (let i = 0; i < outcomes.length; i++) {
+            const out = outcomes[i];
+            if (out.id === purpose?.id) continue;
+            const firstInd = out.indicators?.[0];
+            const { data: outRow } = await supabase.from('lfa_entries').insert({
+              project_id: currentLfaProjId,
+              org_id: project.organization_id,
+              level: 'purpose',
+              sequence: i + 2,
+              description: out.statement || '',
+              indicator: firstInd?.statement || firstInd || '',
+              means_of_verification: firstInd?.mov || '',
+              assumption: out.assumptions?.[0] || ''
+            }).select().single();
+
+            if (outRow && out.id) {
+              outcomeIdToDbId[out.id] = outRow.id;
+            }
+          }
+
+          // Seed Outputs (V2)
+          const outputs = skeleton.lfa?.outputs || [];
+          for (let i = 0; i < outputs.length; i++) {
+            const out = outputs[i];
+            const firstInd = out.indicators?.[0];
+            const parentOutcomeDbId = outcomeIdToDbId[out.outcomeId] || purpRow?.id || null;
+            const { data: outRow, error: outErr } = await supabase.from('lfa_entries').insert({
               project_id: currentLfaProjId,
               org_id: project.organization_id,
               level: 'output',
               sequence: i + 1,
-              description: out.intervention || '',
-              indicator: out.indicators?.[0] || '',
-              means_of_verification: out.meansOfVerification?.[0] || '',
-              assumption: out.assumptions?.[0] || '',
-            })
-            .select()
-            .single();
+              parent_id: parentOutcomeDbId,
+              description: out.statement || '',
+              indicator: firstInd?.statement || firstInd || '',
+              means_of_verification: firstInd?.mov || '',
+              assumption: out.assumptions?.[0] || ''
+            }).select().single();
 
-          if (outErr) throw outErr;
+            if (outErr) throw outErr;
 
-          const actObj = matrixActivities[i];
-          if (actObj && actObj.items) {
-            for (let k = 0; k < actObj.items.length; k++) {
-              const actText = actObj.items[k];
-              await supabase
-                .from('lfa_entries')
-                .insert({
-                  project_id: currentLfaProjId,
-                  org_id: project.organization_id,
-                  level: 'activity',
-                  sequence: k + 1,
-                  parent_id: outEntry.id,
-                  description: actText,
-                  indicator: '',
-                  means_of_verification: '',
-                  assumption: '',
-                  timeline_start: 1,
-                  timeline_end: project.duration_months || 12,
-                });
+            if (outRow && out.id) {
+              outputIdToDbId[out.id] = outRow.id;
             }
           }
+
+          // Seed Activities (V2)
+          const tasks = skeleton.wbs?.tasks || [];
+          const lvl2Tasks = tasks.filter((t: any) => t.level === 2);
+          for (let i = 0; i < lvl2Tasks.length; i++) {
+            const task = lvl2Tasks[i];
+            const parentOutputDbId = outputIdToDbId[task.sourceActivityId] || null;
+            await supabase.from('lfa_entries').insert({
+              project_id: currentLfaProjId,
+              org_id: project.organization_id,
+              level: 'activity',
+              sequence: i + 1,
+              parent_id: parentOutputDbId,
+              description: task.title || '',
+              indicator: task.deliverable || '',
+              means_of_verification: '',
+              assumption: '',
+              timeline_start: task.startMonth || 1,
+              timeline_end: task.endMonth || project.duration_months || 12,
+              responsible_party: task.responsibleRole || ''
+            });
+          }
+
+          setSteps(prev => prev.map(s => s.id === 'lfa' ? { ...s, status: 'success' } : s));
         }
-        setSteps(prev => prev.map(s => s.id === 'lfa' ? { ...s, status: 'success' } : s));
-      }
 
-      // 3. SEED WBS ACTIVITIES
-      setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'running' } : s));
-      await new Promise(r => setTimeout(r, 600));
+        // 3. SEED WBS ACTIVITIES (V2)
+        setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'running' } : s));
+        await new Promise(r => setTimeout(r, 600));
 
-      const { data: existingWbs, error: wbsErr } = await supabase
-        .from('lfa_wbs_items')
-        .select('*')
-        .eq('lfa_project_id', currentLfaProjId);
-
-      if (wbsErr) throw wbsErr;
-
-      if (existingWbs && existingWbs.length > 0) {
-        setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'skipped', message: 'Struktur WBS sudah terisi' } : s));
-      } else {
-        const { data: lfaEntries } = await supabase
-          .from('lfa_entries')
+        const { data: existingWbs, error: wbsErr } = await supabase
+          .from('lfa_wbs_items')
           .select('*')
-          .eq('project_id', currentLfaProjId);
+          .eq('lfa_project_id', currentLfaProjId);
 
-        const seededOutputs = (lfaEntries || []).filter(e => e.level === 'output');
-        const seededActivities = (lfaEntries || []).filter(e => e.level === 'activity');
+        if (wbsErr) throw wbsErr;
 
-        const newWbsItems: any[] = [];
-        let globalSortOrder = 0;
+        if (existingWbs && existingWbs.length > 0) {
+          setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'skipped', message: 'Struktur WBS sudah terisi' } : s));
+        } else {
+          const tasks = skeleton.wbs?.tasks || [];
+          const newWbsItems: any[] = [];
 
-        for (const out of seededOutputs) {
-          const level1Id = crypto.randomUUID();
-          newWbsItems.push({
-            id: level1Id,
-            lfa_project_id: currentLfaProjId,
-            org_id: project.organization_id,
-            level: 1,
-            parent_id: null,
-            name: out.description || 'Output Hasil Tanpa Judul',
-            start_month: 1,
-            duration_weeks: 4,
-            sort_order: globalSortOrder++,
-            mode: 'simple',
-            dependencies: []
-          });
+          // Level 1 Tasks
+          const lvl1Tasks = tasks.filter((t: any) => t.level === 1);
+          let globalSortOrder = 0;
 
-          const childActs = seededActivities.filter(a => a.parent_id === out.id);
-          for (const act of childActs) {
-            const level2Id = crypto.randomUUID();
-            let durationW = 4;
-            if (act.timeline_start && act.timeline_end) {
-              durationW = Math.max(4, (act.timeline_end - act.timeline_start + 1) * 4);
-            }
+          for (const task of lvl1Tasks) {
+            const dbId = crypto.randomUUID();
+            taskIdToWbsId[task.id] = dbId;
             newWbsItems.push({
-              id: level2Id,
+              id: dbId,
+              lfa_project_id: currentLfaProjId,
+              org_id: project.organization_id,
+              level: 1,
+              parent_id: null,
+              name: task.title || 'Output Utama',
+              start_month: task.startMonth || 1,
+              duration_weeks: task.durationWeeks || 4,
+              pic: task.responsibleRole || '',
+              sort_order: globalSortOrder++,
+              mode: 'simple',
+              dependencies: []
+            });
+          }
+
+          // Level 2 Tasks
+          const lvl2Tasks = tasks.filter((t: any) => t.level === 2);
+          for (const task of lvl2Tasks) {
+            const dbId = crypto.randomUUID();
+            taskIdToWbsId[task.id] = dbId;
+            const parentDbId = taskIdToWbsId[task.parentId || ''] || null;
+
+            const dbDeps: string[] = [];
+            if (task.dependencies && Array.isArray(task.dependencies)) {
+              task.dependencies.forEach((dId: string) => {
+                const depWbsId = taskIdToWbsId[dId];
+                if (depWbsId) dbDeps.push(depWbsId);
+              });
+            }
+
+            newWbsItems.push({
+              id: dbId,
               lfa_project_id: currentLfaProjId,
               org_id: project.organization_id,
               level: 2,
-              parent_id: level1Id,
-              name: act.description || 'Aktivitas Tanpa Judul',
-              start_month: act.timeline_start || 1,
-              duration_weeks: durationW,
-              pic: act.responsible_party || '',
+              parent_id: parentDbId,
+              name: task.title || 'Aktivitas Detail',
+              start_month: task.startMonth || 1,
+              duration_weeks: task.durationWeeks || 4,
+              pic: task.responsibleRole || '',
               sort_order: globalSortOrder++,
               mode: 'simple',
-              dependencies: [],
-              indicator: act.indicator || ''
+              dependencies: dbDeps,
+              indicator: task.deliverable || ''
             });
           }
+
+          if (newWbsItems.length > 0) {
+            const { error: insWbsErr } = await supabase
+              .from('lfa_wbs_items')
+              .insert(newWbsItems);
+            if (insWbsErr) throw insWbsErr;
+          }
+          setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'success' } : s));
         }
 
-        if (newWbsItems.length > 0) {
-          const { error } = await supabase
-            .from('lfa_wbs_items')
-            .insert(newWbsItems);
-          if (error) throw error;
-        }
-        setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'success' } : s));
-      }
+        // 4. SEED BUDGET SKELETON (V2)
+        setSteps(prev => prev.map(s => s.id === 'budget' ? { ...s, status: 'running' } : s));
+        await new Promise(r => setTimeout(r, 600));
 
-      // 4. SEED BUDGET SKELETON
-      setSteps(prev => prev.map(s => s.id === 'budget' ? { ...s, status: 'running' } : s));
-      await new Promise(r => setTimeout(r, 600));
-
-      const { data: existingBudget } = await supabase
-        .from('lfa_budget_items')
-        .select('*')
-        .eq('lfa_project_id', currentLfaProjId);
-
-      if (existingBudget && existingBudget.length > 0) {
-        setSteps(prev => prev.map(s => s.id === 'budget' ? { ...s, status: 'skipped', message: 'Draf Anggaran sudah terisi' } : s));
-      } else {
-        const { data: seededActivitiesWbs } = await supabase
-          .from('lfa_wbs_items')
+        const { data: existingBudget } = await supabase
+          .from('lfa_budget_items')
           .select('*')
-          .eq('lfa_project_id', currentLfaProjId)
-          .eq('level', 2);
+          .eq('lfa_project_id', currentLfaProjId);
 
-        const province = project.geography || 'DKI Jakarta';
-        const personnelMul = INKINDO_PROVINCE_MULTIPLIERS[province] || 1.0;
-        const directMul = INKINDO_DIRECT_COST_MULTIPLIERS[province] || 1.0;
-        const ngoFactor = 0.7;
+        if (existingBudget && existingBudget.length > 0) {
+          setSteps(prev => prev.map(s => s.id === 'budget' ? { ...s, status: 'skipped', message: 'Draf Anggaran sudah terisi' } : s));
+        } else {
+          const budgetHints = skeleton.budget_hints?.items || [];
+          const skeletonItems: any[] = [];
+          let sortOrder = 0;
 
-        const skeletonItems: any[] = [];
-        let sortOrder = 0;
+          const province = project.geography || 'DKI Jakarta';
+          const personnelMul = INKINDO_PROVINCE_MULTIPLIERS[province] || 1.0;
+          const directMul = INKINDO_DIRECT_COST_MULTIPLIERS[province] || 1.0;
+          const ngoFactor = 0.7;
 
-        const inferMethodFromName = (name: string): 'Workshop' | 'FGD' | 'Survey' | 'Pelatihan' | 'Pendampingan' | 'Rapat' | 'Lainnya' => {
-          const lower = name.toLowerCase();
-          if (lower.includes('workshop') || lower.includes('lokakarya')) return 'Workshop';
-          if (lower.includes('fgd') || lower.includes('focus group') || lower.includes('diskusi terfokus')) return 'FGD';
-          if (lower.includes('survey') || lower.includes('survei') || lower.includes('riset') || lower.includes('penelitian') || lower.includes('monitoring') || lower.includes('evaluasi')) return 'Survey';
-          if (lower.includes('pelatihan') || lower.includes('training') || lower.includes('kapasitas') || lower.includes('capacity')) return 'Pelatihan';
-          if (lower.includes('pendampingan') || lower.includes('mentoring') || lower.includes('coaching')) return 'Pendampingan';
-          if (lower.includes('rapat') || lower.includes('meeting') || lower.includes('koordinasi')) return 'Rapat';
-          return 'Lainnya';
-        };
+          for (const item of budgetHints) {
+            const matchedWbsId = taskIdToWbsId[item.taskId] || null;
+            let unitPrice = item.unit_price_idr || 500000;
+            const isPersonnel = item.category?.toLowerCase() === 'personnel' || item.category?.toLowerCase() === 'consultant';
 
-        if (seededActivitiesWbs && seededActivitiesWbs.length > 0) {
-          seededActivitiesWbs.forEach((act: any) => {
-            const method = inferMethodFromName(act.name);
-            let templates: Array<{ name: string; category: string; unit: string; volume: number; price: number }> = [];
-
-            if (method === 'Pelatihan' || method === 'Pendampingan') {
-              templates = [
-                { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 2, price: 750000 },
-                { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 25, price: 117000 },
-                { name: 'Hotel Bintang 3', category: 'Akomodasi', unit: 'Hari', volume: 1, price: 750000 },
-                { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 25, price: 150000 }
-              ];
-            } else if (method === 'Survey') {
-              templates = [
-                { name: 'Petugas Lapangan', category: 'Honorarium', unit: 'Hari', volume: 5, price: 250000 },
-                { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 5, price: 150000 },
-                { name: 'Uang Harian Dalam Kota', category: 'Transport', unit: 'Hari', volume: 5, price: 380000 }
-              ];
-            } else if (method === 'Workshop') {
-              templates = [
-                { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 1, price: 750000 },
-                { name: 'Modul/Materi Pelatihan', category: 'ATK', unit: 'Paket', volume: 15, price: 50000 },
-                { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 15, price: 117000 }
-              ];
-            } else if (method === 'FGD') {
-              templates = [
-                { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 1, price: 750000 },
-                { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 10, price: 117000 },
-                { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 10, price: 150000 }
-              ];
+            if (isPersonnel) {
+              unitPrice = Math.round(unitPrice * personnelMul * ngoFactor);
             } else {
-              templates = [
-                { name: 'Makan Siang', category: 'Konsumsi', unit: 'Orang', volume: 8, price: 60000 },
-                { name: 'Snack', category: 'Konsumsi', unit: 'Orang', volume: 8, price: 30000 }
-              ];
+              unitPrice = Math.round(unitPrice * directMul);
             }
 
-            templates.forEach((tpl) => {
-              let finalPrice = tpl.price;
-              if (tpl.category === 'Honorarium') {
-                finalPrice = Math.round(tpl.price * personnelMul * ngoFactor);
-              } else {
-                finalPrice = Math.round(tpl.price * directMul);
-              }
+            const costCategory = isPersonnel ? 'Personnel & Consultants' : 'Direct Operational Costs';
 
-              skeletonItems.push({
-                lfa_project_id: currentLfaProjId,
-                org_id: project.organization_id,
-                wbs_item_id: act.id,
-                activity_name: act.name,
-                category: tpl.category,
-                cost_category: tpl.category === 'Honorarium' ? 'Personnel & Consultants' : 'Direct Operational Costs',
-                item_name: tpl.name,
-                volume: tpl.volume,
-                unit: tpl.unit,
-                unit_price_idr: finalPrice,
-                funding_source: 'grant',
-                justification: `[AUTO_GENERATED] Berdasarkan metode ${method} untuk aktivitas: ${act.name}`,
-                needs_donor_approval: false,
-                sort_order: sortOrder++,
-                mode: 'simple'
-              });
+            let simpleCategory = 'Lainnya';
+            const catLower = item.category?.toLowerCase();
+            if (catLower?.includes('personnel') || catLower?.includes('staff') || catLower?.includes('honor') || catLower?.includes('gaji')) simpleCategory = 'Honorarium';
+            else if (catLower?.includes('travel') || catLower?.includes('transport')) simpleCategory = 'Transport';
+            else if (catLower?.includes('accom') || catLower?.includes('hotel')) simpleCategory = 'Akomodasi';
+            else if (catLower?.includes('consump') || catLower?.includes('makan')) simpleCategory = 'Konsumsi';
+            else if (catLower?.includes('equip') || catLower?.includes('alat') || catLower?.includes('asset')) simpleCategory = 'Peralatan';
+            else if (catLower?.includes('admin') || catLower?.includes('atk')) simpleCategory = 'ATK';
+
+            skeletonItems.push({
+              lfa_project_id: currentLfaProjId,
+              org_id: project.organization_id,
+              wbs_item_id: matchedWbsId,
+              activity_name: item.description || 'Pos Anggaran',
+              category: simpleCategory,
+              cost_category: costCategory,
+              item_name: item.itemType || item.description || 'Item Anggaran',
+              volume: item.quantity || 1,
+              unit: item.unit || 'Orang',
+              unit_price_idr: unitPrice,
+              funding_source: 'grant',
+              justification: item.justification || `Draf saran AI untuk ${item.description}`,
+              needs_donor_approval: item.requiresUserConfirmation || false,
+              sort_order: sortOrder++,
+              mode: 'simple'
             });
-          });
+          }
 
           if (skeletonItems.length > 0) {
-            const { error } = await supabase
+            const { error: insBudErr } = await supabase
               .from('lfa_budget_items')
               .insert(skeletonItems);
-            if (error) throw error;
+            if (insBudErr) throw insBudErr;
           }
+          setSteps(prev => prev.map(s => s.id === 'budget' ? { ...s, status: 'success' } : s));
         }
-        setSteps(prev => prev.map(s => s.id === 'budget' ? { ...s, status: 'success' } : s));
-      }
 
-      // 5. SEED MEAL FRAMEWORK
-      setSteps(prev => prev.map(s => s.id === 'meal' ? { ...s, status: 'running' } : s));
-      await new Promise(r => setTimeout(r, 600));
+        // 5. SEED MEAL FRAMEWORK (V2)
+        setSteps(prev => prev.map(s => s.id === 'meal' ? { ...s, status: 'running' } : s));
+        await new Promise(r => setTimeout(r, 600));
 
-      const { data: existingMeal } = await supabase
-        .from('lfa_meal_items')
-        .select('*')
-        .eq('lfa_project_id', currentLfaProjId);
-
-      if (existingMeal && existingMeal.length > 0) {
-        setSteps(prev => prev.map(s => s.id === 'meal' ? { ...s, status: 'skipped', message: 'Kerangka MEAL sudah terisi' } : s));
-      } else {
-        const { data: seededEntries } = await supabase
-          .from('lfa_entries')
+        const { data: existingMeal } = await supabase
+          .from('lfa_meal_items')
           .select('*')
-          .eq('project_id', currentLfaProjId);
+          .eq('lfa_project_id', currentLfaProjId);
 
-        if (seededEntries && seededEntries.length > 0) {
-          const mealInserts = seededEntries
-            .filter(entry => entry.indicator && entry.indicator.trim() !== '')
-            .map((entry, index) => {
-              let levelMap: 'goal' | 'purpose' | 'output' = 'output';
-              if (entry.level === 'goal') levelMap = 'goal';
-              if (entry.level === 'purpose') levelMap = 'purpose';
+        if (existingMeal && existingMeal.length > 0) {
+          setSteps(prev => prev.map(s => s.id === 'meal' ? { ...s, status: 'skipped', message: 'Kerangka MEAL sudah terisi' } : s));
+        } else {
+          const indicators = skeleton.meal?.indicators || [];
+          const mealInserts: any[] = [];
 
-              return {
-                lfa_project_id: currentLfaProjId,
-                org_id: project.organization_id,
-                lfa_level: levelMap,
-                indicator_text: entry.indicator || '',
-                baseline: null,
-                target_value: null,
-                target_unit: '',
-                collection_method: null,
-                collection_tool: null,
-                frequency: null,
-                pic: '',
-                status: 'Belum Mulai',
-                secondary_source: entry.means_of_verification || null,
-                data_assumption: entry.assumption || null,
-                monitoring_risk: '',
-                mode: 'simple',
-                sort_order: index,
-                disaggregation: []
-              };
+          for (let i = 0; i < indicators.length; i++) {
+            const item = indicators[i];
+            let lfaLevel: 'goal' | 'purpose' | 'output' = 'output';
+            if (item.sourceLfaIndicatorId?.includes('goal')) lfaLevel = 'goal';
+            else if (item.sourceLfaIndicatorId?.includes('purp') || item.sourceLfaIndicatorId?.includes('out_ind')) lfaLevel = 'purpose';
+
+            mealInserts.push({
+              lfa_project_id: currentLfaProjId,
+              org_id: project.organization_id,
+              lfa_level: lfaLevel,
+              indicator_text: item.name || 'Indikator MEAL',
+              baseline: item.baselineValue || null,
+              target_value: item.targetValue || null,
+              target_unit: item.unit || 'orang',
+              collection_method: item.collectionMethod || 'Survei',
+              collection_tool: item.dataSource || 'Kuesioner',
+              frequency: item.frequency || 'quarterly',
+              pic: item.responsibleRole || '',
+              status: 'Belum Mulai',
+              secondary_source: item.verificationMethod || '',
+              data_assumption: item.formula || '',
+              monitoring_risk: '',
+              mode: 'simple',
+              sort_order: i,
+              disaggregation: item.disaggregation || []
             });
-
-          if (mealInserts.length === 0) {
-            const fallbackInserts = seededEntries.map((entry, index) => {
-              let levelMap: 'goal' | 'purpose' | 'output' = 'output';
-              if (entry.level === 'goal') levelMap = 'goal';
-              if (entry.level === 'purpose') levelMap = 'purpose';
-
-              return {
-                lfa_project_id: currentLfaProjId,
-                org_id: project.organization_id,
-                lfa_level: levelMap,
-                indicator_text: entry.indicator || `Indikator untuk: ${entry.description || entry.level}`,
-                baseline: null,
-                target_value: null,
-                target_unit: '',
-                collection_method: null,
-                collection_tool: null,
-                frequency: null,
-                pic: '',
-                status: 'Belum Mulai',
-                secondary_source: entry.means_of_verification || null,
-                data_assumption: entry.assumption || null,
-                monitoring_risk: '',
-                mode: 'simple',
-                sort_order: index,
-                disaggregation: []
-              };
-            });
-            mealInserts.push(...fallbackInserts);
           }
 
           if (mealInserts.length > 0) {
-            const { error } = await supabase
+            const { error: insMealErr } = await supabase
               .from('lfa_meal_items')
               .insert(mealInserts);
+            if (insMealErr) throw insMealErr;
+          }
+          setSteps(prev => prev.map(s => s.id === 'meal' ? { ...s, status: 'success' } : s));
+        }
+
+        // 6. SEED SROI IMPACT MODELS (V2)
+        setSteps(prev => prev.map(s => s.id === 'sroi' ? { ...s, status: 'running' } : s));
+        await new Promise(r => setTimeout(r, 600));
+
+        const { data: existingSroi } = await supabase
+          .from('lfa_sroi_outcomes')
+          .select('*')
+          .eq('lfa_project_id', currentLfaProjId);
+
+        if (existingSroi && existingSroi.length > 0) {
+          setSteps(prev => prev.map(s => s.id === 'sroi' ? { ...s, status: 'skipped', message: 'Draf SROI sudah terisi' } : s));
+        } else {
+          const sroiModels = skeleton.sroi?.models || [];
+          
+          const { data: existingConfig } = await supabase
+            .from('lfa_sroi_config')
+            .select('*')
+            .eq('lfa_project_id', currentLfaProjId)
+            .maybeSingle();
+
+          if (!existingConfig) {
+            await supabase.from('lfa_sroi_config').insert({
+              lfa_project_id: currentLfaProjId,
+              org_id: project.organization_id,
+              total_investment_idr: skeleton.meta?.budgetIdr || 1200000000,
+              discount_rate: 5,
+              analysis_period_years: 5,
+              mode: 'simple',
+              sroi_ratio: 0,
+              total_gross_value_idr: 0,
+              total_present_value_idr: 0
+            });
+          }
+
+          const sroiInserts: any[] = [];
+          for (let i = 0; i < sroiModels.length; i++) {
+            const item = sroiModels[i];
+            sroiInserts.push({
+              lfa_project_id: currentLfaProjId,
+              org_id: project.organization_id,
+              outcome_name: item.outcomeStatement || 'Dampak SROI',
+              quantity: item.quantityHint || 1,
+              unit: 'orang',
+              proxy_value_idr: item.suggestedProxyValueIdr || 1000000,
+              proxy_source: item.suggestedProxyDescription || 'Estimasi draf AI',
+              proxy_citation: item.rationale || '',
+              proxy_category: item.financialProxyType || '',
+              duration_years: item.durationYears || 1,
+              attribution_pct: item.attributionPctDraft || 80,
+              deadweight_pct: item.deadweightPctDraft || 20,
+              displacement_pct: item.displacementPctDraft || 0,
+              dropoff_pct_per_year: item.dropoffPctDraft || 0,
+              gross_value_idr: 0,
+              present_value_idr: 0,
+              mode: 'simple',
+              sort_order: i
+            });
+          }
+
+          if (sroiInserts.length > 0) {
+            const { error: insSroiErr } = await supabase
+              .from('lfa_sroi_outcomes')
+              .insert(sroiInserts);
+            if (insSroiErr) throw insSroiErr;
+          }
+          setSteps(prev => prev.map(s => s.id === 'sroi' ? { ...s, status: 'success' } : s));
+        }
+
+      } else {
+        // V1 PATHWAY - LEGACY BACKWARD COMPATIBLE FALLBACK
+        setSteps(prev => prev.map(s => s.id === 'sroi' ? { ...s, status: 'skipped', message: 'SROI tidak didukung untuk proposal lama' } : s));
+
+        if (existingEntries && existingEntries.some(e => e.level === 'output' || e.level === 'activity')) {
+          setSteps(prev => prev.map(s => s.id === 'lfa' ? { ...s, status: 'skipped', message: 'LFA Matrix sudah terisi' } : s));
+        } else {
+          // Seed Goal
+          let goalEntry = existingEntries?.find(e => e.level === 'goal');
+          const goalDesc = matrix?.goal?.intervention || project.summary || '';
+          const goalInd = matrix?.goal?.indicators?.[0] || '';
+          const goalMov = matrix?.goal?.meansOfVerification?.[0] || '';
+          const goalAsmp = matrix?.goal?.assumptions?.[0] || '';
+
+          if (goalEntry) {
+            if (!goalEntry.description) {
+              await supabase.from('lfa_entries').update({
+                description: goalDesc,
+                indicator: goalInd,
+                means_of_verification: goalMov,
+                assumption: goalAsmp
+              }).eq('id', goalEntry.id);
+            }
+          } else {
+            await supabase.from('lfa_entries').insert({
+              project_id: currentLfaProjId,
+              org_id: project.organization_id,
+              level: 'goal',
+              sequence: 1,
+              description: goalDesc,
+              indicator: goalInd,
+              means_of_verification: goalMov,
+              assumption: goalAsmp
+            });
+          }
+
+          // Seed Purpose
+          let purposeEntry = existingEntries?.find(e => e.level === 'purpose');
+          const outcomeDesc = matrix?.outcomes?.[0]?.intervention || '';
+          const outcomeInd = matrix?.outcomes?.[0]?.indicators?.[0] || '';
+          const outcomeMov = matrix?.outcomes?.[0]?.meansOfVerification?.[0] || '';
+          const outcomeAsmp = matrix?.outcomes?.[0]?.assumptions?.[0] || '';
+
+          if (purposeEntry) {
+            if (!purposeEntry.description) {
+              await supabase.from('lfa_entries').update({
+                description: outcomeDesc,
+                indicator: outcomeInd,
+                means_of_verification: outcomeMov,
+                assumption: outcomeAsmp
+              }).eq('id', purposeEntry.id);
+            }
+          } else {
+            await supabase.from('lfa_entries').insert({
+              project_id: currentLfaProjId,
+              org_id: project.organization_id,
+              level: 'purpose',
+              sequence: 1,
+              description: outcomeDesc,
+              indicator: outcomeInd,
+              means_of_verification: outcomeMov,
+              assumption: outcomeAsmp
+            });
+          }
+
+          // Seed Outputs & Activities
+          const outputs = matrix?.outputs || [];
+          const matrixActivities = matrix?.activities || [];
+
+          for (let i = 0; i < outputs.length; i++) {
+            const out = outputs[i];
+            const { data: outEntry, error: outErr } = await supabase
+              .from('lfa_entries')
+              .insert({
+                project_id: currentLfaProjId,
+                org_id: project.organization_id,
+                level: 'output',
+                sequence: i + 1,
+                description: out.intervention || '',
+                indicator: out.indicators?.[0] || '',
+                means_of_verification: out.meansOfVerification?.[0] || '',
+                assumption: out.assumptions?.[0] || '',
+              })
+              .select()
+              .single();
+
+            if (outErr) throw outErr;
+
+            const actObj = matrixActivities[i];
+            if (actObj && actObj.items) {
+              for (let k = 0; k < actObj.items.length; k++) {
+                const actText = actObj.items[k];
+                await supabase
+                  .from('lfa_entries')
+                  .insert({
+                    project_id: currentLfaProjId,
+                    org_id: project.organization_id,
+                    level: 'activity',
+                    sequence: k + 1,
+                    parent_id: outEntry.id,
+                    description: actText,
+                    indicator: '',
+                    means_of_verification: '',
+                    assumption: '',
+                    timeline_start: 1,
+                    timeline_end: project.duration_months || 12,
+                  });
+              }
+            }
+          }
+          setSteps(prev => prev.map(s => s.id === 'lfa' ? { ...s, status: 'success' } : s));
+        }
+
+        // 3. SEED WBS ACTIVITIES (V1 Fallback)
+        setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'running' } : s));
+        await new Promise(r => setTimeout(r, 600));
+
+        const { data: existingWbs, error: wbsErr } = await supabase
+          .from('lfa_wbs_items')
+          .select('*')
+          .eq('lfa_project_id', currentLfaProjId);
+
+        if (wbsErr) throw wbsErr;
+
+        if (existingWbs && existingWbs.length > 0) {
+          setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'skipped', message: 'Struktur WBS sudah terisi' } : s));
+        } else {
+          const { data: lfaEntries } = await supabase
+            .from('lfa_entries')
+            .select('*')
+            .eq('project_id', currentLfaProjId);
+
+          const seededOutputs = (lfaEntries || []).filter(e => e.level === 'output');
+          const seededActivities = (lfaEntries || []).filter(e => e.level === 'activity');
+
+          const newWbsItems: any[] = [];
+          let globalSortOrder = 0;
+
+          for (const out of seededOutputs) {
+            const level1Id = crypto.randomUUID();
+            newWbsItems.push({
+              id: level1Id,
+              lfa_project_id: currentLfaProjId,
+              org_id: project.organization_id,
+              level: 1,
+              parent_id: null,
+              name: out.description || 'Output Hasil Tanpa Judul',
+              start_month: 1,
+              duration_weeks: 4,
+              sort_order: globalSortOrder++,
+              mode: 'simple',
+              dependencies: []
+            });
+
+            const childActs = seededActivities.filter(a => a.parent_id === out.id);
+            for (const act of childActs) {
+              const level2Id = crypto.randomUUID();
+              let durationW = 4;
+              if (act.timeline_start && act.timeline_end) {
+                durationW = Math.max(4, (act.timeline_end - act.timeline_start + 1) * 4);
+              }
+              newWbsItems.push({
+                id: level2Id,
+                lfa_project_id: currentLfaProjId,
+                org_id: project.organization_id,
+                level: 2,
+                parent_id: level1Id,
+                name: act.description || 'Aktivitas Tanpa Judul',
+                start_month: act.timeline_start || 1,
+                duration_weeks: durationW,
+                pic: act.responsible_party || '',
+                sort_order: globalSortOrder++,
+                mode: 'simple',
+                dependencies: [],
+                indicator: act.indicator || ''
+              });
+            }
+          }
+
+          if (newWbsItems.length > 0) {
+            const { error } = await supabase
+              .from('lfa_wbs_items')
+              .insert(newWbsItems);
             if (error) throw error;
           }
+          setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'success' } : s));
         }
-        setSteps(prev => prev.map(s => s.id === 'meal' ? { ...s, status: 'success' } : s));
+
+        // 4. SEED BUDGET SKELETON (V1 Fallback)
+        setSteps(prev => prev.map(s => s.id === 'budget' ? { ...s, status: 'running' } : s));
+        await new Promise(r => setTimeout(r, 600));
+
+        const { data: existingBudget } = await supabase
+          .from('lfa_budget_items')
+          .select('*')
+          .eq('lfa_project_id', currentLfaProjId);
+
+        if (existingBudget && existingBudget.length > 0) {
+          setSteps(prev => prev.map(s => s.id === 'budget' ? { ...s, status: 'skipped', message: 'Draf Anggaran sudah terisi' } : s));
+        } else {
+          const { data: seededActivitiesWbs } = await supabase
+            .from('lfa_wbs_items')
+            .select('*')
+            .eq('lfa_project_id', currentLfaProjId)
+            .eq('level', 2);
+
+          const province = project.geography || 'DKI Jakarta';
+          const personnelMul = INKINDO_PROVINCE_MULTIPLIERS[province] || 1.0;
+          const directMul = INKINDO_DIRECT_COST_MULTIPLIERS[province] || 1.0;
+          const ngoFactor = 0.7;
+
+          const skeletonItems: any[] = [];
+          let sortOrder = 0;
+
+          const inferMethodFromName = (name: string): 'Workshop' | 'FGD' | 'Survey' | 'Pelatihan' | 'Pendampingan' | 'Rapat' | 'Lainnya' => {
+            const lower = name.toLowerCase();
+            if (lower.includes('workshop') || lower.includes('lokakarya')) return 'Workshop';
+            if (lower.includes('fgd') || lower.includes('focus group') || lower.includes('diskusi terfokus')) return 'FGD';
+            if (lower.includes('survey') || lower.includes('survei') || lower.includes('riset') || lower.includes('penelitian') || lower.includes('monitoring') || lower.includes('evaluasi')) return 'Survey';
+            if (lower.includes('pelatihan') || lower.includes('training') || lower.includes('kapasitas') || lower.includes('capacity')) return 'Pelatihan';
+            if (lower.includes('pendampingan') || lower.includes('mentoring') || lower.includes('coaching')) return 'Pendampingan';
+            if (lower.includes('rapat') || lower.includes('meeting') || lower.includes('koordinasi')) return 'Rapat';
+            return 'Lainnya';
+          };
+
+          if (seededActivitiesWbs && seededActivitiesWbs.length > 0) {
+            seededActivitiesWbs.forEach((act: any) => {
+              const method = inferMethodFromName(act.name);
+              let templates: Array<{ name: string; category: string; unit: string; volume: number; price: number }> = [];
+
+              if (method === 'Pelatihan' || method === 'Pendampingan') {
+                templates = [
+                  { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 2, price: 750000 },
+                  { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 25, price: 117000 },
+                  { name: 'Hotel Bintang 3', category: 'Akomodasi', unit: 'Hari', volume: 1, price: 750000 },
+                  { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 25, price: 150000 }
+                ];
+              } else if (method === 'Survey') {
+                templates = [
+                  { name: 'Petugas Lapangan', category: 'Honorarium', unit: 'Hari', volume: 5, price: 250000 },
+                  { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 5, price: 150000 },
+                  { name: 'Uang Harian Dalam Kota', category: 'Transport', unit: 'Hari', volume: 5, price: 380000 }
+                ];
+              } else if (method === 'Workshop') {
+                templates = [
+                  { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 1, price: 750000 },
+                  { name: 'Modul/Materi Pelatihan', category: 'ATK', unit: 'Paket', volume: 15, price: 50000 },
+                  { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 15, price: 117000 }
+                ];
+              } else if (method === 'FGD') {
+                templates = [
+                  { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 1, price: 750000 },
+                  { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 10, price: 117000 },
+                  { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 10, price: 150000 }
+                ];
+              } else {
+                templates = [
+                  { name: 'Makan Siang', category: 'Konsumsi', unit: 'Orang', volume: 8, price: 60000 },
+                  { name: 'Snack', category: 'Konsumsi', unit: 'Orang', volume: 8, price: 30000 }
+                ];
+              }
+
+              templates.forEach((tpl) => {
+                let finalPrice = tpl.price;
+                if (tpl.category === 'Honorarium') {
+                  finalPrice = Math.round(tpl.price * personnelMul * ngoFactor);
+                } else {
+                  finalPrice = Math.round(tpl.price * directMul);
+                }
+
+                skeletonItems.push({
+                  lfa_project_id: currentLfaProjId,
+                  org_id: project.organization_id,
+                  wbs_item_id: act.id,
+                  activity_name: act.name,
+                  category: tpl.category,
+                  cost_category: tpl.category === 'Honorarium' ? 'Personnel & Consultants' : 'Direct Operational Costs',
+                  item_name: tpl.name,
+                  volume: tpl.volume,
+                  unit: tpl.unit,
+                  unit_price_idr: finalPrice,
+                  funding_source: 'grant',
+                  justification: `[AUTO_GENERATED] Berdasarkan metode ${method} untuk aktivitas: ${act.name}`,
+                  needs_donor_approval: false,
+                  sort_order: sortOrder++,
+                  mode: 'simple'
+                });
+              });
+            });
+
+            if (skeletonItems.length > 0) {
+              const { error } = await supabase
+                .from('lfa_budget_items')
+                .insert(skeletonItems);
+              if (error) throw error;
+            }
+          }
+          setSteps(prev => prev.map(s => s.id === 'budget' ? { ...s, status: 'success' } : s));
+        }
+
+        // 5. SEED MEAL FRAMEWORK (V1 Fallback)
+        setSteps(prev => prev.map(s => s.id === 'meal' ? { ...s, status: 'running' } : s));
+        await new Promise(r => setTimeout(r, 600));
+
+        const { data: existingMeal } = await supabase
+          .from('lfa_meal_items')
+          .select('*')
+          .eq('lfa_project_id', currentLfaProjId);
+
+        if (existingMeal && existingMeal.length > 0) {
+          setSteps(prev => prev.map(s => s.id === 'meal' ? { ...s, status: 'skipped', message: 'Kerangka MEAL sudah terisi' } : s));
+        } else {
+          const { data: seededEntries } = await supabase
+            .from('lfa_entries')
+            .select('*')
+            .eq('project_id', currentLfaProjId);
+
+          if (seededEntries && seededEntries.length > 0) {
+            const mealInserts = seededEntries
+              .filter(entry => entry.indicator && entry.indicator.trim() !== '')
+              .map((entry, index) => {
+                let levelMap: 'goal' | 'purpose' | 'output' = 'output';
+                if (entry.level === 'goal') levelMap = 'goal';
+                if (entry.level === 'purpose') levelMap = 'purpose';
+
+                return {
+                  lfa_project_id: currentLfaProjId,
+                  org_id: project.organization_id,
+                  lfa_level: levelMap,
+                  indicator_text: entry.indicator || '',
+                  baseline: null,
+                  target_value: null,
+                  target_unit: '',
+                  collection_method: null,
+                  collection_tool: null,
+                  frequency: null,
+                  pic: '',
+                  status: 'Belum Mulai',
+                  secondary_source: entry.means_of_verification || null,
+                  data_assumption: entry.assumption || null,
+                  monitoring_risk: '',
+                  mode: 'simple',
+                  sort_order: index,
+                  disaggregation: []
+                };
+              });
+
+            if (mealInserts.length === 0) {
+              const fallbackInserts = seededEntries.map((entry, index) => {
+                let levelMap: 'goal' | 'purpose' | 'output' = 'output';
+                if (entry.level === 'goal') levelMap = 'goal';
+                if (entry.level === 'purpose') levelMap = 'purpose';
+
+                return {
+                  lfa_project_id: currentLfaProjId,
+                  org_id: project.organization_id,
+                  lfa_level: levelMap,
+                  indicator_text: entry.indicator || `Indikator untuk: ${entry.description || entry.level}`,
+                  baseline: null,
+                  target_value: null,
+                  target_unit: '',
+                  collection_method: null,
+                  collection_tool: null,
+                  frequency: null,
+                  pic: '',
+                  status: 'Belum Mulai',
+                  secondary_source: entry.means_of_verification || null,
+                  data_assumption: entry.assumption || null,
+                  monitoring_risk: '',
+                  mode: 'simple',
+                  sort_order: index,
+                  disaggregation: []
+                };
+              });
+              mealInserts.push(...fallbackInserts);
+            }
+
+            if (mealInserts.length > 0) {
+              const { error } = await supabase
+                .from('lfa_meal_items')
+                .insert(mealInserts);
+              if (error) throw error;
+            }
+          }
+          setSteps(prev => prev.map(s => s.id === 'meal' ? { ...s, status: 'success' } : s));
+        }
       }
 
       setCompleted(true);
@@ -784,7 +1191,7 @@ export default function GrantWriterProposal() {
 
               {/* Progress Steps List */}
               <div className="mt-6 border-t border-indigo-100/50 dark:border-indigo-900/40 pt-6">
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
                   {steps.map((step, idx) => {
                     const isIdle = step.status === 'idle';
                     const isRunning = step.status === 'running';
