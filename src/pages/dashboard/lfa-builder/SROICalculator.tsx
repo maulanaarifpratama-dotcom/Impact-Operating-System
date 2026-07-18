@@ -2109,15 +2109,15 @@ export default function SROICalculator({
                     <p className="leading-relaxed whitespace-pre-line text-slate-700 dark:text-slate-300">
                       {config.ai_narrative}
                     </p>
-                    <span className="text-[10px] text-amber-600 block bg-amber-50 dark:bg-amber-950/20 p-2 rounded">
-                      ⚠️ Laporan ini adalah draft analisis SROI berbasis input pengguna dan proxy estimasi. Validasi metodologi dan data sumber sebelum digunakan untuk pelaporan resmi.
-                    </span>
                   </div>
                 ) : (
                   <div className="h-full flex items-center justify-center text-muted-foreground italic text-center">
                     Klik tombol di kanan atas untuk menyusun draft narasi komprehensif menggunakan model standar.
                   </div>
                 )}
+                <span className="text-[10px] text-amber-600 block bg-amber-50 dark:bg-amber-950/20 p-2 rounded">
+                  ⚠️ Laporan ini adalah draft analisis SROI berbasis input pengguna dan proxy estimasi. Validasi metodologi dan data sumber sebelum digunakan untuk pelaporan resmi.
+                </span>
               </CardContent>
             </Card>
           </div>
