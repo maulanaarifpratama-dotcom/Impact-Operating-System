@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { BudgetItem, WbsItem, LfaProject } from './types';
 import { SBM_2026, SBM_FLAT_ITEMS, SbmItem } from '@/data/sbm2026';
-import { INKINDO_ROLES, calculateInkindoRate } from '@/data/inkindo2026';
+import { INKINDO_ROLES, calculateInkindoRate, calculateInkindoProfessionalRate, INKINDO_PROVINCE_MULTIPLIERS, INKINDO_DIRECT_COST_MULTIPLIERS } from '@/data/inkindo2026';
 
 interface AutocompleteItem {
   name: string;
@@ -71,6 +71,31 @@ export default function BudgetCalculator({
   // Autocomplete state
   const [activeSuggestionId, setActiveSuggestionId] = useState<string | null>(null);
   const [filteredSuggestions, setFilteredSuggestions] = useState<AutocompleteItem[]>([]);
+
+  // Budget Helper UI & Consultant Calculator states
+  const [isHelperOpen, setIsHelperOpen] = useState<boolean>(false);
+  const [calcInputType, setCalcInputType] = useState<'personnel' | 'consultant'>('personnel');
+  const [calcEducation, setCalcEducation] = useState<'S1' | 'S2' | 'S3'>('S1');
+  const [calcExperience, setCalcExperience] = useState<number>(1);
+  const [calcSkk, setCalcSkk] = useState<boolean>(true);
+  const [calcProvince, setCalcProvince] = useState<string>('DKI Jakarta');
+  const [calcUnit, setCalcUnit] = useState<'Month' | 'Week' | 'Day' | 'Hour'>('Month');
+  const [calcActivityId, setCalcActivityId] = useState<string>('');
+  const [selectedScaleProvince, setSelectedScaleProvince] = useState<string>('DKI Jakarta');
+  const [scaleLoading, setScaleLoading] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (projectData?.location) {
+      setCalcProvince(projectData.location);
+      setSelectedScaleProvince(projectData.location);
+    }
+  }, [projectData]);
+
+  useEffect(() => {
+    if (wbsActivities.length > 0 && !calcActivityId) {
+      setCalcActivityId(wbsActivities[0].id);
+    }
+  }, [wbsActivities, calcActivityId]);
 
   const budgetItemsRef = useRef<BudgetItem[]>([]);
   const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
@@ -429,6 +454,185 @@ export default function BudgetCalculator({
         : 'Tarif personil disesuaikan dengan tarif komersial penuh INKINDO (100%).',
     });
     if (onBudgetChanged) onBudgetChanged();
+  };
+
+  const handleAddProfessionalToBudget = async () => {
+    if (!calcActivityId) {
+      toast({
+        title: "Gagal menambahkan",
+        description: "Silakan pilih aktivitas WBS terlebih dahulu.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const selectedAct = wbsActivities.find(a => a.id === calcActivityId);
+    if (!selectedAct) return;
+
+    setSaving(true);
+    try {
+      const calculatedPrice = calculateInkindoProfessionalRate(
+        calcEducation,
+        calcExperience,
+        calcSkk,
+        calcProvince,
+        calcUnit,
+        isNgoMode
+      );
+
+      const IndonesianUnit = calcUnit === 'Month' ? 'Bulan' : calcUnit === 'Week' ? 'Minggu' : calcUnit === 'Day' ? 'Hari' : 'Jam';
+      const certLabel = calcSkk ? 'With SKK' : 'Without SKK';
+      const titlePrefix = calcInputType === 'personnel' ? 'Tenaga Ahli' : 'Konsultan';
+      const itemName = `${titlePrefix} ${calcEducation} - Exp ${calcExperience} Thn (${certLabel})`;
+
+      // Find max sort order to put it at the end
+      const nextSortOrder = budgetItems.length > 0 
+        ? Math.max(...budgetItems.map(i => i.sort_order)) + 1 
+        : 1;
+
+      const newItem = {
+        lfa_project_id: projectId,
+        org_id: orgId,
+        wbs_item_id: calcActivityId,
+        activity_name: selectedAct.name,
+        category: 'Honorarium',
+        cost_category: 'Personnel & Consultants',
+        item_name: itemName,
+        volume: 1,
+        unit: IndonesianUnit,
+        unit_price_idr: calculatedPrice,
+        funding_source: 'grant' as const,
+        needs_donor_approval: false,
+        sort_order: nextSortOrder,
+        mode: globalMode
+      };
+
+      const { error } = await supabase
+        .from('lfa_budget_items')
+        .insert([newItem]);
+
+      if (error) throw error;
+
+      toast({
+        title: `${titlePrefix} Ditambahkan! 🎉`,
+        description: `"${itemName}" berhasil dimasukkan ke dalam "${selectedAct.name}" dengan tarif Rp ${calculatedPrice.toLocaleString('id-ID')}/${IndonesianUnit}.`
+      });
+
+      await loadData();
+    } catch (err: any) {
+      console.error("Failed to add professional item to budget:", err);
+      toast({
+        title: "Gagal menambahkan item",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleScaleBudgetByProvince = async (targetProvince: string) => {
+    if (!targetProvince) return;
+    setScaleLoading(true);
+    try {
+      const currentProvince = projectData?.location || 'DKI Jakarta';
+      
+      const oldPersonnelMul = INKINDO_PROVINCE_MULTIPLIERS[currentProvince] || 1.0;
+      const newPersonnelMul = INKINDO_PROVINCE_MULTIPLIERS[targetProvince] || 1.0;
+      
+      const oldDirectMul = INKINDO_DIRECT_COST_MULTIPLIERS[currentProvince] || 1.0;
+      const newDirectMul = INKINDO_DIRECT_COST_MULTIPLIERS[targetProvince] || 1.0;
+
+      const personnelScaleFactor = newPersonnelMul / oldPersonnelMul;
+      const directCostScaleFactor = newDirectMul / oldDirectMul;
+
+      const updatedItems = await Promise.all(budgetItems.map(async (item) => {
+        let updatedPrice = item.unit_price_idr;
+
+        const inkindoRole = INKINDO_ROLES.find(r => r.role === item.item_name);
+        const isPersonnel = item.category === 'Honorarium' || item.cost_category === 'Personnel & Consultants';
+
+        if (isPersonnel) {
+          if (inkindoRole) {
+            let targetUnit: 'Month' | 'Week' | 'Day' | 'Hour' = 'Month';
+            if (item.unit === 'Bulan') targetUnit = 'Month';
+            else if (item.unit === 'Hari') targetUnit = 'Day';
+            
+            updatedPrice = calculateInkindoRate(
+              inkindoRole.role,
+              targetProvince,
+              targetUnit,
+              isNgoMode
+            );
+          } else {
+            const match = item.item_name.match(/(Tenaga Ahli|Konsultan)\s+(S1|S2|S3)\s+-\s+Exp\s+(\d+)\s+Thn\s+\((With SKK|Without SKK)\)/i);
+            if (match) {
+              const edu = match[2] as 'S1' | 'S2' | 'S3';
+              const exp = parseInt(match[3], 10);
+              const hasSkk = match[4].toLowerCase() === 'with skk';
+              let targetUnit: 'Month' | 'Week' | 'Day' | 'Hour' = 'Month';
+              if (item.unit === 'Bulan') targetUnit = 'Month';
+              else if (item.unit === 'Hari') targetUnit = 'Day';
+              else if (item.unit === 'Jam') targetUnit = 'Hour';
+              else if (item.unit === 'Minggu') targetUnit = 'Week';
+
+              updatedPrice = calculateInkindoProfessionalRate(
+                edu,
+                exp,
+                hasSkk,
+                targetProvince,
+                targetUnit,
+                isNgoMode
+              );
+            } else {
+              updatedPrice = Math.round(item.unit_price_idr * personnelScaleFactor);
+            }
+          }
+        } else {
+          const sbmRef = findSbmReference(item.item_name, item.category || 'Lainnya');
+          if (sbmRef) {
+            updatedPrice = Math.round(sbmRef.price * newDirectMul);
+          } else {
+            updatedPrice = Math.round(item.unit_price_idr * directCostScaleFactor);
+          }
+        }
+
+        const { error } = await supabase
+          .from('lfa_budget_items')
+          .update({ unit_price_idr: updatedPrice })
+          .eq('id', item.id);
+
+        if (error) throw error;
+
+        return { ...item, unit_price_idr: updatedPrice };
+      }));
+
+      const { error: projErr } = await supabase
+        .from('lfa_projects')
+        .update({ location: targetProvince })
+        .eq('id', projectId);
+
+      if (projErr) throw projErr;
+
+      setBudgetItems(updatedItems);
+      setProject(prev => prev ? { ...prev, location: targetProvince } : null);
+
+      toast({
+        title: "Lokasi & Multiplier Provinsi Diperbarui! 🗺️",
+        description: `Seluruh item anggaran berhasil dikoversikan ke Provinsi ${targetProvince}. Multiplier Personil (${newPersonnelMul.toFixed(3)}) & Non-Personil (${newDirectMul.toFixed(3)}) otomatis diterapkan.`
+      });
+
+      if (onBudgetChanged) onBudgetChanged();
+    } catch (err: any) {
+      console.error("Failed to apply province multipliers:", err);
+      toast({
+        title: "Gagal menerapkan multiplier",
+        description: err.message,
+        variant: "destructive"
+      });
+    } finally {
+      setScaleLoading(false);
+    }
   };
 
   // SBM Client-Side Lookups
@@ -1575,6 +1779,266 @@ export default function BudgetCalculator({
           </div>
 
           <div className="space-y-6">
+            {/* ASISTEN ANGGARAN DETERMINISTIK INKINDO */}
+            <Card className="border border-indigo-100 dark:border-indigo-950 bg-gradient-to-br from-indigo-50/20 to-sky-50/10 dark:from-slate-950/40 dark:to-slate-950/20 overflow-hidden shadow-sm hover:shadow transition-all duration-300">
+              <div className="px-4 py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 dark:from-indigo-600 dark:to-indigo-700 flex items-center justify-between text-white select-none">
+                <div className="flex items-center gap-2">
+                  <HelpCircle className="h-4.5 w-4.5 text-white/90" />
+                  <div className="space-y-0.5">
+                    <span className="text-xs font-black uppercase tracking-wider block">Asisten Anggaran INKINDO & Multiplier Provinsi</span>
+                    <span className="text-[10px] text-indigo-100 block font-medium">Bantu rincikan anggaran remunerasi tenaga ahli secara instan & deterministik.</span>
+                  </div>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setIsHelperOpen(!isHelperOpen)}
+                  className="text-white hover:bg-white/10 p-1.5 h-auto text-xs font-bold gap-1 flex"
+                >
+                  {isHelperOpen ? "Sembunyikan" : "Tampilkan Asisten"}
+                  {isHelperOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                </Button>
+              </div>
+
+              {isHelperOpen && (
+                <div className="p-4 space-y-6 border-t animate-fade-in">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                    {/* Left Side: Professional/Consultant Calculator */}
+                    <div className="lg:col-span-8 space-y-4">
+                      <div className="flex items-center gap-2 pb-2 border-b">
+                        <TrendingUp className="h-4 w-4 text-indigo-600" />
+                        <h3 className="text-xs font-extrabold text-slate-800 dark:text-slate-100 uppercase tracking-wide">Kalkulator Remunerasi Tenaga Ahli (Perlem LKPP 12/2021)</h3>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Left inputs */}
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-bold text-slate-500 uppercase">Tipe Remunerasi</Label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={calcInputType === 'personnel' ? 'default' : 'outline'}
+                                onClick={() => { setCalcInputType('personnel'); setCalcSkk(true); }}
+                                className="text-xs font-bold py-1 px-3"
+                              >
+                                Tenaga Ahli Profesional
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={calcInputType === 'consultant' ? 'default' : 'outline'}
+                                onClick={() => { setCalcInputType('consultant'); setCalcSkk(false); }}
+                                className="text-xs font-bold py-1 px-3"
+                              >
+                                Konsultan Individu
+                              </Button>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-bold text-slate-500 uppercase">Jenjang Pendidikan</Label>
+                              <Select value={calcEducation} onValueChange={(val: any) => setCalcEducation(val)}>
+                                <SelectTrigger className="text-xs h-9 font-semibold">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="S1" className="text-xs font-semibold">S1 (Sarjana)</SelectItem>
+                                  <SelectItem value="S2" className="text-xs font-semibold">S2 (Magister)</SelectItem>
+                                  <SelectItem value="S3" className="text-xs font-semibold">S3 (Doktor)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-bold text-slate-500 uppercase">Sertifikat Kerja (SKK)</Label>
+                              <Select value={calcSkk ? "skk" : "no_skk"} onValueChange={(val) => setCalcSkk(val === "skk")}>
+                                <SelectTrigger className="text-xs h-9 font-semibold" disabled={calcInputType === 'consultant'}>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="skk" className="text-xs font-semibold">Dengan SKK</SelectItem>
+                                  <SelectItem value="no_skk" className="text-xs font-semibold">Tanpa SKK</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex justify-between items-center">
+                              <Label className="text-[10px] font-bold text-slate-500 uppercase">Pengalaman Kerja</Label>
+                              <span className="text-xs font-extrabold text-indigo-600">{calcExperience} Tahun</span>
+                            </div>
+                            <input
+                              type="range"
+                              min="1"
+                              max="25"
+                              value={calcExperience}
+                              onChange={(e) => setCalcExperience(Number(e.target.value))}
+                              className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                            />
+                            <div className="flex justify-between text-[9px] text-slate-400 font-bold">
+                              <span>1 Tahun</span>
+                              <span>25 Tahun</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Right inputs */}
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <Label className="text-[10px] font-bold text-slate-500 uppercase">Aktivitas WBS (Tujuan Penempatan)</Label>
+                            <Select value={calcActivityId} onValueChange={(val) => setCalcActivityId(val)}>
+                              <SelectTrigger className="text-xs h-9 font-semibold">
+                                <SelectValue placeholder="Pilih kegiatan WBS..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {wbsActivities.map((act) => (
+                                  <SelectItem key={act.id} value={act.id} className="text-xs font-semibold">
+                                    {act.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-bold text-slate-500 uppercase">Provinsi Penugasan</Label>
+                              <Select value={calcProvince} onValueChange={(val) => setCalcProvince(val)}>
+                                <SelectTrigger className="text-xs h-9 font-semibold">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent className="max-h-[200px] overflow-y-auto">
+                                  {Object.keys(INKINDO_PROVINCE_MULTIPLIERS).map((prov) => (
+                                    <SelectItem key={prov} value={prov} className="text-xs font-semibold">
+                                      {prov}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            <div className="space-y-1">
+                              <Label className="text-[10px] font-bold text-slate-500 uppercase">Satuan Waktu (Unit)</Label>
+                              <Select value={calcUnit} onValueChange={(val: any) => setCalcUnit(val)}>
+                                <SelectTrigger className="text-xs h-9 font-semibold">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="Month" className="text-xs font-semibold">Bulan (SBOB)</SelectItem>
+                                  <SelectItem value="Week" className="text-xs font-semibold">Minggu (SBOM)</SelectItem>
+                                  <SelectItem value="Day" className="text-xs font-semibold">Hari (SBOH)</SelectItem>
+                                  <SelectItem value="Hour" className="text-xs font-semibold">Jam (SBOJ)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+
+                          <div className="pt-2">
+                            <Button
+                              type="button"
+                              onClick={handleAddProfessionalToBudget}
+                              disabled={saving || wbsActivities.length === 0}
+                              className="w-full bg-indigo-600 hover:bg-indigo-500 dark:bg-indigo-700 dark:hover:bg-indigo-600 text-white font-bold text-xs h-9 shadow flex items-center justify-center gap-1.5"
+                            >
+                              {saving ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Plus className="h-4 w-4" />
+                              )}
+                              Masukkan Tenaga Ahli ke RAB
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Right Side: Live Rates & Province Multiplier Engine */}
+                    <div className="lg:col-span-4 bg-slate-50/50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-100 dark:border-slate-800 flex flex-col justify-between gap-6">
+                      {/* Part A: Calculated Results Box */}
+                      <div className="space-y-3">
+                        <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest block">Live Calculated Rates (Compliant)</span>
+                        
+                        <div className="space-y-2">
+                          <div className="bg-white dark:bg-slate-950 p-2.5 rounded-lg border flex items-center justify-between">
+                            <span className="text-[10px] font-semibold text-slate-400">Tarif Terpilih:</span>
+                            <span className="text-sm font-black text-indigo-700 dark:text-indigo-400">
+                              Rp {calculateInkindoProfessionalRate(calcEducation, calcExperience, calcSkk, calcProvince, calcUnit, isNgoMode).toLocaleString('id-ID')}
+                              <span className="text-[10px] font-bold text-slate-400 ml-1">/{calcUnit === 'Month' ? 'Bulan' : calcUnit === 'Week' ? 'Minggu' : calcUnit === 'Day' ? 'Hari' : 'Jam'}</span>
+                            </span>
+                          </div>
+
+                          {/* Breakdown block */}
+                          <div className="p-2.5 bg-indigo-50/20 dark:bg-indigo-950/10 rounded-lg border border-indigo-50/40 dark:border-indigo-950/30 text-[10px] text-muted-foreground space-y-1">
+                            <div className="flex justify-between">
+                              <span>Index Provinsi ({calcProvince}):</span>
+                              <span className="font-extrabold text-slate-600 dark:text-slate-300">{(INKINDO_PROVINCE_MULTIPLIERS[calcProvince] || 1.0).toFixed(3)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>NGO Multiplier:</span>
+                              <span className="font-extrabold text-slate-600 dark:text-slate-300">{isNgoMode ? "70% (Aktif)" : "100% (Komersial)"}</span>
+                            </div>
+                            <div className="flex justify-between pt-1 border-t">
+                              <span>Est. Bulanan (SBOB):</span>
+                              <span className="font-bold text-slate-700 dark:text-slate-300">Rp {calculateInkindoProfessionalRate(calcEducation, calcExperience, calcSkk, calcProvince, 'Month', isNgoMode).toLocaleString('id-ID')}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Est. Harian (SBOH):</span>
+                              <span className="font-bold text-slate-700 dark:text-slate-300">Rp {calculateInkindoProfessionalRate(calcEducation, calcExperience, calcSkk, calcProvince, 'Day', isNgoMode).toLocaleString('id-ID')}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Part B: Province Multiplier Scaling Box */}
+                      <div className="space-y-3 pt-4 border-t">
+                        <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider">
+                          <AlertTriangle className="h-3.5 w-3.5" /> Province Multiplier Scaling Engine
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="space-y-1">
+                            <Label className="text-[9px] font-bold text-slate-500 uppercase">Target Lokasi Baru</Label>
+                            <Select value={selectedScaleProvince} onValueChange={(val) => setSelectedScaleProvince(val)}>
+                              <SelectTrigger className="text-[11px] h-8 font-semibold">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-[200px] overflow-y-auto">
+                                {Object.keys(INKINDO_PROVINCE_MULTIPLIERS).map((prov) => (
+                                  <SelectItem key={prov} value={prov} className="text-xs font-semibold">
+                                    {prov}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleScaleBudgetByProvince(selectedScaleProvince)}
+                            disabled={scaleLoading || budgetItems.length === 0}
+                            className="w-full text-[10px] font-black tracking-wide h-8 border-amber-200 hover:bg-amber-50 hover:text-amber-700 dark:border-amber-950 dark:hover:bg-amber-950/20 text-amber-800 dark:text-amber-400"
+                          >
+                            {scaleLoading ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                            ) : (
+                              <TrendingUp className="h-3.5 w-3.5 mr-1" />
+                            )}
+                            Skalakan Tarif ke Provinsi Baru
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Card>
+
             {wbsActivities.map((act, actIdx) => {
               const actItems = budgetItems.filter(i => i.wbs_item_id === act.id);
               const actTotal = actItems.reduce((acc, i) => acc + ((Number(i.volume) || 0) * (Number(i.unit_price_idr) || 0)), 0);

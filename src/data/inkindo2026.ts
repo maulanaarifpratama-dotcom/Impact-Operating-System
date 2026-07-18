@@ -154,3 +154,102 @@ export function calculateInkindoRate(
       return Math.round(SBOB);
   }
 }
+
+// ==========================================
+// INKINDO 2026 PROFESSIONAL BILLING TABLES
+// ==========================================
+
+// Base rates for DKI Jakarta benchmark (Index = 1.000) - Tabel 2-26: Tenaga Ahli Profesional dengan SKK
+export const RATES_S1_SKK = [
+  28850000, 30600000, 32300000, 34000000, 35700000, // Year 1 to 5
+  37400000, 39150000, 40850000, 42550000, 44250000, // Year 6 to 10
+  46000000, 47700000, 49400000, 51100000, 52800000, // Year 11 to 15
+  54550000, 56250000, 57950000, 59650000, 61350000, // Year 16 to 20
+  63100000, 64800000, 66500000, 68200000, 69900000  // Year 21 to 25
+];
+
+export const RATES_S2_SKK = [
+  37700000, 39800000, 41900000, 44000000, 46100000, // Year 1 to 5
+  48200000, 50300000, 52400000, 54500000, 56600000, // Year 6 to 10
+  58700000, 60850000, 62950000, 65050000, 67150000, // Year 11 to 15
+  69250000, 71350000, 73450000, 75550000, 77650000, // Year 16 to 20
+  79750000, 81850000, 83950000, 86050000, 88200000  // Year 21 to 25
+];
+
+export const RATES_S3_SKK = [
+  48500000, 50700000, 52900000, 55150000, 57350000, // Year 1 to 5
+  59550000, 61750000, 64000000, 66200000, 68400000, // Year 6 to 10
+  70650000, 72850000, 75050000, 77300000, 79500000, // Year 11 to 15
+  81700000, 83900000, 86150000, 88350000, 90550000, // Year 16 to 20
+  92800000, 95000000, 97200000, 99400000, 101650000 // Year 21 to 25
+];
+
+/**
+ * Calculates deterministic Professional Personnel billing rates scaled for provinces and NGO multipliers
+ * according to INKINDO 2026 (Tabel 2-26 & Tabel 3-26) and Perlem LKPP 12/2021 guidelines.
+ */
+export function calculateInkindoProfessionalRate(
+  education: 'S1' | 'S2' | 'S3',
+  experienceYears: number, // 1 to 25
+  hasSkk: boolean,
+  province: string,
+  unit: 'Month' | 'Week' | 'Day' | 'Hour',
+  isNgoMode: boolean = true
+): number {
+  let baseRate = 0;
+  // bound experience inside 1 to 25 years
+  const boundedExp = Math.min(25, Math.max(1, experienceYears));
+  const expIndex = boundedExp - 1;
+
+  if (hasSkk) {
+    if (education === 'S1') baseRate = RATES_S1_SKK[expIndex];
+    else if (education === 'S2') baseRate = RATES_S2_SKK[expIndex];
+    else if (education === 'S3') baseRate = RATES_S3_SKK[expIndex];
+  } else {
+    // Without SKK (Tabel 3-26)
+    if (education === 'S1') {
+      if (boundedExp < 3) {
+        // S1 < 3 years experience is considered Sub-Professional. Use Asisten Tenaga Ahli rate.
+        baseRate = 17600000;
+      } else {
+        // Year Y without SKK is equivalent to Year Y-2 with SKK
+        baseRate = RATES_S1_SKK[expIndex - 2];
+      }
+    } else if (education === 'S2') {
+      if (boundedExp === 1) baseRate = 33450000;
+      else if (boundedExp === 2) baseRate = 35600000;
+      else {
+        baseRate = RATES_S2_SKK[expIndex - 2];
+      }
+    } else if (education === 'S3') {
+      if (boundedExp === 1) baseRate = 44050000;
+      else if (boundedExp === 2) baseRate = 46250000;
+      else {
+        baseRate = RATES_S3_SKK[expIndex - 2];
+      }
+    }
+  }
+
+  const pIndex = INKINDO_PROVINCE_MULTIPLIERS[province] || 1.0;
+  const ngoMultiplier = isNgoMode ? 0.70 : 1.00;
+
+  // SBOB (Satuan Biaya Orang Bulan)
+  const SBOB = baseRate * pIndex * ngoMultiplier;
+
+  switch (unit) {
+    case 'Month':
+      return Math.round(SBOB);
+    case 'Week':
+      // SBOM = SBOB / 4,1
+      return Math.round(SBOB / 4.1);
+    case 'Day':
+      // SBOH = (SBOB / 22) * 1,1
+      return Math.round((SBOB / 22) * 1.1);
+    case 'Hour':
+      // SBOJ = (SBOH / 8) * 1,3
+      const SBOH = (SBOB / 22) * 1.1;
+      return Math.round((SBOH / 8) * 1.3);
+    default:
+      return Math.round(SBOB);
+  }
+}
