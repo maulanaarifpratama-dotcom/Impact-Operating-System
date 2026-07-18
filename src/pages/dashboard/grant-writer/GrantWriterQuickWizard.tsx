@@ -53,6 +53,20 @@ export default function GrantWriterQuickWizard() {
   const [compiling, setCompiling] = useState(false);
   const [aiFailed, setAiFailed] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const [proposalExists, setProposalExists] = useState(false);
+
+  useEffect(() => {
+    if (!projectId) return;
+    supabase
+      .from('gw_lfa_documents')
+      .select('id')
+      .eq('project_id', projectId)
+      .eq('is_current', true)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) setProposalExists(true);
+      });
+  }, [projectId]);
 
   const lfaProjectId = (project?.wizard_data as Record<string, unknown> | undefined)?.lfa_project_id as string | undefined;
 
@@ -420,7 +434,12 @@ export default function GrantWriterQuickWizard() {
                     Kompilasi Manual (Tanpa AI)
                   </Button>
 
-                  <Button onClick={handleGenerate} disabled={generating || compiling} className="h-9">
+                  <Button
+                    variant={proposalExists ? 'outline' : 'default'}
+                    onClick={handleGenerate}
+                    disabled={generating || compiling}
+                    className="h-9"
+                  >
                     {generating ? (
                       <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
                     ) : (

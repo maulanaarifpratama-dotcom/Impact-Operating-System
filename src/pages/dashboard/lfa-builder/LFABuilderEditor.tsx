@@ -19,6 +19,7 @@ import {
   HelpCircle,
   Lock,
   ArrowRight,
+  FileText,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -514,6 +515,49 @@ export default function LFABuilderEditor() {
     if (purpose?.description && purpose.description.trim().length > 0) score += 25;
     if (outputs.length > 0 && outputs.some((o) => o.description.trim().length > 0)) score += 25;
     if (activities.length > 0 && activities.some((a) => a.description.trim().length > 0)) score += 25;
+
+    let hasBlankRequiredOrMissingActivity = false;
+
+    // 1. Goal required fields
+    if (!goal?.indicator?.trim() || !goal?.means_of_verification?.trim() || !goal?.assumption?.trim()) {
+      hasBlankRequiredOrMissingActivity = true;
+    }
+
+    // 2. Purpose required fields
+    if (!purpose?.indicator?.trim() || !purpose?.means_of_verification?.trim() || !purpose?.assumption?.trim()) {
+      hasBlankRequiredOrMissingActivity = true;
+    }
+
+    // 3. Outputs required fields & Activities presence
+    if (outputs.length === 0) {
+      hasBlankRequiredOrMissingActivity = true;
+    } else {
+      outputs.forEach(o => {
+        if (!o.description?.trim() || !o.indicator?.trim() || !o.means_of_verification?.trim() || !o.assumption?.trim()) {
+          hasBlankRequiredOrMissingActivity = true;
+        }
+        const hasActivity = activities.some(a => a.parent_id === o.id);
+        if (!hasActivity) {
+          hasBlankRequiredOrMissingActivity = true;
+        }
+      });
+    }
+
+    // 4. Activities required fields
+    if (activities.length === 0) {
+      hasBlankRequiredOrMissingActivity = true;
+    } else {
+      activities.forEach(a => {
+        if (!a.description?.trim() || !a.indicator?.trim() || !a.means_of_verification?.trim()) {
+          hasBlankRequiredOrMissingActivity = true;
+        }
+      });
+    }
+
+    if (hasBlankRequiredOrMissingActivity) {
+      return Math.min(score, 95);
+    }
+
     return score;
   };
 
@@ -547,6 +591,10 @@ export default function LFABuilderEditor() {
       outputs.forEach((o, idx) => {
         if (!o.description) warnings.push(`⚠️ Deskripsi Hasil H${idx + 1} masih kosong.`);
         if (!o.indicator) warnings.push(`⚠️ Indikator Hasil H${idx + 1} masih kosong.`);
+        const hasActivity = activities.some(a => a.parent_id === o.id);
+        if (!hasActivity) {
+          warnings.push(`⚠️ Hasil H${idx + 1} belum memiliki kegiatan (Activities) terkait.`);
+        }
       });
     }
 
@@ -647,6 +695,15 @@ export default function LFABuilderEditor() {
               <span>Autosave aktif</span>
             )}
           </div>
+
+          {project?.linked_grant_id && (
+            <Button variant="outline" size="sm" asChild className="gap-1.5 h-8 border-indigo-200 text-indigo-700 bg-indigo-50/30 hover:bg-indigo-50 hover:text-indigo-800 transition-colors">
+              <Link to={`/dashboard/grant-writer/${project.linked_grant_id}/proposal`}>
+                <FileText className="h-3.5 w-3.5" />
+                Buka Proposal Terkait
+              </Link>
+            </Button>
+          )}
 
           <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={pdfLoading}>
             {pdfLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
@@ -1003,6 +1060,11 @@ export default function LFABuilderEditor() {
                           <span className="font-semibold text-xs truncate max-w-sm">
                             {out.description ? out.description : 'Hasil Kosong'}
                           </span>
+                          {outActivities.length === 0 && (
+                            <Badge variant="destructive" className="bg-rose-100 hover:bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200 text-[10px] py-0 px-2 font-black animate-pulse">
+                              Belum memiliki kegiatan
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex items-center gap-1.5">
                           <Button

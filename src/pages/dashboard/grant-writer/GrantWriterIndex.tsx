@@ -135,6 +135,8 @@ export default function GrantWriterIndex() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
+  const [lfaProjects, setLfaProjects] = useState<any[]>([]);
+  const [lfaDocs, setLfaDocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
@@ -154,6 +156,17 @@ export default function GrantWriterIndex() {
       toast({ title: 'Gagal memuat proyek', description: error.message, variant: 'destructive' });
     } else {
       setProjects(data ?? []);
+      
+      const { data: lfap } = await supabase
+        .from('lfa_projects')
+        .select('id, linked_grant_id');
+      setLfaProjects(lfap ?? []);
+
+      const { data: lfad } = await supabase
+        .from('gw_lfa_documents')
+        .select('id, project_id, is_current')
+        .eq('is_current', true);
+      setLfaDocs(lfad ?? []);
     }
     setLoading(false);
   };
@@ -406,8 +419,36 @@ export default function GrantWriterIndex() {
           {projects.map((p) => {
             const m = getProjectMode(p);
             const total = m === 'quick' ? QUICK_STEPS.length : WIZARD_STEPS.length;
-            const href =
-              m === 'quick'
+            
+            const hasProgram = lfaProjects.some(lp => lp.linked_grant_id === p.id);
+            const hasDoc = lfaDocs.some(ld => ld.project_id === p.id);
+            const isGenerating = p.status === 'generating';
+            const isFailed = p.status === 'failed' || p.status === 'error';
+            const inputsComplete = p.current_step >= total;
+
+            let statusLabel = 'Draf';
+            let statusColor = 'bg-slate-100 text-slate-700 dark:bg-slate-900/50 dark:text-slate-300 border-slate-200';
+
+            if (hasProgram) {
+              statusLabel = 'Program Sudah Dibuat';
+              statusColor = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200';
+            } else if (hasDoc) {
+              statusLabel = 'Proposal Selesai';
+              statusColor = 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200';
+            } else if (isGenerating) {
+              statusLabel = 'Sedang Membuat Proposal';
+              statusColor = 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 animate-pulse';
+            } else if (isFailed) {
+              statusLabel = 'Generate Gagal';
+              statusColor = 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200';
+            } else if (inputsComplete) {
+              statusLabel = 'Input Lengkap';
+              statusColor = 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-200';
+            }
+
+            const href = (hasDoc || hasProgram)
+              ? `/dashboard/grant-writer/${p.id}/proposal`
+              : m === 'quick'
                 ? `/dashboard/grant-writer/quick/${p.id}`
                 : `/dashboard/grant-writer/${p.id}`;
             return (
@@ -416,8 +457,8 @@ export default function GrantWriterIndex() {
                   <CardHeader>
                     <div className="flex items-start justify-between gap-2">
                       <CardTitle className="line-clamp-2 text-base">{p.title}</CardTitle>
-                      <Badge variant="secondary" className="shrink-0">
-                        {STATUS_LABEL[p.status as GwProjectStatus] ?? p.status}
+                      <Badge className={cn("shrink-0 border text-[10px] font-bold px-2 py-0.5", statusColor)}>
+                        {statusLabel}
                       </Badge>
                     </div>
                     <div className="mt-1">

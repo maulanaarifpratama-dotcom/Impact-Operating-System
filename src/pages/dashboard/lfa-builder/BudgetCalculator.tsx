@@ -53,6 +53,7 @@ export default function BudgetCalculator({
   const [globalMode, setGlobalMode] = useState<'simple' | 'professional'>('simple');
   const [activeTab, setActiveTab] = useState<'rencana' | 'realisasi'>('rencana');
   const [projectData, setProject] = useState<LfaProject | null>(null);
+  const [proposalBudget, setProposalBudget] = useState<number | null>(null);
 
   // Exchange rate state
   const [exchangeRate, setExchangeRate] = useState<number>(16000);
@@ -146,7 +147,19 @@ export default function BudgetCalculator({
         .select('*')
         .eq('id', projectId)
         .maybeSingle();
-      if (proj) setProject(proj as LfaProject);
+       if (proj) {
+        setProject(proj as LfaProject);
+        if (proj.linked_grant_id) {
+           const { data: prop } = await supabase
+             .from('gw_projects')
+             .select('budget_idr')
+             .eq('id', proj.linked_grant_id)
+             .maybeSingle();
+           if (prop) {
+             setProposalBudget(prop.budget_idr);
+           }
+        }
+      }
 
       // 2. Fetch Level 2 WBS Activities (Fallback to Level 1 if none exist)
       let { data: wbs, error: wbsErr } = await supabase
@@ -1115,6 +1128,29 @@ export default function BudgetCalculator({
             </div>
           </div>
 
+          <!-- Pagu Proposal vs Itemized RAB Banner -->
+          ${proposalBudget !== null ? `
+            <div style="background-color: ${totalIDR > proposalBudget ? '#fef2f2' : totalIDR < proposalBudget ? '#fffbeb' : '#f0fdf4'}; border: 1px solid ${totalIDR > proposalBudget ? '#fecaca' : totalIDR < proposalBudget ? '#fef3c7' : '#bbf7d0'}; padding: 15px; border-radius: 8px; margin-bottom: 24px;">
+              <span style="font-size: 10px; font-weight: bold; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; display: block; margin-bottom: 6px;">Pagu Proposal vs Itemized RAB</span>
+              <div style="display: flex; gap: 20px; font-size: 12px; font-weight: bold; margin-bottom: 8px;">
+                <div>
+                  <span style="font-size: 10px; font-weight: normal; color: #64748b; display: block;">Pagu Proposal:</span>
+                  <span style="color: #334155; font-family: monospace;">Rp ${proposalBudget.toLocaleString('id-ID')}</span>
+                </div>
+                <div style="width: 1px; background-color: #cbd5e1;"></div>
+                <div>
+                  <span style="font-size: 10px; font-weight: normal; color: #64748b; display: block;">Itemized RAB:</span>
+                  <span style="color: ${totalIDR > proposalBudget ? '#dc2626' : '#334155'}; font-family: monospace;">Rp ${totalIDR.toLocaleString('id-ID')}</span>
+                </div>
+              </div>
+              <p style="font-size: 11px; font-weight: bold; margin: 4px 0 0 0; color: ${totalIDR > proposalBudget ? '#dc2626' : totalIDR < proposalBudget ? '#b45309' : '#15803d'};">
+                ${totalIDR === proposalBudget ? 'RAB cocok dengan pagu proposal.' : ''}
+                ${totalIDR < proposalBudget ? `Sisa anggaran yang belum teralokasi: Rp ${(proposalBudget - totalIDR).toLocaleString('id-ID')}` : ''}
+                ${totalIDR > proposalBudget ? `⚠️ PERINGATAN: Total RAB melebihi pagu proposal sebesar Rp ${(totalIDR - proposalBudget).toLocaleString('id-ID')}!` : ''}
+              </p>
+            </div>
+          ` : ''}
+
           <!-- Cost Groups per WBS Activity -->
           ${wbsActivities.map((act, actIdx) => {
             const actItems = budgetItems.filter(i => i.wbs_item_id === act.id);
@@ -1291,6 +1327,29 @@ export default function BudgetCalculator({
                 <span class="text-xs font-bold text-emerald-600">Grand Total: Rp ${totalIDR.toLocaleString('id-ID')} ($${totalUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})</span>
               </div>
             </div>
+
+            <!-- Pagu Proposal vs Itemized RAB Banner -->
+            ${proposalBudget !== null ? `
+              <div style="background-color: ${totalIDR > proposalBudget ? '#fef2f2' : totalIDR < proposalBudget ? '#fffbeb' : '#f0fdf4'}; border: 1px solid ${totalIDR > proposalBudget ? '#fecaca' : totalIDR < proposalBudget ? '#fef3c7' : '#bbf7d0'}; padding: 12px; border-radius: 6px; margin-bottom: 20px;">
+                <span style="font-size: 9px; font-weight: bold; text-transform: uppercase; color: #64748b; letter-spacing: 0.05em; display: block; margin-bottom: 4px;">Pagu Proposal vs Itemized RAB</span>
+                <div style="display: flex; gap: 15px; font-size: 11px; font-weight: bold; margin-bottom: 4px;">
+                  <div>
+                    <span style="font-size: 9px; font-weight: normal; color: #64748b; display: block;">Pagu Proposal:</span>
+                    <span style="color: #334155; font-family: monospace;">Rp ${proposalBudget.toLocaleString('id-ID')}</span>
+                  </div>
+                  <div style="width: 1px; background-color: #cbd5e1;"></div>
+                  <div>
+                    <span style="font-size: 9px; font-weight: normal; color: #64748b; display: block;">Itemized RAB:</span>
+                    <span style="color: ${totalIDR > proposalBudget ? '#dc2626' : '#334155'}; font-family: monospace;">Rp ${totalIDR.toLocaleString('id-ID')}</span>
+                  </div>
+                </div>
+                <p style="font-size: 10px; font-weight: bold; margin: 4px 0 0 0; color: ${totalIDR > proposalBudget ? '#dc2626' : totalIDR < proposalBudget ? '#b45309' : '#15803d'};">
+                  ${totalIDR === proposalBudget ? 'RAB cocok dengan pagu proposal.' : ''}
+                  ${totalIDR < proposalBudget ? `Sisa anggaran yang belum teralokasi: Rp ${(proposalBudget - totalIDR).toLocaleString('id-ID')}` : ''}
+                  ${totalIDR > proposalBudget ? `⚠️ PERINGATAN: Total RAB melebihi pagu proposal sebesar Rp ${(totalIDR - proposalBudget).toLocaleString('id-ID')}!` : ''}
+                </p>
+              </div>
+            ` : ''}
 
             <!-- Grouped by Cost Category -->
             ${categoriesList.map(cat => {
@@ -1679,6 +1738,61 @@ export default function BudgetCalculator({
             </TabsList>
           </div>
         </div>
+
+        {/* Comparative Budget Banner (Pagu Proposal vs Itemized RAB) */}
+        {proposalBudget !== null && (
+          <div className={`p-5 rounded-xl border mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-300 ${
+            totalIDR > proposalBudget 
+              ? "bg-rose-50/50 border-rose-200 dark:bg-rose-950/10 dark:border-rose-900/50" 
+              : totalIDR < proposalBudget
+                ? "bg-amber-50/40 border-amber-200 dark:bg-amber-950/10 dark:border-amber-900/40"
+                : "bg-emerald-50/40 border-emerald-200 dark:bg-emerald-950/10 dark:border-emerald-900/40"
+          }`}>
+            <div className="space-y-1.5">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pagu Proposal vs Itemized RAB</h3>
+              <div className="flex flex-wrap items-center gap-4 text-sm font-semibold">
+                <div>
+                  <span className="text-xs text-muted-foreground block font-normal">Pagu Proposal:</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-mono">Rp {proposalBudget.toLocaleString('id-ID')}</span>
+                </div>
+                <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
+                <div>
+                  <span className="text-xs text-muted-foreground block font-normal">Itemized RAB:</span>
+                  <span className={`font-mono \${totalIDR > proposalBudget ? "text-rose-600 font-black" : "text-slate-700 dark:text-slate-300"}`}>Rp {totalIDR.toLocaleString('id-ID')}</span>
+                </div>
+              </div>
+              
+              {/* Dynamic message explaining variance */}
+              <p className={`text-xs font-semibold mt-1 \${
+                totalIDR > proposalBudget
+                  ? "text-rose-600 dark:text-rose-400 flex items-center gap-1"
+                  : totalIDR < proposalBudget
+                    ? "text-amber-700 dark:text-amber-400"
+                    : "text-emerald-700 dark:text-emerald-400"
+              }`}>
+                {totalIDR === proposalBudget && "RAB cocok dengan pagu proposal."}
+                {totalIDR < proposalBudget && `Sisa anggaran yang belum teralokasi: Rp \${(proposalBudget - totalIDR).toLocaleString('id-ID')}`}
+                {totalIDR > proposalBudget && `⚠️ PERINGATAN: Total RAB melebihi pagu proposal sebesar Rp \${(totalIDR - proposalBudget).toLocaleString('id-ID')}!`}
+              </p>
+            </div>
+            
+            {/* Visual Variance Progress Bar */}
+            <div className="w-full md:w-48 space-y-1">
+              <span className="text-[10px] text-muted-foreground block">Rasio Alokasi Pagu</span>
+              <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
+                <div 
+                  className={`h-full rounded-full transition-all duration-500 \${
+                    totalIDR > proposalBudget ? "bg-rose-500 animate-pulse" : totalIDR === proposalBudget ? "bg-emerald-500" : "bg-amber-500"
+                  }`}
+                  style={{ width: `\${Math.min(100, (totalIDR / proposalBudget) * 100)}%` }}
+                ></div>
+              </div>
+              <span className="text-[10px] text-muted-foreground block text-right font-mono">
+                {((totalIDR / proposalBudget) * 100).toFixed(1)}%
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Dynamic Metric Cards at top (depending on active tab) */}
         {activeTab === 'rencana' ? (

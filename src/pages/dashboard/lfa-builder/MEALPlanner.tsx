@@ -866,8 +866,13 @@ export default function MEALPlanner({
 
   // Summary Metrics calculations
   const totalIndicators = mealItems.length;
-  const hasMethodCount = mealItems.filter(item => item.collection_method).length;
-  const hasPicCount = mealItems.filter(item => item.pic && item.pic.trim() !== '').length;
+  const isFilled = (val: string | null | undefined) => {
+    if (!val) return false;
+    const cleaned = val.trim();
+    return cleaned !== '' && cleaned !== '-' && cleaned !== '—';
+  };
+  const hasMethodCount = mealItems.filter(item => isFilled(item.collection_method)).length;
+  const hasPicCount = mealItems.filter(item => isFilled(item.pic)).length;
 
   // Print Preview layout generator for High-Fidelity Client-side PDF Exporter
   const handleExportPDF = () => {

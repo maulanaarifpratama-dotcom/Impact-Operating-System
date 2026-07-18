@@ -47,6 +47,8 @@ export default function SROICalculator({
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [syncing, setSyncing] = useState(false);
+  const [proposalBudget, setProposalBudget] = useState<number | null>(null);
+  const [itemizedBudget, setItemizedBudget] = useState<number | null>(null);
 
   // Local states for virtual registry-linked outcome
   const [registryProxyValueIdr, setRegistryProxyValueIdr] = useState(0);
@@ -130,7 +132,35 @@ export default function SROICalculator({
     if (!orgId) return;
     setLoading(true);
     setError(null);
-    try {
+     try {
+      // Fetch proposal budget and itemized budget
+      const { data: proj } = await supabase
+        .from('lfa_projects')
+        .select('linked_grant_id')
+        .eq('id', projectId)
+        .maybeSingle();
+
+      if (proj && proj.linked_grant_id) {
+        const { data: prop } = await supabase
+          .from('gw_projects')
+          .select('budget_idr')
+          .eq('id', proj.linked_grant_id)
+          .maybeSingle();
+        if (prop) {
+          setProposalBudget(prop.budget_idr);
+        }
+      }
+
+      const { data: budgetItems } = await supabase
+        .from('lfa_budget_items')
+        .select('volume, unit_price_idr')
+        .eq('lfa_project_id', projectId);
+
+      if (budgetItems) {
+        const sum = budgetItems.reduce((acc, item) => acc + ((Number(item.volume) || 0) * (Number(item.unit_price_idr) || 0)), 0);
+        setItemizedBudget(sum);
+      }
+
       // 1. Fetch config
       const { data: configData, error: configErr } = await supabase
         .from('lfa_sroi_config')
@@ -412,7 +442,7 @@ export default function SROICalculator({
       }
 
       // Avoid divide-by-zero
-      const totalInvestment = curConfig?.total_investment_idr ?? 0;
+      const totalInvestment = proposalBudget ?? curConfig?.total_investment_idr ?? 0;
       const sroiRatio = totalInvestment > 0 
         ? parseFloat((totalPresentValue / totalInvestment).toFixed(2))
         : 0;
@@ -436,6 +466,7 @@ export default function SROICalculator({
       // Update config locally & remotely
       const updatedConfig = {
         ...curConfig,
+        total_investment_idr: totalInvestment,
         sroi_ratio: sroiRatio,
         total_gross_value_idr: totalGross,
         total_present_value_idr: totalPresentValue
@@ -446,6 +477,7 @@ export default function SROICalculator({
         await supabase
           .from('lfa_sroi_config')
           .update({
+            total_investment_idr: totalInvestment,
             sroi_ratio: sroiRatio,
             total_gross_value_idr: totalGross,
             total_present_value_idr: totalPresentValue
@@ -1101,7 +1133,7 @@ export default function SROICalculator({
 
           <div class="grid">
             <div class="card">
-              <div class="card-title">Total Investasi Finansial</div>
+              <div class="card-title">Proposal Funding Envelope (Pagu Proposal)</div>
               <div class="card-val">Rp ${config.total_investment_idr.toLocaleString('id-ID')}</div>
             </div>
             <div class="card">
@@ -2011,9 +2043,26 @@ export default function SROICalculator({
           {/* PROFESSIONAL RINGKASAN SUMMARY CARDS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="border p-4 shadow-elegant space-y-1 bg-slate-50/50 dark:bg-slate-900/10">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Total Investasi Finansial</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Proposal Funding Envelope (Pagu Proposal)</span>
               <div className="text-xl font-extrabold text-slate-800 dark:text-slate-100">Rp {config.total_investment_idr.toLocaleString('id-ID')}</div>
-              <span className="text-[10px] text-muted-foreground block">Costing / Anggaran Biaya Terhubung.</span>
+              {itemizedBudget !== null ? (
+                <span className={`text-[10px] block font-semibold ${
+                  itemizedBudget > config.total_investment_idr 
+                    ? "text-rose-600 dark:text-rose-400" 
+                    : itemizedBudget < config.total_investment_idr
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-emerald-600 dark:text-emerald-400"
+                }`}>
+                  Itemized RAB: Rp {itemizedBudget.toLocaleString('id-ID')} 
+                  ({itemizedBudget === config.total_investment_idr 
+                    ? "Cocok" 
+                    : itemizedBudget > config.total_investment_idr 
+                      ? `Overbudget Rp ${(itemizedBudget - config.total_investment_idr).toLocaleString('id-ID')}` 
+                      : `Sisa Rp ${(config.total_investment_idr - itemizedBudget).toLocaleString('id-ID')}`})
+                </span>
+              ) : (
+                <span className="text-[10px] text-muted-foreground block">Costing / Anggaran Biaya Terhubung.</span>
+              )}
             </Card>
 
             <Card className="border p-4 shadow-elegant space-y-1 bg-slate-50/50 dark:bg-slate-900/10">
