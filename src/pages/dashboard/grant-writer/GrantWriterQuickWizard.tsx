@@ -121,6 +121,22 @@ export default function GrantWriterQuickWizard() {
     setGenerating(true);
     setAiFailed(false);
     try {
+      // Sync the nested wizard data to the gw_projects columns
+      const syncPayload = {
+        title: data.program?.programTitle || project?.title || 'Program Baru',
+        sector: data.program?.sector || project?.sector,
+        geography: data.budget?.geography || project?.geography,
+        duration_months: data.budget?.durationMonths || project?.duration_months,
+        budget_idr: data.budget?.budgetIdr || project?.budget_idr,
+        target_donor: data.program?.targetDonor || project?.target_donor,
+        donor_standard: (data.program?.donorStandard || project?.donor_standard || 'un_oecd_dac') as any,
+      };
+
+      await supabase
+        .from('gw_projects')
+        .update(syncPayload)
+        .eq('id', projectId);
+
       await saveNow();
 
       // Call the Foundry-powered edge function. This is the ONLY path that
@@ -188,6 +204,22 @@ export default function GrantWriterQuickWizard() {
     if (!projectId || !user || !project) return;
     setCompiling(true);
     try {
+      // Sync the nested wizard data to the gw_projects columns
+      const syncPayload = {
+        title: data.program?.programTitle || project?.title || 'Program Baru',
+        sector: data.program?.sector || project?.sector,
+        geography: data.budget?.geography || project?.geography,
+        duration_months: data.budget?.durationMonths || project?.duration_months,
+        budget_idr: data.budget?.budgetIdr || project?.budget_idr,
+        target_donor: data.program?.targetDonor || project?.target_donor,
+        donor_standard: (data.program?.donorStandard || project?.donor_standard || 'un_oecd_dac') as any,
+      };
+
+      await supabase
+        .from('gw_projects')
+        .update(syncPayload)
+        .eq('id', projectId);
+
       await saveNow();
 
       // 1. Render Markdown locally
@@ -402,7 +434,7 @@ export default function GrantWriterQuickWizard() {
                 </span>
               </div>
             ) : (
-              <Button onClick={goNext} disabled={compiling || generating}>
+              <Button id="wizard-lanjut-btn" onClick={goNext} disabled={compiling || generating}>
                 Lanjut <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             )}

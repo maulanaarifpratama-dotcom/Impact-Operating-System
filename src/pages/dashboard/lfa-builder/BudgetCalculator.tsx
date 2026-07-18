@@ -148,8 +148,8 @@ export default function BudgetCalculator({
         .maybeSingle();
       if (proj) setProject(proj as LfaProject);
 
-      // 2. Fetch Level 2 WBS Activities
-      const { data: wbs, error: wbsErr } = await supabase
+      // 2. Fetch Level 2 WBS Activities (Fallback to Level 1 if none exist)
+      let { data: wbs, error: wbsErr } = await supabase
         .from('lfa_wbs_items')
         .select('*')
         .eq('lfa_project_id', projectId)
@@ -157,6 +157,18 @@ export default function BudgetCalculator({
         .order('sort_order', { ascending: true });
 
       if (wbsErr) throw wbsErr;
+
+      if (!wbs || wbs.length === 0) {
+        const { data: lvl1, error: lvl1Err } = await supabase
+          .from('lfa_wbs_items')
+          .select('*')
+          .eq('lfa_project_id', projectId)
+          .eq('level', 1)
+          .order('sort_order', { ascending: true });
+        if (lvl1Err) throw lvl1Err;
+        wbs = lvl1;
+      }
+
       const activities = (wbs || []) as WbsItem[];
       setWbsActivities(activities);
 

@@ -92,6 +92,178 @@ function renderMarkdown(md: string): string {
   return out.join('\n');
 }
 
+function validateProgramSkeleton(skeleton: any, project: any): string[] {
+  const errors: string[] = [];
+
+  if (!skeleton) {
+    errors.push("Program skeleton is missing.");
+    return errors;
+  }
+
+  // 1. Basic Metadata matching
+  const projTitle = (project.title || '').trim().toLowerCase();
+  const skTitle = (skeleton.meta?.projectTitle || skeleton.meta?.title || '').trim().toLowerCase();
+  if (projTitle && skTitle && !projTitle.includes(skTitle) && !skTitle.includes(projTitle)) {
+    errors.push(`Project title mismatch: expected "${project.title}" but skeleton has "${skeleton.meta?.projectTitle || skeleton.meta?.title}".`);
+  }
+
+  const projGeo = (project.geography || '').trim().toLowerCase();
+  let skGeoStr = '';
+  if (skeleton.meta?.geography) {
+    if (typeof skeleton.meta.geography === 'object') {
+      skGeoStr = skeleton.meta.geography.locationName || skeleton.meta.geography.name || '';
+    } else {
+      skGeoStr = String(skeleton.meta.geography);
+    }
+  }
+
+  const getSignificantWords = (str: string) => {
+    return str
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 4 && w !== 'kabupaten' && w !== 'provinsi' && w !== 'kota' && w !== 'jawa' && w !== 'barat');
+  };
+
+  const projWords = getSignificantWords(projGeo);
+  const skWords = getSignificantWords(skGeoStr);
+  const hasGeoOverlap = projWords.some(pw => skWords.includes(pw));
+
+  if (projGeo && skGeoStr && !hasGeoOverlap) {
+    errors.push(`Geography mismatch: expected "${project.geography}" but skeleton has "${skGeoStr}".`);
+  }
+
+  const projBudget = Number(project.budget_idr) || 0;
+  const skBudget = Number(skeleton.meta?.budgetIdr || skeleton.meta?.budget_idr) || 0;
+  if (projBudget && skBudget && Math.abs(projBudget - skBudget) > 100000000) { // permit within a threshold (100 million) to allow loose SBM calculations
+    errors.push(`Budget mismatch: expected Rp ${projBudget.toLocaleString('id-ID')} but skeleton has Rp ${skBudget.toLocaleString('id-ID')}.`);
+  }
+
+  const projDuration = Number(project.duration_months) || 0;
+  const skDuration = Number(skeleton.meta?.durationMonths || skeleton.meta?.duration_months) || 0;
+  if (projDuration && skDuration && projDuration !== skDuration) {
+    errors.push(`Duration mismatch: expected ${projDuration} months but skeleton has ${skDuration} months.`);
+  }
+
+  // 2. Relational and ID Integrity
+  const lfa = skeleton.lfa || {};
+  const outcomes = lfa.outcomes || [];
+  const outputs = lfa.outputs || [];
+  const purpose = lfa.purpose || outcomes[0];
+
+  const outcomeIds = new Set<string>();
+  if (purpose?.id) outcomeIds.add(purpose.id);
+  outcomes.forEach((out: any) => {
+    if (out.id) {
+      outcomeIds.add(out.id);
+    } else {
+      errors.push(`Outcome statement "${out.statement}" is missing an ID.`);
+    }
+  });
+
+  const outputIds = new Set<string>();
+  outputs.forEach((opt: any) => {
+    if (opt.id) {
+      outputIds.add(opt.id);
+    } else {
+      errors.push(`Output statement "${opt.statement}" is missing an ID.`);
+    }
+
+    if (opt.outcomeId) {
+      if (!outcomeIds.has(opt.outcomeId)) {
+        errors.push(`Output "${opt.statement}" references invalid outcomeId: "${opt.outcomeId}".`);
+      }
+    } else {
+      errors.push(`Output "${opt.statement}" is missing outcomeId.`);
+    }
+  });
+
+  const wbs = skeleton.wbs || {};
+  const tasks = wbs.tasks || [];
+  const taskIds = new Set<string>();
+  tasks.forEach((tsk: any) => {
+    if (tsk.id) {
+      taskIds.add(tsk.id);
+    } else {
+      errors.push(`WBS task "${tsk.title}" is missing an ID.`);
+    }
+
+    if (tsk.level === 2 && tsk.sourceActivityId) {
+      if (!outputIds.has(tsk.sourceActivityId)) {
+        errors.push(`WBS task "${tsk.title}" references invalid LFA output ID: "${tsk.sourceActivityId}".`);
+      }
+    }
+  });
+
+  const budgetHints = skeleton.budget_hints?.items || [];
+  budgetHints.forEach((hint: any) => {
+    if (hint.taskId) {
+      if (!taskIds.has(hint.taskId)) {
+        errors.push(`Budget hint "${hint.itemName}" references invalid WBS task ID: "${hint.taskId}".`);
+      }
+    } else {
+      errors.push(`Budget hint "${hint.itemName}" is missing taskId.`);
+    }
+  });
+
+  const lfaIndicatorIds = new Set<string>();
+  if (lfa.goal?.indicators) {
+    lfa.goal.indicators.forEach((ind: any) => { if (ind?.id) lfaIndicatorIds.add(ind.id); });
+  }
+  if (purpose?.indicators) {
+    purpose.indicators.forEach((ind: any) => { if (ind?.id) lfaIndicatorIds.add(ind.id); });
+  }
+  outcomes.forEach((out: any) => {
+    if (out.indicators) {
+      out.indicators.forEach((ind: any) => { if (ind?.id) lfaIndicatorIds.add(ind.id); });
+    }
+  });
+  outputs.forEach((opt: any) => {
+    if (opt.indicators) {
+      opt.indicators.forEach((ind: any) => { if (ind?.id) lfaIndicatorIds.add(ind.id); });
+    }
+  });
+
+  const meal = skeleton.meal || {};
+  const mealIndicators = meal.indicators || [];
+  mealIndicators.forEach((ind: any) => {
+    if (ind.sourceLfaIndicatorId) {
+      if (!lfaIndicatorIds.has(ind.sourceLfaIndicatorId)) {
+        errors.push(`MEAL indicator "${ind.name}" references invalid source LFA indicator ID: "${ind.sourceLfaIndicatorId}".`);
+      }
+    }
+  });
+
+  const sroi = skeleton.sroi || {};
+  const sroiModels = sroi.models || [];
+  sroiModels.forEach((mod: any) => {
+    if (mod.sourceOutcomeId) {
+      if (!outcomeIds.has(mod.sourceOutcomeId)) {
+        errors.push(`SROI model references invalid source outcome ID: "${mod.sourceOutcomeId}".`);
+      }
+    } else {
+      errors.push(`SROI model is missing sourceOutcomeId.`);
+    }
+
+    if (mod.requiresValidation !== true) {
+      errors.push(`SROI model must have requiresValidation = true.`);
+    }
+  });
+
+  const risks = skeleton.risks || [];
+  risks.forEach((risk: any) => {
+    if (risk.refId) {
+      if (risk.level === 'outcome' && !outcomeIds.has(risk.refId)) {
+        errors.push(`Risk references invalid outcome refId: "${risk.refId}".`);
+      } else if (risk.level === 'output' && !outputIds.has(risk.refId)) {
+        errors.push(`Risk references invalid output refId: "${risk.refId}".`);
+      }
+    }
+  });
+
+  return errors;
+}
+
 interface MaterializeStep {
   id: 'program' | 'lfa' | 'wbs' | 'budget' | 'meal' | 'sroi';
   label: string;
@@ -270,14 +442,18 @@ export default function GrantWriterProposal() {
       const matrix = lfaDoc?.matrix as any;
       const skeleton = matrix?.program_skeleton;
 
-      console.log('[E2E-S5-BROWSER-DEBUG] lfaDoc:', lfaDoc);
-      console.log('[E2E-S5-BROWSER-DEBUG] matrix:', matrix);
-      console.log('[E2E-S5-BROWSER-DEBUG] skeleton:', skeleton);
+
 
       const outputIdToDbId: Record<string, string> = {};
       const taskIdToWbsId: Record<string, string> = {};
 
       if (skeleton) {
+        // Run rigorous Program Skeleton V2 Validation
+        const validationErrors = validateProgramSkeleton(skeleton, project);
+        if (validationErrors.length > 0) {
+          throw new Error(`SKELETON VALIDATION FAILED:\n- ${validationErrors.join('\n- ')}`);
+        }
+
         // V2 PATHWAY - SKELETON MATERIALIZER
         if (existingEntries && existingEntries.some(e => e.level === 'output' || e.level === 'activity')) {
           setSteps(prev => prev.map(s => s.id === 'lfa' ? { ...s, status: 'skipped', message: 'LFA Matrix sudah terisi' } : s));
@@ -374,7 +550,10 @@ export default function GrantWriterProposal() {
 
           // Seed Activities (V2)
           const tasks = skeleton.wbs?.tasks || [];
-          const lvl2Tasks = tasks.filter((t: any) => t.level === 2);
+          let lvl2Tasks = tasks.filter((t: any) => t.level === 2);
+          if (lvl2Tasks.length === 0) {
+            lvl2Tasks = tasks;
+          }
           for (let i = 0; i < lvl2Tasks.length; i++) {
             const task = lvl2Tasks[i];
             const parentOutputDbId = outputIdToDbId[task.sourceActivityId] || null;

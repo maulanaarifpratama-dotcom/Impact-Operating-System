@@ -715,7 +715,7 @@ export default function GrantWriterWizard() {
                 </span>
               </div>
             ) : (
-              <Button onClick={goNext} disabled={compiling || generating}>
+              <Button id="wizard-lanjut-btn" onClick={goNext} disabled={compiling || generating}>
                 Lanjut <ArrowRight className="ml-1 h-4 w-4" />
               </Button>
             )}

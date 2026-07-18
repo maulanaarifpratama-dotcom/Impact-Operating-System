@@ -12,7 +12,7 @@ import type {
   QuickProgramData,
   QuickWizardData,
 } from '@/lib/grant-writer/types';
-import { SECTORS } from '@/lib/grant-writer/types';
+import { SECTORS, DONOR_STANDARDS } from '@/lib/grant-writer/types';
 
 interface Props {
   data: QuickWizardData;
@@ -61,7 +61,7 @@ export function QuickStepProgram({ data, onChange }: Props) {
           </Select>
         </div>
         <div>
-          <Label htmlFor="prog-donor">Donor target</Label>
+          <Label htmlFor="prog-donor">Donor target *</Label>
           <Input
             id="prog-donor"
             value={p.targetDonor ?? ''}
@@ -72,8 +72,36 @@ export function QuickStepProgram({ data, onChange }: Props) {
         </div>
       </div>
 
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <Label>Standar donor *</Label>
+          <Select value={p.donorStandard ?? ''} onValueChange={(v) => update('donorStandard', v)}>
+            <SelectTrigger className="mt-1.5">
+              <SelectValue placeholder="Pilih standar donor" />
+            </SelectTrigger>
+            <SelectContent>
+              {DONOR_STANDARDS.map((s) => (
+                <SelectItem key={s.value} value={s.value}>
+                  {s.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="prog-partners">Mitra mana yang kemungkinan dilibatkan? *</Label>
+          <Input
+            id="prog-partners"
+            value={p.partnersAndActors ?? ''}
+            onChange={(e) => update('partnersAndActors', e.target.value)}
+            placeholder="cth. Koperasi Desa, Kelompok Tani, Pemda"
+            className="mt-1.5"
+          />
+        </div>
+      </div>
+
       <div>
-        <Label htmlFor="prog-bg">Latar belakang *</Label>
+        <Label htmlFor="prog-bg">Latar belakang & Urgensi *</Label>
         <Textarea
           id="prog-bg"
           value={p.background ?? ''}
@@ -85,7 +113,7 @@ export function QuickStepProgram({ data, onChange }: Props) {
       </div>
 
       <div>
-        <Label htmlFor="prog-problem">Masalah yang ingin dipecahkan *</Label>
+        <Label htmlFor="prog-problem">Masalah apa yang paling ingin diselesaikan? *</Label>
         <Textarea
           id="prog-problem"
           value={p.problemStatement ?? ''}
@@ -97,7 +125,7 @@ export function QuickStepProgram({ data, onChange }: Props) {
       </div>
 
       <div>
-        <Label htmlFor="prog-sol">Solusi yang ditawarkan *</Label>
+        <Label htmlFor="prog-sol">Kegiatan utama apa yang sudah dibayangkan? *</Label>
         <Textarea
           id="prog-sol"
           value={p.proposedSolution ?? ''}
@@ -109,7 +137,7 @@ export function QuickStepProgram({ data, onChange }: Props) {
       </div>
 
       <div>
-        <Label htmlFor="prog-out">Outcome / hasil yang diharapkan *</Label>
+        <Label htmlFor="prog-out">Perubahan apa yang ingin terlihat setelah program selesai? *</Label>
         <Textarea
           id="prog-out"
           value={p.expectedOutcomes ?? ''}

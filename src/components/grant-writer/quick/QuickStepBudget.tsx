@@ -51,7 +51,7 @@ export function QuickStepBudget({ data, onChange }: Props) {
       </div>
 
       <div>
-        <Label htmlFor="ben-desc">Profil penerima manfaat *</Label>
+        <Label htmlFor="ben-desc">Siapa yang paling terdampak dan bagaimana profilnya? *</Label>
         <Textarea
           id="ben-desc"
           value={b.beneficiaryDescription ?? ''}

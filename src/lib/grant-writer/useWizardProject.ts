@@ -75,6 +75,7 @@ export function useWizardProject<TData = WizardData>(
       .eq('id', projectId);
     setSaving(false);
     if (err) {
+      console.error('[useWizardProject] persist error:', err);
       setError(err.message);
     } else {
       dirtyRef.current = false;
@@ -114,6 +115,7 @@ export function useWizardProject<TData = WizardData>(
         })
         .eq('id', projectId);
       if (err) {
+        console.error('[useWizardProject] setStep error:', err);
         setError(err.message);
         return;
       }

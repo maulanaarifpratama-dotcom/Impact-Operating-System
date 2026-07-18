@@ -447,7 +447,7 @@ Deno.serve(async (req: Request) => {
       // proposal markdown can be ~6-10k visible tokens, so we budget more
       // headroom here. Other features keep the smaller default.
       temperature: 0.4,
-      max_tokens: 16000,
+      max_tokens: 6000,
     });
 
     if (!result?.matrix || !result?.proposal_markdown) {

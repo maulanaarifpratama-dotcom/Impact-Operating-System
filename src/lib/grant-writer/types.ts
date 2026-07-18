@@ -272,10 +272,12 @@ export interface QuickProgramData {
   programTitle: string;
   sector: string;
   targetDonor: string;
+  donorStandard?: string;
   background: string;
   problemStatement: string;
   proposedSolution: string;
   expectedOutcomes: string;
+  partnersAndActors?: string;
 }
 
 export interface QuickBudgetData {

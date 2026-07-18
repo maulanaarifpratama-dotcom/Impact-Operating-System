@@ -22,6 +22,8 @@ export function renderQuickProposalMarkdown(data: QuickWizardData): string {
     })
     .join(', ');
 
+  const donorStandardLabel = p.donorStandard ? p.donorStandard.toUpperCase().replace(/_/g, ' ') : '—';
+
   return `# ${p.programTitle ?? 'Proposal Program'}
 
 **Diusulkan oleh:** ${o.orgName ?? '—'}
@@ -30,6 +32,7 @@ export function renderQuickProposalMarkdown(data: QuickWizardData): string {
 **Durasi:** ${b.durationMonths ?? '—'} bulan
 **Anggaran:** ${fmtIdr(b.budgetIdr ?? 0)}
 **Donor target:** ${p.targetDonor ?? '—'}
+**Standar donor:** ${donorStandardLabel}
 
 ---
 
@@ -47,9 +50,12 @@ ${p.background ?? '_Belum diisi._'}
 
 ${p.problemStatement ?? '_Belum diisi._'}
 
-## 4. Solusi yang Ditawarkan
+## 4. Solusi yang Ditawarkan & Mitra Kerja
 
 ${p.proposedSolution ?? '_Belum diisi._'}
+
+**Mitra & Aktor Penting yang Terlibat:**
+${p.partnersAndActors ?? '_Belum diisi._'}
 
 ## 5. Penerima Manfaat
 
@@ -93,6 +99,8 @@ export function quickCompleteness(data: QuickWizardData): {
     { ok: !!p.problemStatement, label: 'Pernyataan masalah' },
     { ok: !!p.proposedSolution, label: 'Solusi' },
     { ok: !!p.expectedOutcomes, label: 'Outcome' },
+    { ok: !!p.partnersAndActors, label: 'Mitra & aktor penting' },
+    { ok: !!p.donorStandard, label: 'Standar donor' },
     { ok: !!b.beneficiaryCount, label: 'Jumlah penerima manfaat' },
     { ok: !!b.beneficiaryDescription, label: 'Profil penerima manfaat' },
     { ok: !!b.geography, label: 'Lokasi' },
