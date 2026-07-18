@@ -3,6 +3,16 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { BudgetItem, WbsItem, LfaProject } from './types';
 import { SBM_2026, SBM_FLAT_ITEMS, SbmItem } from '@/data/sbm2026';
+import { INKINDO_ROLES, calculateInkindoRate } from '@/data/inkindo2026';
+
+interface AutocompleteItem {
+  name: string;
+  category: string;
+  price: number;
+  unit: string;
+  source: 'SBM' | 'INKINDO';
+}
+
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
   AlertTriangle, DollarSign, Wallet, Percent, TrendingUp, HelpCircle, Calendar, Link as LinkIcon, FileText
@@ -55,9 +65,12 @@ export default function BudgetCalculator({
   const [aiTargetItem, setAiTargetItem] = useState<BudgetItem | null>(null);
   const [aiSuggestion, setAiSuggestion] = useState<{ reference_price: number; explanation: string } | null>(null);
 
+  // NGO Mode active multiplier state (default is true - NGO receives 70% rate discount under Lampiran II.2)
+  const [isNgoMode, setIsNgoMode] = useState<boolean>(true);
+
   // Autocomplete state
   const [activeSuggestionId, setActiveSuggestionId] = useState<string | null>(null);
-  const [filteredSuggestions, setFilteredSuggestions] = useState<SbmItem[]>([]);
+  const [filteredSuggestions, setFilteredSuggestions] = useState<AutocompleteItem[]>([]);
 
   const budgetItemsRef = useRef<BudgetItem[]>([]);
   const debounceTimers = useRef<Record<string, NodeJS.Timeout>>({});
@@ -283,6 +296,33 @@ export default function BudgetCalculator({
           else if (cat === 'Sewa' || cat === 'Jasa') updated.cost_category = 'Other Direct Costs';
           else updated.cost_category = 'Other Direct Costs';
         }
+
+        // Smart unit-based rate conversions according to LKPP No 12/2021
+        if (field === 'unit' && item.category === 'Honorarium') {
+          const inkindoRole = INKINDO_ROLES.find(r => r.role === item.item_name);
+          if (inkindoRole) {
+            const newUnit = value as string;
+            let targetUnit: 'Month' | 'Week' | 'Day' | 'Hour' = 'Month';
+            if (newUnit === 'Bulan') targetUnit = 'Month';
+            else if (newUnit === 'Hari') targetUnit = 'Day';
+            else if (newUnit === 'Orang') targetUnit = 'Month'; // Default Orang unit to Month rate
+            
+            const convertedRate = calculateInkindoRate(
+              inkindoRole.role,
+              projectData?.location || 'DKI Jakarta',
+              targetUnit,
+              isNgoMode
+            );
+            
+            updated.unit_price_idr = convertedRate;
+            
+            toast({
+              title: 'Konversi Tarif LKPP ⚖️',
+              description: `Tarif untuk "${inkindoRole.role}" otomatis dikonversi ke satuan "${newUnit}" (Rp ${convertedRate.toLocaleString('id-ID')}) berdasarkan pedoman LKPP No. 12/2021.`,
+            });
+          }
+        }
+
         return updated;
       }
       return item;
@@ -300,6 +340,27 @@ export default function BudgetCalculator({
         if (!itemToSave) return;
 
         const actualVal = itemToSave.actual_amount_idr !== undefined && itemToSave.actual_amount_idr !== null && itemToSave.actual_amount_idr !== '' ? Number(itemToSave.actual_amount_idr) : null;
+        
+        // Compute unit converted rate again if unit was modified before sending to DB
+        let finalUnitPrice = Number(itemToSave.unit_price_idr) || 0;
+        if (field === 'unit' && itemToSave.category === 'Honorarium') {
+          const inkindoRole = INKINDO_ROLES.find(r => r.role === itemToSave.item_name);
+          if (inkindoRole) {
+            const newUnit = itemToSave.unit;
+            let targetUnit: 'Month' | 'Week' | 'Day' | 'Hour' = 'Month';
+            if (newUnit === 'Bulan') targetUnit = 'Month';
+            else if (newUnit === 'Hari') targetUnit = 'Day';
+            else if (newUnit === 'Orang') targetUnit = 'Month';
+            
+            finalUnitPrice = calculateInkindoRate(
+              inkindoRole.role,
+              projectData?.location || 'DKI Jakarta',
+              targetUnit,
+              isNgoMode
+            );
+          }
+        }
+
         const { error } = await supabase
           .from('lfa_budget_items')
           .update({
@@ -308,7 +369,7 @@ export default function BudgetCalculator({
             cost_category: itemToSave.cost_category,
             volume: Number(itemToSave.volume) || 0,
             unit: itemToSave.unit,
-            unit_price_idr: Number(itemToSave.unit_price_idr) || 0,
+            unit_price_idr: finalUnitPrice,
             funding_source: itemToSave.funding_source,
             justification: itemToSave.justification,
             needs_donor_approval: itemToSave.needs_donor_approval,
@@ -331,6 +392,45 @@ export default function BudgetCalculator({
     }, 1500);
   };
 
+  // Handle NGO Mode state changes to recalculate and propagate all INKINDO roles
+  const handleNgoModeToggle = async (active: boolean) => {
+    setIsNgoMode(active);
+    
+    const updatedItems = budgetItems.map(item => {
+      const inkindoRole = INKINDO_ROLES.find(r => r.role === item.item_name);
+      if (inkindoRole && item.category === 'Honorarium') {
+        let targetUnit: 'Month' | 'Week' | 'Day' | 'Hour' = 'Month';
+        if (item.unit === 'Bulan') targetUnit = 'Month';
+        else if (item.unit === 'Hari') targetUnit = 'Day';
+        
+        const newRate = calculateInkindoRate(
+          inkindoRole.role,
+          projectData?.location || 'DKI Jakarta',
+          targetUnit,
+          active
+        );
+
+        // Async non-blocking Supabase save for each row
+        void supabase
+          .from('lfa_budget_items')
+          .update({ unit_price_idr: newRate })
+          .eq('id', item.id);
+
+        return { ...item, unit_price_idr: newRate };
+      }
+      return item;
+    });
+
+    setBudgetItems(updatedItems);
+    toast({
+      title: active ? 'NGO Mode Aktif 🛡️' : 'NGO Mode Nonaktif 🏢',
+      description: active 
+        ? 'Tarif personil disesuaikan dengan koefisien pengali NGO (70% dari tarif INKINDO).'
+        : 'Tarif personil disesuaikan dengan tarif komersial penuh INKINDO (100%).',
+    });
+    if (onBudgetChanged) onBudgetChanged();
+  };
+
   // SBM Client-Side Lookups
   const findSbmReference = (itemName: string, category: string) => {
     const search = itemName.toLowerCase().trim();
@@ -344,40 +444,58 @@ export default function BudgetCalculator({
     }) || SBM_FLAT_ITEMS.find(item => item.name.toLowerCase().includes(search) || search.includes(item.name.toLowerCase()));
   };
 
-  // AI-Powered SBM suggestion fetcher
-  const handleCheckSbmWithAI = async (item: BudgetItem) => {
+  // Deterministic SBM / INKINDO standard reference suggestion fetcher
+  const handleCheckSbmWithAI = (item: BudgetItem) => {
     setAiTargetItem(item);
     setAiSuggestion(null);
     setAiCheckOpen(true);
     setAiLoading(true);
 
-    try {
-      const { data, error } = await supabase.functions.invoke('budget-sbm-suggest', {
-        body: { item_name: item.item_name, category: item.category },
-      });
+    // Run high-speed client-side lookup with micro-delay for smooth layout transition
+    setTimeout(() => {
+      if (item.category === 'Honorarium') {
+        const inkindoRole = INKINDO_ROLES.find(r => r.role.toLowerCase() === item.item_name.toLowerCase()) ||
+                            INKINDO_ROLES.find(r => r.role.toLowerCase().includes(item.item_name.toLowerCase())) ||
+                            INKINDO_ROLES.find(r => item.item_name.toLowerCase().includes(r.role.toLowerCase()));
+        
+        if (inkindoRole) {
+          let targetUnit: 'Month' | 'Week' | 'Day' | 'Hour' = 'Month';
+          if (item.unit === 'Bulan') targetUnit = 'Month';
+          else if (item.unit === 'Hari') targetUnit = 'Day';
+          
+          const maxAllowedRate = calculateInkindoRate(
+            inkindoRole.role,
+            projectData?.location || 'DKI Jakarta',
+            targetUnit,
+            isNgoMode
+          );
 
-      if (error) throw error;
-      setAiSuggestion(data as { reference_price: number; explanation: string });
-    } catch (err: any) {
-      console.error('Error fetching AI SBM check:', err);
-      // Fallback to client-side database
-      const ref = findSbmReference(item.item_name, item.category || 'Lainnya');
-      if (ref) {
-        setAiSuggestion({
-          reference_price: ref.price,
-          explanation: `Berdasarkan database lokal SBM 2026, item yang mirip adalah "${ref.name}": Rp ${ref.price.toLocaleString('id-ID')}/${ref.unit}.`
-        });
+          setAiSuggestion({
+            reference_price: maxAllowedRate,
+            explanation: `Berdasarkan database INKINDO 2026 untuk Provinsi ${projectData?.location || 'DKI Jakarta'} (${isNgoMode ? 'NGO Mode Aktif 70% Koefisien' : 'Komersial 100%'}), batas atas remunerasi harian/bulanan untuk peran "${inkindoRole.role}" adalah Rp ${maxAllowedRate.toLocaleString('id-ID')}/${item.unit || 'Bulan'}.`
+          });
+        } else {
+          setAiSuggestion({
+            reference_price: 1500000,
+            explanation: `Tidak ditemukan jabatan spesifik di INKINDO 2026. Disarankan menggunakan batas aman asisten penunjang lokal: Rp 1.500.000/bulan.`
+          });
+        }
       } else {
-        toast({
-          title: 'AI Suggester Gagal',
-          description: 'Tidak dapat menghubungi asisten SBM. Periksa koneksi internet.',
-          variant: 'destructive',
-        });
-        setAiCheckOpen(false);
+        const ref = findSbmReference(item.item_name, item.category || 'Lainnya');
+        if (ref) {
+          setAiSuggestion({
+            reference_price: ref.price,
+            explanation: `Berdasarkan database SBM 2026 PMK 32/2025, standar harga masukan regional untuk item "${ref.name}" adalah Rp ${ref.price.toLocaleString('id-ID')}/${ref.unit}.`
+          });
+        } else {
+          setAiSuggestion({
+            reference_price: 150000,
+            explanation: `Item "${item.item_name}" tidak ditemukan di database SBM 2026. Merekomendasikan standar harian umum: Rp 150.000.`
+          });
+        }
       }
-    } finally {
       setAiLoading(false);
-    }
+    }, 120);
   };
 
   // Apply SBM Suggestion
@@ -386,12 +504,12 @@ export default function BudgetCalculator({
     handleFieldChange(aiTargetItem.id, 'unit_price_idr', aiSuggestion.reference_price);
     setAiCheckOpen(false);
     toast({
-      title: 'SBM Diaplikasikan ✨',
+      title: 'Standar Biaya Diaplikasikan ✨',
       description: `Harga satuan item "${aiTargetItem.item_name}" diperbarui ke Rp ${aiSuggestion.reference_price.toLocaleString('id-ID')}.`,
     });
   };
 
-  // Autocomplete Handlers
+  // Autocomplete Handlers (SBM + INKINDO)
   const handleItemNameTyping = (itemId: string, text: string, category: string) => {
     handleFieldChange(itemId, 'item_name', text);
     if (!text.trim()) {
@@ -399,10 +517,39 @@ export default function BudgetCalculator({
       return;
     }
 
-    // Filter SBM Flat Items
-    const matches = SBM_FLAT_ITEMS.filter(item =>
-      item.name.toLowerCase().includes(text.toLowerCase())
-    ).slice(0, 4);
+    const textLower = text.toLowerCase();
+
+    // 1. Map SBM matches
+    const sbmMatches: AutocompleteItem[] = SBM_FLAT_ITEMS.filter(item =>
+      item.name.toLowerCase().includes(textLower)
+    ).map(item => ({
+      name: item.name,
+      category: item.category,
+      price: item.price,
+      unit: item.unit,
+      source: 'SBM'
+    }));
+
+    // 2. Map INKINDO matches
+    const inkindoMatches: AutocompleteItem[] = INKINDO_ROLES.filter(role =>
+      role.role.toLowerCase().includes(textLower)
+    ).map(role => {
+      const calculatedPrice = calculateInkindoRate(
+        role.role,
+        projectData?.location || 'DKI Jakarta',
+        'Month',
+        isNgoMode
+      );
+      return {
+        name: role.role,
+        category: 'Honorarium',
+        price: calculatedPrice,
+        unit: 'Bulan',
+        source: 'INKINDO'
+      };
+    });
+
+    const matches = [...sbmMatches, ...inkindoMatches].slice(0, 6);
 
     if (matches.length > 0) {
       setActiveSuggestionId(itemId);
@@ -412,7 +559,10 @@ export default function BudgetCalculator({
     }
   };
 
-  const selectSuggestion = (itemId: string, sbm: SbmItem) => {
+  const selectSuggestion = (itemId: string, sbm: AutocompleteItem) => {
+    const costCategory = sbm.category === 'Honorarium' ? 'Personnel & Consultants' :
+                         sbm.category === 'Transport' ? 'Travel & Transportation' : 'Equipment & Supplies';
+
     setBudgetItems(prev => prev.map(item => {
       if (item.id === itemId) {
         return {
@@ -421,8 +571,7 @@ export default function BudgetCalculator({
           category: sbm.category,
           unit: sbm.unit,
           unit_price_idr: sbm.price,
-          cost_category: sbm.category === 'Honorarium' ? 'Personnel & Consultants' :
-                        sbm.category === 'Transport' ? 'Travel & Transportation' : 'Equipment & Supplies'
+          cost_category: costCategory
         };
       }
       return item;
@@ -438,6 +587,7 @@ export default function BudgetCalculator({
           .update({
             item_name: sbm.name,
             category: sbm.category,
+            cost_category: costCategory,
             unit: sbm.unit,
             unit_price_idr: sbm.price,
             mode: globalMode
@@ -487,14 +637,39 @@ export default function BudgetCalculator({
   const totalOverheadIDR = overheadItems.reduce((acc, i) => acc + ((Number(i.volume) || 0) * (Number(i.unit_price_idr) || 0)), 0);
   const overheadPercentage = totalIDR > 0 ? (totalOverheadIDR / totalIDR) * 100 : 0;
 
-  // SBM Warnings Scanner
+  // SBM & INKINDO Compliance Scanner
   const sbmWarnings: string[] = [];
   budgetItems.forEach(item => {
     if (item.item_name && item.unit_price_idr > 0) {
-      const ref = findSbmReference(item.item_name, item.category || 'Lainnya');
-      if (ref && item.unit_price_idr > ref.price * 2) {
-        const actName = item.activity_name || 'Aktivitas';
-        sbmWarnings.push(`⚠️ "${item.item_name}" di [${actName}] melebihi 2x standar SBM 2026 (Rp ${ref.price.toLocaleString('id-ID')}/${ref.unit}). SBM menyarankan Rp ${ref.price.toLocaleString('id-ID')}.`);
+      const actName = item.activity_name || 'Aktivitas';
+      
+      if (item.category === 'Honorarium') {
+        const inkindoRole = INKINDO_ROLES.find(r => r.role === item.item_name);
+        if (inkindoRole) {
+          let targetUnit: 'Month' | 'Week' | 'Day' | 'Hour' = 'Month';
+          if (item.unit === 'Bulan') targetUnit = 'Month';
+          else if (item.unit === 'Hari') targetUnit = 'Day';
+          
+          const maxAllowedRate = calculateInkindoRate(
+            inkindoRole.role,
+            projectData?.location || 'DKI Jakarta',
+            targetUnit,
+            isNgoMode
+          );
+
+          if (item.unit_price_idr > maxAllowedRate) {
+            sbmWarnings.push(`⚖️ "${item.item_name}" di [${actName}] melebihi standar INKINDO 2026 (${projectData?.location || 'DKI Jakarta'}, ${isNgoMode ? 'NGO 70%' : 'Komersial 100%'}). Anggaran: Rp ${item.unit_price_idr.toLocaleString('id-ID')}, Maksimal: Rp ${maxAllowedRate.toLocaleString('id-ID')}/${item.unit}.`);
+          }
+        }
+      } else {
+        const ref = findSbmReference(item.item_name, item.category || 'Lainnya');
+        if (ref) {
+          if (item.unit_price_idr > ref.price * 2) {
+            sbmWarnings.push(`⚠️ "${item.item_name}" di [${actName}] melebihi 2x standar SBM 2026 (Rp ${ref.price.toLocaleString('id-ID')}/${ref.unit}). SBM menyarankan Rp ${ref.price.toLocaleString('id-ID')}.`);
+          } else if (item.unit_price_idr > ref.price) {
+            sbmWarnings.push(`ℹ️ "${item.item_name}" di [${actName}] melebihi standar SBM 2026 (Rp ${ref.price.toLocaleString('id-ID')}/${ref.unit}). SBM menyarankan Rp ${ref.price.toLocaleString('id-ID')}.`);
+          }
+        }
       }
     }
   });
@@ -1129,20 +1304,35 @@ export default function BudgetCalculator({
   return (
     <div className="space-y-6">
       <Tabs defaultValue="rencana" className="w-full space-y-6" onValueChange={(v) => setActiveTab(v as 'rencana' | 'realisasi')}>
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-white/50 dark:bg-slate-950/20 backdrop-blur-md p-3 rounded-xl border shadow-sm">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between bg-white/50 dark:bg-slate-950/20 backdrop-blur-md p-3 rounded-xl border shadow-sm">
           <div className="flex flex-col gap-1">
             <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight">Kalkulator & Realisasi Anggaran</h2>
             <p className="text-[11px] text-muted-foreground">Kelola rencana alokasi biaya program dan catat realisasi pengeluaran dalam satu dasbor.</p>
           </div>
           
-          <TabsList className="grid grid-cols-2 w-full sm:w-[320px]">
-            <TabsTrigger value="rencana" className="text-xs font-bold flex items-center gap-1.5 py-2">
-              <FileText className="h-3.5 w-3.5" /> Rencana Anggaran
-            </TabsTrigger>
-            <TabsTrigger value="realisasi" className="text-xs font-bold flex items-center gap-1.5 py-2">
-              <DollarSign className="h-3.5 w-3.5 animate-pulse text-emerald-500" /> Realisasi Anggaran
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 rounded-lg shadow-sm">
+              <input
+                type="checkbox"
+                id="ngo-mode"
+                checked={isNgoMode}
+                onChange={(e) => handleNgoModeToggle(e.target.checked)}
+                className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <label htmlFor="ngo-mode" className="text-[10px] font-black uppercase text-blue-700 dark:text-blue-400 select-none cursor-pointer tracking-wider flex items-center gap-1.5">
+                🛡️ NGO Mode Active (70% Multiplier)
+              </label>
+            </div>
+
+            <TabsList className="grid grid-cols-2 w-[280px]">
+              <TabsTrigger value="rencana" className="text-xs font-bold flex items-center gap-1.5 py-2">
+                <FileText className="h-3.5 w-3.5" /> Rencana Anggaran
+              </TabsTrigger>
+              <TabsTrigger value="realisasi" className="text-xs font-bold flex items-center gap-1.5 py-2">
+                <DollarSign className="h-3.5 w-3.5 animate-pulse text-emerald-500" /> Realisasi Anggaran
+              </TabsTrigger>
+            </TabsList>
+          </div>
         </div>
 
         {/* Dynamic Metric Cards at top (depending on active tab) */}
@@ -1468,9 +1658,9 @@ export default function BudgetCalculator({
 
                                       {/* Custom Autocomplete Suggestions Popover */}
                                       {isSuggested && filteredSuggestions.length > 0 && (
-                                        <div className="absolute z-10 left-3 top-11 w-64 bg-white dark:bg-slate-900 border rounded-lg shadow-xl divide-y text-[11px] overflow-hidden">
+                                        <div className="absolute z-10 left-3 top-11 w-72 bg-white dark:bg-slate-900 border rounded-lg shadow-xl divide-y text-[11px] overflow-hidden">
                                           <div className="bg-slate-50 dark:bg-slate-950 p-1.5 font-bold text-[9px] text-slate-400 uppercase tracking-widest">
-                                            Rekomendasi SBM 2026
+                                            Rekomendasi Katalog Biaya 2026
                                           </div>
                                           {filteredSuggestions.map((sbm, idx) => (
                                             <button
@@ -1479,7 +1669,16 @@ export default function BudgetCalculator({
                                               onClick={() => selectSuggestion(item.id, sbm)}
                                               className="w-full text-left p-2 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 flex flex-col gap-0.5"
                                             >
-                                              <span className="font-bold text-slate-800 dark:text-slate-200">{sbm.name}</span>
+                                              <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between gap-1">
+                                                <span className="truncate">{sbm.name}</span>
+                                                <span className={`px-1 rounded text-[7px] font-black uppercase flex-shrink-0 ${
+                                                  sbm.source === 'INKINDO'
+                                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400 border border-blue-200/40'
+                                                    : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400 border border-amber-200/40'
+                                                }`}>
+                                                  {sbm.source}
+                                                </span>
+                                              </span>
                                               <span className="text-[10px] text-slate-400">
                                                 Rp {sbm.price.toLocaleString('id-ID')}/{sbm.unit} • {sbm.category}
                                               </span>
