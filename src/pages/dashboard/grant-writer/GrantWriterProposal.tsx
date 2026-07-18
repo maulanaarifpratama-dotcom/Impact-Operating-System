@@ -136,7 +136,7 @@ function validateProgramSkeleton(skeleton: any, project: any): string[] {
   const projBudget = Number(project.budget_idr) || 0;
   const skBudget = Number(skeleton.meta?.budgetIdr || skeleton.meta?.budget_idr) || 0;
   if (projBudget && skBudget && Math.abs(projBudget - skBudget) > 100000000) { // permit within a threshold (100 million) to allow loose SBM calculations
-    errors.push(`Budget mismatch: expected Rp ${projBudget.toLocaleString('id-ID')} but skeleton has Rp ${skBudget.toLocaleString('id-ID')}.`);
+    errors.push(`Budget mismatch: expected Rp ${projBudget.toLocaleString('id-ID')} but skeleton has Rp ${skBudget.toLocaleString('id-ID')} for project ID "${project.id || 'unknown'}".`);
   }
 
   const projDuration = Number(project.duration_months) || 0;
