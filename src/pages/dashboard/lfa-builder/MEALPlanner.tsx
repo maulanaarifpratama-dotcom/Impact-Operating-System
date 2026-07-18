@@ -872,11 +872,16 @@ export default function MEALPlanner({
     if (s === '' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined') return false;
     if (s === '-' || s === '—') return false;
     
+    const lower = s.toLowerCase();
+    
     // Check common placeholders / helper text / fallback labels
-    const placeholders = [
-      'contoh:', 'contoh pengumpulan', 'placeholder', 'helper text', 'pilih...', 'tbd', 'to be decided', 'belum ditentukan', 'belum ada', 'tidak ada', 'none'
+    const exactPlaceholders = [
+      'placeholder', 'helper text', 'pilih...', 'tbd', 'to be decided', 'belum ditentukan', 'belum ada', 'tidak ada', 'none', 'contoh'
     ];
-    if (placeholders.some(p => s.toLowerCase().includes(p))) return false;
+    if (exactPlaceholders.includes(lower)) return false;
+    
+    // Reject if it is just an empty template or exact prefix example label
+    if (lower === 'contoh:' || lower.startsWith('contoh pengumpulan')) return false;
     
     return true;
   };

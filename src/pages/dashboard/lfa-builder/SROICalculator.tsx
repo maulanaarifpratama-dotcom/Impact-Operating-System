@@ -1208,31 +1208,36 @@ export default function SROICalculator({
   const getSpeedometerDetails = (ratio: number) => {
     let color = '#EF4444'; // Red
     let label = 'Sosial Kurang Maksimal';
-    let minMax = 'Rasio < 1.0 (Defisit Investasi Sosial)';
+    let minMax = 'Rancangan SROI — perlu validasi';
     let needleDeg = -90; // Start angle for 0
 
-    if (ratio < 1) {
+    if (ratio === 0) {
+      color = '#94A3B8'; // Slate/Gray
+      label = 'Belum siap dihitung';
+      minMax = 'Rancangan SROI — perlu validasi';
+      needleDeg = -90;
+    } else if (ratio < 1) {
       color = '#EF4444';
       label = 'Dampak Belum Optimal';
-      minMax = 'Rasio < 1';
+      minMax = 'Rancangan SROI — perlu validasi';
       // Map ratio 0-1 to deg -90 to -45
       needleDeg = -90 + (ratio * 45);
     } else if (ratio >= 1 && ratio <= 2) {
       color = 'brand-amber'; // Yellow
       label = 'Dampak Sehat';
-      minMax = 'Rasio 1.0 - 2.0';
+      minMax = 'Rancangan SROI — perlu validasi';
       // Map ratio 1-2 to deg -45 to 0
       needleDeg = -45 + ((ratio - 1) * 45);
     } else if (ratio > 2 && ratio <= 4) {
       color = '#10B981'; // Green
       label = 'Dampak Tinggi';
-      minMax = 'Rasio 2.0 - 4.0';
+      minMax = 'Rancangan SROI — perlu validasi';
       // Map ratio 2-4 to deg 0 to 45
       needleDeg = 0 + ((ratio - 2)/2 * 45);
     } else {
       color = '#3B82F6'; // Blue
       label = 'Dampak Luar Biasa';
-      minMax = 'Rasio > 4.0';
+      minMax = 'Rancangan SROI — perlu validasi';
       // Map ratio 4-10 to deg 45 to 90
       needleDeg = 45 + (Math.min(6, ratio - 4)/6 * 45);
     }
@@ -2058,26 +2063,23 @@ export default function SROICalculator({
 
           {/* PROFESSIONAL RINGKASAN SUMMARY CARDS */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <Card className="border p-4 shadow-elegant space-y-1 bg-slate-50/50 dark:bg-slate-900/10">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Proposal Funding Envelope (Pagu Proposal)</span>
-              <div className="text-xl font-extrabold text-slate-800 dark:text-slate-100">Rp {config.total_investment_idr.toLocaleString('id-ID')}</div>
-              {itemizedBudget !== null ? (
-                <span className={`text-[10px] block font-semibold ${
-                  itemizedBudget > config.total_investment_idr 
-                    ? "text-rose-600 dark:text-rose-400" 
-                    : itemizedBudget < config.total_investment_idr
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-emerald-600 dark:text-emerald-400"
-                }`}>
-                  Itemized RAB: Rp {itemizedBudget.toLocaleString('id-ID')} 
-                  ({itemizedBudget === config.total_investment_idr 
-                    ? "Cocok" 
-                    : itemizedBudget > config.total_investment_idr 
-                      ? `Overbudget Rp ${(itemizedBudget - config.total_investment_idr).toLocaleString('id-ID')}` 
-                      : `Sisa Rp ${(config.total_investment_idr - itemizedBudget).toLocaleString('id-ID')}`})
-                </span>
-              ) : (
-                <span className="text-[10px] text-muted-foreground block">Costing / Anggaran Biaya Terhubung.</span>
+            <Card className="border p-4 shadow-elegant space-y-2 bg-slate-50/50 dark:bg-slate-900/10">
+              <div>
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">Proposal Funding Envelope (Pagu Proposal)</span>
+                <div className="text-xl font-extrabold text-slate-800 dark:text-slate-100">Rp {config.total_investment_idr.toLocaleString('id-ID')}</div>
+                <p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">
+                  Target investasi dari proposal Grant Writer. Nilai ini menggunakan funding envelope program dan masih dapat ditinjau.
+                </p>
+              </div>
+              {itemizedBudget !== null && (
+                <div className="text-[10px] text-slate-500 space-y-1 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <div>RAB terinci saat ini: <strong>Rp {itemizedBudget.toLocaleString('id-ID')}</strong></div>
+                  <div>Kelengkapan rincian RAB: <strong>{(config.total_investment_idr > 0 ? (itemizedBudget / config.total_investment_idr) * 100 : 0).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%</strong></div>
+                  <div>Forecast menggunakan target investasi proposal.</div>
+                  {itemizedBudget < config.total_investment_idr && (
+                    <div className="text-amber-600 dark:text-amber-500 font-medium">RAB terinci belum mencakup seluruh anggaran program.</div>
+                  )}
+                </div>
               )}
             </Card>
 
