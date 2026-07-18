@@ -27,6 +27,7 @@ import GrantWriterIndex from './pages/dashboard/grant-writer/GrantWriterIndex';
 import GrantWriterWizard from './pages/dashboard/grant-writer/GrantWriterWizard';
 import GrantWriterProposal from './pages/dashboard/grant-writer/GrantWriterProposal';
 import GrantWriterQuickWizard from './pages/dashboard/grant-writer/GrantWriterQuickWizard';
+import GrantWriterRouteGuard from './pages/dashboard/grant-writer/GrantWriterRouteGuard';
 import ImpactoryLibrary from './pages/dashboard/products/ImpactoryLibrary';
 import Grantfinder from './pages/dashboard/products/Grantfinder';
 import ImpactoryAds from './pages/dashboard/products/ImpactoryAds';
@@ -163,8 +164,8 @@ const App = () => (
               
               {/* Product Modules under ProtectedRoute */}
               <Route path="/dashboard/grant-writer" element={<GrantWriterIndex />} />
-              <Route path="/dashboard/grant-writer/:projectId" element={<GrantWriterWizard />} />
-              <Route path="/dashboard/grant-writer/quick/:projectId" element={<GrantWriterQuickWizard />} />
+               <Route path="/dashboard/grant-writer/:projectId" element={<GrantWriterRouteGuard />} />
+               <Route path="/dashboard/grant-writer/quick/:projectId" element={<GrantWriterRouteGuard />} />
               <Route path="/dashboard/grant-writer/:projectId/proposal" element={<GrantWriterProposal />} />
               <Route path="/dashboard/impactory-library" element={<ImpactoryLibrary />} />
               <Route path="/dashboard/impact-library" element={<Navigate to="/dashboard/impactory-library" replace />} />

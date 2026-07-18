@@ -867,11 +867,20 @@ export default function MEALPlanner({
   // Summary Metrics calculations
   const totalIndicators = mealItems.length;
   const isFilled = (val: string | null | undefined) => {
-    if (!val) return false;
-    const cleaned = val.trim();
-    return cleaned !== '' && cleaned !== '-' && cleaned !== '—';
+    if (val === null || val === undefined) return false;
+    const s = String(val).trim();
+    if (s === '' || s.toLowerCase() === 'null' || s.toLowerCase() === 'undefined') return false;
+    if (s === '-' || s === '—') return false;
+    
+    // Check common placeholders / helper text / fallback labels
+    const placeholders = [
+      'contoh:', 'contoh pengumpulan', 'placeholder', 'helper text', 'pilih...', 'tbd', 'to be decided', 'belum ditentukan', 'belum ada', 'tidak ada', 'none'
+    ];
+    if (placeholders.some(p => s.toLowerCase().includes(p))) return false;
+    
+    return true;
   };
-  const hasMethodCount = mealItems.filter(item => isFilled(item.collection_method)).length;
+  const hasMethodCount = mealItems.filter(item => isFilled(item.collection_method) || isFilled(item.collection_tool)).length;
   const hasPicCount = mealItems.filter(item => isFilled(item.pic)).length;
 
   // Print Preview layout generator for High-Fidelity Client-side PDF Exporter

@@ -1327,7 +1327,12 @@ export default function SROICalculator({
           <div className="flex items-center gap-2">
             <span className="p-2 bg-blue-50 dark:bg-blue-950/20 text-blue-600 rounded-lg text-lg">📊</span>
             <div>
-              <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Social Return on Investment (SROI)</h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">Social Return on Investment (SROI)</h2>
+                <Badge variant="secondary" className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 font-bold border-indigo-200/50 text-[10px] tracking-wider uppercase">
+                  SROI PLANNING / DRAFT CANDIDATES
+                </Badge>
+              </div>
               <p className="text-xs text-muted-foreground mt-0.5">Analisa valuasi dampak terintegrasi dari LFA Matrix, MEAL Planner, dan Rencana Anggaran Biaya.</p>
             </div>
           </div>
@@ -1353,21 +1358,21 @@ export default function SROICalculator({
             className="text-xs flex items-center gap-1.5"
           >
             {syncing ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-            Sinkronisasi Ulang
+            Re-sync RAB & MEAL
           </Button>
 
-          <div className="bg-slate-100 dark:bg-slate-900 p-0.5 rounded-lg border flex">
+          <div className="flex items-center bg-muted p-0.5 rounded-lg border">
             <button
               onClick={() => handleModeToggle('simple')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                 config.mode === 'simple' ? 'bg-white dark:bg-slate-950 text-blue-600 shadow-sm border' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              🌱 Sederhana
+              Simple Wizard
             </button>
             <button
               onClick={() => handleModeToggle('professional')}
-              className={`px-3 py-1 text-xs font-semibold rounded-md transition-all ${
+              className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                 config.mode === 'professional' ? 'bg-white dark:bg-slate-950 text-blue-600 shadow-sm border' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -1378,6 +1383,17 @@ export default function SROICalculator({
           <Button size="sm" variant="outline" className="text-xs" onClick={handleExportPDF}>
             <Download className="h-3.5 w-3.5 mr-1" /> Cetak Laporan
           </Button>
+        </div>
+      </div>
+
+      {/* SPRINT 5.1R: EVALUATIVE SROI GOVERNANCE DEFERRAL NOTICE */}
+      <div className="p-4 bg-indigo-50/40 border border-indigo-200/60 dark:bg-indigo-950/15 dark:border-indigo-900/40 rounded-xl flex items-start gap-3">
+        <Info className="h-5 w-5 text-indigo-500 shrink-0 mt-0.5 animate-pulse" />
+        <div className="space-y-1">
+          <strong className="text-xs font-bold text-indigo-900 dark:text-indigo-300 block">SROI PLANNING & DRAFT CANDIDATES MODE ACTIVE</strong>
+          <p className="text-xs text-indigo-800/90 dark:text-indigo-400/90 leading-relaxed">
+            Perhitungan SROI saat ini berjalan dalam mode <strong>Planning / Draft Candidates</strong>. Evaluasi formal tata kelola (SROI evaluative governance), verifikasi baseline program yang ketat, dan pelaporan dampak programatik dinamis ditangguhkan penuh ke <strong>Sprint 6</strong>. Proxy dampak saat ini berfungsi sebagai rancangan awal (draft candidates) untuk perencanaan skenario.
+          </p>
         </div>
       </div>
 

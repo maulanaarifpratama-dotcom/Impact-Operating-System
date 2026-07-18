@@ -1739,7 +1739,6 @@ export default function BudgetCalculator({
           </div>
         </div>
 
-        {/* Comparative Budget Banner (Pagu Proposal vs Itemized RAB) */}
         {proposalBudget !== null && (
           <div className={`p-5 rounded-xl border mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-300 ${
             totalIDR > proposalBudget 
@@ -1752,43 +1751,62 @@ export default function BudgetCalculator({
               <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pagu Proposal vs Itemized RAB</h3>
               <div className="flex flex-wrap items-center gap-4 text-sm font-semibold">
                 <div>
-                  <span className="text-xs text-muted-foreground block font-normal">Pagu Proposal:</span>
+                  <span className="text-xs text-muted-foreground block font-normal">Target Dana Proposal (Pagu):</span>
                   <span className="text-slate-700 dark:text-slate-300 font-mono">Rp {proposalBudget.toLocaleString('id-ID')}</span>
                 </div>
                 <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
                 <div>
-                  <span className="text-xs text-muted-foreground block font-normal">Itemized RAB:</span>
-                  <span className={`font-mono \${totalIDR > proposalBudget ? "text-rose-600 font-black" : "text-slate-700 dark:text-slate-300"}`}>Rp {totalIDR.toLocaleString('id-ID')}</span>
+                  <span className="text-xs text-muted-foreground block font-normal">RAB yang Sudah Dirinci:</span>
+                  <span className={`font-mono ${totalIDR > proposalBudget ? "text-rose-600 font-black" : "text-slate-700 dark:text-slate-300"}`}>Rp {totalIDR.toLocaleString('id-ID')}</span>
                 </div>
+                {totalIDR < proposalBudget && (
+                  <>
+                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
+                    <div>
+                      <span className="text-xs text-muted-foreground block font-normal">Belum Dialokasikan:</span>
+                      <span className="text-amber-700 dark:text-amber-400 font-mono">Rp {(proposalBudget - totalIDR).toLocaleString('id-ID')}</span>
+                    </div>
+                  </>
+                )}
+                {totalIDR > proposalBudget && (
+                  <>
+                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
+                    <div>
+                      <span className="text-xs text-rose-600 block font-normal">Kelebihan Anggaran (Over-Allocation):</span>
+                      <span className="text-rose-600 font-mono font-bold">Rp {(totalIDR - proposalBudget).toLocaleString('id-ID')}</span>
+                    </div>
+                  </>
+                )}
               </div>
               
               {/* Dynamic message explaining variance */}
-              <p className={`text-xs font-semibold mt-1 \${
+              <p className={`text-xs font-semibold mt-1 ${
                 totalIDR > proposalBudget
                   ? "text-rose-600 dark:text-rose-400 flex items-center gap-1"
                   : totalIDR < proposalBudget
                     ? "text-amber-700 dark:text-amber-400"
                     : "text-emerald-700 dark:text-emerald-400"
               }`}>
-                {totalIDR === proposalBudget && "RAB cocok dengan pagu proposal."}
-                {totalIDR < proposalBudget && `Sisa anggaran yang belum teralokasi: Rp \${(proposalBudget - totalIDR).toLocaleString('id-ID')}`}
-                {totalIDR > proposalBudget && `⚠️ PERINGATAN: Total RAB melebihi pagu proposal sebesar Rp \${(totalIDR - proposalBudget).toLocaleString('id-ID')}!`}
+                {totalIDR === proposalBudget && "RAB telah dialokasikan penuh"}
+                {totalIDR < proposalBudget && totalIDR > 0 && "RAB masih berupa draf sebagian — Sisa anggaran belum dialokasikan"}
+                {totalIDR === 0 && "RAB masih berupa draf kosong — Sisa anggaran belum dialokasikan"}
+                {totalIDR > proposalBudget && `RAB melebihi target anggaran sebesar Rp ${(totalIDR - proposalBudget).toLocaleString('id-ID')}`}
               </p>
             </div>
             
             {/* Visual Variance Progress Bar */}
             <div className="w-full md:w-48 space-y-1">
-              <span className="text-[10px] text-muted-foreground block">Rasio Alokasi Pagu</span>
+              <span className="text-[10px] text-muted-foreground block">Kelengkapan RAB (Rasio Alokasi Pagu)</span>
               <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
                 <div 
-                  className={`h-full rounded-full transition-all duration-500 \${
+                  className={`h-full rounded-full transition-all duration-500 ${
                     totalIDR > proposalBudget ? "bg-rose-500 animate-pulse" : totalIDR === proposalBudget ? "bg-emerald-500" : "bg-amber-500"
                   }`}
-                  style={{ width: `\${Math.min(100, (totalIDR / proposalBudget) * 100)}%` }}
+                  style={{ width: `${Math.min(100, proposalBudget > 0 ? (totalIDR / proposalBudget) * 100 : 0)}%` }}
                 ></div>
               </div>
-              <span className="text-[10px] text-muted-foreground block text-right font-mono">
-                {((totalIDR / proposalBudget) * 100).toFixed(1)}%
+              <span className="text-[10px] text-muted-foreground block text-right font-mono font-bold">
+                {proposalBudget > 0 ? ((totalIDR / proposalBudget) * 100).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}%
               </span>
             </div>
           </div>
