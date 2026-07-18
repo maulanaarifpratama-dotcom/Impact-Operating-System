@@ -11,13 +11,11 @@ const stats = [
     label: 'biaya lebih rendah dibanding sewa konsultan',
     sub: 'vs. konsultan freelance Rp 5–15jt/proposal',
   },
-  // TODO: ganti angka 500+ dengan jumlah aktual saat library final
   {
     value: '500+',
     label: 'template proposal & laporan terkurasi',
     sub: 'siap pakai, format donor internasional',
   },
-  // TODO: ganti angka 1.200+ dengan jumlah aktual saat database funding rilis
   {
     value: '1.200+',
     label: 'peluang funding di database',

@@ -141,7 +141,6 @@ export function useWizardProject<TData = WizardData>(
         void persist();
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [persist]);
 
   return { project, data, loading, saving, lastSavedAt, error, setData, setStep, saveNow };

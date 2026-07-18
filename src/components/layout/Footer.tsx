@@ -5,7 +5,7 @@ import { Logo } from '@/components/Logo';
 
 export function Footer() {
   return (
-    <footer className="bg-[#081820] border-t border-white/5 py-12 sm:py-16 text-slate-300">
+    <footer className="bg-[brand-surface-deep] border-t border-white/5 py-12 sm:py-16 text-slate-300">
       <div className="container max-w-6xl mx-auto px-4">
         
         {/* Main Footer Grid */}

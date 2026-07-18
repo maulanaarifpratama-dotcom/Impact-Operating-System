@@ -88,7 +88,7 @@ export default function ContactPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-[#0A1D25] text-white selection:bg-teal-500 selection:text-white flex flex-col">
+    <div className="min-h-screen bg-[brand-surface] text-white selection:bg-teal-500 selection:text-white flex flex-col">
       <Navbar />
 
       {/* Hero Section */}
@@ -111,7 +111,7 @@ export default function ContactPage() {
             
             {/* Left side: Contact Form */}
             <div className="md:col-span-7">
-              <Card className="bg-[#0E2833]/40 border-white/5 rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+              <Card className="bg-[brand-surface-mid]/40 border-white/5 rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
                 <h3 className="font-bold text-lg text-slate-200 mb-6">Kirim Pesan</h3>
                 
                 <form onSubmit={handleSubmit} className="space-y-4">
@@ -170,7 +170,7 @@ export default function ContactPage() {
                   <Button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-gradient-to-r from-teal-500 to-[#1D7A75] hover:from-teal-600 hover:to-teal-700 text-white font-bold rounded-xl transition-all shadow-lg py-6 mt-4 flex items-center justify-center gap-2"
+                    className="w-full bg-gradient-to-r from-teal-500 to-[brand-accent] hover:from-teal-600 hover:to-teal-700 text-white font-bold rounded-xl transition-all shadow-lg py-6 mt-4 flex items-center justify-center gap-2"
                   >
                     <Send className="h-4 w-4" />
                     {loading ? 'Mengirim...' : 'Kirim Pesan Sekarang'}
@@ -206,7 +206,7 @@ export default function ContactPage() {
               <div className="space-y-4">
                 {/* Email Direct Card */}
                 <a href="mailto:arif@impactory.id" className="block group">
-                  <Card className="bg-[#0E2833]/30 border-white/5 group-hover:border-teal-500/30 transition-all rounded-2xl p-5 flex items-start gap-4">
+                  <Card className="bg-[brand-surface-mid]/30 border-white/5 group-hover:border-teal-500/30 transition-all rounded-2xl p-5 flex items-start gap-4">
                     <div className="h-10 w-10 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-400 border border-teal-500/20 shrink-0">
                       <Mail className="h-5 w-5" />
                     </div>
@@ -220,7 +220,7 @@ export default function ContactPage() {
 
                 {/* Whatsapp Direct Card */}
                 <a href={whatsappUrl} target="_blank" rel="noreferrer noopener" className="block group">
-                  <Card className="bg-[#0E2833]/30 border-white/5 group-hover:border-emerald-500/30 transition-all rounded-2xl p-5 flex items-start gap-4">
+                  <Card className="bg-[brand-surface-mid]/30 border-white/5 group-hover:border-emerald-500/30 transition-all rounded-2xl p-5 flex items-start gap-4">
                     <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center text-emerald-400 border border-emerald-500/20 shrink-0">
                       <MessageSquare className="h-5 w-5" />
                     </div>
@@ -239,7 +239,7 @@ export default function ContactPage() {
       </section>
 
       {/* FAQ Accordion Section */}
-      <section className="py-16 sm:py-24 bg-[#081820] relative">
+      <section className="py-16 sm:py-24 bg-[brand-surface-deep] relative">
         <div className="container max-w-3xl mx-auto px-4">
           <div className="text-center mb-12">
             <span className="text-xs font-bold text-teal-400 uppercase tracking-widest">Pertanyaan Populer</span>
@@ -253,7 +253,7 @@ export default function ContactPage() {
               <AccordionItem 
                 key={i} 
                 value={`item-${i}`} 
-                className="border-white/5 bg-[#0E2833]/20 rounded-2xl px-6 py-2 shadow-lg"
+                className="border-white/5 bg-[brand-surface-mid]/20 rounded-2xl px-6 py-2 shadow-lg"
               >
                 <AccordionTrigger className="hover:no-underline font-bold text-sm text-slate-200 py-4">
                   <span className="flex items-center gap-2.5 text-left">

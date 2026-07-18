@@ -40,7 +40,7 @@ export function DashboardTopbar() {
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/85 px-3 backdrop-blur-md md:px-5">
       <SidebarTrigger />
-      <nav aria-label="Breadcrumb" className="hidden text-sm md:block">
+      <nav aria-label="Breadcrumb" className="text-sm">
         <ol className="flex items-center gap-1.5 text-muted-foreground">
           {crumbs.map((c, i) => (
             <li key={i} className="flex items-center gap-1.5">

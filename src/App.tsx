@@ -1,8 +1,7 @@
 import React from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { Toaster as Sonner } from '@/components/ui/sonner';
-import { Toaster } from '@/components/ui/toaster';
+import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
@@ -45,11 +44,11 @@ import BeneficiaryRegistry from './pages/dashboard/BeneficiaryRegistry';
 
 class DashboardErrorBoundary extends React.Component<
   { children: React.ReactNode },
-  { hasError: boolean; error: Error | null }
+  { hasError: boolean; error: Error | null; lang: 'id' | 'en' }
 > {
   constructor(props: { children: React.ReactNode }) {
     super(props)
-    this.state = { hasError: false, error: null }
+    this.state = { hasError: false, error: null, lang: 'id' }
   }
   static getDerivedStateFromError(error: Error) {
     return { hasError: true, error }
@@ -59,43 +58,44 @@ class DashboardErrorBoundary extends React.Component<
   }
   render() {
     if (this.state.hasError) {
+      const t = this.state.lang === 'id' ? {
+        title: 'Terjadi kesalahan pada halaman ini.',
+        unknown: 'Kesalahan tidak diketahui',
+        reload: 'Muat Ulang Halaman',
+        back: 'Kembali ke Dashboard',
+        toggle: 'English',
+      } : {
+        title: 'Something went wrong on this page.',
+        unknown: 'Unknown error',
+        reload: 'Reload Page',
+        back: 'Back to Dashboard',
+        toggle: 'Bahasa Indonesia',
+      };
+
       return (
-        <div style={{
-          display:'flex',flexDirection:'column',
-          alignItems:'center',justifyContent:'center',
-          minHeight:'100vh',gap:'16px',padding:'32px',
-          backgroundColor:'#f9fafb'
-        }}>
-          <div style={{fontSize:'48px'}}>⚠️</div>
-          <h2 style={{fontSize:'18px',fontWeight:600,
-            color:'#111827'}}>
-            Terjadi kesalahan pada halaman ini.
-          </h2>
-          <p style={{fontSize:'14px',color:'#6b7280',
-            textAlign:'center',maxWidth:'400px'}}>
-            {this.state.error?.message ?? 
-             'Kesalahan tidak diketahui'}
+        <div className="flex flex-col items-center justify-center min-h-screen gap-4 p-8 bg-gray-50 dark:bg-gray-950">
+          <div className="text-5xl" aria-hidden="true">⚠️</div>
+          <button
+            onClick={() => this.setState((s) => ({ ...s, lang: s.lang === 'id' ? 'en' : 'id' }))}
+            className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline self-end"
+          >
+            {t.toggle}
+          </button>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{t.title}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 text-center max-w-md">
+            {this.state.error?.message ?? t.unknown}
           </p>
           <button
             onClick={() => {
-              this.setState({hasError:false,error:null})
+              this.setState({hasError:false,error:null,lang: this.state.lang})
               window.location.reload()
             }}
-            style={{
-              padding:'10px 24px',
-              backgroundColor:'#0f6e56',
-              color:'white',borderRadius:'8px',
-              border:'none',cursor:'pointer',
-              fontSize:'14px',fontWeight:500
-            }}
+            className="px-6 py-2.5 bg-[brand-green] text-white rounded-lg border-none cursor-pointer text-sm font-medium hover:bg-[#0d5d48]"
           >
-            Muat Ulang Halaman
+            {t.reload}
           </button>
-          <a href="/dashboard" style={{
-            fontSize:'14px',color:'#0f6e56',
-            textDecoration:'underline'
-          }}>
-            Kembali ke Dashboard
+          <a href="/dashboard" className="text-sm text-[brand-green] underline hover:text-[#0d5d48]">
+            {t.back}
           </a>
         </div>
       )
@@ -116,7 +116,6 @@ const App = () => (
         <AuthProvider>
           <TooltipProvider>
             <Toaster />
-            <Sonner />
             <ScrollToTop />
           <Routes>
             {/* Public */}

@@ -41,7 +41,7 @@ export function DocumentChatPanel({ orgId, sourceModule, sourceRecordId }: Docum
   const [docs, setDocs] = useState<Document[]>([]);
   const [loadingDocs, setLoadingDocs] = useState(true);
   const [uploading, setUploading] = useState(false);
-  const [chatLoading, setChatOpen] = useState(false);
+  const [chatLoading] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [streaming, setStreaming] = useState(false);

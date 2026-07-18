@@ -583,7 +583,7 @@ export default function DashboardHome() {
       void refetchProgress();
       toast.success('Progress berhasil diperbarui');
     } catch (err) {
-      console.error('[Impactory] Error:', err);
+      if (import.meta.env.DEV) console.error('[DashboardHome] Task update error:', err);
       toast.error('Gagal memperbarui status tugas: ' + ((err as Error)?.message ?? 'Silakan coba lagi.'));
       // Revert on failure
       setPlanTasks((current) => ({ ...current, [key]: !nextState }));
@@ -645,7 +645,7 @@ export default function DashboardHome() {
   return (
     <div className="mx-auto max-w-6xl space-y-8 animate-fade-in-up">
       {/* ZONE 1: Status Header */}
-      <section className="relative overflow-hidden rounded-2xl border border-[#155F66]/30 bg-[#0F3D4F] p-6 text-white shadow-elegant md:p-8 animate-fade-in-up">
+      <section className="relative overflow-hidden rounded-2xl border border-[brand-border]/30 bg-[brand-active] p-6 text-white shadow-elegant md:p-8 animate-fade-in-up">
         <div className="absolute inset-0 overflow-hidden">
           <div className="absolute -top-32 -left-32 h-64 w-64 rounded-full bg-accent/25 blur-3xl animate-pulse" />
           <div className="absolute -bottom-32 -right-32 h-64 w-64 rounded-full bg-emerald-500/15 blur-3xl" />
@@ -657,7 +657,7 @@ export default function DashboardHome() {
               <Badge className="border-white/30 bg-white/15 text-white hover:bg-white/15">
                 NGO Growth OS Command Center
               </Badge>
-              <Badge className="border-accent/40 bg-[#F59E0B]/20 text-[#F59E0B] font-medium animate-pulse-glow">
+              <Badge className="border-accent/40 bg-[brand-amber]/20 text-[brand-amber] font-medium animate-pulse-glow">
                 Sistem Aktif
               </Badge>
             </div>
@@ -726,7 +726,7 @@ export default function DashboardHome() {
       {/* Main Section Grid: Status Baseline & ZONE 2 Priorities */}
       <div className="grid gap-6 lg:grid-cols-4">
         {/* GROWTH Status Baseline Card */}
-        <Card className="group relative overflow-hidden flex flex-col justify-between border-border bg-card p-5 shadow-card hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 hover:border-[#155F66]/30">
+        <Card className="group relative overflow-hidden flex flex-col justify-between border-border bg-card p-5 shadow-card hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 hover:border-[brand-border]/30">
           <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-500" />
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3">
@@ -786,7 +786,7 @@ export default function DashboardHome() {
         </Card>
 
         {/* Kematangan Program Card (Fitur 1 MVP) */}
-        <Card className="group relative overflow-hidden flex flex-col justify-between border-border bg-card p-5 shadow-card hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 hover:border-[#155F66]/30">
+        <Card className="group relative overflow-hidden flex flex-col justify-between border-border bg-card p-5 shadow-card hover:shadow-elegant transition-all duration-300 hover:-translate-y-1 hover:border-[brand-border]/30">
           <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-500" />
           <div className="space-y-4">
             <div className="flex items-start justify-between gap-3">
@@ -832,7 +832,7 @@ export default function DashboardHome() {
 
         {/* ZONE 2: Rekomendasi Prioritas Utama */}
         <Card className="group/priorities relative overflow-hidden p-5 shadow-card border-border bg-card lg:col-span-2 flex flex-col justify-between transition-all duration-300 hover:shadow-elegant">
-          <div className="absolute top-0 left-0 h-1 w-0 bg-[#155F66] group-hover/priorities:w-full transition-all duration-500" />
+          <div className="absolute top-0 left-0 h-1 w-0 bg-[brand-border] group-hover/priorities:w-full transition-all duration-500" />
           <div>
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold tracking-tight">Rekomendasi Prioritas Utama</h2>
@@ -924,14 +924,14 @@ export default function DashboardHome() {
         {/* Global Progress Bar */}
         <div className="h-2 w-full overflow-hidden rounded-full bg-muted border border-border mb-6">
           <div
-            className="h-full bg-gradient-to-r from-accent via-[#155F66] to-[#1D7A75] transition-all duration-500"
+            className="h-full bg-gradient-to-r from-accent via-[brand-border] to-[brand-accent] transition-all duration-500"
             style={{ width: `${planStats.percentage}%` }}
           />
         </div>
 
         {/* Visual Stepper / Timeline Header */}
         <div className="overflow-x-auto pb-4 -mx-4 px-4 md:mx-0 md:px-0">
-          <div className="flex items-center min-w-[760px] md:min-w-0 justify-between gap-3 relative">
+          <div className="flex items-center min-w-0 justify-between gap-3 relative">
             {/* Stepper horizontal connector line */}
             <div className="absolute top-1/2 left-4 right-4 h-0.5 bg-muted -translate-y-1/2 z-0 hidden md:block" />
 
@@ -951,7 +951,7 @@ export default function DashboardHome() {
                   className={cn(
                     "relative z-10 flex-1 flex flex-col items-center p-3 rounded-xl border text-center transition-all duration-300 focus:outline-none focus:ring-1 focus:ring-accent",
                     isActive
-                      ? "bg-[#0F3D4F] border-[#155F66]/50 text-white shadow-elegant scale-[1.02]"
+                      ? "bg-[brand-active] border-[brand-border]/50 text-white shadow-elegant scale-[1.02]"
                       : isDone
                       ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-600 hover:bg-emerald-500/15"
                       : isInProgress
@@ -964,7 +964,7 @@ export default function DashboardHome() {
                     className={cn(
                       "flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold mb-1.5 border shadow-sm transition-all duration-300",
                       isActive
-                        ? "bg-white text-[#0F3D4F] border-white"
+                        ? "bg-white text-[brand-active] border-white"
                         : isDone
                         ? "bg-emerald-500 text-white border-emerald-400"
                         : isInProgress
@@ -1056,6 +1056,8 @@ export default function DashboardHome() {
                         <button
                           key={task}
                           type="button"
+                          role="checkbox"
+                          aria-checked={isTaskChecked}
                           onClick={() => handleToggleTask(activeSection.id, task)}
                           className={cn(
                             'group/task flex w-full items-start gap-3 rounded-xl border p-3.5 text-left text-xs font-medium transition-all duration-200 focus:outline-none focus:ring-1 focus:ring-accent active:scale-[0.98]',
@@ -1101,7 +1103,7 @@ export default function DashboardHome() {
               <Card className="relative overflow-hidden h-full p-5 shadow-card transition-all duration-300 group-hover:-translate-y-1.5 group-hover:border-accent/20 group-hover:shadow-elegant bg-card">
                 <div className="absolute top-0 left-0 h-1 w-0 bg-accent group-hover:w-full transition-all duration-300" />
                 <div className="flex items-start justify-between gap-3">
-                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[#0F3D4F] to-[#155F66] text-white transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
+                  <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-[brand-active] to-[brand-border] text-white transition-transform duration-300 group-hover:scale-110 group-hover:rotate-3">
                     <Icon className="h-5 w-5" />
                   </div>
                   <Badge variant="outline" className="border-emerald-500/30 bg-emerald-500/10 text-emerald-500 font-semibold text-[10px] shadow-sm transition-all duration-300 group-hover:bg-emerald-500/25">

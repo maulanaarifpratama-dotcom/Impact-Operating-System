@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -35,7 +35,6 @@ import {
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import {
-  Users,
   Plus,
   Download,
   FileText,
@@ -43,12 +42,7 @@ import {
   Edit2,
   Trash2,
   ShieldCheck,
-  Check,
-  X,
-  ShieldAlert,
   Loader2,
-  Sliders,
-  Sparkles,
 } from 'lucide-react';
 
 export default function BeneficiaryRegistry() {
@@ -121,7 +115,7 @@ export default function BeneficiaryRegistry() {
   });
 
   // 3. Fetch LFA Projects
-  const { data: projects = [], isLoading: isProjectsLoading } = useQuery({
+  const { data: projects = [] } = useQuery({
     queryKey: ['lfa_projects_beneficiary', orgId],
     queryFn: async () => {
       if (!orgId) return [];
@@ -318,7 +312,7 @@ export default function BeneficiaryRegistry() {
       refetchBeneficiaries();
       resetForm();
     } catch (err: any) {
-      console.error('Error saving beneficiary:', err);
+      if (import.meta.env.DEV) console.error('[Beneficiary] Save error:', err);
       toast.error('Gagal menyimpan data: ' + err.message);
     }
   };
@@ -347,7 +341,7 @@ export default function BeneficiaryRegistry() {
       toast.success('Penerima manfaat berhasil dihapus!');
       refetchBeneficiaries();
     } catch (err: any) {
-      console.error('Error deleting beneficiary:', err);
+      if (import.meta.env.DEV) console.error('[Beneficiary] Delete error:', err);
       toast.error('Gagal menghapus data: ' + err.message);
     }
   };
@@ -498,7 +492,7 @@ export default function BeneficiaryRegistry() {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background/50">
         <div className="flex flex-col items-center gap-3 text-center">
-          <Loader2 className="h-8 w-8 animate-spin text-[#0f6e56]" />
+          <Loader2 className="h-8 w-8 animate-spin text-[brand-green]" />
           <p className="text-xs text-muted-foreground font-medium">Memuat Database...</p>
         </div>
       </div>
@@ -665,14 +659,14 @@ export default function BeneficiaryRegistry() {
         {/* Professional Mode Extra Cards */}
         {mode === 'professional' && (
           <>
-            <Card className="shadow-sm border border-border/80 hover:border-accent/30 transition-all text-left col-span-2 md:col-span-2 bg-gradient-to-br from-[#0f6e56]/5 to-background">
+            <Card className="shadow-sm border border-border/80 hover:border-accent/30 transition-all text-left col-span-2 md:col-span-2 bg-gradient-to-br from-[brand-green]/5 to-background">
               <CardHeader className="p-4 pb-1">
-                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-[#0f6e56] flex items-center gap-1.5">
+                <CardDescription className="text-[11px] font-bold uppercase tracking-wider text-[brand-green] flex items-center gap-1.5">
                   <ShieldCheck className="h-3.5 w-3.5" /> Kelompok Rentan
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-4 pt-0">
-                <div className="text-2xl font-black text-[#0f6e56]">{stats.vulnerableCount}</div>
+                <div className="text-2xl font-black text-[brand-green]">{stats.vulnerableCount}</div>
                 <p className="text-[10px] text-muted-foreground mt-0.5 italic">
                   Butuh perhatian khusus & prioritas intervensi
                 </p>
@@ -732,7 +726,7 @@ export default function BeneficiaryRegistry() {
         <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
           <Button
             onClick={handleOpenAdd}
-            className="bg-[#0f6e56] hover:bg-[#0f6e56]/90 text-white font-semibold text-xs h-9"
+            className="bg-[brand-green] hover:bg-[brand-green]/90 text-white font-semibold text-xs h-9"
           >
             <Plus className="mr-1.5 h-4 w-4" /> Tambah Penerima Manfaat
           </Button>
@@ -886,7 +880,7 @@ export default function BeneficiaryRegistry() {
                                     <Badge
                                       key={c}
                                       variant="secondary"
-                                      className="text-[9px] bg-[#0f6e56]/10 text-[#0f6e56] border-none font-bold"
+                                      className="text-[9px] bg-[brand-green]/10 text-[brand-green] border-none font-bold"
                                     >
                                       {c}
                                     </Badge>
@@ -963,7 +957,7 @@ export default function BeneficiaryRegistry() {
                     >
                       {isBeneficiariesLoading ? (
                         <div className="flex items-center justify-center gap-2">
-                          <Loader2 className="h-4 w-4 animate-spin text-[#0f6e56]" />
+                          <Loader2 className="h-4 w-4 animate-spin text-[brand-green]" />
                           <span>Menarik Data Penerima Manfaat...</span>
                         </div>
                       ) : (
@@ -1004,7 +998,7 @@ export default function BeneficiaryRegistry() {
           <DialogHeader>
             <DialogTitle className="text-lg font-bold flex items-center gap-2 text-foreground">
               {editingBeneficiary ? 'Edit Penerima Manfaat' : 'Tambah Penerima Manfaat Baru'}
-              <Badge variant="secondary" className="bg-[#0f6e56]/10 text-[#0f6e56] text-[10px] font-bold">
+              <Badge variant="secondary" className="bg-[brand-green]/10 text-[brand-green] text-[10px] font-bold">
                 {mode === 'professional' ? 'Mode Profesional' : 'Mode Sederhana'}
               </Badge>
             </DialogTitle>
@@ -1126,7 +1120,7 @@ export default function BeneficiaryRegistry() {
             {/* Professional Mode Extra Form Fields */}
             {mode === 'professional' && (
               <div className="border-t pt-4 mt-4 space-y-4">
-                <h3 className="text-sm font-bold text-[#0f6e56] flex items-center gap-1.5 uppercase tracking-wider text-xs">
+                <h3 className="text-sm font-bold text-[brand-green] flex items-center gap-1.5 uppercase tracking-wider text-xs">
                   <ShieldCheck className="h-4 w-4" /> Data Pelengkap & Legalitas Audit
                 </h3>
 
@@ -1207,7 +1201,7 @@ export default function BeneficiaryRegistry() {
                           type="checkbox"
                           checked={vulnerableCategories.includes(cat)}
                           onChange={() => handleVulnerableToggle(cat)}
-                          className="h-4 w-4 rounded border-gray-300 text-[#0f6e56] focus:ring-[#0f6e56]"
+                          className="h-4 w-4 rounded border-gray-300 text-[brand-green] focus:ring-[brand-green]"
                         />
                         <span>{cat}</span>
                       </label>
@@ -1263,7 +1257,7 @@ export default function BeneficiaryRegistry() {
               >
                 Batal
               </Button>
-              <Button type="submit" className="bg-[#0f6e56] hover:bg-[#0f6e56]/90 text-white font-semibold text-xs h-9">
+              <Button type="submit" className="bg-[brand-green] hover:bg-[brand-green]/90 text-white font-semibold text-xs h-9">
                 {editingBeneficiary ? 'Simpan Perubahan' : 'Tambah Penerima'}
               </Button>
             </DialogFooter>

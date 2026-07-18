@@ -2,11 +2,9 @@ import { useState, useEffect } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { 
   ArrowRight, 
-  BookOpen, 
-  CheckCircle2, 
   FileText, 
+  CheckCircle2, 
   LibraryBig, 
-  Megaphone, 
   Search, 
   ShieldCheck, 
   Sparkles, 
@@ -16,7 +14,6 @@ import {
   ClipboardCheck,
   Share2,
   FolderSync,
-  Globe,
   BarChart3,
   Users,
   Leaf,
@@ -161,38 +158,38 @@ export default function Index() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A1D25] text-white font-sans selection:bg-teal-500/30 selection:text-teal-200">
+    <div className="min-h-screen bg-[brand-surface] text-white font-sans selection:bg-teal-500/30 selection:text-teal-200">
       <Navbar lang={lang} onLangChange={setLang} />
       
       <main>
         {/* =========================================================================
-            HERO SECTION: Vercel × Giving.tech hybrid with Dark Navy (#0A1D25) & Teal (#1D7A75)
+            HERO SECTION: Vercel × Giving.tech hybrid with Dark Navy (brand-surface) & Teal (brand-accent)
             ========================================================================= */}
-        <section className="relative overflow-hidden border-b border-[#1D7A75]/10 bg-[#0A1D25] pt-28 pb-20 md:py-32">
+        <section className="relative overflow-hidden border-b border-[brand-accent]/10 bg-[brand-surface] pt-28 pb-20 md:py-32">
           {/* Subtle animated dot grid background (Vercel feel) */}
           <div 
             className="absolute inset-0 opacity-25 pointer-events-none" 
             style={{ 
-              backgroundImage: 'radial-gradient(circle, rgba(29, 122, 117, 0.25) 1px, transparent 1px)', 
+              backgroundImage: 'radial-gradient(circle, rgba(var(--brand-accent-rgb), 0.25) 1px, transparent 1px)', 
               backgroundSize: '24px 24px' 
             }} 
           />
 
           {/* Soft layered, breathing radial glows for hero ambient depth */}
-          <div aria-hidden className="absolute -right-48 -top-48 h-[600px] w-[600px] rounded-full bg-[#1D7A75]/15 blur-[120px] pointer-events-none" />
+          <div aria-hidden className="absolute -right-48 -top-48 h-[600px] w-[600px] rounded-full bg-[brand-accent]/15 blur-[120px] pointer-events-none" />
           <div aria-hidden className="absolute -bottom-56 -left-48 h-[600px] w-[600px] rounded-full bg-teal-500/5 blur-[120px] pointer-events-none" />
-          <div aria-hidden className="absolute right-[10%] top-[20%] h-[400px] w-[400px] rounded-full bg-[#1D7A75]/10 blur-[100px] pointer-events-none" />
+          <div aria-hidden className="absolute right-[10%] top-[20%] h-[400px] w-[400px] rounded-full bg-[brand-accent]/10 blur-[100px] pointer-events-none" />
           
           <div className="container relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
               <div className="max-w-3xl lg:col-span-7">
-                <Badge variant="outline" className="border-[#1D7A75]/30 bg-[#1D7A75]/10 text-teal-300 font-semibold px-3 py-1 tracking-wide rounded-full text-xs">
+                <Badge variant="outline" className="border-[brand-accent]/30 bg-[brand-accent]/10 text-teal-300 font-semibold px-3 py-1 tracking-wide rounded-full text-xs">
                   {t.hero.badge}
                 </Badge>
                 
                 {/* EXACTLY ONE H1 FOR SEO */}
                 <h1 className="mt-6 text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
-                  {t.hero.headingText} <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-300 via-teal-400 to-[#1D7A75] inline-block font-extrabold">{t.hero.headingHighlight}</span>
+                  {t.hero.headingText} <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-300 via-teal-400 to-[brand-accent] inline-block font-extrabold">{t.hero.headingHighlight}</span>
                 </h1>
                 
                 <p className="mt-6 text-slate-300 text-base sm:text-lg leading-relaxed font-normal">
@@ -200,18 +197,18 @@ export default function Index() {
                 </p>
                 
                 <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                  <Button asChild size="lg" className="bg-gradient-to-r from-teal-500 to-[#1D7A75] text-white font-bold hover:from-teal-600 hover:to-[#1D7A75]/90 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-glow rounded-xl px-6 py-6 shadow-lg shadow-teal-500/10">
+                  <Button asChild size="lg" className="bg-gradient-to-r from-teal-500 to-[brand-accent] text-white font-bold hover:from-teal-600 hover:to-[brand-accent]/90 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-glow rounded-xl px-6 py-6 shadow-lg shadow-teal-500/10">
                     <Link to="/dashboard/readiness">
                       {t.hero.ctaPrimary}
                       <ArrowRight className="ml-1 h-4 w-4" />
                     </Link>
                   </Button>
-                  <Button asChild size="lg" variant="outline" className="border-[#1D7A75]/30 bg-transparent text-white hover:bg-white/5 transition-all duration-300 hover:-translate-y-0.5 rounded-xl px-6 py-6">
+                  <Button asChild size="lg" variant="outline" className="border-[brand-accent]/30 bg-transparent text-white hover:bg-white/5 transition-all duration-300 hover:-translate-y-0.5 rounded-xl px-6 py-6">
                     <a href="#growth-system">{t.hero.ctaSecondary}</a>
                   </Button>
                 </div>
                 
-                <div className="mt-8 inline-flex max-w-2xl items-start gap-3 rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-xs sm:text-sm text-slate-300 shadow-xl backdrop-blur-sm transition-all duration-300 hover:border-[#1D7A75]/25">
+                <div className="mt-8 inline-flex max-w-2xl items-start gap-3 rounded-2xl border border-white/5 bg-white/[0.02] p-4 text-xs sm:text-sm text-slate-300 shadow-xl backdrop-blur-sm transition-all duration-300 hover:border-[brand-accent]/25">
                   <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-teal-400" />
                   <span className="leading-relaxed">
                     {t.hero.trustBadge}
@@ -221,11 +218,11 @@ export default function Index() {
               
               {/* Product mockup frame with floating stats */}
               <div className="lg:col-span-5 relative flex items-center justify-center py-6">
-                <div className="absolute -inset-2 bg-gradient-to-tr from-[#1D7A75]/20 via-teal-500/5 to-transparent rounded-3xl blur-2xl opacity-60 pointer-events-none" />
+                <div className="absolute -inset-2 bg-gradient-to-tr from-[brand-accent]/20 via-teal-500/5 to-transparent rounded-3xl blur-2xl opacity-60 pointer-events-none" />
                 
                 {/* Floating Chip 1 */}
                 <div className="absolute -top-3 -left-4 z-20 pointer-events-none">
-                  <div className="animate-float flex items-center gap-2.5 rounded-xl border border-[#1D7A75]/30 bg-[#0A1D25]/95 backdrop-blur-md px-3.5 py-2.5 shadow-xl text-xs font-bold text-white">
+                  <div className="animate-float flex items-center gap-2.5 rounded-xl border border-[brand-accent]/30 bg-[brand-surface]/95 backdrop-blur-md px-3.5 py-2.5 shadow-xl text-xs font-bold text-white">
                     <span className="relative flex h-2 w-2">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-2 w-2 bg-teal-500"></span>
@@ -236,9 +233,9 @@ export default function Index() {
   
                 {/* Floating Chip 2 */}
                 <div className="absolute -bottom-6 -left-2 z-20 pointer-events-none">
-                  <div className="animate-float-delayed flex flex-col gap-1 rounded-xl border border-white/5 bg-[#0A1D25]/95 backdrop-blur-md p-3 shadow-xl text-xs text-white">
+                  <div className="animate-float-delayed flex flex-col gap-1 rounded-xl border border-white/5 bg-[brand-surface]/95 backdrop-blur-md p-3 shadow-xl text-xs text-white">
                     <div className="flex items-center gap-2 font-bold">
-                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[#1D7A75]/20 text-teal-300 border border-[#1D7A75]/30">
+                      <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[brand-accent]/20 text-teal-300 border border-[brand-accent]/30">
                         <ShieldCheck className="h-3 w-3" />
                       </span>
                       <span>{t.hero.floatingStat2}</span>
@@ -248,7 +245,7 @@ export default function Index() {
   
                 {/* Floating Chip 3 */}
                 <div className="absolute top-12 -right-6 z-20 pointer-events-none">
-                  <div className="animate-float flex flex-col gap-1.5 rounded-xl border border-white/5 bg-[#0A1D25]/95 backdrop-blur-md p-3 shadow-xl text-xs text-white">
+                  <div className="animate-float flex flex-col gap-1.5 rounded-xl border border-white/5 bg-[brand-surface]/95 backdrop-blur-md p-3 shadow-xl text-xs text-white">
                     <div className="flex items-center gap-2 font-bold">
                       <Sparkles className="h-3.5 w-3.5 text-teal-300" />
                       <span>{t.hero.floatingStat3}</span>
@@ -257,8 +254,8 @@ export default function Index() {
                 </div>
   
                 {/* Primary Mockup Display Frame */}
-                <div className="relative group w-full max-w-[480px] aspect-[4/3] rounded-2xl overflow-hidden border border-[#1D7A75]/30 shadow-2xl bg-[#07161E] hover:border-[#1D7A75]/50 transition-all duration-500 hover:-translate-y-1">
-                  <div className="absolute inset-0 bg-gradient-to-tr from-[#1D7A75]/10 to-transparent pointer-events-none z-10" />
+                <div className="relative group w-full max-w-[480px] aspect-[4/3] rounded-2xl overflow-hidden border border-[brand-accent]/30 shadow-2xl bg-[brand-surface-deeper] hover:border-[brand-accent]/50 transition-all duration-500 hover:-translate-y-1">
+                  <div className="absolute inset-0 bg-gradient-to-tr from-[brand-accent]/10 to-transparent pointer-events-none z-10" />
                   <img
                     src="/hero-visual.png"
                     alt="Impactory NGO Growth Operating System"
@@ -273,18 +270,18 @@ export default function Index() {
         {/* =========================================================================
             PROBLEM SECTION: Clean whitespace section (Notion feel) with Dark theme integration
             ========================================================================= */}
-        <section id="problem" className="py-20 md:py-28 bg-[#0D2530] border-b border-[#1D7A75]/10">
+        <section id="problem" className="py-20 md:py-28 bg-[brand-surface-alt] border-b border-[brand-accent]/10">
           <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid gap-8 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
               <div>
-                <Badge variant="outline" className="mb-4 border-[#1D7A75]/40 bg-[#1D7A75]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
+                <Badge variant="outline" className="mb-4 border-[brand-accent]/40 bg-[brand-accent]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
                   {t.problem.badge}
                 </Badge>
                 <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
                   {t.problem.heading}
                 </h2>
               </div>
-              <Card className="border border-[#1D7A75]/20 p-8 shadow-sm md:p-10 bg-[#0A1D25]/70 rounded-2xl text-slate-300">
+              <Card className="border border-[brand-accent]/20 p-8 shadow-sm md:p-10 bg-[brand-surface]/70 rounded-2xl text-slate-300">
                 <p className="text-sm sm:text-base leading-relaxed font-normal">
                   {t.problem.description}
                 </p>
@@ -299,20 +296,20 @@ export default function Index() {
         {/* =========================================================================
             G.R.O.W.T.H. SYSTEM SECTION: Dark-navy bg with glowing dot grids & glassmorphism cards
             ========================================================================= */}
-        <section id="growth-system" className="relative overflow-hidden py-20 md:py-28 bg-[#0A1D25] border-b border-[#1D7A75]/10">
+        <section id="growth-system" className="relative overflow-hidden py-20 md:py-28 bg-[brand-surface] border-b border-[brand-accent]/10">
           <div 
             className="absolute inset-0 opacity-20 pointer-events-none" 
             style={{ 
-              backgroundImage: 'radial-gradient(circle, rgba(29, 122, 117, 0.25) 1px, transparent 1px)', 
+              backgroundImage: 'radial-gradient(circle, rgba(var(--brand-accent-rgb), 0.25) 1px, transparent 1px)', 
               backgroundSize: '24px 24px' 
             }} 
           />
           <div aria-hidden className="absolute -left-48 top-1/4 h-[500px] w-[500px] rounded-full bg-teal-500/5 blur-[120px] pointer-events-none" />
-          <div aria-hidden className="absolute -right-48 bottom-1/4 h-[500px] w-[500px] rounded-full bg-[#1D7A75]/5 blur-[120px] pointer-events-none" />
+          <div aria-hidden className="absolute -right-48 bottom-1/4 h-[500px] w-[500px] rounded-full bg-[brand-accent]/5 blur-[120px] pointer-events-none" />
 
           <div className="container relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 z-10">
             <div className="max-w-3xl">
-              <Badge variant="outline" className="mb-4 border-[#1D7A75]/40 bg-[#1D7A75]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
+              <Badge variant="outline" className="mb-4 border-[brand-accent]/40 bg-[brand-accent]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
                 {t.growth.badge}
               </Badge>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
@@ -327,9 +324,9 @@ export default function Index() {
               {t.growth.cards.map((card) => (
                 <Card 
                   key={card.letter} 
-                  className="group relative overflow-hidden border border-white/5 border-l-4 border-l-[#1D7A75] p-6 shadow-xl transition-all duration-300 hover:-translate-y-1.5 hover:border-[#1D7A75]/35 bg-[#0D2530]/60 hover:bg-[#0D2530]/80 rounded-r-2xl rounded-l-md"
+                  className="group relative overflow-hidden border border-white/5 border-l-4 border-l-[brand-accent] p-6 shadow-xl transition-all duration-300 hover:-translate-y-1.5 hover:border-[brand-accent]/35 bg-[brand-surface-alt]/60 hover:bg-[brand-surface-alt]/80 rounded-r-2xl rounded-l-md"
                 >
-                  <div className="absolute top-0 right-0 w-24 h-24 bg-[#1D7A75]/5 rounded-bl-full pointer-events-none" />
+                  <div className="absolute top-0 right-0 w-24 h-24 bg-[brand-accent]/5 rounded-bl-full pointer-events-none" />
                   <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 font-extrabold text-lg shadow-inner">
                     {card.letter}
                   </div>
@@ -347,7 +344,7 @@ export default function Index() {
                         {card.modules.map((mod, mIdx) => (
                           <span 
                             key={mIdx} 
-                            className="inline-flex items-center rounded-md bg-[#1D7A75]/10 px-2 py-1 text-[10px] font-bold text-teal-300 border border-[#1D7A75]/20 group-hover:bg-[#1D7A75]/20 transition-colors"
+                            className="inline-flex items-center rounded-md bg-[brand-accent]/10 px-2 py-1 text-[10px] font-bold text-teal-300 border border-[brand-accent]/20 group-hover:bg-[brand-accent]/20 transition-colors"
                           >
                             {mod}
                           </span>
@@ -364,12 +361,12 @@ export default function Index() {
         {/* =========================================================================
             WORKFLOW SECTION: NGO 6-Step Workflow with semantic H2
             ========================================================================= */}
-        <section id="workflow" className="py-20 md:py-28 bg-[#0A1D25] border-b border-[#1D7A75]/10 relative">
-          <div aria-hidden className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-[#1D7A75]/5 blur-[120px] pointer-events-none" />
+        <section id="workflow" className="py-20 md:py-28 bg-[brand-surface] border-b border-[brand-accent]/10 relative">
+          <div aria-hidden className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 h-[500px] w-[500px] rounded-full bg-[brand-accent]/5 blur-[120px] pointer-events-none" />
           
           <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="max-w-3xl mx-auto text-center">
-              <Badge variant="outline" className="mb-4 border-[#1D7A75]/40 bg-[#1D7A75]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
+              <Badge variant="outline" className="mb-4 border-[brand-accent]/40 bg-[brand-accent]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
                 {t.workflow.badge}
               </Badge>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
@@ -386,9 +383,9 @@ export default function Index() {
                 return (
                   <Card 
                     key={idx}
-                    className="relative border border-[#1D7A75]/20 bg-[#0D2530]/60 p-6 shadow-xl rounded-2xl hover:border-teal-500/40 hover:-translate-y-1 transition-all duration-300 group overflow-hidden"
+                    className="relative border border-[brand-accent]/20 bg-[brand-surface-alt]/60 p-6 shadow-xl rounded-2xl hover:border-teal-500/40 hover:-translate-y-1 transition-all duration-300 group overflow-hidden"
                   >
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-[#1D7A75]/5 rounded-bl-full pointer-events-none" />
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-[brand-accent]/5 rounded-bl-full pointer-events-none" />
                     <div className="flex items-center gap-4">
                       <div className="h-11 w-11 rounded-xl bg-teal-500/10 border border-teal-500/20 text-teal-400 flex items-center justify-center shrink-0">
                         <Icon className="h-5 w-5" />
@@ -416,10 +413,10 @@ export default function Index() {
         {/* =========================================================================
             MODULES SECTION: Modern 10-module grid
             ========================================================================= */}
-        <section id="modules" className="py-20 md:py-28 bg-[#0D2530] border-b border-[#1D7A75]/10">
+        <section id="modules" className="py-20 md:py-28 bg-[brand-surface-alt] border-b border-[brand-accent]/10">
           <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl mx-auto text-center">
-              <Badge variant="outline" className="mb-4 border-[#1D7A75]/40 bg-[#1D7A75]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
+              <Badge variant="outline" className="mb-4 border-[brand-accent]/40 bg-[brand-accent]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
                 {t.modules.badge}
               </Badge>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
@@ -448,16 +445,16 @@ export default function Index() {
                 if (module.size === "hero") {
                   cardElement = (
                     <Card 
-                      className="relative overflow-hidden flex h-full flex-col border p-8 shadow-xl rounded-3xl transition-all duration-200 group text-left hover:border-teal-500 hover:shadow-[0_20px_60px_rgba(29,122,117,0.12)]"
+                      className="relative overflow-hidden flex h-full flex-col border p-8 shadow-xl rounded-3xl transition-all duration-200 group text-left hover:border-teal-500 hover:shadow-[0_20px_60px_rgba(var(--brand-accent-rgb), 0.12)]"
                       style={{ 
                         background: 'linear-gradient(135deg, #0D3040 0%, #0F4A3C 100%)',
-                        borderColor: 'rgba(29, 122, 117, 0.55)'
+                        borderColor: 'rgba(var(--brand-accent-rgb), 0.55)'
                       }}
                     >
                       <div 
                         className="absolute inset-0 opacity-15 pointer-events-none" 
                         style={{ 
-                          backgroundImage: 'radial-gradient(circle, rgba(29, 122, 117, 0.3) 1.5px, transparent 1.5px)', 
+                          backgroundImage: 'radial-gradient(circle, rgba(var(--brand-accent-rgb), 0.3) 1.5px, transparent 1.5px)', 
                           backgroundSize: '24px 24px' 
                         }} 
                       />
@@ -480,7 +477,7 @@ export default function Index() {
                           </p>
                         </div>
                         <div className="mt-8">
-                          <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-teal-500 to-[#1D7A75] text-white font-bold text-sm rounded-xl transition-all duration-300 shadow-lg shadow-teal-500/20 hover:shadow-teal-500/30 group-hover:translate-x-0.5">
+                          <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-teal-500 to-[brand-accent] text-white font-bold text-sm rounded-xl transition-all duration-300 shadow-lg shadow-teal-500/20 hover:shadow-teal-500/30 group-hover:translate-x-0.5">
                             {module.cta}
                             <ArrowRight className="h-4 w-4" />
                           </span>
@@ -491,10 +488,10 @@ export default function Index() {
                 } else if (module.size === "full") {
                   cardElement = (
                     <Card 
-                      className="relative overflow-hidden flex h-full flex-col border p-8 shadow-xl rounded-3xl transition-all duration-200 group hover:border-teal-500 hover:shadow-[0_20px_60px_rgba(29,122,117,0.12)]"
+                      className="relative overflow-hidden flex h-full flex-col border p-8 shadow-xl rounded-3xl transition-all duration-200 group hover:border-teal-500 hover:shadow-[0_20px_60px_rgba(var(--brand-accent-rgb), 0.12)]"
                       style={{ 
-                        background: 'linear-gradient(90deg, #0D3040 0%, #091820 100%)',
-                        borderColor: 'rgba(29, 122, 117, 0.45)'
+                        background: 'linear-gradient(90deg, #0D3040 0%, brand-surface-card 100%)',
+                        borderColor: 'rgba(var(--brand-accent-rgb), 0.45)'
                       }}
                     >
                       <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 via-transparent to-teal-500/5 opacity-50 pointer-events-none group-hover:opacity-75 transition-opacity" />
@@ -549,15 +546,15 @@ export default function Index() {
                 } else if (module.size === "wide") {
                   cardElement = (
                     <Card 
-                      className="relative overflow-hidden flex h-full flex-col border p-6 shadow-xl rounded-2xl transition-all duration-200 group text-left bg-[#0D2530] hover:border-teal-500 hover:shadow-[0_20px_60px_rgba(29,122,117,0.12)]"
+                      className="relative overflow-hidden flex h-full flex-col border p-6 shadow-xl rounded-2xl transition-all duration-200 group text-left bg-[brand-surface-alt] hover:border-teal-500 hover:shadow-[0_20px_60px_rgba(var(--brand-accent-rgb), 0.12)]"
                       style={{ 
-                        borderColor: 'rgba(29, 122, 117, 0.35)'
+                        borderColor: 'rgba(var(--brand-accent-rgb), 0.35)'
                       }}
                     >
                       <div 
                         className="absolute inset-0 opacity-10 pointer-events-none" 
                         style={{ 
-                          backgroundImage: 'radial-gradient(circle, rgba(29, 122, 117, 0.2) 1px, transparent 1px)', 
+                          backgroundImage: 'radial-gradient(circle, rgba(var(--brand-accent-rgb), 0.2) 1px, transparent 1px)', 
                           backgroundSize: '16px 16px' 
                         }} 
                       />
@@ -589,9 +586,9 @@ export default function Index() {
                 } else {
                   cardElement = (
                     <Card 
-                      className="relative overflow-hidden flex h-full flex-col border p-5 shadow-xl bg-[#091820] rounded-2xl transition-all duration-200 group text-left hover:border-teal-500 hover:shadow-[0_20px_60px_rgba(29,122,117,0.12)]"
+                      className="relative overflow-hidden flex h-full flex-col border p-5 shadow-xl bg-[brand-surface-card] rounded-2xl transition-all duration-200 group text-left hover:border-teal-500 hover:shadow-[0_20px_60px_rgba(var(--brand-accent-rgb), 0.12)]"
                       style={{ 
-                        borderColor: 'rgba(29, 122, 117, 0.15)'
+                        borderColor: 'rgba(var(--brand-accent-rgb), 0.15)'
                       }}
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -657,11 +654,11 @@ export default function Index() {
         {/* =========================================================================
             EVIDENCE AND REPORTING / AI ASSIST SECTION: Structured H2
             ========================================================================= */}
-        <section id="evidence-reporting" className="py-20 md:py-28 bg-[#0A1D25] border-b border-[#1D7A75]/10">
+        <section id="evidence-reporting" className="py-20 md:py-28 bg-[brand-surface] border-b border-[brand-accent]/10">
           <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
               <div className="lg:col-span-5">
-                <Badge variant="outline" className="mb-4 border-[#1D7A75]/40 bg-[#1D7A75]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
+                <Badge variant="outline" className="mb-4 border-[brand-accent]/40 bg-[brand-accent]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
                   {t.evidenceAndReporting.badge}
                 </Badge>
                 <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
@@ -676,7 +673,7 @@ export default function Index() {
                 {t.evidenceAndReporting.cards.map((item, idx) => (
                   <Card 
                     key={idx}
-                    className="border border-[#1D7A75]/20 bg-[#0D2530]/60 p-6 rounded-2xl shadow-xl hover:border-teal-500/40 transition-all duration-300"
+                    className="border border-[brand-accent]/20 bg-[brand-surface-alt]/60 p-6 rounded-2xl shadow-xl hover:border-teal-500/40 transition-all duration-300"
                   >
                     <h3 className="text-base font-extrabold text-slate-100 mb-3 flex items-center gap-2">
                       {idx === 0 ? <FolderSync className="h-4 w-4 text-teal-400" /> : <Sparkles className="h-4 w-4 text-teal-400" />}
@@ -695,17 +692,17 @@ export default function Index() {
         {/* =========================================================================
             TRUST DOCTRINE SECTION: Dark section with glass cards & teal checkmarks
             ========================================================================= */}
-          <section id="trust" className="bg-[#0D2530] py-20 text-white md:py-28 relative overflow-hidden border-b border-[#1D7A75]/10">
+          <section id="trust" className="bg-[brand-surface-alt] py-20 text-white md:py-28 relative overflow-hidden border-b border-[brand-accent]/10">
           <div 
             className="absolute inset-0 opacity-10 pointer-events-none" 
             style={{ 
-              backgroundImage: 'radial-gradient(circle, rgba(29, 122, 117, 0.25) 1px, transparent 1px)', 
+              backgroundImage: 'radial-gradient(circle, rgba(var(--brand-accent-rgb), 0.25) 1px, transparent 1px)', 
               backgroundSize: '24px 24px' 
             }} 
           />
           <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
             <div className="max-w-3xl">
-              <Badge variant="outline" className="mb-4 border-[#1D7A75]/40 bg-[#1D7A75]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
+              <Badge variant="outline" className="mb-4 border-[brand-accent]/40 bg-[brand-accent]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
                 {t.trust.badge}
               </Badge>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
@@ -716,7 +713,7 @@ export default function Index() {
               {t.trust.cards.map((card, idx) => (
                 <Card 
                   key={idx} 
-                  className="group relative overflow-hidden border border-white/5 bg-[#0A1D25]/40 p-6 text-white shadow-xl transition-all duration-300 hover:bg-[#0A1D25]/80 hover:border-[#1D7A75]/30 hover:-translate-y-1 rounded-2xl"
+                  className="group relative overflow-hidden border border-white/5 bg-[brand-surface]/40 p-6 text-white shadow-xl transition-all duration-300 hover:bg-[brand-surface]/80 hover:border-[brand-accent]/30 hover:-translate-y-1 rounded-2xl"
                 >
                   <CheckCircle2 className="h-5 w-5 text-teal-400 shrink-0" />
                   <h3 className="mt-4 font-bold text-sm sm:text-base text-slate-100 group-hover:text-teal-300 transition-colors duration-300">
@@ -734,17 +731,17 @@ export default function Index() {
         {/* =========================================================================
             90-DAY PLAN SECTION: Timeline visual, milestone indicator
             ========================================================================= */}
-        <section id="timeline-plan" className="py-20 md:py-28 bg-[#0A1D25] border-b border-[#1D7A75]/10">
+        <section id="timeline-plan" className="py-20 md:py-28 bg-[brand-surface] border-b border-[brand-accent]/10">
           <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-start">
               <div>
-                <Badge variant="outline" className="mb-4 border-[#1D7A75]/20 bg-[#1D7A75]/5 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
+                <Badge variant="outline" className="mb-4 border-[brand-accent]/20 bg-[brand-accent]/5 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
                   {t.timeline90.badge}
                 </Badge>
                 <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
                   {t.timeline90.heading}
                 </h2>
-                <Button asChild className="mt-6 bg-[#1D7A75] hover:bg-teal-700 text-white font-bold rounded-xl px-5 py-5 shadow-md shadow-teal-500/5 hover:-translate-y-0.5 transition-all">
+                <Button asChild className="mt-6 bg-[brand-accent] hover:bg-teal-700 text-white font-bold rounded-xl px-5 py-5 shadow-md shadow-teal-500/5 hover:-translate-y-0.5 transition-all">
                   <Link to="/dashboard/readiness">
                     {t.timeline90.cta}
                     <ArrowRight className="ml-1 h-4 w-4" />
@@ -755,9 +752,9 @@ export default function Index() {
                 {t.timeline90.steps.map((item, idx) => (
                   <Card 
                     key={idx} 
-                    className="group relative overflow-hidden border border-[#1D7A75]/20 bg-[#0D2530]/60 p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-teal-500/40 rounded-2xl"
+                    className="group relative overflow-hidden border border-[brand-accent]/20 bg-[brand-surface-alt]/60 p-6 shadow-sm transition-all duration-300 hover:-translate-y-1 hover:shadow-md hover:border-teal-500/40 rounded-2xl"
                   >
-                    <div className="absolute top-0 bottom-0 left-0 w-1 bg-[#1D7A75]" />
+                    <div className="absolute top-0 bottom-0 left-0 w-1 bg-[brand-accent]" />
                     <div className="flex items-center gap-3.5">
                       <div className="h-7 w-7 rounded-full bg-teal-500/10 border border-teal-500/25 flex items-center justify-center shrink-0">
                         <div className="h-2 w-2 rounded-full bg-teal-400 animate-pulse" />
@@ -781,11 +778,11 @@ export default function Index() {
         {/* =========================================================================
             FOUNDER AUTHORITY SECTION: Clean whitespace Notion card / Dark mode optimized
             ========================================================================= */}
-        <section id="founder" className="bg-[#0D2530] py-16 md:py-24 border-b border-[#1D7A75]/10">
+        <section id="founder" className="bg-[brand-surface-alt] py-16 md:py-24 border-b border-[brand-accent]/10">
           <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <Card className="border border-[#1D7A75]/20 p-8 shadow-sm md:p-12 bg-[#0A1D25]/80 rounded-3xl">
+            <Card className="border border-[brand-accent]/20 p-8 shadow-sm md:p-12 bg-[brand-surface]/80 rounded-3xl">
               <div className="max-w-4xl">
-                <Badge variant="outline" className="mb-4 border-[#1D7A75]/40 bg-[#1D7A75]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
+                <Badge variant="outline" className="mb-4 border-[brand-accent]/40 bg-[brand-accent]/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
                   {t.founder.badge}
                 </Badge>
                 <h2 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white leading-tight">
@@ -802,17 +799,17 @@ export default function Index() {
         {/* =========================================================================
             FINAL CTA SECTION: Dark navy bg with glowing dot grids & vibrant gradients
             ========================================================================= */}
-        <section className="py-20 md:py-28 bg-[#0A1D25]">
+        <section className="py-20 md:py-28 bg-[brand-surface]">
           <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <Card className="overflow-hidden border border-[#1D7A75]/20 bg-[#0D2530] p-8 md:p-14 text-white shadow-2xl rounded-3xl relative">
+            <Card className="overflow-hidden border border-[brand-accent]/20 bg-[brand-surface-alt] p-8 md:p-14 text-white shadow-2xl rounded-3xl relative">
               <div 
                 className="absolute inset-0 opacity-20 pointer-events-none" 
                 style={{ 
-                  backgroundImage: 'radial-gradient(circle, rgba(29, 122, 117, 0.2) 1.5px, transparent 1.5px)', 
+                  backgroundImage: 'radial-gradient(circle, rgba(var(--brand-accent-rgb), 0.2) 1.5px, transparent 1.5px)', 
                   backgroundSize: '24px 24px' 
                 }} 
               />
-              <div aria-hidden className="absolute right-0 top-0 h-[300px] w-[300px] rounded-full bg-[#1D7A75]/15 blur-[80px] pointer-events-none" />
+              <div aria-hidden className="absolute right-0 top-0 h-[300px] w-[300px] rounded-full bg-[brand-accent]/15 blur-[80px] pointer-events-none" />
 
               <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between relative z-10">
                 <div className="max-w-2xl">
@@ -825,10 +822,10 @@ export default function Index() {
                   </p>
                 </div>
                 <div className="flex flex-col gap-3 sm:flex-row md:shrink-0">
-                  <Button asChild size="lg" className="bg-gradient-to-r from-teal-500 to-[#1D7A75] text-white font-bold hover:from-teal-600 hover:to-teal-700 transition-all duration-300 hover:-translate-y-0.5 rounded-xl px-6 py-6 shadow-lg shadow-teal-500/15">
+                  <Button asChild size="lg" className="bg-gradient-to-r from-teal-500 to-[brand-accent] text-white font-bold hover:from-teal-600 hover:to-teal-700 transition-all duration-300 hover:-translate-y-0.5 rounded-xl px-6 py-6 shadow-lg shadow-teal-500/15">
                     <Link to="/dashboard/readiness">{t.finalCta.ctaPrimary}</Link>
                   </Button>
-                  <Button asChild size="lg" className="border border-[#1D7A75]/35 bg-transparent text-white hover:bg-white/5 transition-all duration-300 hover:-translate-y-0.5 rounded-xl px-6 py-6">
+                  <Button asChild size="lg" className="border border-[brand-accent]/35 bg-transparent text-white hover:bg-white/5 transition-all duration-300 hover:-translate-y-0.5 rounded-xl px-6 py-6">
                     <Link to="/dashboard/grantfinder">{t.finalCta.ctaSecondary}</Link>
                   </Button>
                 </div>

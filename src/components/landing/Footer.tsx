@@ -22,7 +22,7 @@ export function Footer({ lang = 'id' }: { lang?: 'id' | 'en' }) {
   const t = homepageTranslations[lang];
 
   return (
-    <footer className="border-t border-white/10 bg-[#0A1D25] text-white">
+    <footer className="border-t border-white/10 bg-[brand-surface] text-white">
       <div className="container max-w-7xl mx-auto px-4 py-12 sm:px-6 lg:px-8">
         <div className="grid gap-10 md:grid-cols-3">
           <div>

@@ -13,7 +13,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
   }
 
   // Fail loud in dev — this is a misconfiguration, not a runtime bug.
-  // eslint-disable-next-line no-console
   console.error(message);
 }
 

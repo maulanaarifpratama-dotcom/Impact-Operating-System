@@ -11,19 +11,19 @@ export function Logo({ className, variant = 'default' }: { className?: string; v
           isLight ? 'bg-white/5 text-white border border-white/10' : 'bg-muted/30 text-foreground border border-border',
         )}
       >
-        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-5 w-5">
+        <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" role="img" aria-label="Logo Impactory">
           <defs>
             <linearGradient id="logo-teal-grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#155F66" />
-              <stop offset="100%" stopColor="#0F3D4F" />
+              <stop offset="0%" stopColor="brand-border" />
+              <stop offset="100%" stopColor="brand-active" />
             </linearGradient>
             <linearGradient id="logo-amber-grad" x1="0" y1="0" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="#F59E0B" />
+              <stop offset="0%" stopColor="brand-amber" />
               <stop offset="100%" stopColor="#D97706" />
             </linearGradient>
           </defs>
           {/* Baseline/Track */}
-          <rect x="6" y="8" width="3" height="16" rx="1.5" fill={isLight ? '#ffffff' : '#155F66'} opacity={isLight ? 0.15 : 0.25} />
+          <rect x="6" y="8" width="3" height="16" rx="1.5" fill={isLight ? '#ffffff' : 'brand-border'} opacity={isLight ? 0.15 : 0.25} />
           {/* Top block */}
           <rect x="12" y="6" width="14" height="3.5" rx="1.5" fill="url(#logo-amber-grad)" />
           {/* Vertical pillar */}

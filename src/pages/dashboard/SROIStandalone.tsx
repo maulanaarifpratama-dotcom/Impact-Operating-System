@@ -60,12 +60,12 @@ export default function SROIStandalone() {
 
   // --- Core State ---
   const [mode, setMode] = useState<'simple' | 'professional'>('simple');
-  const [programName, setProgramName] = useState<string>('Program Pemberdayaan Masyarakat');
-  const [sector, setSector] = useState<string>('Pendidikan');
+  const [programName, setProgramName] = useState<string>('');
+  const [sector, setSector] = useState<string>('');
   const [location, setLocation] = useState<string>('');
-  const [totalInvestmentIdr, setTotalInvestmentIdr] = useState<number>(100000000); // 100jt default
-  const [durationYears, setDurationYears] = useState<number>(3); // 3 years default
-  const [beneficiaryCount, setBeneficiaryCount] = useState<number>(100);
+  const [totalInvestmentIdr, setTotalInvestmentIdr] = useState<number>(0);
+  const [durationYears, setDurationYears] = useState<number>(1);
+  const [beneficiaryCount, setBeneficiaryCount] = useState<number>(0);
   const [discountRate, setDiscountRate] = useState<number>(0.035); // 3.5% default
 
   // LFA Projects list for optional connection
@@ -73,24 +73,8 @@ export default function SROIStandalone() {
   const [selectedProjectId, setSelectedProjectId] = useState<string>('manual');
   const [loadingProjects, setLoadingProjects] = useState<boolean>(false);
 
-  // Outcomes array
-  const [outcomes, setOutcomes] = useState<StandaloneOutcome[]>([
-    {
-      id: 'outcome-1',
-      outcome_name: 'Peningkatan literasi dasar anak usia dini',
-      quantity: 25,
-      unit: 'anak',
-      proxy_value_idr: 4200000,
-      proxy_source: 'Kementerian Pendidikan & Studi Dampak NGO',
-      proxy_citation: 'Estimasi biaya les/bimbingan belajar membaca intensif non-formal lokal per tahun.',
-      proxy_category: 'Pendidikan',
-      duration_years: 3,
-      attribution_pct: 80,
-      deadweight_pct: 20,
-      displacement_pct: 0,
-      dropoff_pct_per_year: 0
-    }
-  ]);
+  // Outcomes array (starts empty)
+  const [outcomes, setOutcomes] = useState<StandaloneOutcome[]>([]);
 
   // Fetch projects on load
   useEffect(() => {
@@ -338,7 +322,7 @@ export default function SROIStandalone() {
       // Map ratio 0-1 to deg -90 to -45
       needleDeg = -90 + (ratio * 45);
     } else if (ratio >= 1 && ratio < 2) {
-      color = '#F59E0B'; // Orange
+      color = 'brand-amber'; // Orange
       label = 'Dampak Cukup';
       minMax = 'Rasio 1.0 - 2.0';
       // Map ratio 1-2 to deg -45 to 0

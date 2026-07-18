@@ -44,7 +44,7 @@ export async function aiGrantSearch(input: AIGrantSearchInput): Promise<AIGrantS
           const cloned = error.context.clone();
           const errBody = await cloned.json();
           if (errBody?.error) errorMessage = errBody.error;
-        } catch (e) {
+        } catch (_e) {
           // ignore
         }
       }

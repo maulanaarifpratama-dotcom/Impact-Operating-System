@@ -2,7 +2,7 @@
 // High-fidelity guided onboarding flow for grassroots CSOs and professional NGOs.
 // Includes a premium 3-step conversation overlay and an interactive mobile-safe spotlight tour.
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
@@ -21,14 +21,11 @@ import {
 import {
   Sparkles,
   Target,
-  BarChart3,
-  Compass,
   X,
   Loader2,
   CheckCircle2,
   Building,
   Briefcase,
-  HelpCircle,
   ArrowRight
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';

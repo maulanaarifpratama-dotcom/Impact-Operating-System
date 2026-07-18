@@ -5,7 +5,7 @@ import { FileText, Calendar, Mail } from 'lucide-react';
 
 export default function TermsPage() {
   return (
-    <div className="min-h-screen bg-[#0A1D25] text-white selection:bg-teal-500 selection:text-white flex flex-col">
+    <div className="min-h-screen bg-[brand-surface] text-white selection:bg-teal-500 selection:text-white flex flex-col">
       <Navbar />
 
       {/* Main Content Area */}
@@ -32,7 +32,7 @@ export default function TermsPage() {
           </div>
 
           {/* Legal Document Paper Card */}
-          <div className="bg-[#0E2833]/40 border border-white/5 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8 text-sm text-slate-300 leading-relaxed">
+          <div className="bg-[brand-surface-mid]/40 border border-white/5 rounded-3xl p-6 sm:p-10 shadow-2xl space-y-8 text-sm text-slate-300 leading-relaxed">
             
             <p className="italic">
               Selamat datang di Impactory. Harap membaca Syarat dan Ketentuan Layanan ("Ketentuan") ini secara seksama sebelum mengakses atau menggunakan platform kami. Dengan mendaftar, mengakses, atau menggunakan layanan Impactory, Anda menyatakan bahwa Anda telah membaca, memahami, dan menyetujui untuk terikat oleh seluruh Ketentuan ini. Jika Anda tidak menyetujui Ketentuan ini, Anda tidak diperkenankan untuk menggunakan platform kami.

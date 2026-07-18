@@ -624,7 +624,7 @@ Tolong bantu saya:
         }
       }
     } catch (err) {
-      console.error('[Impactory AI] Error streaming chat response:', err);
+      if (import.meta.env.DEV) console.error('[ResourceAccessTracker] AI streaming error:', err);
       const errorMsg = err instanceof Error ? err.message : 'Kesalahan Server';
       toast.error(`Koneksi ke Impactory AI gagal: ${errorMsg}`);
       setChatsByPlatform(prev => {
@@ -835,7 +835,7 @@ Tolong bantu saya:
         {/* Decorative Accent Strip */}
         <div className={cn(
           "absolute top-0 left-0 h-[3px] w-full",
-          isGateway ? "bg-gradient-to-r from-amber-400 to-amber-600" : "bg-gradient-to-r from-accent to-[#155F66]"
+          isGateway ? "bg-gradient-to-r from-amber-400 to-amber-600" : "bg-gradient-to-r from-accent to-[brand-border]"
         )} />
 
         {/* TOP ROW BADGES */}
@@ -1594,7 +1594,7 @@ Tolong bantu saya:
               </p>
               <div className="mt-1 h-1.5 w-28 overflow-hidden rounded-full bg-muted">
                 <div 
-                  className="h-full bg-gradient-to-r from-accent to-[#155F66] transition-all duration-500" 
+                  className="h-full bg-gradient-to-r from-accent to-[brand-border] transition-all duration-500" 
                   style={{ width: `${(stats.approved / stats.total) * 100}%` }}
                 />
               </div>

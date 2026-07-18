@@ -469,7 +469,7 @@ export default function ReadinessScorecard() {
       void refetchScores();
       toast.success('Skor berhasil disimpan');
     } catch (err) {
-      console.error('[Impactory] Error:', err);
+      if (import.meta.env.DEV) console.error('[ReadinessScorecard] Save error:', err);
       toast.error('Gagal menyimpan skor: ' + ((err as Error)?.message ?? 'Silakan coba lagi.'));
     }
   };
@@ -486,7 +486,7 @@ export default function ReadinessScorecard() {
       void refetchScores();
       toast.success('Baseline berhasil di-reset');
     } catch (err) {
-      console.error('[Impactory] Error:', err);
+      if (import.meta.env.DEV) console.error('[ReadinessScorecard] Reset error:', err);
       toast.error('Gagal me-reset baseline: ' + ((err as Error)?.message ?? 'Silakan coba lagi.'));
     }
   };
@@ -726,7 +726,7 @@ export default function ReadinessScorecard() {
                                     className={cn(
                                       'flex-1 md:flex-initial flex items-center justify-center h-10 min-w-[2.75rem] px-2 text-xs font-bold transition-all',
                                       value === score
-                                        ? 'bg-[#155F66] text-white rounded-md shadow-sm font-extrabold'
+                                        ? 'bg-[brand-border] text-white rounded-md shadow-sm font-extrabold'
                                         : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                                     )}
                                     aria-pressed={value === score}
@@ -747,7 +747,7 @@ export default function ReadinessScorecard() {
 
             <aside className="space-y-5 lg:sticky lg:top-20 lg:self-start no-print">
               {/* Narrative Summary Card */}
-              <Card className="p-5 shadow-card border-[#155F66]/30 bg-gradient-to-b from-[#0F3D4F]/5 to-transparent relative overflow-hidden">
+              <Card className="p-5 shadow-card border-[brand-border]/30 bg-gradient-to-b from-[brand-active]/5 to-transparent relative overflow-hidden">
                 <div className="absolute top-0 right-0 h-12 w-12 bg-accent-soft text-accent/10 -mr-3 -mt-3 transform rotate-12 pointer-events-none">
                   <Sparkles className="h-12 w-12 animate-pulse" />
                 </div>
@@ -929,7 +929,7 @@ export default function ReadinessScorecard() {
                                     className={cn(
                                       "h-11 rounded-lg border text-xs font-extrabold flex flex-col items-center justify-center gap-0.5 transition-all shadow-sm focus:ring-1 focus:ring-accent",
                                       isSelected
-                                        ? "bg-[#155F66] text-white border-[#155F66] ring-1 ring-[#155F66]/30 font-black scale-[1.02]"
+                                        ? "bg-[brand-border] text-white border-[brand-border] ring-1 ring-[brand-border]/30 font-black scale-[1.02]"
                                         : "border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground"
                                     )}
                                     aria-pressed={isSelected}
@@ -997,8 +997,8 @@ export default function ReadinessScorecard() {
                         className="absolute flex flex-col items-center -translate-x-1/2 transition-all duration-500 ease-out"
                         style={{ left: `${Math.max(3, Math.min(97, ((totalScoreAssessment - 5) / 20) * 100))}%` }}
                       >
-                        <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] border-b-[#0F3D4F] dark:border-b-white" />
-                        <span className="text-[9px] font-black bg-[#0F3D4F] text-white px-2 py-0.5 rounded mt-1 shadow-sm whitespace-nowrap dark:bg-white dark:text-[#0F3D4F]">
+                        <div className="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] border-b-[brand-active] dark:border-b-white" />
+                        <span className="text-[9px] font-black bg-[brand-active] text-white px-2 py-0.5 rounded mt-1 shadow-sm whitespace-nowrap dark:bg-white dark:text-[brand-active]">
                           Skor: {totalScoreAssessment}
                         </span>
                       </div>

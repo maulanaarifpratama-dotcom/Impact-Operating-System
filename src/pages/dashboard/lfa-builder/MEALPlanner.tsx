@@ -731,7 +731,7 @@ export default function MEALPlanner({
       if (error) throw error;
       setAiSuggestResult(data);
     } catch (err: any) {
-      console.error(err);
+      if (import.meta.env.DEV) console.error('[MEALPlanner] AI suggestion failed:', err);
       toast({
         title: 'Asisten AI Gagal',
         description: err.message || 'Gagal memanggil asisten AI. Silakan coba beberapa saat lagi.',
@@ -820,7 +820,7 @@ export default function MEALPlanner({
       });
 
     } catch (err: any) {
-      console.error(err);
+      if (import.meta.env.DEV) console.error('[MEALPlanner] Learning questions failed:', err);
       toast({
         title: 'Gagal membuat learning questions',
         description: err.message,
@@ -852,7 +852,7 @@ export default function MEALPlanner({
       if (error) throw error;
       setAiCompletenessResult(data);
     } catch (err: any) {
-      console.error(err);
+      if (import.meta.env.DEV) console.error('[MEALPlanner] Completeness audit failed:', err);
       toast({
         title: 'Gagal menjalankan audit kelengkapan',
         description: err.message,

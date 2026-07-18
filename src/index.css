@@ -348,6 +348,14 @@
   animation: floatDelayed 5s ease-in-out infinite;
 }
 
+/* Brand color RGB values for inline rgba() use */
+:root {
+  --brand-accent-rgb: 29, 122, 117;
+}
+.dark {
+  --brand-accent-rgb: 29, 122, 117;
+}
+
 /* Subtle background atmosphere keyframes and utilities */
 @keyframes pulseGlowSubtle {
   0%, 100% {

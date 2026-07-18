@@ -155,8 +155,30 @@ export default function EROIStandalone() {
     };
   }, [tableData]);
 
-  // Loading state
   const globalLoading = isProjectsLoading || isTableLoading;
+
+  if (globalLoading && !tableData) {
+    return (
+      <div className="container mx-auto p-4 md:p-6 space-y-6 max-w-7xl">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-white dark:bg-slate-950 p-6 rounded-2xl border shadow-elegant animate-pulse">
+          <div className="flex items-center gap-3">
+            <div className="h-12 w-12 rounded-xl bg-slate-200 dark:bg-slate-800" />
+            <div className="space-y-2">
+              <div className="h-5 w-48 bg-slate-200 dark:bg-slate-800 rounded" />
+              <div className="h-3 w-72 bg-slate-200 dark:bg-slate-800 rounded" />
+            </div>
+          </div>
+          <div className="h-8 w-40 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-pulse">
+          {[1,2,3,4].map(i => (
+            <div key={i} className="h-32 bg-slate-100 dark:bg-slate-900 rounded-2xl border" />
+          ))}
+        </div>
+        <div className="h-64 bg-slate-100 dark:bg-slate-900 rounded-2xl border animate-pulse" />
+      </div>
+    );
+  }
 
   return (
     <div id="eroi-standalone-root" data-testid="eroi-standalone-root" className="container mx-auto p-4 md:p-6 space-y-6 max-w-7xl">

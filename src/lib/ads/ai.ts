@@ -43,7 +43,7 @@ export async function generateAds(brief: AdsBrief): Promise<AdsResult> {
           const cloned = error.context.clone();
           const errBody = await cloned.json();
           if (errBody?.error) errorMessage = errBody.error;
-        } catch (e) {
+        } catch (_e) {
           // ignore
         }
       }

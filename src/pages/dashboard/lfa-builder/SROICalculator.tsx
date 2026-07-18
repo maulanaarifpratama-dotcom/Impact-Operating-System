@@ -918,7 +918,7 @@ export default function SROICalculator({
     if (!printWindow) return;
 
     const isSimple = config.mode === 'simple';
-    const ratioColor = config.sroi_ratio < 1 ? '#EF4444' : config.sroi_ratio <= 2 ? '#F59E0B' : config.sroi_ratio <= 4 ? '#10B981' : '#3B82F6';
+    const ratioColor = config.sroi_ratio < 1 ? '#EF4444' : config.sroi_ratio <= 2 ? 'brand-amber' : config.sroi_ratio <= 4 ? '#10B981' : '#3B82F6';
 
     const topOutcomesMarkup = [...(combinedOutcomes ?? [])]
       .sort((a, b) => (b?.present_value_idr ?? 0) - (a?.present_value_idr ?? 0))
@@ -1050,7 +1050,7 @@ export default function SROICalculator({
             }
             .disclaimer {
               background: #FFFBEB;
-              border-left: 4px solid #F59E0B;
+              border-left: 4px solid brand-amber;
               padding: 15px;
               font-size: 11px;
               color: #78350F;
@@ -1186,7 +1186,7 @@ export default function SROICalculator({
       // Map ratio 0-1 to deg -90 to -45
       needleDeg = -90 + (ratio * 45);
     } else if (ratio >= 1 && ratio <= 2) {
-      color = '#F59E0B'; // Yellow
+      color = 'brand-amber'; // Yellow
       label = 'Dampak Sehat';
       minMax = 'Rasio 1.0 - 2.0';
       // Map ratio 1-2 to deg -45 to 0
@@ -1258,7 +1258,7 @@ export default function SROICalculator({
       .filter(d => d.value > 0);
   };
 
-  const CHART_COLORS = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
+  const CHART_COLORS = ['#3B82F6', '#10B981', 'brand-amber', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
 
   if (loading) {
     return (
@@ -1730,7 +1730,7 @@ export default function SROICalculator({
                     {/* Red segment: 0 - 25% (angle -90 to -45) */}
                     <path d="M 10 50 A 40 40 0 0 1 21.7 21.7 L 50 50 Z" fill="#EF4444" opacity="0.8"/>
                     {/* Yellow segment: 25% - 50% (angle -45 to 0) */}
-                    <path d="M 21.7 21.7 A 40 40 0 0 1 50 10 L 50 50 Z" fill="#F59E0B" opacity="0.8"/>
+                    <path d="M 21.7 21.7 A 40 40 0 0 1 50 10 L 50 50 Z" fill="brand-amber" opacity="0.8"/>
                     {/* Green segment: 50% - 75% (angle 0 to 45) */}
                     <path d="M 50 10 A 40 40 0 0 1 78.3 21.7 L 50 50 Z" fill="#10B981" opacity="0.8"/>
                     {/* Blue segment: 75% - 100% (angle 45 to 90) */}
