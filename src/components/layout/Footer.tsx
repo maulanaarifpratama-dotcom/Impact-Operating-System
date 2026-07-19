@@ -14,7 +14,7 @@ export function Footer() {
           {/* Brand Column */}
           <div className="col-span-2 md:col-span-4 space-y-4">
             <div className="flex items-center gap-2">
-              <Logo className="h-8 w-auto text-teal-400" />
+              <Logo variant="light" className="h-8 w-auto text-white" />
             </div>
             <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
               Sistem manajemen program terlengkap dan pertama di Indonesia yang didedikasikan sepenuhnya untuk mengoptimalkan operasional dan akuntabilitas NGO.
