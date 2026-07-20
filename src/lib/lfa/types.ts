@@ -132,13 +132,10 @@ export type AdapterFindingCode =
   | 'CROSS_PROJECT_PARENT'
   | 'CROSS_TENANT_PARENT'
   | 'SKELETON_NOT_CURRENT'
-  | 'SKELETON_COUNT_MISMATCH'
-  | 'SOURCE_CORRELATION_UNRESOLVED'
   | 'UNUSED_SKELETON_OUTCOME'
   | 'SELF_REFERENCING_PARENT';
 
 export type AdapterReviewActionCode =
-  | 'REVIEW_BROKEN_SOURCE_LINK'
   | 'REVIEW_DUPLICATE_GOAL'
   | 'REVIEW_DUPLICATE_PURPOSE'
   | 'REVIEW_AMBIGUOUS_RESULT'
@@ -157,9 +154,9 @@ export interface AdapterEvidence {
 }
 
 export interface CanonicalNodeView {
-  readonly viewNodeId: string; // deterministically formatted raw:<rawEntryId>
-  readonly rawEntryId: string;
-  readonly sourceExternalId?: string;
+  readonly viewNodeId: string; // raw-backed: raw:<rawEntryId>; skeleton-only: sk:<sourceNodeId>
+  readonly rawEntryId: string | null; // raw-backed: raw-entry ID; skeleton-only: null
+  readonly sourceExternalId?: string | null; // skeleton source-node ID when available; null when no external structural source exists
   readonly sourceCorrelationStatus: SourceCorrelationStatus;
   readonly declaredStorageLevel: 'goal' | 'purpose' | 'output' | 'activity';
   readonly interpretedNodeType: InterpretedNodeType;

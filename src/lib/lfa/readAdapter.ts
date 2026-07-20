@@ -586,7 +586,7 @@ export function mapToCanonicalLfaView(
 
         unusedOutcomes.push({
           viewNodeId: `sk:${skOut.sourceNodeId}`,
-          rawEntryId: '',
+          rawEntryId: null,
           sourceExternalId: skOut.sourceNodeId,
           sourceCorrelationStatus: 'CONFIRMED_STRUCTURAL',
           declaredStorageLevel: 'purpose',
@@ -863,8 +863,6 @@ export function mapToCanonicalLfaView(
       case 'SKELETON_NOT_CURRENT':
       case 'CROSS_PROJECT_PARENT':
       case 'CROSS_TENANT_PARENT':
-      case 'SKELETON_COUNT_MISMATCH':
-      case 'SOURCE_CORRELATION_UNRESOLVED':
         return null;
 
       default: {

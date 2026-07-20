@@ -915,9 +915,7 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
       grantLinkEvidence: mockGrantLinkResolved
     });
 
-    // Inferred outcomes without skeleton correlation should trigger AMBIGUOUS and SOURCE_CORRELATION_UNRESOLVED
     expect(res.presentationMode).toBe('AMBIGUOUS');
-    expect(res.findings.some(f => f.code === 'SOURCE_CORRELATION_UNRESOLVED')).toBe(false); // Wait! Let's check: finding code should be SOURCE_CORRELATION_UNRESOLVED when skeleton is missing but outcomes are inferred. Oh, let's verify if mapToCanonicalLfaView adds it.
   });
 
   // 7. Fixture childless additional Purpose without Skeleton
@@ -2645,5 +2643,133 @@ describe('Phase 2C1 H5 — Review Queue Scope and Exhaustiveness', () => {
     expect(first.reviewQueue.map((r) => r.scopeId)).toEqual(second.reviewQueue.map((r) => r.scopeId));
     expect(first.reviewQueue.map((r) => r.createdAt)).toEqual(second.reviewQueue.map((r) => r.createdAt));
     expect(first.reviewQueue.map((r) => r.findingId)).toEqual(second.reviewQueue.map((r) => r.findingId));
+  });
+});
+
+describe('Phase 2C1 H6 — Dead Contract and Synthetic Identity Cleanup', () => {
+  const H6_PROJECT: RawLfaProject = {
+    id: 'h6-project',
+    org_id: 'h6-org',
+    name: 'H6 Test Project',
+    created_at: '2026-07-20T12:00:00Z'
+  };
+
+  const H6_DOC_UUID = '12121212-1212-4212-8212-121212121212';
+  const H6_OUTCOME_SRC_A = '13131313-1313-4313-8313-131313131313';
+  const H6_OUTCOME_SRC_B = '14141414-1414-4414-8414-141414141414';
+  const H6_GOAL_RAW = '15151515-1515-4515-8515-151515151515';
+  const H6_PURPOSE_RAW = '16161616-1616-4616-8616-161616161616';
+  const H6_OUTPUT_RAW = '17171717-1717-4717-8717-171717171717';
+  const H6_PARENT_PURPOSE_RAW = '18181818-1818-4818-8818-181818181818';
+
+  function makeH6Skeleton(): ValidatedStructuralSkeletonEvidence {
+    return {
+      documentId: H6_DOC_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [
+        {
+          sourceNodeId: H6_OUTCOME_SRC_A,
+          declaredNodeType: 'outcome',
+          sequencePosition: 2,
+          correlatedRawEntryId: null
+        },
+        {
+          sourceNodeId: H6_OUTCOME_SRC_B,
+          declaredNodeType: 'outcome',
+          sequencePosition: 3,
+          correlatedRawEntryId: null
+        }
+      ],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+  }
+
+  test('H6 Group A: raw-backed nodes keep raw identity contract for goal and output', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: H6_GOAL_RAW, project_id: H6_PROJECT.id, org_id: H6_PROJECT.org_id, level: 'goal' },
+      { id: H6_PURPOSE_RAW, project_id: H6_PROJECT.id, org_id: H6_PROJECT.org_id, level: 'purpose', sequence: 1 },
+      { id: H6_OUTPUT_RAW, project_id: H6_PROJECT.id, org_id: H6_PROJECT.org_id, level: 'output', parent_id: H6_PURPOSE_RAW }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H6_PROJECT,
+      rawEntries,
+      grantLinkEvidence: { resolves: true }
+    });
+
+    expect(res.goal).not.toBeNull();
+    expect(res.goal!.rawEntryId).toBe(H6_GOAL_RAW);
+    expect(res.goal!.rawEntryId).not.toBeNull();
+    expect(res.goal!.viewNodeId).toBe(`raw:${H6_GOAL_RAW}`);
+
+    const outputNode = res.outputs.find((n) => n.rawEntryId === H6_OUTPUT_RAW);
+    expect(outputNode).toBeDefined();
+    expect(outputNode!.rawEntryId).toBe(H6_OUTPUT_RAW);
+    expect(outputNode!.rawEntryId).not.toBeNull();
+    expect(outputNode!.viewNodeId).toBe(`raw:${H6_OUTPUT_RAW}`);
+  });
+
+  test('H6 Group B/C/D/F: skeleton-only outcomes use null rawEntryId and preserve review/accounting determinism', () => {
+    const skeleton = makeH6Skeleton();
+    const rawEntries: RawLfaEntry[] = [
+      { id: H6_GOAL_RAW, project_id: H6_PROJECT.id, org_id: H6_PROJECT.org_id, level: 'goal' },
+      { id: H6_PARENT_PURPOSE_RAW, project_id: H6_PROJECT.id, org_id: H6_PROJECT.org_id, level: 'purpose', sequence: 1 }
+    ];
+
+    const input = {
+      rawProject: H6_PROJECT,
+      rawEntries,
+      grantLinkEvidence: { resolves: true },
+      skeletonEvidence: skeleton
+    };
+
+    const first = mapToCanonicalLfaView(input);
+    const second = mapToCanonicalLfaView(input);
+
+    expect(first.unusedOutcomes).toHaveLength(2);
+    const sourceIds = new Set<string>();
+    const viewIds = new Set<string>();
+
+    for (const node of first.unusedOutcomes) {
+      expect(node.rawEntryId).toBeNull();
+      expect(node.sourceExternalId).not.toBeNull();
+      expect(node.viewNodeId).toBe(`sk:${node.sourceExternalId}`);
+      expect(node.viewNodeId.startsWith('raw:')).toBe(false);
+
+      sourceIds.add(node.sourceExternalId!);
+      viewIds.add(node.viewNodeId);
+    }
+
+    expect(sourceIds.size).toBe(2);
+    expect(viewIds.size).toBe(2);
+    expect(first.unusedOutcomes.some((n) => n.rawEntryId === '' as unknown as null)).toBe(false);
+
+    expect(first.dispositionMap[H6_OUTCOME_SRC_A]).toBeUndefined();
+    expect(first.dispositionMap[H6_OUTCOME_SRC_B]).toBeUndefined();
+    expect(first.dispositionMap['']).toBeUndefined();
+    expect(Object.keys(first.dispositionMap).length).toBe(rawEntries.length);
+
+    const finding = first.findings.find((f) => f.code === 'UNUSED_SKELETON_OUTCOME' && f.rawEntryIds.includes(H6_OUTCOME_SRC_A));
+    expect(finding).toBeDefined();
+
+    const review = first.reviewQueue.find((r) => r.findingId === finding!.findingId);
+    expect(review).toBeDefined();
+    expect(review!.scopeType).toBe('outcome');
+    expect(review!.scopeId).toBe(H6_OUTCOME_SRC_A);
+    expect(review!.scopeId).not.toBe('');
+    expect(review!.classification).toBe('UNUSED_SKELETON_OUTCOME');
+    expect(review!.recommendedUserAction).toBe('REVIEW_UNUSED_OUTCOME');
+    expect(review!.confidence).toBe('HIGH');
+    expect(review!.evidenceTier).toBe('A');
+
+    expect(first.unusedOutcomes).toEqual(second.unusedOutcomes);
+    expect(first.findings).toEqual(second.findings);
+    expect(first.reviewQueue).toEqual(second.reviewQueue);
   });
 });
