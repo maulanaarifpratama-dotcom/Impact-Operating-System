@@ -3,7 +3,8 @@ import { mapToCanonicalLfaView } from './readAdapter';
 import {
   RawLfaProject,
   RawLfaEntry,
-  ValidatedStructuralSkeletonEvidence
+  ValidatedStructuralSkeletonEvidence,
+  StructuralSkeletonNode
 } from './types';
 
 const mockProject: RawLfaProject = {
@@ -22,6 +23,18 @@ const mockGrantLinkResolved = {
 const mockGrantLinkUnresolved = {
   resolves: false
 };
+
+const DOCUMENT_UUID = '00000000-0000-4000-8000-000000000001';
+const GOAL_SOURCE_UUID = '11111111-1111-4111-8111-111111111111';
+const PURPOSE_SOURCE_UUID = '22222222-2222-4222-8222-222222222222';
+const OUTCOME_SOURCE_UUID_1 = '33333333-3333-4333-8333-333333333333';
+const OUTPUT_SOURCE_UUID_1 = '44444444-4444-4444-8444-444444444444';
+const ACTIVITY_SOURCE_UUID_1 = '55555555-5555-4555-8555-555555555555';
+const RAW_GOAL_UUID = '66666666-6666-4666-8666-666666666666';
+const RAW_PURPOSE_UUID = '77777777-7777-4777-8777-777777777777';
+const RAW_OUTCOME_UUID_1 = '88888888-8888-4888-8888-888888888888';
+const RAW_OUTPUT_UUID_1 = '99999999-9999-4999-8999-999999999999';
+const RAW_ACTIVITY_UUID_1 = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 
 describe('Legacy LFA Read-Adapter Core Tests', () => {
   // 1. Fixture empty draft
@@ -45,7 +58,7 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
 
   test('H2A malformed skeleton with empty raw entries throws', () => {
     const malformedEvidence = {
-      documentId: 'sk-doc-123',
+      documentId: DOCUMENT_UUID,
       documentVersion: 1,
       isCurrent: true,
       validationStatus: 'INVALID',
@@ -89,7 +102,7 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
 
   test('H2A valid skeleton with empty raw entries still returns EMPTY', () => {
     const validSkeleton: ValidatedStructuralSkeletonEvidence = {
-      documentId: 'sk-doc-123',
+      documentId: DOCUMENT_UUID,
       documentVersion: 1,
       isCurrent: true,
       validationStatus: 'VALIDATED_STRUCTURE',
@@ -143,7 +156,7 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
 
   test('H2A duplicate raw ID error precedence remains unchanged with malformed skeleton evidence', () => {
     const malformedEvidence = {
-      documentId: 'sk-doc-123',
+      documentId: DOCUMENT_UUID,
       documentVersion: 1,
       isCurrent: true,
       validationStatus: 'INVALID',
@@ -158,12 +171,522 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
     expect(() => mapToCanonicalLfaView({
       rawProject: mockProject,
       rawEntries: [
-        { id: 'raw-goal-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
-        { id: 'raw-goal-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' }
+        { id: RAW_GOAL_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
+        { id: RAW_GOAL_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' }
       ],
       grantLinkEvidence: mockGrantLinkResolved,
       skeletonEvidence: malformedEvidence
     })).toThrow('Duplicate rawEntryId detected in inputs');
+  });
+
+  test('H2B rejects non-object skeleton evidence', () => {
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: null
+    })).not.toThrow();
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: 'bad' as unknown as ValidatedStructuralSkeletonEvidence
+    })).toThrow(Error);
+  });
+
+  test('H2B rejects malformed node-level skeleton evidence', () => {
+    const malformedNodeEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: { sourceNodeId: 'not-a-uuid', declaredNodeType: 'goal', sequencePosition: 1 },
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [],
+      activityNodes: []
+    } as unknown as ValidatedStructuralSkeletonEvidence;
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: malformedNodeEvidence
+    })).toThrow(Error);
+  });
+
+  // H2B Coverage Group 1: Envelope Validation Edge Cases
+  test.each([
+    { field: 'documentVersion', badValue: {}, description: 'object' },
+    { field: 'documentVersion', badValue: true, description: 'boolean' },
+    { field: 'documentVersion', badValue: undefined, description: 'undefined' },
+    { field: 'documentVersion', badValue: NaN, description: 'NaN' },
+    { field: 'documentVersion', badValue: Infinity, description: 'Infinity' },
+    { field: 'isCurrent', badValue: 'true', description: 'string "true"' },
+    { field: 'isCurrent', badValue: 1, description: 'number 1' },
+    { field: 'correlationStatus', badValue: 'INVALID', description: 'invalid status' },
+    { field: 'correlationStatus', badValue: 'available', description: 'lowercase' },
+    { field: 'outcomeNodes', badValue: undefined, description: 'undefined property' },
+    { field: 'outputNodes', badValue: {}, description: 'object instead of array' },
+    { field: 'activityNodes', badValue: null, description: 'null' }
+  ])('H2B rejects invalid envelope: $field = $description', ({ field, badValue }) => {
+    const baseEvidence: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    const malformed = { ...baseEvidence, [field]: badValue } as unknown as ValidatedStructuralSkeletonEvidence;
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: malformed
+    })).toThrow(Error);
+  });
+
+  // H2B Coverage Group 2: Valid Correlation Status Acceptance
+  test.each([
+    { status: 'AVAILABLE' as const },
+    { status: 'PARTIAL' as const },
+    { status: 'UNAVAILABLE' as const }
+  ])('H2B accepts correlationStatus: $status with empty entries', ({ status }) => {
+    const skeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: status
+    };
+
+    const res = mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: skeleton
+    });
+
+    expect(res.presentationMode).toBe('EMPTY');
+    expect(res.structuralStatus).toBe('EMPTY');
+  });
+
+  test('H2B accepts PARTIAL status without authoritative elevation', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: RAW_GOAL_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
+      { id: RAW_PURPOSE_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 }
+    ];
+
+    const skeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: { sourceNodeId: GOAL_SOURCE_UUID, declaredNodeType: 'goal', sequencePosition: 1, correlatedRawEntryId: RAW_GOAL_UUID },
+      purposeNode: { sourceNodeId: PURPOSE_SOURCE_UUID, declaredNodeType: 'purpose', sequencePosition: 1, correlatedRawEntryId: RAW_PURPOSE_UUID },
+      outcomeNodes: [],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'PARTIAL'
+    };
+
+    const res = mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries,
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: skeleton
+    });
+
+    expect(res.goal?.sourceCorrelationStatus).not.toBe('CONFIRMED_STRUCTURAL');
+  });
+
+  test('H2B accepts UNAVAILABLE status without authoritative elevation', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: RAW_GOAL_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
+      { id: RAW_PURPOSE_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 }
+    ];
+
+    const skeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: { sourceNodeId: GOAL_SOURCE_UUID, declaredNodeType: 'goal', sequencePosition: 1, correlatedRawEntryId: RAW_GOAL_UUID },
+      purposeNode: { sourceNodeId: PURPOSE_SOURCE_UUID, declaredNodeType: 'purpose', sequencePosition: 1, correlatedRawEntryId: RAW_PURPOSE_UUID },
+      outcomeNodes: [],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'UNAVAILABLE'
+    };
+
+    const res = mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries,
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: skeleton
+    });
+
+    expect(res.purpose?.sourceCorrelationStatus).not.toBe('CONFIRMED_STRUCTURAL');
+  });
+
+  // H2B Coverage Group 3: Malformed Node Shape
+  test.each([
+    { collection: 'outcomeNodes', element: null, description: 'null element' },
+    { collection: 'outcomeNodes', element: {}, description: 'empty object' },
+    { collection: 'outcomeNodes', element: [], description: 'array element' },
+    { collection: 'outputNodes', element: null, description: 'null element' },
+    { collection: 'activityNodes', element: null, description: 'null element' }
+  ])('H2B rejects $collection with $description', ({ collection, element }) => {
+    const baseEvidence: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    const malformed = {
+      ...baseEvidence,
+      [collection]: [element]
+    } as unknown as ValidatedStructuralSkeletonEvidence;
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: malformed
+    })).toThrow(Error);
+  });
+
+  test.each([
+    { nodeName: 'outcomeNodes[0]', sourceNodeId: 'invalid', declaredNodeType: 'outcome' },
+    { nodeName: 'outputNodes[0]', sourceNodeId: 'not-uuid', declaredNodeType: 'output' },
+    { nodeName: 'activityNodes[0]', sourceNodeId: 'bad', declaredNodeType: 'activity' }
+  ])('H2B rejects $nodeName with invalid sourceNodeId', ({ nodeName, sourceNodeId, declaredNodeType }) => {
+    const node = { sourceNodeId, declaredNodeType: declaredNodeType as unknown as StructuralSkeletonNode['declaredNodeType'], sequencePosition: 1 };
+    const [collection] = nodeName.split('[');
+
+    const malformed = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: collection === 'outcomeNodes' ? [node as unknown as StructuralSkeletonNode] : [],
+      outputNodes: collection === 'outputNodes' ? [node as unknown as StructuralSkeletonNode] : [],
+      activityNodes: collection === 'activityNodes' ? [node as unknown as StructuralSkeletonNode] : [],
+      correlationStatus: 'AVAILABLE'
+    } as unknown as ValidatedStructuralSkeletonEvidence;
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: malformed
+    })).toThrow(Error);
+  });
+
+  test.each([
+    { nodeName: 'outcomeNodes[0]', badType: 'output', goodSourceId: OUTCOME_SOURCE_UUID_1 },
+    { nodeName: 'outputNodes[0]', badType: 'activity', goodSourceId: OUTPUT_SOURCE_UUID_1 },
+    { nodeName: 'activityNodes[0]', badType: 'output', goodSourceId: ACTIVITY_SOURCE_UUID_1 },
+    { nodeName: 'goalNode', badType: 'output', goodSourceId: GOAL_SOURCE_UUID },
+    { nodeName: 'purposeNode', badType: 'activity', goodSourceId: PURPOSE_SOURCE_UUID }
+  ])('H2B rejects declaredNodeType mismatch: $nodeName = $badType', ({ nodeName, badType, goodSourceId }) => {
+    const node = { sourceNodeId: goodSourceId, declaredNodeType: badType as unknown as StructuralSkeletonNode['declaredNodeType'], sequencePosition: 1 };
+
+    const baseEvidence: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    const [collectionName] = nodeName.split('[');
+    let malformed = { ...baseEvidence };
+
+    if (nodeName.startsWith('goalNode') || nodeName.startsWith('purposeNode')) {
+      malformed = { ...malformed, [nodeName]: node };
+    } else {
+      malformed = { ...malformed, [collectionName]: [node] };
+    }
+
+    const evidence = malformed as unknown as ValidatedStructuralSkeletonEvidence;
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: evidence
+    })).toThrow(Error);
+  });
+
+  // H2B Coverage Group 4: Sequence and Optional UUID Fields
+  test.each([
+    { value: NaN, description: 'NaN' },
+    { value: Infinity, description: 'Infinity' },
+    { value: -Infinity, description: '-Infinity' },
+    { value: 1.5, description: '1.5 (fractional)' },
+    { value: '1', description: '"1" (string)' }
+  ])('H2B rejects sequencePosition = $description', ({ value }) => {
+    const node = { sourceNodeId: OUTCOME_SOURCE_UUID_1, declaredNodeType: 'outcome' as const, sequencePosition: value as unknown as number };
+
+    const baseEvidence: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [node as unknown as StructuralSkeletonNode],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: baseEvidence
+    })).toThrow(Error);
+  });
+
+  test.each([
+    { field: 'parentSourceNodeId', badUuid: 'not-a-uuid', nodeName: 'outputNodes[0]' },
+    { field: 'correlatedRawEntryId', badUuid: 'invalid', nodeName: 'activityNodes[0]' }
+  ])('H2B rejects invalid $field UUID in $nodeName', ({ field, badUuid, nodeName }) => {
+    const node = {
+      sourceNodeId: nodeName.includes('output') ? OUTPUT_SOURCE_UUID_1 : ACTIVITY_SOURCE_UUID_1,
+      declaredNodeType: nodeName.includes('output') ? ('output' as const) : ('activity' as const),
+      sequencePosition: 1,
+      [field]: badUuid as unknown as string | null | undefined
+    };
+
+    const baseEvidence: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: nodeName.includes('output') ? [node as unknown as StructuralSkeletonNode] : [],
+      activityNodes: nodeName.includes('activity') ? [node as unknown as StructuralSkeletonNode] : [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: baseEvidence
+    })).toThrow(Error);
+  });
+
+  test('H2B accepts null and undefined for optional UUID fields', () => {
+    const node: StructuralSkeletonNode = {
+      sourceNodeId: OUTPUT_SOURCE_UUID_1,
+      declaredNodeType: 'output',
+      sequencePosition: 1,
+      parentSourceNodeId: null,
+      correlatedRawEntryId: undefined
+    };
+
+    const skeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [node],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: skeleton
+    })).not.toThrow();
+  });
+
+  // H2B Coverage Group 5: Duplicate Identities
+  test('H2B rejects duplicate sourceNodeId in same outcomeNodes collection', () => {
+    const skeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [
+        { sourceNodeId: OUTCOME_SOURCE_UUID_1, declaredNodeType: 'outcome', sequencePosition: 1 },
+        { sourceNodeId: OUTCOME_SOURCE_UUID_1, declaredNodeType: 'outcome', sequencePosition: 2 }
+      ],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: skeleton
+    })).toThrow(Error);
+  });
+
+  test('H2B rejects duplicate sourceNodeId across different node types', () => {
+    const sharedUuid = '99999999-9999-9999-9999-999999999999';
+    const skeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: { sourceNodeId: sharedUuid as unknown as string, declaredNodeType: 'goal', sequencePosition: 1 },
+      purposeNode: null,
+      outcomeNodes: [
+        { sourceNodeId: sharedUuid as unknown as string, declaredNodeType: 'outcome', sequencePosition: 2 }
+      ],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: skeleton
+    })).toThrow(Error);
+  });
+
+  test('H2B rejects duplicate correlatedRawEntryId in same outputNodes collection', () => {
+    const skeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [
+        { sourceNodeId: OUTPUT_SOURCE_UUID_1, declaredNodeType: 'output', sequencePosition: 1, correlatedRawEntryId: RAW_OUTPUT_UUID_1 },
+        { sourceNodeId: '88888888-8888-8888-8888-888888888888', declaredNodeType: 'output', sequencePosition: 2, correlatedRawEntryId: RAW_OUTPUT_UUID_1 }
+      ],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: skeleton
+    })).toThrow(Error);
+  });
+
+  test('H2B rejects duplicate correlatedRawEntryId across different node types', () => {
+    const sharedCorrelatedId = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const skeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: { sourceNodeId: GOAL_SOURCE_UUID, declaredNodeType: 'goal', sequencePosition: 1, correlatedRawEntryId: sharedCorrelatedId as unknown as string },
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [
+        { sourceNodeId: OUTPUT_SOURCE_UUID_1, declaredNodeType: 'output', sequencePosition: 1, correlatedRawEntryId: sharedCorrelatedId as unknown as string }
+      ],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: skeleton
+    })).toThrow(Error);
+  });
+
+  // H2B Coverage Group 6: Valid Complete Evidence
+  test('H2B accepts valid complete skeleton evidence with all node types and validates correlation', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: RAW_GOAL_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
+      { id: RAW_PURPOSE_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 },
+      { id: RAW_OUTCOME_UUID_1, project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 2 },
+      { id: RAW_OUTPUT_UUID_1, project_id: mockProject.id, org_id: mockProject.org_id, level: 'output', parent_id: RAW_OUTCOME_UUID_1 },
+      { id: RAW_ACTIVITY_UUID_1, project_id: mockProject.id, org_id: mockProject.org_id, level: 'activity', parent_id: RAW_OUTPUT_UUID_1 }
+    ];
+
+    const skeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: DOCUMENT_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: { sourceNodeId: GOAL_SOURCE_UUID, declaredNodeType: 'goal', sequencePosition: 1, correlatedRawEntryId: RAW_GOAL_UUID },
+      purposeNode: { sourceNodeId: PURPOSE_SOURCE_UUID, declaredNodeType: 'purpose', sequencePosition: 1, correlatedRawEntryId: RAW_PURPOSE_UUID },
+      outcomeNodes: [
+        { sourceNodeId: OUTCOME_SOURCE_UUID_1, declaredNodeType: 'outcome', sequencePosition: 2, correlatedRawEntryId: RAW_OUTCOME_UUID_1 }
+      ],
+      outputNodes: [
+        { sourceNodeId: OUTPUT_SOURCE_UUID_1, declaredNodeType: 'output', sequencePosition: 1, parentSourceNodeId: OUTCOME_SOURCE_UUID_1, correlatedRawEntryId: RAW_OUTPUT_UUID_1 }
+      ],
+      activityNodes: [
+        { sourceNodeId: ACTIVITY_SOURCE_UUID_1, declaredNodeType: 'activity', sequencePosition: 1, parentSourceNodeId: OUTPUT_SOURCE_UUID_1, correlatedRawEntryId: RAW_ACTIVITY_UUID_1 }
+      ],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries,
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: skeleton
+    })).not.toThrow();
+
+    const res = mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries,
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: skeleton
+    });
+
+    expect(res.goal?.sourceCorrelationStatus).toBe('CONFIRMED_STRUCTURAL');
+    expect(res.purpose?.sourceCorrelationStatus).toBe('CONFIRMED_STRUCTURAL');
+    expect(res.presentationMode).toBe('EXPANDED_CONFIRMED');
+    expect(res.structuralStatus).toBe('COMPLETE');
   });
 
   // 2. Fixture clean inferred Compact
@@ -268,14 +791,14 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
   test('04 clean Expanded with pre-correlated Skeleton evidence - Matches skeleton', () => {
     const rawEntries: RawLfaEntry[] = [
       {
-        id: 'raw-goal-1',
+        id: RAW_GOAL_UUID,
         project_id: mockProject.id,
         org_id: mockProject.org_id,
         level: 'goal',
         description: 'Goal text'
       },
       {
-        id: 'raw-purpose-1',
+        id: RAW_PURPOSE_UUID,
         project_id: mockProject.id,
         org_id: mockProject.org_id,
         level: 'purpose',
@@ -283,7 +806,7 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
         description: 'Purpose text'
       },
       {
-        id: 'raw-outcome-1',
+        id: RAW_OUTCOME_UUID_1,
         project_id: mockProject.id,
         org_id: mockProject.org_id,
         level: 'purpose',
@@ -291,38 +814,38 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
         description: 'Outcome 1 text'
       },
       {
-        id: 'raw-output-1',
+        id: RAW_OUTPUT_UUID_1,
         project_id: mockProject.id,
         org_id: mockProject.org_id,
         level: 'output',
-        parent_id: 'raw-outcome-1',
+        parent_id: RAW_OUTCOME_UUID_1,
         description: 'Output 1 text'
       },
       {
-        id: 'raw-activity-1',
+        id: RAW_ACTIVITY_UUID_1,
         project_id: mockProject.id,
         org_id: mockProject.org_id,
         level: 'activity',
-        parent_id: 'raw-output-1',
+        parent_id: RAW_OUTPUT_UUID_1,
         description: 'Activity 1 text'
       }
     ];
 
     const skeleton: ValidatedStructuralSkeletonEvidence = {
-      documentId: 'sk-doc-123',
+      documentId: DOCUMENT_UUID,
       documentVersion: 1,
       isCurrent: true,
       validationStatus: 'VALIDATED_STRUCTURE',
-      goalNode: { sourceNodeId: 'sk-goal', declaredNodeType: 'goal', sequencePosition: 1, correlatedRawEntryId: 'raw-goal-1' },
-      purposeNode: { sourceNodeId: 'sk-purpose', declaredNodeType: 'purpose', sequencePosition: 1, correlatedRawEntryId: 'raw-purpose-1' },
+      goalNode: { sourceNodeId: GOAL_SOURCE_UUID, declaredNodeType: 'goal', sequencePosition: 1, correlatedRawEntryId: RAW_GOAL_UUID },
+      purposeNode: { sourceNodeId: PURPOSE_SOURCE_UUID, declaredNodeType: 'purpose', sequencePosition: 1, correlatedRawEntryId: RAW_PURPOSE_UUID },
       outcomeNodes: [
-        { sourceNodeId: 'sk-outcome-1', declaredNodeType: 'outcome', sequencePosition: 2, correlatedRawEntryId: 'raw-outcome-1' }
+        { sourceNodeId: OUTCOME_SOURCE_UUID_1, declaredNodeType: 'outcome', sequencePosition: 2, correlatedRawEntryId: RAW_OUTCOME_UUID_1 }
       ],
       outputNodes: [
-        { sourceNodeId: 'sk-output-1', declaredNodeType: 'output', sequencePosition: 1, parentSourceNodeId: 'sk-outcome-1', correlatedRawEntryId: 'raw-output-1' }
+        { sourceNodeId: OUTPUT_SOURCE_UUID_1, declaredNodeType: 'output', sequencePosition: 1, parentSourceNodeId: OUTCOME_SOURCE_UUID_1, correlatedRawEntryId: RAW_OUTPUT_UUID_1 }
       ],
       activityNodes: [
-        { sourceNodeId: 'sk-activity-1', declaredNodeType: 'activity', sequencePosition: 1, parentSourceNodeId: 'sk-output-1', correlatedRawEntryId: 'raw-activity-1' }
+        { sourceNodeId: ACTIVITY_SOURCE_UUID_1, declaredNodeType: 'activity', sequencePosition: 1, parentSourceNodeId: OUTPUT_SOURCE_UUID_1, correlatedRawEntryId: RAW_ACTIVITY_UUID_1 }
       ],
       correlationStatus: 'AVAILABLE'
     };
@@ -344,20 +867,20 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
   // 5. Fixture unused source-confirmed Outcome
   test('05 unused source-confirmed Outcome - Outcome has 0 outputs', () => {
     const rawEntries: RawLfaEntry[] = [
-      { id: 'raw-goal-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
-      { id: 'raw-purpose-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 },
+      { id: RAW_GOAL_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
+      { id: RAW_PURPOSE_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 },
       // raw-outcome-1 is omitted from DB, meaning it is unused in the project.
     ];
 
     const skeleton: ValidatedStructuralSkeletonEvidence = {
-      documentId: 'sk-doc-123',
+      documentId: DOCUMENT_UUID,
       documentVersion: 1,
       isCurrent: true,
       validationStatus: 'VALIDATED_STRUCTURE',
-      goalNode: { sourceNodeId: 'sk-goal', declaredNodeType: 'goal', sequencePosition: 1, correlatedRawEntryId: 'raw-goal-1' },
-      purposeNode: { sourceNodeId: 'sk-purpose', declaredNodeType: 'purpose', sequencePosition: 1, correlatedRawEntryId: 'raw-purpose-1' },
+      goalNode: { sourceNodeId: GOAL_SOURCE_UUID, declaredNodeType: 'goal', sequencePosition: 1, correlatedRawEntryId: RAW_GOAL_UUID },
+      purposeNode: { sourceNodeId: PURPOSE_SOURCE_UUID, declaredNodeType: 'purpose', sequencePosition: 1, correlatedRawEntryId: RAW_PURPOSE_UUID },
       outcomeNodes: [
-        { sourceNodeId: 'sk-outcome-1', declaredNodeType: 'outcome', sequencePosition: 2, correlatedRawEntryId: null }
+        { sourceNodeId: OUTCOME_SOURCE_UUID_1, declaredNodeType: 'outcome', sequencePosition: 2, correlatedRawEntryId: null }
       ],
       outputNodes: [],
       activityNodes: [],
@@ -418,19 +941,19 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
   // 8. Fixture childless additional Purpose with Skeleton
   test('08 childless additional Purpose with Skeleton - resolved as Unused Skeleton Outcome', () => {
     const rawEntries: RawLfaEntry[] = [
-      { id: 'raw-goal-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
-      { id: 'raw-purpose-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 }
+      { id: RAW_GOAL_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
+      { id: RAW_PURPOSE_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 }
     ];
 
     const skeleton: ValidatedStructuralSkeletonEvidence = {
-      documentId: 'sk-doc-123',
+      documentId: DOCUMENT_UUID,
       documentVersion: 1,
       isCurrent: true,
       validationStatus: 'VALIDATED_STRUCTURE',
       goalNode: null,
       purposeNode: null,
       outcomeNodes: [
-        { sourceNodeId: 'sk-outcome-1', declaredNodeType: 'outcome', sequencePosition: 2, correlatedRawEntryId: null }
+        { sourceNodeId: OUTCOME_SOURCE_UUID_1, declaredNodeType: 'outcome', sequencePosition: 2, correlatedRawEntryId: null }
       ],
       outputNodes: [],
       activityNodes: [],
@@ -522,12 +1045,12 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
   // 13. Fixture non-current Skeleton evidence
   test('13 non-current Skeleton evidence - raises warning code SKELETON_NOT_CURRENT', () => {
     const rawEntries: RawLfaEntry[] = [
-      { id: 'raw-goal-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
-      { id: 'raw-purpose-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 }
+      { id: RAW_GOAL_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
+      { id: RAW_PURPOSE_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 }
     ];
 
     const skeleton: ValidatedStructuralSkeletonEvidence = {
-      documentId: 'sk-doc-123',
+      documentId: DOCUMENT_UUID,
       documentVersion: 1,
       isCurrent: false,
       validationStatus: 'VALIDATED_STRUCTURE',
@@ -552,12 +1075,12 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
   // 14. Fixture Skeleton count mismatch
   test('14 Skeleton count mismatch - handles cleanly', () => {
     const rawEntries: RawLfaEntry[] = [
-      { id: 'raw-goal-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
-      { id: 'raw-purpose-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 }
+      { id: RAW_GOAL_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
+      { id: RAW_PURPOSE_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 }
     ];
 
     const skeleton: ValidatedStructuralSkeletonEvidence = {
-      documentId: 'sk-doc-123',
+      documentId: DOCUMENT_UUID,
       documentVersion: 1,
       isCurrent: true,
       validationStatus: 'VALIDATED_STRUCTURE',
@@ -708,28 +1231,28 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
   // 22. Fixture authoritative structural pattern using synthetic IDs
   test('22 authoritative structural pattern - matches complete tree structure', () => {
     const rawEntries: RawLfaEntry[] = [
-      { id: 'raw-goal-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
-      { id: 'raw-purpose-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 },
-      { id: 'raw-outcome-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 2 },
-      { id: 'raw-output-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'output', parent_id: 'raw-outcome-1' },
-      { id: 'raw-activity-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'activity', parent_id: 'raw-output-1' }
+      { id: RAW_GOAL_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
+      { id: RAW_PURPOSE_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 },
+      { id: RAW_OUTCOME_UUID_1, project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 2 },
+      { id: RAW_OUTPUT_UUID_1, project_id: mockProject.id, org_id: mockProject.org_id, level: 'output', parent_id: RAW_OUTCOME_UUID_1 },
+      { id: RAW_ACTIVITY_UUID_1, project_id: mockProject.id, org_id: mockProject.org_id, level: 'activity', parent_id: RAW_OUTPUT_UUID_1 }
     ];
 
     const skeleton: ValidatedStructuralSkeletonEvidence = {
-      documentId: 'sk-doc-123',
+      documentId: DOCUMENT_UUID,
       documentVersion: 1,
       isCurrent: true,
       validationStatus: 'VALIDATED_STRUCTURE',
-      goalNode: { sourceNodeId: 'sk-goal', declaredNodeType: 'goal', sequencePosition: 1, correlatedRawEntryId: 'raw-goal-1' },
-      purposeNode: { sourceNodeId: 'sk-purpose', declaredNodeType: 'purpose', sequencePosition: 1, correlatedRawEntryId: 'raw-purpose-1' },
+      goalNode: { sourceNodeId: GOAL_SOURCE_UUID, declaredNodeType: 'goal', sequencePosition: 1, correlatedRawEntryId: RAW_GOAL_UUID },
+      purposeNode: { sourceNodeId: PURPOSE_SOURCE_UUID, declaredNodeType: 'purpose', sequencePosition: 1, correlatedRawEntryId: RAW_PURPOSE_UUID },
       outcomeNodes: [
-        { sourceNodeId: 'sk-outcome-1', declaredNodeType: 'outcome', sequencePosition: 2, correlatedRawEntryId: 'raw-outcome-1' }
+        { sourceNodeId: OUTCOME_SOURCE_UUID_1, declaredNodeType: 'outcome', sequencePosition: 2, correlatedRawEntryId: RAW_OUTCOME_UUID_1 }
       ],
       outputNodes: [
-        { sourceNodeId: 'sk-output-1', declaredNodeType: 'output', sequencePosition: 1, parentSourceNodeId: 'sk-outcome-1', correlatedRawEntryId: 'raw-output-1' }
+        { sourceNodeId: OUTPUT_SOURCE_UUID_1, declaredNodeType: 'output', sequencePosition: 1, parentSourceNodeId: OUTCOME_SOURCE_UUID_1, correlatedRawEntryId: RAW_OUTPUT_UUID_1 }
       ],
       activityNodes: [
-        { sourceNodeId: 'sk-activity-1', declaredNodeType: 'activity', sequencePosition: 1, parentSourceNodeId: 'sk-output-1', correlatedRawEntryId: 'raw-activity-1' }
+        { sourceNodeId: ACTIVITY_SOURCE_UUID_1, declaredNodeType: 'activity', sequencePosition: 1, parentSourceNodeId: OUTPUT_SOURCE_UUID_1, correlatedRawEntryId: RAW_ACTIVITY_UUID_1 }
       ],
       correlationStatus: 'AVAILABLE'
     };
@@ -748,17 +1271,17 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
   // 23. Fixture source evidence stronger than sequence
   test('23 source evidence stronger than sequence - matches skeleton even if sequence differs', () => {
     const rawEntries: RawLfaEntry[] = [
-      { id: 'raw-goal-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
-      { id: 'raw-purpose-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 10 } // sequence mismatch but correlated
+      { id: RAW_GOAL_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
+      { id: RAW_PURPOSE_UUID, project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 10 } // sequence mismatch but correlated
     ];
 
     const skeleton: ValidatedStructuralSkeletonEvidence = {
-      documentId: 'sk-doc-123',
+      documentId: DOCUMENT_UUID,
       documentVersion: 1,
       isCurrent: true,
       validationStatus: 'VALIDATED_STRUCTURE',
-      goalNode: { sourceNodeId: 'sk-goal', declaredNodeType: 'goal', sequencePosition: 1, correlatedRawEntryId: 'raw-goal-1' },
-      purposeNode: { sourceNodeId: 'sk-purpose', declaredNodeType: 'purpose', sequencePosition: 1, correlatedRawEntryId: 'raw-purpose-1' },
+      goalNode: { sourceNodeId: GOAL_SOURCE_UUID, declaredNodeType: 'goal', sequencePosition: 1, correlatedRawEntryId: RAW_GOAL_UUID },
+      purposeNode: { sourceNodeId: PURPOSE_SOURCE_UUID, declaredNodeType: 'purpose', sequencePosition: 1, correlatedRawEntryId: RAW_PURPOSE_UUID },
       outcomeNodes: [],
       outputNodes: [],
       activityNodes: [],

@@ -21,26 +21,128 @@ import {
   MapToCanonicalLfaViewInput
 } from './types';
 
-export function assertValidSkeletonEvidence(
+const UUID_TEXT_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+function isCanonicalUuidText(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0 && UUID_TEXT_PATTERN.test(value);
+}
+
+function assertValidStructuralSkeletonNode(
+  node: StructuralSkeletonNode,
+  fieldName: string,
+  expectedDeclaredNodeType: StructuralSkeletonNode['declaredNodeType']
+): void {
+  if (!node || typeof node !== 'object' || Array.isArray(node)) {
+    throw new Error(`${fieldName} must be a non-null object.`);
+  }
+
+  if (!isCanonicalUuidText(node.sourceNodeId)) {
+    throw new Error(`${fieldName}.sourceNodeId must be a canonical UUID string.`);
+  }
+
+  if (node.declaredNodeType !== expectedDeclaredNodeType) {
+    throw new Error(`${fieldName}.declaredNodeType must equal ${expectedDeclaredNodeType}.`);
+  }
+
+  if (typeof node.sequencePosition !== 'number' || !Number.isFinite(node.sequencePosition) || !Number.isInteger(node.sequencePosition)) {
+    throw new Error(`${fieldName}.sequencePosition must be a finite integer number.`);
+  }
+
+  if (node.parentSourceNodeId !== null && node.parentSourceNodeId !== undefined && !isCanonicalUuidText(node.parentSourceNodeId)) {
+    throw new Error(`${fieldName}.parentSourceNodeId must be a canonical UUID string when present.`);
+  }
+
+  if (node.correlatedRawEntryId !== null && node.correlatedRawEntryId !== undefined && !isCanonicalUuidText(node.correlatedRawEntryId)) {
+    throw new Error(`${fieldName}.correlatedRawEntryId must be a canonical UUID string when present.`);
+  }
+}
+
+function assertValidSkeletonEvidence(
   evidence: ValidatedStructuralSkeletonEvidence
 ): void {
-  if (!evidence) {
-    throw new Error('Skeleton evidence is required when checking skeleton validity.');
+  if (!evidence || typeof evidence !== 'object' || Array.isArray(evidence)) {
+    throw new Error('Skeleton evidence must be a non-null object.');
   }
-  if (!evidence.documentId) {
-    throw new Error('documentId is missing in skeleton evidence.');
+
+  if (!isCanonicalUuidText(evidence.documentId)) {
+    throw new Error('documentId must be a canonical UUID string.');
   }
+
+  if (typeof evidence.documentVersion !== 'number' && typeof evidence.documentVersion !== 'string' && evidence.documentVersion !== null) {
+    throw new Error('documentVersion must be a number, string, or null.');
+  }
+
+  if (typeof evidence.documentVersion === 'number' && (!Number.isFinite(evidence.documentVersion))) {
+    throw new Error('documentVersion must be finite when provided as a number.');
+  }
+
+  if (typeof evidence.isCurrent !== 'boolean') {
+    throw new Error('isCurrent must be a boolean.');
+  }
+
   if (evidence.validationStatus !== 'VALIDATED_STRUCTURE') {
     throw new Error(`Invalid validation status: expected VALIDATED_STRUCTURE, got ${evidence.validationStatus}`);
   }
-  if (!evidence.outcomeNodes || !Array.isArray(evidence.outcomeNodes)) {
+
+  if (evidence.correlationStatus !== 'AVAILABLE' && evidence.correlationStatus !== 'PARTIAL' && evidence.correlationStatus !== 'UNAVAILABLE') {
+    throw new Error('correlationStatus must be AVAILABLE, PARTIAL, or UNAVAILABLE.');
+  }
+
+  if (!Array.isArray(evidence.outcomeNodes)) {
     throw new Error('outcomeNodes must be a valid array.');
   }
-  if (!evidence.outputNodes || !Array.isArray(evidence.outputNodes)) {
+  if (!Array.isArray(evidence.outputNodes)) {
     throw new Error('outputNodes must be a valid array.');
   }
-  if (!evidence.activityNodes || !Array.isArray(evidence.activityNodes)) {
+  if (!Array.isArray(evidence.activityNodes)) {
     throw new Error('activityNodes must be a valid array.');
+  }
+
+  if (evidence.goalNode !== null && evidence.goalNode !== undefined) {
+    assertValidStructuralSkeletonNode(evidence.goalNode, 'goalNode', 'goal');
+  }
+  if (evidence.purposeNode !== null && evidence.purposeNode !== undefined) {
+    assertValidStructuralSkeletonNode(evidence.purposeNode, 'purposeNode', 'purpose');
+  }
+
+  const seenSourceNodeIds = new Set<string>();
+  const seenCorrelatedRawEntryIds = new Set<string>();
+
+  const registerNodeIdentity = (node: StructuralSkeletonNode, fieldName: string): void => {
+    if (seenSourceNodeIds.has(node.sourceNodeId)) {
+      throw new Error(`${fieldName}.sourceNodeId must be unique across skeleton evidence.`);
+    }
+    seenSourceNodeIds.add(node.sourceNodeId);
+
+    if (node.correlatedRawEntryId !== null && node.correlatedRawEntryId !== undefined) {
+      if (seenCorrelatedRawEntryIds.has(node.correlatedRawEntryId)) {
+        throw new Error(`${fieldName}.correlatedRawEntryId must be unique across skeleton evidence.`);
+      }
+      seenCorrelatedRawEntryIds.add(node.correlatedRawEntryId);
+    }
+  };
+
+  const validateCollection = (
+    nodes: readonly StructuralSkeletonNode[],
+    collectionName: 'outcomeNodes' | 'outputNodes' | 'activityNodes',
+    expectedType: 'outcome' | 'output' | 'activity'
+  ): void => {
+    nodes.forEach((node, index) => {
+      const fieldName = `${collectionName}[${index}]`;
+      assertValidStructuralSkeletonNode(node, fieldName, expectedType);
+      registerNodeIdentity(node, fieldName);
+    });
+  };
+
+  validateCollection(evidence.outcomeNodes, 'outcomeNodes', 'outcome');
+  validateCollection(evidence.outputNodes, 'outputNodes', 'output');
+  validateCollection(evidence.activityNodes, 'activityNodes', 'activity');
+
+  if (evidence.goalNode !== null && evidence.goalNode !== undefined) {
+    registerNodeIdentity(evidence.goalNode, 'goalNode');
+  }
+  if (evidence.purposeNode !== null && evidence.purposeNode !== undefined) {
+    registerNodeIdentity(evidence.purposeNode, 'purposeNode');
   }
 }
 
