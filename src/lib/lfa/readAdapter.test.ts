@@ -1997,3 +1997,338 @@ describe('Phase 2C1 H3 — Tenant and Project Boundary Quarantine', () => {
   });
 
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2C1 H4 — Unused Skeleton Outcome Child-Count Semantics
+// ─────────────────────────────────────────────────────────────────────────────
+
+// UUIDs for H4 fixtures
+const H4_DOC_UUID       = 'a0a0a0a0-a0a0-4a0a-8a0a-a0a0a0a0a0a0';
+const H4_OUTCOME_SRC_1  = 'b1b1b1b1-b1b1-4b1b-8b1b-b1b1b1b1b1b1';
+const H4_OUTCOME_RAW    = 'c1c1c1c1-c1c1-4c1c-8c1c-c1c1c1c1c1c1';
+const H4_OUTPUT_RAW     = 'd1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1';
+const H4_OUTPUT_RAW_2   = 'd2d2d2d2-d2d2-4d2d-8d2d-d2d2d2d2d2d2';
+const H4_DANGLING_UUID  = 'e1e1e1e1-e1e1-4e1e-8e1e-e1e1e1e1e1e1';
+
+const H4_PROJECT: RawLfaProject = {
+  id: 'h4-project',
+  org_id: 'h4-org',
+  name: 'H4 Test Project',
+  created_at: '2026-07-20T00:00:00Z'
+};
+
+// Helper: build a minimal valid AVAILABLE skeleton evidence for H4
+function makeH4Skeleton(
+  outcomeCorrelatedRawId: string | null | undefined,
+  extraOutcomes: { sourceNodeId: string; correlatedRawEntryId: string | null | undefined }[] = []
+): ValidatedStructuralSkeletonEvidence {
+  return {
+    documentId: H4_DOC_UUID,
+    documentVersion: 1,
+    isCurrent: true,
+    validationStatus: 'VALIDATED_STRUCTURE',
+    goalNode: null,
+    purposeNode: null,
+    outcomeNodes: [
+      {
+        sourceNodeId: H4_OUTCOME_SRC_1,
+        declaredNodeType: 'outcome',
+        sequencePosition: 1,
+        correlatedRawEntryId: outcomeCorrelatedRawId ?? null
+      },
+      ...extraOutcomes.map((o, i) => ({
+        sourceNodeId: o.sourceNodeId,
+        declaredNodeType: 'outcome' as const,
+        sequencePosition: i + 2,
+        correlatedRawEntryId: o.correlatedRawEntryId ?? null
+      }))
+    ],
+    outputNodes: [],
+    activityNodes: [],
+    correlationStatus: 'AVAILABLE'
+  };
+}
+
+describe('Phase 2C1 H4 — Unused Skeleton Outcome Child-Count Semantics', () => {
+
+  // ─── Case A: No correlatedRawEntryId → UNUSED ────────────────────────────
+
+  test('H4 Case A: skeleton outcome with no correlatedRawEntryId → UNUSED', () => {
+    const skeleton = makeH4Skeleton(null);
+    // At least one raw entry so function reaches skeleton/unused-outcome processing
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'h4a-goal', project_id: H4_PROJECT.id, org_id: H4_PROJECT.org_id, level: 'goal' }
+    ];
+    const res = mapToCanonicalLfaView({
+      rawProject: H4_PROJECT,
+      rawEntries,
+      skeletonEvidence: skeleton,
+      grantLinkEvidence: null
+    });
+
+    expect(res.unusedOutcomes.some((o) => o.sourceExternalId === H4_OUTCOME_SRC_1)).toBe(true);
+    expect(res.findings.some((f) => f.code === 'UNUSED_SKELETON_OUTCOME' && f.rawEntryIds.includes(H4_OUTCOME_SRC_1))).toBe(true);
+    expect(res.presentationMode).toBe('EXPANDED_WITH_UNUSED_OUTCOME');
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  // ─── Case B: Correlated raw outcome exists, zero valid output children → UNUSED ───
+
+  test('H4 Case B: correlated raw outcome with zero valid output children → UNUSED', () => {
+    // This is the primary broken case: pre-H4 would mark USED because correlation exists
+    const skeleton = makeH4Skeleton(H4_OUTCOME_RAW);
+    const rawEntries: RawLfaEntry[] = [
+      {
+        id: H4_OUTCOME_RAW,
+        project_id: H4_PROJECT.id,
+        org_id: H4_PROJECT.org_id,
+        level: 'purpose',
+        sequence: 2,
+        description: 'Raw Outcome with no outputs'
+      }
+      // No output children
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H4_PROJECT,
+      rawEntries,
+      skeletonEvidence: skeleton,
+      grantLinkEvidence: null
+    });
+
+    expect(res.unusedOutcomes.some((o) => o.sourceExternalId === H4_OUTCOME_SRC_1)).toBe(true);
+    expect(res.findings.some((f) => f.code === 'UNUSED_SKELETON_OUTCOME' && f.rawEntryIds.includes(H4_OUTCOME_SRC_1))).toBe(true);
+    expect(res.structuralStatus).not.toBe('COMPLETE');
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  // ─── Case C: Correlated raw outcome + at least one valid output child → USED ──
+
+  test('H4 Case C: correlated raw outcome with one valid trusted output child → USED', () => {
+    const skeleton = makeH4Skeleton(H4_OUTCOME_RAW);
+    const rawEntries: RawLfaEntry[] = [
+      {
+        id: H4_OUTCOME_RAW,
+        project_id: H4_PROJECT.id,
+        org_id: H4_PROJECT.org_id,
+        level: 'purpose',
+        sequence: 2,
+        description: 'Raw Outcome'
+      },
+      {
+        id: H4_OUTPUT_RAW,
+        project_id: H4_PROJECT.id,
+        org_id: H4_PROJECT.org_id,
+        level: 'output',
+        parent_id: H4_OUTCOME_RAW,
+        description: 'Valid Output Child'
+      }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H4_PROJECT,
+      rawEntries,
+      skeletonEvidence: skeleton,
+      grantLinkEvidence: null
+    });
+
+    expect(res.unusedOutcomes.some((o) => o.sourceExternalId === H4_OUTCOME_SRC_1)).toBe(false);
+    expect(res.findings.some((f) => f.code === 'UNUSED_SKELETON_OUTCOME' && f.rawEntryIds.includes(H4_OUTCOME_SRC_1))).toBe(false);
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  // ─── Case D: Dangling correlatedRawEntryId → UNUSED ──────────────────────
+
+  test('H4 Case D: dangling correlatedRawEntryId (raw row does not exist) → UNUSED', () => {
+    const skeleton = makeH4Skeleton(H4_DANGLING_UUID);
+    // H4_DANGLING_UUID is not present; one valid entry so function reaches unused-outcome processing
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'h4d-goal', project_id: H4_PROJECT.id, org_id: H4_PROJECT.org_id, level: 'goal' }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H4_PROJECT,
+      rawEntries,
+      skeletonEvidence: skeleton,
+      grantLinkEvidence: null
+    });
+
+    expect(res.unusedOutcomes.some((o) => o.sourceExternalId === H4_OUTCOME_SRC_1)).toBe(true);
+    expect(res.findings.some((f) => f.code === 'UNUSED_SKELETON_OUTCOME' && f.rawEntryIds.includes(H4_OUTCOME_SRC_1))).toBe(true);
+    // No throw
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  // ─── Case E: Correlated raw outcome is boundary-invalid → UNUSED ─────────
+
+  test('H4 Case E: correlated raw outcome is boundary-invalid → UNUSED and quarantined', () => {
+    const skeleton = makeH4Skeleton(H4_OUTCOME_RAW);
+    const rawEntries: RawLfaEntry[] = [
+      {
+        id: H4_OUTCOME_RAW,
+        project_id: 'wrong-project',           // boundary-invalid
+        org_id: H4_PROJECT.org_id,
+        level: 'purpose',
+        sequence: 2,
+        description: '__SENTINEL_H4E__'
+      }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H4_PROJECT,
+      rawEntries,
+      skeletonEvidence: skeleton,
+      grantLinkEvidence: null
+    });
+
+    // Raw row is quarantined
+    expect(res.dispositionMap[H4_OUTCOME_RAW]).toBe('REVIEW_ONLY');
+    // Sentinel absent from all canonical collections
+    const allNodes = [
+      ...(res.goal ? [res.goal] : []),
+      ...(res.purpose ? [res.purpose] : []),
+      ...res.outcomes, ...res.outputs, ...res.activities,
+      ...res.unusedOutcomes, ...res.unassignedOutputs, ...res.orphanedActivities
+    ];
+    expect(allNodes.every((n) => n.statement !== '__SENTINEL_H4E__')).toBe(true);
+    // Skeleton outcome is unused
+    expect(res.unusedOutcomes.some((o) => o.sourceExternalId === H4_OUTCOME_SRC_1)).toBe(true);
+    // Boundary security remains blocked
+    expect(res.hasBlockingIntegrityFinding).toBe(true);
+    expect(res.structuralStatus).toBe('BLOCKED');
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  // ─── Case F: Only output children are boundary-invalid → UNUSED ──────────
+
+  test('H4 Case F: valid correlated outcome but all output children are boundary-invalid → UNUSED', () => {
+    const skeleton = makeH4Skeleton(H4_OUTCOME_RAW);
+    const rawEntries: RawLfaEntry[] = [
+      {
+        id: H4_OUTCOME_RAW,
+        project_id: H4_PROJECT.id,
+        org_id: H4_PROJECT.org_id,
+        level: 'purpose',
+        sequence: 2,
+        description: 'Valid Outcome'
+      },
+      {
+        id: H4_OUTPUT_RAW,
+        project_id: 'wrong-project',           // boundary-invalid output
+        org_id: H4_PROJECT.org_id,
+        level: 'output',
+        parent_id: H4_OUTCOME_RAW,
+        description: '__SENTINEL_H4F_OUTPUT__'
+      }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H4_PROJECT,
+      rawEntries,
+      skeletonEvidence: skeleton,
+      grantLinkEvidence: null
+    });
+
+    // Output is quarantined
+    expect(res.dispositionMap[H4_OUTPUT_RAW]).toBe('REVIEW_ONLY');
+    // Skeleton outcome is unused (quarantined output does not count)
+    expect(res.unusedOutcomes.some((o) => o.sourceExternalId === H4_OUTCOME_SRC_1)).toBe(true);
+    expect(res.findings.some((f) => f.code === 'UNUSED_SKELETON_OUTCOME' && f.rawEntryIds.includes(H4_OUTCOME_SRC_1))).toBe(true);
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  // ─── Case G: Output's trusted parent relation is nullified → UNUSED ──────
+
+  test('H4 Case G: output trusted parent relation invalidated (wrong level) → does not count → UNUSED', () => {
+    // parent_id points to a goal-level row, making it WRONG_LEVEL_PARENT → validParentMap nullified
+    const H4_GOAL_RAW = 'f1f1f1f1-f1f1-4f1f-8f1f-f1f1f1f1f1f1';
+    const skeleton = makeH4Skeleton(H4_OUTCOME_RAW);
+    const rawEntries: RawLfaEntry[] = [
+      {
+        id: H4_GOAL_RAW,
+        project_id: H4_PROJECT.id,
+        org_id: H4_PROJECT.org_id,
+        level: 'goal',
+        description: 'Goal'
+      },
+      {
+        id: H4_OUTCOME_RAW,
+        project_id: H4_PROJECT.id,
+        org_id: H4_PROJECT.org_id,
+        level: 'purpose',
+        sequence: 2,
+        description: 'Valid Outcome'
+      },
+      {
+        id: H4_OUTPUT_RAW,
+        project_id: H4_PROJECT.id,
+        org_id: H4_PROJECT.org_id,
+        level: 'output',
+        parent_id: H4_GOAL_RAW,    // wrong level: goal instead of purpose → WRONG_LEVEL_PARENT
+        description: 'Output with wrong parent'
+      }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H4_PROJECT,
+      rawEntries,
+      skeletonEvidence: skeleton,
+      grantLinkEvidence: null
+    });
+
+    // Output's trusted parent is null (wrong-level isolated)
+    const outputDisp = res.dispositionMap[H4_OUTPUT_RAW];
+    expect(outputDisp).toBe('INVALID_PARENT');
+    // Output does not count as valid child of the outcome
+    expect(res.unusedOutcomes.some((o) => o.sourceExternalId === H4_OUTCOME_SRC_1)).toBe(true);
+    expect(res.findings.some((f) => f.code === 'UNUSED_SKELETON_OUTCOME' && f.rawEntryIds.includes(H4_OUTCOME_SRC_1))).toBe(true);
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  // ─── Case H: Mixed valid and invalid children → USED ─────────────────────
+
+  test('H4 Case H: one valid output + one boundary-invalid output → USED (valid child is sufficient)', () => {
+    const skeleton = makeH4Skeleton(H4_OUTCOME_RAW);
+    const rawEntries: RawLfaEntry[] = [
+      {
+        id: H4_OUTCOME_RAW,
+        project_id: H4_PROJECT.id,
+        org_id: H4_PROJECT.org_id,
+        level: 'purpose',
+        sequence: 2,
+        description: 'Valid Outcome'
+      },
+      {
+        id: H4_OUTPUT_RAW,
+        project_id: H4_PROJECT.id,
+        org_id: H4_PROJECT.org_id,
+        level: 'output',
+        parent_id: H4_OUTCOME_RAW,
+        description: 'Valid Output'
+      },
+      {
+        id: H4_OUTPUT_RAW_2,
+        project_id: 'wrong-project',           // boundary-invalid sibling output
+        org_id: H4_PROJECT.org_id,
+        level: 'output',
+        parent_id: H4_OUTCOME_RAW,
+        description: '__SENTINEL_H4H_INV__'
+      }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H4_PROJECT,
+      rawEntries,
+      skeletonEvidence: skeleton,
+      grantLinkEvidence: null
+    });
+
+    // Valid output contributes → outcome is USED
+    expect(res.unusedOutcomes.some((o) => o.sourceExternalId === H4_OUTCOME_SRC_1)).toBe(false);
+    expect(res.findings.some((f) => f.code === 'UNUSED_SKELETON_OUTCOME' && f.rawEntryIds.includes(H4_OUTCOME_SRC_1))).toBe(false);
+    // Invalid output is still quarantined
+    expect(res.dispositionMap[H4_OUTPUT_RAW_2]).toBe('REVIEW_ONLY');
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+});

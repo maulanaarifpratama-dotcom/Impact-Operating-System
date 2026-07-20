@@ -548,12 +548,27 @@ export function mapToCanonicalLfaView(
 
   // Check for unused outcomes declared in the skeleton
   // H3: Only boundary-valid raw entries count as trusted usage evidence
+  // H4: A skeleton outcome is USED only when its correlated raw outcome has at least one valid trusted output child
   if (skeletonEvidence && skeletonEvidence.correlationStatus === 'AVAILABLE') {
     skeletonEvidence.outcomeNodes.forEach((skOut) => {
-      const isUsed = boundaryValidEntries.some((e) => {
-        const correlated = correlatedNodeByRawId.get(e.id);
-        return correlated && correlated.sourceNodeId === skOut.sourceNodeId;
-      });
+      // H4: Resolve correlated raw outcome ID
+      const correlatedRawOutcomeId = skOut.correlatedRawEntryId;
+
+      // H4: Determine whether this skeleton outcome has at least one valid trusted output child
+      let isUsed = false;
+      if (
+        correlatedRawOutcomeId &&
+        !boundaryInvalidEntryIds.has(correlatedRawOutcomeId)
+      ) {
+        // The correlated raw row must exist in raw entries (not dangling)
+        const correlatedRawExists = boundaryValidEntries.some((e) => e.id === correlatedRawOutcomeId);
+        if (correlatedRawExists) {
+          // A valid trusted output child: boundary-valid output whose validParentMap parent is this outcome
+          isUsed = boundaryValidEntries.some(
+            (e) => e.level === 'output' && validParentMap.get(e.id) === correlatedRawOutcomeId
+          );
+        }
+      }
 
       if (!isUsed) {
         const findingId = makeFindingId('UNUSED_SKELETON_OUTCOME', [skOut.sourceNodeId]);
