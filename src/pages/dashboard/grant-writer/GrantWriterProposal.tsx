@@ -24,6 +24,36 @@ import { INKINDO_PROVINCE_MULTIPLIERS, INKINDO_DIRECT_COST_MULTIPLIERS } from '@
 type LfaDoc = Database['public']['Tables']['gw_lfa_documents']['Row'];
 type Project = Database['public']['Tables']['gw_projects']['Row'];
 
+type MaterializationSource = Pick<LfaDoc, 'id' | 'project_id' | 'organization_id' | 'version' | 'matrix'>;
+
+function resolveMaterializationSource(
+  doc: LfaDoc | null,
+  expectedProjectId: string,
+  expectedOrganizationId: string
+): MaterializationSource {
+  if (!doc) {
+    throw new Error('Dokumen proposal yang sedang dipratinjau tidak tersedia untuk materialisasi.');
+  }
+
+  if (typeof doc.id !== 'string' || doc.id.trim() === '') {
+    throw new Error('Dokumen proposal yang sedang dipratinjau tidak memiliki ID yang valid.');
+  }
+
+  if (doc.project_id !== expectedProjectId) {
+    throw new Error('Dokumen proposal yang sedang dipratinjau tidak cocok dengan proyek Grant Writer ini.');
+  }
+
+  if (doc.organization_id !== expectedOrganizationId) {
+    throw new Error('Dokumen proposal yang sedang dipratinjau tidak cocok dengan organisasi proyek ini.');
+  }
+
+  if (!doc.matrix || typeof doc.matrix !== 'object') {
+    throw new Error('Dokumen proposal yang sedang dipratinjau tidak memiliki matrix yang dapat dimaterialisasi.');
+  }
+
+  return doc;
+}
+
 /** Minimal Markdown → HTML for the donor-ready preview. */
 function renderMarkdown(md: string): string {
   const escapeHtml = (s: string) =>
@@ -360,6 +390,19 @@ export default function GrantWriterProposal() {
 
   const handleMaterialize = async () => {
     if (!project) return;
+
+    let sourceDoc: MaterializationSource;
+    try {
+      sourceDoc = resolveMaterializationSource(doc, project.id, project.organization_id);
+    } catch (err: any) {
+      toast({
+        title: 'Materialisasi Gagal',
+        description: err.message || 'Dokumen proposal yang sedang dipratinjau tidak valid.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setMaterializing(true);
     setCompleted(false);
     
@@ -431,15 +474,7 @@ export default function GrantWriterProposal() {
 
       if (entriesErr) throw entriesErr;
 
-      const { data: lfaDoc } = await supabase
-        .from('gw_lfa_documents')
-        .select('*')
-        .eq('project_id', project.id)
-        .order('version', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      const matrix = lfaDoc?.matrix as any;
+      const matrix = sourceDoc.matrix as any;
       const skeleton = matrix?.program_skeleton;
 
 
