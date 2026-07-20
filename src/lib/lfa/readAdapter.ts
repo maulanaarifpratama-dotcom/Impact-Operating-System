@@ -65,6 +65,10 @@ export function mapToCanonicalLfaView(
     rawIdSet.add(entry.id);
   }
 
+  if (skeletonEvidence) {
+    assertValidSkeletonEvidence(skeletonEvidence);
+  }
+
   const allRawEntries = [...rawEntries];
 
   const findings: AdapterFinding[] = [];
@@ -135,11 +139,6 @@ export function mapToCanonicalLfaView(
   // Rule 2: Broken Source Link Analysis
   if (rawProject.linked_grant_id && (!grantLinkEvidence || !grantLinkEvidence.resolves)) {
     addFinding('BROKEN_SOURCE_LINK', 'WARNING', []);
-  }
-
-  // Skeleton validation check if present
-  if (skeletonEvidence) {
-    assertValidSkeletonEvidence(skeletonEvidence);
   }
 
   // Build lookup maps

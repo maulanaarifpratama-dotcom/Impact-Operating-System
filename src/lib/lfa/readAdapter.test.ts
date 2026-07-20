@@ -43,6 +43,129 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
     expect(Object.isFrozen(res)).toBe(true);
   });
 
+  test('H2A malformed skeleton with empty raw entries throws', () => {
+    const malformedEvidence = {
+      documentId: 'sk-doc-123',
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'INVALID',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    } as unknown as ValidatedStructuralSkeletonEvidence;
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: malformedEvidence
+    })).toThrow(Error);
+  });
+
+  test('H2A malformed documentId with empty raw entries throws', () => {
+    const malformedDocumentIdSkeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: '',
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: malformedDocumentIdSkeleton
+    })).toThrow(Error);
+  });
+
+  test('H2A valid skeleton with empty raw entries still returns EMPTY', () => {
+    const validSkeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: 'sk-doc-123',
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    const res = mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: validSkeleton
+    });
+
+    expect(res.presentationMode).toBe('EMPTY');
+    expect(res.structuralStatus).toBe('EMPTY');
+    expect(res.measurementStatus).toBe('UNKNOWN');
+    expect(res.allRawEntries).toEqual([]);
+    expect(Object.isFrozen(res)).toBe(true);
+    expect(Object.isFrozen(res.allRawEntries)).toBe(true);
+  });
+
+  test('H2A null skeleton with empty entries remains valid', () => {
+    const res = mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: null
+    });
+
+    expect(res.presentationMode).toBe('EMPTY');
+    expect(res.structuralStatus).toBe('EMPTY');
+    expect(res.measurementStatus).toBe('UNKNOWN');
+  });
+
+  test('H2A omitted skeleton with empty entries remains valid', () => {
+    const res = mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [],
+      grantLinkEvidence: mockGrantLinkResolved
+    });
+
+    expect(res.presentationMode).toBe('EMPTY');
+    expect(res.structuralStatus).toBe('EMPTY');
+    expect(res.measurementStatus).toBe('UNKNOWN');
+  });
+
+  test('H2A duplicate raw ID error precedence remains unchanged with malformed skeleton evidence', () => {
+    const malformedEvidence = {
+      documentId: 'sk-doc-123',
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'INVALID',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    } as unknown as ValidatedStructuralSkeletonEvidence;
+
+    expect(() => mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries: [
+        { id: 'raw-goal-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
+        { id: 'raw-goal-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' }
+      ],
+      grantLinkEvidence: mockGrantLinkResolved,
+      skeletonEvidence: malformedEvidence
+    })).toThrow('Duplicate rawEntryId detected in inputs');
+  });
+
   // 2. Fixture clean inferred Compact
   test('02 clean inferred Compact - Goal, Purpose, Outputs, Activities. Complete compact layout.', () => {
     const rawEntries: RawLfaEntry[] = [
