@@ -663,61 +663,223 @@ export function mapToCanonicalLfaView(
   }
 
   // Generate Review Queue
-  const reviewQueue: AdapterReviewItem[] = [];
-  findings.forEach((finding) => {
-    // H3: Boundary findings exist but must not produce AdapterReviewItem records
-    if (finding.code === 'CROSS_PROJECT_PARENT' || finding.code === 'CROSS_TENANT_PARENT') {
-      return;
+  const isOutcomeScopedPurposeClassification = (classification: ClassificationState): boolean => {
+    return (
+      classification === 'CONFIRMED_OUTCOME' ||
+      classification === 'INFERRED_OUTCOME_CANDIDATE' ||
+      classification === 'UNUSED_SKELETON_OUTCOME' ||
+      classification === 'AMBIGUOUS_RESULT'
+    );
+  };
+
+  const deriveScopeTypeForRawEntry = (
+    entry: RawLfaEntry,
+    classification: ClassificationState
+  ): InterpretedNodeType => {
+    if (entry.level === 'goal') {
+      return 'goal';
     }
-
-    let actionCode: AdapterReviewActionCode = 'REVIEW_UNASSIGNED_OUTPUT';
-    let scopeType: InterpretedNodeType = 'output';
-    let scopeId = '';
-
-    if (finding.code === 'MULTIPLE_GOAL_CANDIDATES') {
-      actionCode = 'REVIEW_DUPLICATE_GOAL';
-      scopeType = 'goal';
-    } else if (finding.code === 'MULTIPLE_PURPOSE_CANDIDATES') {
-      actionCode = 'REVIEW_DUPLICATE_PURPOSE';
-      scopeType = 'purpose';
-    } else if (finding.code === 'AMBIGUOUS_ADDITIONAL_PURPOSE') {
-      actionCode = 'REVIEW_AMBIGUOUS_RESULT';
-      scopeType = 'outcome';
-      scopeId = finding.rawEntryIds[0] || '';
-    } else if (finding.code === 'UNUSED_SKELETON_OUTCOME') {
-      actionCode = 'REVIEW_UNUSED_OUTCOME';
-      scopeType = 'outcome';
-      scopeId = finding.rawEntryIds[0] || '';
-    } else if (
-      finding.code === 'WRONG_LEVEL_PARENT' ||
-      finding.code === 'MISSING_PARENT' ||
-      finding.code === 'SELF_REFERENCING_PARENT'
-    ) {
-      actionCode = 'REVIEW_INVALID_PARENT';
-      scopeId = finding.rawEntryIds[0] || '';
-    } else if (finding.code === 'BROKEN_SOURCE_LINK') {
-      actionCode = 'REVIEW_BROKEN_SOURCE_LINK';
-      scopeType = 'purpose';
+    if (entry.level === 'purpose') {
+      return isOutcomeScopedPurposeClassification(classification) ? 'outcome' : 'purpose';
     }
+    if (entry.level === 'output') {
+      return 'output';
+    }
+    return 'activity';
+  };
 
-    const classification = scopeId
-      ? (classificationMap.get(scopeId) || 'CONFIRMED_OUTPUT')
-      : 'CONFIRMED_PURPOSE';
+  const getDeterministicFirstRawEntryId = (rawEntryIds: readonly string[]): string | null => {
+    const normalized = rawEntryIds.filter((id) => id.length > 0);
+    if (normalized.length === 0) {
+      return null;
+    }
+    return [...normalized].sort()[0];
+  };
 
-    reviewQueue.push({
+  const makeReviewItem = (
+    finding: AdapterFinding,
+    scopeType: InterpretedNodeType,
+    scopeId: string,
+    classification: ClassificationState,
+    recommendedUserAction: AdapterReviewActionCode,
+    confidence: 'HIGH' | 'MEDIUM' | 'LOW',
+    evidenceTier: AdapterConfidenceTier,
+    blockingStatus: boolean
+  ): AdapterReviewItem => {
+    return {
       findingId: finding.findingId,
       projectId: rawProject.id,
       scopeType,
       scopeId,
       classification,
-      confidence: 'LOW',
-      evidenceTier: 'C',
-      evidenceReasons: finding.rawEntryIds,
-      blockingStatus: finding.severity === 'ERROR',
-      recommendedUserAction: actionCode,
+      confidence,
+      evidenceTier,
+      evidenceReasons: [`finding:${finding.code}`],
+      blockingStatus,
+      recommendedUserAction,
       rawEntryIds: finding.rawEntryIds,
       createdAt: rawProject.created_at || ''
-    });
+    };
+  };
+
+  const mapFindingToReviewItem = (finding: AdapterFinding): AdapterReviewItem | null => {
+    switch (finding.code) {
+      case 'MULTIPLE_GOAL_CANDIDATES': {
+        const scopeId = getDeterministicFirstRawEntryId(finding.rawEntryIds);
+        if (!scopeId) {
+          return null;
+        }
+        return makeReviewItem(
+          finding,
+          'goal',
+          scopeId,
+          'DUPLICATE_GOAL_CANDIDATE',
+          'REVIEW_DUPLICATE_GOAL',
+          'LOW',
+          'C',
+          true
+        );
+      }
+
+      case 'MULTIPLE_PURPOSE_CANDIDATES': {
+        const scopeId = getDeterministicFirstRawEntryId(finding.rawEntryIds);
+        if (!scopeId) {
+          return null;
+        }
+        return makeReviewItem(
+          finding,
+          'purpose',
+          scopeId,
+          'DUPLICATE_PURPOSE_CANDIDATE',
+          'REVIEW_DUPLICATE_PURPOSE',
+          'LOW',
+          'C',
+          true
+        );
+      }
+
+      case 'AMBIGUOUS_ADDITIONAL_PURPOSE': {
+        const scopeId = getDeterministicFirstRawEntryId(finding.rawEntryIds);
+        if (!scopeId) {
+          return null;
+        }
+        return makeReviewItem(
+          finding,
+          'outcome',
+          scopeId,
+          'AMBIGUOUS_RESULT',
+          'REVIEW_AMBIGUOUS_RESULT',
+          'LOW',
+          'C',
+          finding.severity === 'ERROR'
+        );
+      }
+
+      case 'UNASSIGNED_OUTPUT': {
+        const scopeId = getDeterministicFirstRawEntryId(finding.rawEntryIds);
+        if (!scopeId) {
+          return null;
+        }
+        const classification = classificationMap.get(scopeId) || 'LEGACY_UNASSIGNED_OUTPUT';
+        return makeReviewItem(
+          finding,
+          'output',
+          scopeId,
+          classification,
+          'REVIEW_UNASSIGNED_OUTPUT',
+          'LOW',
+          'C',
+          finding.severity === 'ERROR'
+        );
+      }
+
+      case 'MISSING_PARENT':
+      case 'WRONG_LEVEL_PARENT': {
+        const scopeId = getDeterministicFirstRawEntryId(finding.rawEntryIds);
+        if (!scopeId) {
+          return null;
+        }
+        const entry = entryMap.get(scopeId);
+        const classification = classificationMap.get(scopeId);
+        if (!entry || !classification) {
+          return null;
+        }
+        const scopeType = deriveScopeTypeForRawEntry(entry, classification);
+        if (scopeType !== 'output' && scopeType !== 'activity') {
+          return null;
+        }
+        return makeReviewItem(
+          finding,
+          scopeType,
+          scopeId,
+          classification,
+          'REVIEW_INVALID_PARENT',
+          'LOW',
+          'C',
+          finding.severity === 'ERROR'
+        );
+      }
+
+      case 'SELF_REFERENCING_PARENT': {
+        const scopeId = getDeterministicFirstRawEntryId(finding.rawEntryIds);
+        if (!scopeId) {
+          return null;
+        }
+        const entry = entryMap.get(scopeId);
+        const classification = classificationMap.get(scopeId);
+        if (!entry || !classification) {
+          return null;
+        }
+        return makeReviewItem(
+          finding,
+          deriveScopeTypeForRawEntry(entry, classification),
+          scopeId,
+          classification,
+          'REVIEW_INVALID_PARENT',
+          'LOW',
+          'C',
+          finding.severity === 'ERROR'
+        );
+      }
+
+      case 'UNUSED_SKELETON_OUTCOME': {
+        const scopeId = getDeterministicFirstRawEntryId(finding.rawEntryIds);
+        if (!scopeId) {
+          return null;
+        }
+        return makeReviewItem(
+          finding,
+          'outcome',
+          scopeId,
+          'UNUSED_SKELETON_OUTCOME',
+          'REVIEW_UNUSED_OUTCOME',
+          'HIGH',
+          'A',
+          false
+        );
+      }
+
+      case 'BROKEN_SOURCE_LINK':
+      case 'SKELETON_NOT_CURRENT':
+      case 'CROSS_PROJECT_PARENT':
+      case 'CROSS_TENANT_PARENT':
+      case 'SKELETON_COUNT_MISMATCH':
+      case 'SOURCE_CORRELATION_UNRESOLVED':
+        return null;
+
+      default: {
+        const exhaustiveCheck: never = finding.code;
+        return exhaustiveCheck;
+      }
+    }
+  };
+
+  const reviewQueue: AdapterReviewItem[] = [];
+  findings.forEach((finding) => {
+    const item = mapFindingToReviewItem(finding);
+    if (item) {
+      reviewQueue.push(item);
+    }
   });
 
   // 9. Row Accounting Invariant Verification Check

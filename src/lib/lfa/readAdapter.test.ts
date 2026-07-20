@@ -2332,3 +2332,318 @@ describe('Phase 2C1 H4 — Unused Skeleton Outcome Child-Count Semantics', () =>
   });
 
 });
+
+describe('Phase 2C1 H5 — Review Queue Scope and Exhaustiveness', () => {
+  const H5_PROJECT: RawLfaProject = {
+    id: 'h5-project',
+    org_id: 'h5-org',
+    name: 'H5 Test Project',
+    linked_grant_id: 'h5-linked-grant',
+    created_at: '2026-07-20T10:00:00Z'
+  };
+
+  const H5_DOC_UUID = '10101010-1010-4010-8010-101010101010';
+  const H5_OUTCOME_SOURCE_UUID = '20202020-2020-4020-8020-202020202020';
+
+  function reviewItemsForFindingCode(
+    res: ReturnType<typeof mapToCanonicalLfaView>,
+    code: string
+  ) {
+    const findingIds = new Set(res.findings.filter((f) => f.code === code).map((f) => f.findingId));
+    return res.reviewQueue.filter((item) => findingIds.has(item.findingId));
+  }
+
+  function firstFindingByCode(
+    res: ReturnType<typeof mapToCanonicalLfaView>,
+    code: string
+  ) {
+    return res.findings.find((f) => f.code === code);
+  }
+
+  function assertNoReviewForFindingCode(
+    res: ReturnType<typeof mapToCanonicalLfaView>,
+    code: string
+  ): void {
+    const findingIds = new Set(res.findings.filter((f) => f.code === code).map((f) => f.findingId));
+    expect(findingIds.size).toBeGreaterThan(0);
+    expect(res.reviewQueue.some((item) => findingIds.has(item.findingId))).toBe(false);
+  }
+
+  test('H5 Group A: duplicate goal and purpose findings map to explicit duplicate review items', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'goal-b', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'goal' },
+      { id: 'goal-a', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'goal' },
+      { id: 'purpose-b', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'purpose', sequence: 1 },
+      { id: 'purpose-a', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'purpose', sequence: 1 }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H5_PROJECT,
+      rawEntries,
+      grantLinkEvidence: { resolves: true }
+    });
+
+    const goalReviewItems = reviewItemsForFindingCode(res, 'MULTIPLE_GOAL_CANDIDATES');
+    expect(goalReviewItems).toHaveLength(1);
+    expect(goalReviewItems[0].recommendedUserAction).toBe('REVIEW_DUPLICATE_GOAL');
+    expect(goalReviewItems[0].scopeType).toBe('goal');
+    expect(goalReviewItems[0].scopeId).toBe('goal-a');
+    expect(goalReviewItems[0].classification).toBe('DUPLICATE_GOAL_CANDIDATE');
+    expect(goalReviewItems[0].rawEntryIds).toEqual(expect.arrayContaining(['goal-a', 'goal-b']));
+    expect(goalReviewItems[0].blockingStatus).toBe(true);
+
+    const purposeReviewItems = reviewItemsForFindingCode(res, 'MULTIPLE_PURPOSE_CANDIDATES');
+    expect(purposeReviewItems).toHaveLength(1);
+    expect(purposeReviewItems[0].recommendedUserAction).toBe('REVIEW_DUPLICATE_PURPOSE');
+    expect(purposeReviewItems[0].scopeType).toBe('purpose');
+    expect(purposeReviewItems[0].scopeId).toBe('purpose-a');
+    expect(purposeReviewItems[0].classification).toBe('DUPLICATE_PURPOSE_CANDIDATE');
+    expect(purposeReviewItems[0].rawEntryIds).toEqual(expect.arrayContaining(['purpose-a', 'purpose-b']));
+    expect(purposeReviewItems[0].blockingStatus).toBe(true);
+  });
+
+  test('H5 Group B: output parent findings and unassigned output stay output-scoped with affected entry IDs', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'goal-1', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'goal' },
+      { id: 'purpose-1', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'purpose', sequence: 1 },
+      { id: 'activity-parent', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'activity' },
+      { id: 'out-unassigned', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'output', parent_id: null },
+      { id: 'out-missing', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'output', parent_id: 'missing-parent' },
+      { id: 'out-wrong-level', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'output', parent_id: 'activity-parent' },
+      { id: 'out-self', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'output', parent_id: 'out-self' }
+    ];
+
+    const res = mapToCanonicalLfaView({ rawProject: H5_PROJECT, rawEntries, grantLinkEvidence: { resolves: true } });
+
+    const unassignedReview = reviewItemsForFindingCode(res, 'UNASSIGNED_OUTPUT').find((r) => r.scopeId === 'out-unassigned');
+    expect(unassignedReview).toBeDefined();
+    expect(unassignedReview!.scopeType).toBe('output');
+    expect(unassignedReview!.recommendedUserAction).toBe('REVIEW_UNASSIGNED_OUTPUT');
+    expect(unassignedReview!.classification).toBe('LEGACY_UNASSIGNED_OUTPUT');
+    expect(unassignedReview!.scopeId).not.toBe('');
+
+    const missingOutputReview = reviewItemsForFindingCode(res, 'MISSING_PARENT').find((r) => r.scopeId === 'out-missing');
+    expect(missingOutputReview).toBeDefined();
+    expect(missingOutputReview!.scopeType).toBe('output');
+    expect(missingOutputReview!.recommendedUserAction).toBe('REVIEW_INVALID_PARENT');
+    expect(missingOutputReview!.classification).toBe('INVALID_OUTPUT_PARENT');
+
+    const wrongOutputReview = reviewItemsForFindingCode(res, 'WRONG_LEVEL_PARENT').find((r) => r.scopeId === 'out-wrong-level');
+    expect(wrongOutputReview).toBeDefined();
+    expect(wrongOutputReview!.scopeType).toBe('output');
+    expect(wrongOutputReview!.recommendedUserAction).toBe('REVIEW_INVALID_PARENT');
+    expect(wrongOutputReview!.classification).toBe('INVALID_OUTPUT_PARENT');
+
+    const selfOutputReview = reviewItemsForFindingCode(res, 'SELF_REFERENCING_PARENT').find((r) => r.scopeId === 'out-self');
+    expect(selfOutputReview).toBeDefined();
+    expect(selfOutputReview!.scopeType).toBe('output');
+    expect(selfOutputReview!.recommendedUserAction).toBe('REVIEW_INVALID_PARENT');
+    expect(selfOutputReview!.classification).toBe('INVALID_OUTPUT_PARENT');
+  });
+
+  test('H5 Group C: activity parent findings remain activity-scoped without output fallback', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'goal-1', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'goal' },
+      { id: 'purpose-1', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'purpose', sequence: 1 },
+      { id: 'out-1', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'output', parent_id: 'purpose-1' },
+      { id: 'purpose-parent', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'purpose', sequence: 2 },
+      { id: 'act-missing', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'activity', parent_id: 'missing-output' },
+      { id: 'act-wrong-level', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'activity', parent_id: 'purpose-parent' },
+      { id: 'act-self', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'activity', parent_id: 'act-self' }
+    ];
+
+    const res = mapToCanonicalLfaView({ rawProject: H5_PROJECT, rawEntries, grantLinkEvidence: { resolves: true } });
+
+    const missingActivityReview = reviewItemsForFindingCode(res, 'MISSING_PARENT').find((r) => r.scopeId === 'act-missing');
+    expect(missingActivityReview).toBeDefined();
+    expect(missingActivityReview!.scopeType).toBe('activity');
+    expect(missingActivityReview!.recommendedUserAction).toBe('REVIEW_INVALID_PARENT');
+    expect(missingActivityReview!.classification).toBe('INVALID_ACTIVITY_PARENT');
+
+    const wrongActivityReview = reviewItemsForFindingCode(res, 'WRONG_LEVEL_PARENT').find((r) => r.scopeId === 'act-wrong-level');
+    expect(wrongActivityReview).toBeDefined();
+    expect(wrongActivityReview!.scopeType).toBe('activity');
+    expect(wrongActivityReview!.recommendedUserAction).toBe('REVIEW_INVALID_PARENT');
+    expect(wrongActivityReview!.classification).toBe('INVALID_ACTIVITY_PARENT');
+
+    const selfActivityReview = reviewItemsForFindingCode(res, 'SELF_REFERENCING_PARENT').find((r) => r.scopeId === 'act-self');
+    expect(selfActivityReview).toBeDefined();
+    expect(selfActivityReview!.scopeType).toBe('activity');
+    expect(selfActivityReview!.recommendedUserAction).toBe('REVIEW_INVALID_PARENT');
+    expect(selfActivityReview!.classification).toBe('INVALID_ACTIVITY_PARENT');
+  });
+
+  test('H5 Group D: purpose and outcome scopes are derived from actual entry and classification state', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'goal-1', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'goal' },
+      { id: 'purpose-self', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'purpose', sequence: 1, parent_id: 'purpose-self' },
+      { id: 'outcome-self', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'purpose', sequence: 2, parent_id: 'outcome-self' },
+      { id: 'out-child', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'output', parent_id: 'outcome-self' },
+      { id: 'ambiguous-outcome', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'purpose', sequence: 3 }
+    ];
+
+    const res = mapToCanonicalLfaView({ rawProject: H5_PROJECT, rawEntries, grantLinkEvidence: { resolves: true } });
+
+    const purposeSelfReview = reviewItemsForFindingCode(res, 'SELF_REFERENCING_PARENT').find((r) => r.scopeId === 'purpose-self');
+    expect(purposeSelfReview).toBeDefined();
+    expect(purposeSelfReview!.scopeType).toBe('purpose');
+    expect(purposeSelfReview!.classification).toBe('INFERRED_PURPOSE_CANDIDATE');
+
+    const outcomeSelfReview = reviewItemsForFindingCode(res, 'SELF_REFERENCING_PARENT').find((r) => r.scopeId === 'outcome-self');
+    expect(outcomeSelfReview).toBeDefined();
+    expect(outcomeSelfReview!.scopeType).toBe('outcome');
+    expect(outcomeSelfReview!.classification).toBe('INFERRED_OUTCOME_CANDIDATE');
+
+    const ambiguousReview = reviewItemsForFindingCode(res, 'AMBIGUOUS_ADDITIONAL_PURPOSE').find((r) => r.scopeId === 'ambiguous-outcome');
+    expect(ambiguousReview).toBeDefined();
+    expect(ambiguousReview!.scopeType).toBe('outcome');
+    expect(ambiguousReview!.classification).toBe('AMBIGUOUS_RESULT');
+  });
+
+  test('H5 Group E: synthetic unused outcome review uses sourceNodeId and explicit unused-outcome classification', () => {
+    const skeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: H5_DOC_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [
+        {
+          sourceNodeId: H5_OUTCOME_SOURCE_UUID,
+          declaredNodeType: 'outcome',
+          sequencePosition: 1,
+          correlatedRawEntryId: null
+        }
+      ],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'goal-1', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'goal' }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H5_PROJECT,
+      rawEntries,
+      grantLinkEvidence: { resolves: true },
+      skeletonEvidence: skeleton
+    });
+
+    const finding = firstFindingByCode(res, 'UNUSED_SKELETON_OUTCOME');
+    expect(finding).toBeDefined();
+
+    const reviewItems = reviewItemsForFindingCode(res, 'UNUSED_SKELETON_OUTCOME');
+    expect(reviewItems).toHaveLength(1);
+    expect(reviewItems[0].findingId).toBe(finding!.findingId);
+    expect(reviewItems[0].scopeType).toBe('outcome');
+    expect(reviewItems[0].scopeId).toBe(H5_OUTCOME_SOURCE_UUID);
+    expect(reviewItems[0].classification).toBe('UNUSED_SKELETON_OUTCOME');
+    expect(reviewItems[0].recommendedUserAction).toBe('REVIEW_UNUSED_OUTCOME');
+    expect(reviewItems[0].confidence).toBe('HIGH');
+    expect(reviewItems[0].evidenceTier).toBe('A');
+    expect(reviewItems[0].classification).not.toBe('CONFIRMED_OUTPUT');
+  });
+
+  test('H5 Group F: non-reviewable findings remain in findings and are absent from reviewQueue', () => {
+    const nonCurrentSkeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: '30303030-3030-4030-8030-303030303030',
+      documentVersion: 1,
+      isCurrent: false,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'cross-project-row', project_id: 'wrong-project', org_id: H5_PROJECT.org_id, level: 'goal' },
+      { id: 'cross-tenant-row', project_id: H5_PROJECT.id, org_id: 'wrong-org', level: 'purpose', sequence: 1 },
+      { id: 'valid-goal', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'goal' }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H5_PROJECT,
+      rawEntries,
+      grantLinkEvidence: { resolves: false },
+      skeletonEvidence: nonCurrentSkeleton
+    });
+
+    expect(firstFindingByCode(res, 'BROKEN_SOURCE_LINK')?.severity).toBe('WARNING');
+    expect(firstFindingByCode(res, 'SKELETON_NOT_CURRENT')?.severity).toBe('WARNING');
+    expect(firstFindingByCode(res, 'CROSS_PROJECT_PARENT')?.severity).toBe('ERROR');
+    expect(firstFindingByCode(res, 'CROSS_TENANT_PARENT')?.severity).toBe('ERROR');
+
+    assertNoReviewForFindingCode(res, 'BROKEN_SOURCE_LINK');
+    assertNoReviewForFindingCode(res, 'SKELETON_NOT_CURRENT');
+    assertNoReviewForFindingCode(res, 'CROSS_PROJECT_PARENT');
+    assertNoReviewForFindingCode(res, 'CROSS_TENANT_PARENT');
+
+    expect(res.dispositionMap['cross-project-row']).toBe('REVIEW_ONLY');
+    expect(res.dispositionMap['cross-tenant-row']).toBe('REVIEW_ONLY');
+  });
+
+  test('H5 Group G: reviewQueue is unique, scoped, and only references existing findings', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'goal-b', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'goal' },
+      { id: 'goal-a', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'goal' },
+      { id: 'purpose-1', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'purpose', sequence: 1 },
+      { id: 'purpose-amb', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'purpose', sequence: 2 },
+      { id: 'out-unassigned', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'output', parent_id: null },
+      { id: 'act-missing', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'activity', parent_id: 'missing-parent' },
+      { id: 'cross-project-row', project_id: 'wrong-project', org_id: H5_PROJECT.org_id, level: 'output' }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H5_PROJECT,
+      rawEntries,
+      grantLinkEvidence: { resolves: false }
+    });
+
+    const findingIds = new Set(res.findings.map((f) => f.findingId));
+    const reviewFindingIds = res.reviewQueue.map((item) => item.findingId);
+    expect(reviewFindingIds.every((id) => findingIds.has(id))).toBe(true);
+    expect(new Set(reviewFindingIds).size).toBe(reviewFindingIds.length);
+    expect(res.reviewQueue.every((item) => item.scopeId.length > 0)).toBe(true);
+    expect(
+      res.reviewQueue.every((item) => ['goal', 'purpose', 'outcome', 'output', 'activity'].includes(item.scopeType))
+    ).toBe(true);
+
+    const nonReviewableCodes = ['BROKEN_SOURCE_LINK', 'SKELETON_NOT_CURRENT', 'CROSS_PROJECT_PARENT', 'CROSS_TENANT_PARENT'];
+    for (const code of nonReviewableCodes) {
+      const scopedFindingIds = new Set(res.findings.filter((f) => f.code === code).map((f) => f.findingId));
+      expect(res.reviewQueue.some((item) => scopedFindingIds.has(item.findingId))).toBe(false);
+    }
+  });
+
+  test('H5 Group H: reviewQueue and finding identity are deterministic across repeated runs', () => {
+    const fixtureEntries: RawLfaEntry[] = [
+      { id: 'goal-b', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'goal' },
+      { id: 'goal-a', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'goal' },
+      { id: 'purpose-1', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'purpose', sequence: 1 },
+      { id: 'out-unassigned', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'output', parent_id: null },
+      { id: 'act-self', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'activity', parent_id: 'act-self' },
+      { id: 'purpose-amb', project_id: H5_PROJECT.id, org_id: H5_PROJECT.org_id, level: 'purpose', sequence: 2 }
+    ];
+
+    const input = {
+      rawProject: H5_PROJECT,
+      rawEntries: fixtureEntries,
+      grantLinkEvidence: { resolves: true }
+    };
+
+    const first = mapToCanonicalLfaView(input);
+    const second = mapToCanonicalLfaView(input);
+
+    expect(first.reviewQueue).toEqual(second.reviewQueue);
+    expect(first.findings.map((f) => f.findingId)).toEqual(second.findings.map((f) => f.findingId));
+    expect(first.reviewQueue.map((r) => r.scopeId)).toEqual(second.reviewQueue.map((r) => r.scopeId));
+    expect(first.reviewQueue.map((r) => r.createdAt)).toEqual(second.reviewQueue.map((r) => r.createdAt));
+    expect(first.reviewQueue.map((r) => r.findingId)).toEqual(second.reviewQueue.map((r) => r.findingId));
+  });
+});
