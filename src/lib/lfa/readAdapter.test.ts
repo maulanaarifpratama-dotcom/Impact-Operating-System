@@ -26,15 +26,21 @@ const mockGrantLinkUnresolved = {
 describe('Legacy LFA Read-Adapter Core Tests', () => {
   // 1. Fixture empty draft
   test('01 empty draft - Assert PresentationMode = EMPTY and StructuralStatus = EMPTY', () => {
+    const callerEntries: RawLfaEntry[] = [];
     const res = mapToCanonicalLfaView({
       rawProject: mockProject,
-      rawEntries: [],
+      rawEntries: callerEntries,
       grantLinkEvidence: mockGrantLinkResolved
     });
     expect(res.presentationMode).toBe('EMPTY');
     expect(res.structuralStatus).toBe('EMPTY');
     expect(res.measurementStatus).toBe('UNKNOWN');
     expect(res.findings).toHaveLength(0);
+    expect(Object.isFrozen(callerEntries)).toBe(false);
+    expect(res.allRawEntries).not.toBe(callerEntries);
+    expect(res.allRawEntries).toEqual(callerEntries);
+    expect(Object.isFrozen(res.allRawEntries)).toBe(true);
+    expect(Object.isFrozen(res)).toBe(true);
   });
 
   // 2. Fixture clean inferred Compact
@@ -130,6 +136,7 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
 
     expect(res.presentationMode).toBe('COMPACT_WITH_UNASSIGNED_OUTPUT');
     expect(res.structuralStatus).toBe('INCOMPLETE');
+    expect(res.measurementStatus).toBe('UNKNOWN');
     expect(res.unassignedOutputs).toHaveLength(1);
     expect(res.findings.some(f => f.code === 'UNASSIGNED_OUTPUT')).toBe(true);
   });
@@ -350,6 +357,7 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
 
     expect(res.presentationMode).toBe('AMBIGUOUS');
     expect(res.findings.some(f => f.code === 'MULTIPLE_GOAL_CANDIDATES')).toBe(true);
+    expect(res.measurementStatus).toBe('UNKNOWN');
   });
 
   // 11. Fixture duplicate Purpose same sequence
@@ -385,6 +393,7 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
 
     expect(res.presentationMode).toBe('COMPACT_CONFIRMED');
     expect(res.structuralStatus).toBe('INCOMPLETE'); // missing output and activity
+    expect(res.measurementStatus).toBe('UNKNOWN');
   });
 
   // 13. Fixture non-current Skeleton evidence
@@ -551,6 +560,7 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
     expect(res.findings.some(f => f.code === 'CROSS_PROJECT_PARENT')).toBe(true);
     expect(res.hasBlockingIntegrityFinding).toBe(true);
     expect(res.structuralStatus).toBe('BLOCKED');
+    expect(res.measurementStatus).toBe('UNKNOWN');
   });
 
   // 21. Fixture cross-tenant parent
@@ -569,6 +579,7 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
     expect(res.findings.some(f => f.code === 'CROSS_TENANT_PARENT')).toBe(true);
     expect(res.hasBlockingIntegrityFinding).toBe(true);
     expect(res.structuralStatus).toBe('BLOCKED');
+    expect(res.measurementStatus).toBe('UNKNOWN');
   });
 
   // 22. Fixture authoritative structural pattern using synthetic IDs
@@ -677,6 +688,8 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
     });
 
     expect(res.presentationMode).toBe('COMPACT_CONFIRMED');
+    expect(res.allRawEntries).not.toBe(rawEntriesFrozen);
+    expect(Object.isFrozen(res.allRawEntries)).toBe(true);
   });
 
   // 26. Fixture all raw rows accounted
@@ -743,5 +756,128 @@ describe('Legacy LFA Read-Adapter Core Tests', () => {
 
     const res = mapToCanonicalLfaView({ rawProject: mockProject, rawEntries });
     expect(res.purpose?.legacyIndicatorText).toBe('a, b, c; d / e');
+  });
+});
+
+describe('Phase 2C1 H1 — Defensive Snapshot and Measurement Contract', () => {
+  test('H1 snapshot non-empty - caller array remains mutable and isolated from returned snapshot', () => {
+    const callerEntries: RawLfaEntry[] = [
+      { id: 'raw-goal-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
+      { id: 'raw-purpose-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 }
+    ];
+
+    const result = mapToCanonicalLfaView({ rawProject: mockProject, rawEntries: callerEntries });
+
+    expect(Object.isFrozen(callerEntries)).toBe(false);
+    expect(result.allRawEntries).not.toBe(callerEntries);
+    expect(result.allRawEntries).toEqual(callerEntries);
+    expect(Object.isFrozen(result.allRawEntries)).toBe(true);
+
+    const originalReturnedLength = result.allRawEntries.length;
+    callerEntries.push({
+      id: 'raw-output-1',
+      project_id: mockProject.id,
+      org_id: mockProject.org_id,
+      level: 'output',
+      parent_id: 'raw-purpose-1'
+    });
+
+    expect(callerEntries.length).toBe(originalReturnedLength + 1);
+    expect(result.allRawEntries.length).toBe(originalReturnedLength);
+  });
+
+  test('H1 measurement INCOMPLETE with populated legacy text - structural incompleteness yields UNKNOWN', () => {
+    const rawEntries: RawLfaEntry[] = [
+      {
+        id: 'raw-goal-1',
+        project_id: mockProject.id,
+        org_id: mockProject.org_id,
+        level: 'goal',
+        indicator: 'Ind G',
+        means_of_verification: 'MoV G'
+      },
+      {
+        id: 'raw-purpose-1',
+        project_id: mockProject.id,
+        org_id: mockProject.org_id,
+        level: 'purpose',
+        sequence: 1,
+        indicator: 'Ind P',
+        means_of_verification: 'MoV P'
+      }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries,
+      grantLinkEvidence: mockGrantLinkResolved
+    });
+
+    expect(res.structuralStatus).toBe('INCOMPLETE');
+    expect(res.measurementStatus).toBe('UNKNOWN');
+  });
+
+  test('H1 measurement AMBIGUOUS - duplicate purpose yields UNKNOWN measurement status', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'raw-goal-1', project_id: mockProject.id, org_id: mockProject.org_id, level: 'goal' },
+      { id: 'raw-purpose-1a', project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 },
+      { id: 'raw-purpose-1b', project_id: mockProject.id, org_id: mockProject.org_id, level: 'purpose', sequence: 1 }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries,
+      grantLinkEvidence: mockGrantLinkResolved
+    });
+
+    expect(res.structuralStatus).toBe('AMBIGUOUS');
+    expect(res.measurementStatus).toBe('UNKNOWN');
+  });
+
+  test('H1 measurement COMPLETE with missing legacy text - yields INCOMPLETE measurement status', () => {
+    const rawEntries: RawLfaEntry[] = [
+      {
+        id: 'raw-goal-1',
+        project_id: mockProject.id,
+        org_id: mockProject.org_id,
+        level: 'goal',
+        indicator: 'Ind G',
+        means_of_verification: 'MoV G'
+      },
+      {
+        id: 'raw-purpose-1',
+        project_id: mockProject.id,
+        org_id: mockProject.org_id,
+        level: 'purpose',
+        sequence: 1,
+        indicator: 'Ind P',
+        means_of_verification: 'MoV P'
+      },
+      {
+        id: 'raw-output-1',
+        project_id: mockProject.id,
+        org_id: mockProject.org_id,
+        level: 'output',
+        parent_id: 'raw-purpose-1',
+        indicator: 'Ind O',
+        means_of_verification: null
+      },
+      {
+        id: 'raw-activity-1',
+        project_id: mockProject.id,
+        org_id: mockProject.org_id,
+        level: 'activity',
+        parent_id: 'raw-output-1'
+      }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: mockProject,
+      rawEntries,
+      grantLinkEvidence: mockGrantLinkResolved
+    });
+
+    expect(res.structuralStatus).toBe('COMPLETE');
+    expect(res.measurementStatus).toBe('INCOMPLETE');
   });
 });

@@ -65,6 +65,8 @@ export function mapToCanonicalLfaView(
     rawIdSet.add(entry.id);
   }
 
+  const allRawEntries = [...rawEntries];
+
   const findings: AdapterFinding[] = [];
   let hasBlockingIntegrityFinding = false;
 
@@ -100,7 +102,7 @@ export function mapToCanonicalLfaView(
   if (rawEntries.length === 0) {
     const emptyView: CanonicalLfaView = {
       rawProject,
-      allRawEntries: rawEntries,
+      allRawEntries,
       goal: null,
       purpose: null,
       outcomes: [],
@@ -118,7 +120,7 @@ export function mapToCanonicalLfaView(
       hasBlockingIntegrityFinding: false
     };
 
-    Object.freeze(emptyView.allRawEntries);
+    Object.freeze(allRawEntries);
     Object.freeze(emptyView.outcomes);
     Object.freeze(emptyView.outputs);
     Object.freeze(emptyView.activities);
@@ -519,16 +521,13 @@ export function mapToCanonicalLfaView(
   }
 
   // Derive MeasurementStatus
-  let measurementStatus: MeasurementStatus = 'LEGACY_TEXT_PRESENT';
-  if (structuralStatus === 'AMBIGUOUS' || structuralStatus === 'BLOCKED') {
+  let measurementStatus: MeasurementStatus;
+  if (structuralStatus !== 'COMPLETE') {
     measurementStatus = 'UNKNOWN';
   } else {
-    // Check if any results have blank indicators/MoVs
     const results = [goal, purpose, ...outcomeNodes, ...outputNodes].filter(Boolean) as CanonicalNodeView[];
     const hasBlankFields = results.some((r) => !r.legacyIndicatorText?.trim() || !r.legacyMeansOfVerificationText?.trim());
-    if (hasBlankFields) {
-      measurementStatus = 'INCOMPLETE';
-    }
+    measurementStatus = hasBlankFields ? 'INCOMPLETE' : 'LEGACY_TEXT_PRESENT';
   }
 
   // Generate Review Queue
@@ -600,7 +599,7 @@ export function mapToCanonicalLfaView(
   // 10. Construct View and Apply Explicit Freeze Targets
   const canonicalView: CanonicalLfaView = {
     rawProject,
-    allRawEntries: rawEntries,
+    allRawEntries,
     goal,
     purpose,
     outcomes: outcomeNodes,
@@ -618,7 +617,7 @@ export function mapToCanonicalLfaView(
     hasBlockingIntegrityFinding
   };
 
-  Object.freeze(rawEntries);
+  Object.freeze(allRawEntries);
   Object.freeze(outcomeNodes);
   Object.freeze(outputNodes);
   Object.freeze(activityNodes);
