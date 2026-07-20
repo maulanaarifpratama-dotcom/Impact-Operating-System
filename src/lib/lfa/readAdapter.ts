@@ -249,16 +249,19 @@ export function mapToCanonicalLfaView(
 
   // Rule 0: Tenant boundary & self-referencing check
   const validParentMap = new Map<string, string | null>(); // Maps child ID to isolated parent ID (null if invalid)
+  const boundaryInvalidEntryIds = new Set<string>(); // H3: Track boundary-invalid rows for quarantine
   
   rawEntries.forEach((entry) => {
     validParentMap.set(entry.id, entry.parent_id || null);
 
     if (entry.project_id !== rawProject.id) {
       addFinding('CROSS_PROJECT_PARENT', 'ERROR', [entry.id]);
+      boundaryInvalidEntryIds.add(entry.id);
       validParentMap.set(entry.id, null);
     }
     if (entry.org_id !== rawProject.org_id) {
       addFinding('CROSS_TENANT_PARENT', 'ERROR', [entry.id]);
+      boundaryInvalidEntryIds.add(entry.id);
       validParentMap.set(entry.id, null);
     }
     if (entry.parent_id === entry.id) {
@@ -267,12 +270,13 @@ export function mapToCanonicalLfaView(
     }
   });
 
-  // Verify missing and wrong-level parents
+  // Verify missing and wrong-level parents (H3: also check boundary validity)
   rawEntries.forEach((entry) => {
     const parentId = validParentMap.get(entry.id);
     if (parentId) {
       const parent = entryMap.get(parentId);
-      if (!parent) {
+      // H3: Check if parent is boundary-invalid; if so, treat as MISSING_PARENT
+      if (!parent || boundaryInvalidEntryIds.has(parentId)) {
         addFinding('MISSING_PARENT', 'WARNING', [entry.id], { parentId });
         validParentMap.set(entry.id, null);
       } else {
@@ -295,7 +299,7 @@ export function mapToCanonicalLfaView(
     }
   });
 
-  // Pre-Correlation Maps
+  // Pre-Correlation Maps (H3: Filter out boundary-invalid correlations)
   const correlatedNodeByRawId = new Map<string, StructuralSkeletonNode>();
   const correlatedNodeBySourceId = new Map<string, StructuralSkeletonNode>();
   
@@ -312,7 +316,8 @@ export function mapToCanonicalLfaView(
       if (node.sourceNodeId) {
         correlatedNodeBySourceId.set(node.sourceNodeId, node);
       }
-      if (node.correlatedRawEntryId) {
+      // H3: Only map correlations if the raw entry is boundary-valid
+      if (node.correlatedRawEntryId && !boundaryInvalidEntryIds.has(node.correlatedRawEntryId)) {
         correlatedNodeByRawId.set(node.correlatedRawEntryId, node);
       }
     });
@@ -322,9 +327,12 @@ export function mapToCanonicalLfaView(
     }
   }
 
-  // Rule 3: Goal/Purpose Detection
-  const goalRows = rawEntries.filter((e) => e.level === 'goal');
-  const primaryPurposeRows = rawEntries.filter((e) => e.level === 'purpose' && (e.sequence === 1 || !e.sequence));
+  // H3: Create boundary-valid entries view for trusted semantic processing
+  const boundaryValidEntries = rawEntries.filter((e) => !boundaryInvalidEntryIds.has(e.id));
+
+  // Rule 3: Goal/Purpose Detection (H3: Use boundary-valid entries only)
+  const goalRows = boundaryValidEntries.filter((e) => e.level === 'goal');
+  const primaryPurposeRows = boundaryValidEntries.filter((e) => e.level === 'purpose' && (e.sequence === 1 || !e.sequence));
 
   if (goalRows.length > 1) {
     addFinding('MULTIPLE_GOAL_CANDIDATES', 'WARNING', goalRows.map((g) => g.id));
@@ -349,6 +357,12 @@ export function mapToCanonicalLfaView(
 
   // Map each RawEntry to CanonicalNodeView
   rawEntries.forEach((entry) => {
+    // H3: Early quarantine check - boundary-invalid rows do not become canonical nodes
+    if (boundaryInvalidEntryIds.has(entry.id)) {
+      dispositionMap[entry.id] = 'REVIEW_ONLY';
+      return; // Skip all further processing for this row
+    }
+
     let interpretedType: InterpretedNodeType = entry.level;
     let classification: ClassificationState = 'CONFIRMED_GOAL';
     let confidence: AdapterConfidenceTier = 'C';
@@ -436,7 +450,8 @@ export function mapToCanonicalLfaView(
           }
         } else {
           interpretedType = 'outcome';
-          const hasChildren = rawEntries.some((child) => child.level === 'output' && child.parent_id === entry.id);
+          // H3: Use boundaryValidEntries for cardinality checks
+          const hasChildren = boundaryValidEntries.some((child) => child.level === 'output' && child.parent_id === entry.id);
           if (hasChildren) {
             classification = 'INFERRED_OUTCOME_CANDIDATE';
             confidence = 'B';
@@ -532,9 +547,10 @@ export function mapToCanonicalLfaView(
   });
 
   // Check for unused outcomes declared in the skeleton
+  // H3: Only boundary-valid raw entries count as trusted usage evidence
   if (skeletonEvidence && skeletonEvidence.correlationStatus === 'AVAILABLE') {
     skeletonEvidence.outcomeNodes.forEach((skOut) => {
-      const isUsed = rawEntries.some((e) => {
+      const isUsed = boundaryValidEntries.some((e) => {
         const correlated = correlatedNodeByRawId.get(e.id);
         return correlated && correlated.sourceNodeId === skOut.sourceNodeId;
       });
@@ -634,6 +650,11 @@ export function mapToCanonicalLfaView(
   // Generate Review Queue
   const reviewQueue: AdapterReviewItem[] = [];
   findings.forEach((finding) => {
+    // H3: Boundary findings exist but must not produce AdapterReviewItem records
+    if (finding.code === 'CROSS_PROJECT_PARENT' || finding.code === 'CROSS_TENANT_PARENT') {
+      return;
+    }
+
     let actionCode: AdapterReviewActionCode = 'REVIEW_UNASSIGNED_OUTPUT';
     let scopeType: InterpretedNodeType = 'output';
     let scopeId = '';
@@ -655,8 +676,6 @@ export function mapToCanonicalLfaView(
     } else if (
       finding.code === 'WRONG_LEVEL_PARENT' ||
       finding.code === 'MISSING_PARENT' ||
-      finding.code === 'CROSS_PROJECT_PARENT' ||
-      finding.code === 'CROSS_TENANT_PARENT' ||
       finding.code === 'SELF_REFERENCING_PARENT'
     ) {
       actionCode = 'REVIEW_INVALID_PARENT';

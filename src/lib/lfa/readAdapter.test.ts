@@ -1527,3 +1527,473 @@ describe('Phase 2C1 H1 — Defensive Snapshot and Measurement Contract', () => {
     expect(res.measurementStatus).toBe('INCOMPLETE');
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase 2C1 H3 — Tenant and Project Boundary Quarantine
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Helper: build a minimal valid project
+const H3_PROJECT: RawLfaProject = {
+  id: 'h3-project',
+  org_id: 'h3-org',
+  name: 'H3 Test Project',
+  created_at: '2026-07-20T00:00:00Z'
+};
+
+// Helper: assert a raw ID is absent from all canonical presentation collections
+function assertAbsentFromAllCollections(
+  res: ReturnType<typeof mapToCanonicalLfaView>,
+  id: string
+): void {
+  const allCanonical = [
+    ...(res.goal ? [res.goal] : []),
+    ...(res.purpose ? [res.purpose] : []),
+    ...res.outcomes,
+    ...res.outputs,
+    ...res.activities,
+    ...res.unusedOutcomes,
+    ...res.unassignedOutputs,
+    ...res.orphanedActivities
+  ];
+  const ids = allCanonical.map((n) => n.rawEntryId);
+  expect(ids).not.toContain(id);
+}
+
+// Helper: assert sentinel description absent from all canonical CanonicalNodeView content
+function assertSentinelAbsentFromAllCollections(
+  res: ReturnType<typeof mapToCanonicalLfaView>,
+  sentinel: string
+): void {
+  const allCanonical = [
+    ...(res.goal ? [res.goal] : []),
+    ...(res.purpose ? [res.purpose] : []),
+    ...res.outcomes,
+    ...res.outputs,
+    ...res.activities,
+    ...res.unusedOutcomes,
+    ...res.unassignedOutputs,
+    ...res.orphanedActivities
+  ];
+  for (const node of allCanonical) {
+    expect(node.statement).not.toBe(sentinel);
+  }
+}
+
+describe('Phase 2C1 H3 — Tenant and Project Boundary Quarantine', () => {
+
+  // ─── Group A: Quarantine each raw level ───────────────────────────────────
+
+  test.each([
+    {
+      label: 'boundary-invalid goal (project mismatch)',
+      entry: { id: 'inv-goal', project_id: 'wrong-project', org_id: H3_PROJECT.org_id, level: 'goal' as const, description: '__SENTINEL_GOAL__' },
+      expectedFindingCode: 'CROSS_PROJECT_PARENT'
+    },
+    {
+      label: 'boundary-invalid primary purpose (tenant mismatch)',
+      entry: { id: 'inv-purpose', project_id: H3_PROJECT.id, org_id: 'wrong-org', level: 'purpose' as const, sequence: 1, description: '__SENTINEL_PURPOSE__' },
+      expectedFindingCode: 'CROSS_TENANT_PARENT'
+    },
+    {
+      label: 'boundary-invalid outcome-style purpose (project mismatch)',
+      entry: { id: 'inv-outcome', project_id: 'wrong-project', org_id: H3_PROJECT.org_id, level: 'purpose' as const, sequence: 2, description: '__SENTINEL_OUTCOME__' },
+      expectedFindingCode: 'CROSS_PROJECT_PARENT'
+    },
+    {
+      label: 'boundary-invalid output (tenant mismatch)',
+      entry: { id: 'inv-output', project_id: H3_PROJECT.id, org_id: 'wrong-org', level: 'output' as const, description: '__SENTINEL_OUTPUT__' },
+      expectedFindingCode: 'CROSS_TENANT_PARENT'
+    },
+    {
+      label: 'boundary-invalid activity (project mismatch)',
+      entry: { id: 'inv-activity', project_id: 'wrong-project', org_id: H3_PROJECT.org_id, level: 'activity' as const, description: '__SENTINEL_ACTIVITY__' },
+      expectedFindingCode: 'CROSS_PROJECT_PARENT'
+    }
+  ])('H3 Group A: $label', ({ entry, expectedFindingCode }) => {
+    const rawEntries: RawLfaEntry[] = [entry as RawLfaEntry];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H3_PROJECT,
+      rawEntries,
+      grantLinkEvidence: null
+    });
+
+    // Boundary finding exists
+    expect(res.findings.some((f) => f.code === expectedFindingCode)).toBe(true);
+    // Structural state blocked
+    expect(res.structuralStatus).toBe('BLOCKED');
+    expect(res.measurementStatus).toBe('UNKNOWN');
+    // Disposition is REVIEW_ONLY
+    expect(res.dispositionMap[entry.id]).toBe('REVIEW_ONLY');
+    // Raw row retained in allRawEntries
+    expect(res.allRawEntries.some((e) => e.id === entry.id)).toBe(true);
+    // Absent from all canonical collections
+    assertAbsentFromAllCollections(res, entry.id);
+    if (entry.description) {
+      assertSentinelAbsentFromAllCollections(res, entry.description);
+    }
+    // No AdapterReviewItem references the boundary finding
+    const boundingFindingIds = res.findings
+      .filter((f) => f.code === expectedFindingCode)
+      .map((f) => f.findingId);
+    for (const fid of boundingFindingIds) {
+      expect(res.reviewQueue.some((r) => r.findingId === fid)).toBe(false);
+    }
+    // Row accounting
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  // ─── Group B: Both tenant and project mismatch ────────────────────────────
+
+  test('H3 Group B: both project and tenant mismatch on same row', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'inv-both', project_id: 'wrong-project', org_id: 'wrong-org', level: 'goal', description: '__SENTINEL_BOTH__' }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H3_PROJECT,
+      rawEntries,
+      grantLinkEvidence: null
+    });
+
+    // Both findings exist
+    expect(res.findings.some((f) => f.code === 'CROSS_PROJECT_PARENT')).toBe(true);
+    expect(res.findings.some((f) => f.code === 'CROSS_TENANT_PARENT')).toBe(true);
+    // Deterministic and distinct finding IDs
+    const projFinding = res.findings.find((f) => f.code === 'CROSS_PROJECT_PARENT')!;
+    const tenantFinding = res.findings.find((f) => f.code === 'CROSS_TENANT_PARENT')!;
+    expect(projFinding.findingId).not.toBe(tenantFinding.findingId);
+    // Both are ERROR severity
+    expect(projFinding.severity).toBe('ERROR');
+    expect(tenantFinding.severity).toBe('ERROR');
+    // Exactly one disposition for the row
+    expect(res.dispositionMap['inv-both']).toBe('REVIEW_ONLY');
+    expect(Object.keys(res.dispositionMap).filter((k) => k === 'inv-both')).toHaveLength(1);
+    // No canonical node
+    assertAbsentFromAllCollections(res, 'inv-both');
+    assertSentinelAbsentFromAllCollections(res, '__SENTINEL_BOTH__');
+    // No review items for either boundary finding
+    expect(res.reviewQueue.some((r) => r.findingId === projFinding.findingId)).toBe(false);
+    expect(res.reviewQueue.some((r) => r.findingId === tenantFinding.findingId)).toBe(false);
+    // Row accounting
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  // ─── Group C: Boundary-valid child of quarantined parent ──────────────────
+
+  test('H3 Group C: valid output with boundary-invalid purpose parent', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'valid-goal', project_id: H3_PROJECT.id, org_id: H3_PROJECT.org_id, level: 'goal', description: 'Goal' },
+      {
+        id: 'inv-purpose',
+        project_id: 'wrong-project',
+        org_id: H3_PROJECT.org_id,
+        level: 'purpose',
+        sequence: 1,
+        description: '__SENTINEL_QUARANTINED_PURPOSE__'
+      },
+      {
+        id: 'valid-output',
+        project_id: H3_PROJECT.id,
+        org_id: H3_PROJECT.org_id,
+        level: 'output',
+        parent_id: 'inv-purpose',
+        description: 'Valid Output'
+      }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H3_PROJECT,
+      rawEntries,
+      grantLinkEvidence: null
+    });
+
+    // Quarantined parent
+    expect(res.dispositionMap['inv-purpose']).toBe('REVIEW_ONLY');
+    assertAbsentFromAllCollections(res, 'inv-purpose');
+    assertSentinelAbsentFromAllCollections(res, '__SENTINEL_QUARANTINED_PURPOSE__');
+
+    // Valid child retains a disposition (not REVIEW_ONLY solely due to parent)
+    expect(res.dispositionMap['valid-output']).toBeDefined();
+    expect(res.dispositionMap['valid-output']).not.toBe('REVIEW_ONLY');
+
+    // MISSING_PARENT finding exists for child
+    const missingParentFinding = res.findings.find(
+      (f) => f.code === 'MISSING_PARENT' && f.rawEntryIds.includes('valid-output')
+    );
+    expect(missingParentFinding).toBeDefined();
+
+    // Child does not attach to quarantined parent
+    const outputNode = [
+      ...res.unassignedOutputs,
+      ...res.outputs
+    ].find((n) => n.rawEntryId === 'valid-output');
+    expect(outputNode).toBeDefined();
+    expect(outputNode!.parentRef).toBeNull();
+
+    // Row accounting
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  test('H3 Group C: valid activity with boundary-invalid output parent', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'valid-goal', project_id: H3_PROJECT.id, org_id: H3_PROJECT.org_id, level: 'goal' },
+      { id: 'valid-purpose', project_id: H3_PROJECT.id, org_id: H3_PROJECT.org_id, level: 'purpose', sequence: 1 },
+      {
+        id: 'inv-output',
+        project_id: H3_PROJECT.id,
+        org_id: 'wrong-org',
+        level: 'output',
+        description: '__SENTINEL_QUARANTINED_OUTPUT__'
+      },
+      {
+        id: 'valid-activity',
+        project_id: H3_PROJECT.id,
+        org_id: H3_PROJECT.org_id,
+        level: 'activity',
+        parent_id: 'inv-output',
+        description: 'Valid Activity'
+      }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H3_PROJECT,
+      rawEntries,
+      grantLinkEvidence: null
+    });
+
+    // Quarantined parent
+    expect(res.dispositionMap['inv-output']).toBe('REVIEW_ONLY');
+    assertAbsentFromAllCollections(res, 'inv-output');
+    assertSentinelAbsentFromAllCollections(res, '__SENTINEL_QUARANTINED_OUTPUT__');
+
+    // Valid activity retains a disposition (not REVIEW_ONLY)
+    expect(res.dispositionMap['valid-activity']).toBeDefined();
+    expect(res.dispositionMap['valid-activity']).not.toBe('REVIEW_ONLY');
+
+    // MISSING_PARENT finding exists for child
+    const missingParentFinding = res.findings.find(
+      (f) => f.code === 'MISSING_PARENT' && f.rawEntryIds.includes('valid-activity')
+    );
+    expect(missingParentFinding).toBeDefined();
+
+    // Child does not attach to quarantined parent
+    const activityNode = [
+      ...res.orphanedActivities,
+      ...res.activities
+    ].find((n) => n.rawEntryId === 'valid-activity');
+    expect(activityNode).toBeDefined();
+    expect(activityNode!.parentRef).toBeNull();
+
+    // Row accounting
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  // ─── Group D: Skeleton correlation cannot override quarantine ─────────────
+
+  test('H3 Group D: skeleton-correlated boundary-invalid goal remains quarantined', () => {
+    const INV_RAW_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
+    const SK_SOURCE_UUID = 'dddddddd-dddd-4ddd-8ddd-dddddddddddd';
+    const SK_DOC_UUID = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee';
+
+    const skeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: SK_DOC_UUID,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: {
+        sourceNodeId: SK_SOURCE_UUID,
+        declaredNodeType: 'goal',
+        sequencePosition: 1,
+        correlatedRawEntryId: INV_RAW_ID
+      },
+      purposeNode: null,
+      outcomeNodes: [],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    const rawEntries: RawLfaEntry[] = [
+      {
+        id: INV_RAW_ID,
+        project_id: 'wrong-project',
+        org_id: H3_PROJECT.org_id,
+        level: 'goal',
+        description: '__SENTINEL_SK_GOAL__'
+      }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H3_PROJECT,
+      rawEntries,
+      skeletonEvidence: skeleton,
+      grantLinkEvidence: null
+    });
+
+    // Still quarantined
+    expect(res.dispositionMap[INV_RAW_ID]).toBe('REVIEW_ONLY');
+    assertAbsentFromAllCollections(res, INV_RAW_ID);
+    assertSentinelAbsentFromAllCollections(res, '__SENTINEL_SK_GOAL__');
+    // Boundary finding exists
+    expect(res.findings.some((f) => f.code === 'CROSS_PROJECT_PARENT')).toBe(true);
+    // Not CONFIRMED_STRUCTURAL (no CanonicalNodeView constructed at all)
+    expect(res.goal).toBeNull();
+    // No review item for boundary finding
+    const bFinding = res.findings.find((f) => f.code === 'CROSS_PROJECT_PARENT')!;
+    expect(res.reviewQueue.some((r) => r.findingId === bFinding.findingId)).toBe(false);
+    // Row accounting
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  test('H3 Group D: skeleton-correlated boundary-invalid outcome does not count as trusted usage', () => {
+    const INV_OUTCOME_RAW = 'ffffffff-ffff-4fff-8fff-ffffffffffff';
+    const SK_OUTCOME_SRC = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
+    const SK_DOC = '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
+
+    const skeleton: ValidatedStructuralSkeletonEvidence = {
+      documentId: SK_DOC,
+      documentVersion: 1,
+      isCurrent: true,
+      validationStatus: 'VALIDATED_STRUCTURE',
+      goalNode: null,
+      purposeNode: null,
+      outcomeNodes: [
+        {
+          sourceNodeId: SK_OUTCOME_SRC,
+          declaredNodeType: 'outcome',
+          sequencePosition: 1,
+          correlatedRawEntryId: INV_OUTCOME_RAW
+        }
+      ],
+      outputNodes: [],
+      activityNodes: [],
+      correlationStatus: 'AVAILABLE'
+    };
+
+    const rawEntries: RawLfaEntry[] = [
+      {
+        id: INV_OUTCOME_RAW,
+        project_id: 'wrong-project',
+        org_id: H3_PROJECT.org_id,
+        level: 'purpose',
+        sequence: 2,
+        description: '__SENTINEL_INV_OUTCOME__'
+      }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H3_PROJECT,
+      rawEntries,
+      skeletonEvidence: skeleton,
+      grantLinkEvidence: null
+    });
+
+    // Row quarantined
+    expect(res.dispositionMap[INV_OUTCOME_RAW]).toBe('REVIEW_ONLY');
+    assertAbsentFromAllCollections(res, INV_OUTCOME_RAW);
+    // Unused outcome must exist (boundary-invalid row cannot count as used)
+    expect(res.unusedOutcomes.some((o) => o.sourceExternalId === SK_OUTCOME_SRC)).toBe(true);
+    // Boundary finding exists
+    expect(res.findings.some((f) => f.code === 'CROSS_PROJECT_PARENT')).toBe(true);
+    // Row accounting
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  // ─── Group E: Boundary rows excluded from duplicate heuristics ────────────
+
+  test('H3 Group E: one valid goal + one boundary-invalid goal → no MULTIPLE_GOAL_CANDIDATES', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'valid-goal', project_id: H3_PROJECT.id, org_id: H3_PROJECT.org_id, level: 'goal', description: 'Valid Goal' },
+      { id: 'inv-goal', project_id: 'wrong-project', org_id: H3_PROJECT.org_id, level: 'goal', description: '__SENTINEL_DUP_GOAL__' }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H3_PROJECT,
+      rawEntries,
+      grantLinkEvidence: null
+    });
+
+    // No duplicate goal finding
+    expect(res.findings.some((f) => f.code === 'MULTIPLE_GOAL_CANDIDATES')).toBe(false);
+    // Valid goal is result.goal
+    expect(res.goal).not.toBeNull();
+    expect(res.goal!.rawEntryId).toBe('valid-goal');
+    // Invalid goal quarantined
+    expect(res.dispositionMap['inv-goal']).toBe('REVIEW_ONLY');
+    // Row accounting
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  test('H3 Group E: one valid primary purpose + one boundary-invalid primary purpose → no MULTIPLE_PURPOSE_CANDIDATES', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'valid-goal', project_id: H3_PROJECT.id, org_id: H3_PROJECT.org_id, level: 'goal' },
+      { id: 'valid-purpose', project_id: H3_PROJECT.id, org_id: H3_PROJECT.org_id, level: 'purpose', sequence: 1, description: 'Valid Purpose' },
+      { id: 'inv-purpose', project_id: H3_PROJECT.id, org_id: 'wrong-org', level: 'purpose', sequence: 1, description: '__SENTINEL_DUP_PURPOSE__' }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H3_PROJECT,
+      rawEntries,
+      grantLinkEvidence: null
+    });
+
+    // No duplicate purpose finding
+    expect(res.findings.some((f) => f.code === 'MULTIPLE_PURPOSE_CANDIDATES')).toBe(false);
+    // Valid purpose is result.purpose
+    expect(res.purpose).not.toBeNull();
+    expect(res.purpose!.rawEntryId).toBe('valid-purpose');
+    // Invalid purpose quarantined
+    expect(res.dispositionMap['inv-purpose']).toBe('REVIEW_ONLY');
+    // Row accounting
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+  });
+
+  // ─── Group F: Row accounting ──────────────────────────────────────────────
+
+  test('H3 Group F: disposition map accounts for every raw entry exactly once (mixed valid + invalid)', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'valid-goal', project_id: H3_PROJECT.id, org_id: H3_PROJECT.org_id, level: 'goal' },
+      { id: 'valid-purpose', project_id: H3_PROJECT.id, org_id: H3_PROJECT.org_id, level: 'purpose', sequence: 1 },
+      { id: 'inv-goal', project_id: 'wrong-project', org_id: H3_PROJECT.org_id, level: 'goal' },
+      { id: 'inv-output', project_id: H3_PROJECT.id, org_id: 'wrong-org', level: 'output' },
+      { id: 'inv-both', project_id: 'wrong-project', org_id: 'wrong-org', level: 'activity' }
+    ];
+
+    const res = mapToCanonicalLfaView({
+      rawProject: H3_PROJECT,
+      rawEntries,
+      grantLinkEvidence: null
+    });
+
+    // Every entry has exactly one disposition
+    expect(Object.keys(res.dispositionMap).length).toBe(rawEntries.length);
+    for (const entry of rawEntries) {
+      expect(res.dispositionMap[entry.id]).toBeDefined();
+    }
+  });
+
+  // ─── Group G: Determinism ─────────────────────────────────────────────────
+
+  test('H3 Group G: repeated mapping produces identical outputs (determinism)', () => {
+    const rawEntries: RawLfaEntry[] = [
+      { id: 'valid-goal', project_id: H3_PROJECT.id, org_id: H3_PROJECT.org_id, level: 'goal', description: 'Goal' },
+      { id: 'inv-purpose', project_id: 'wrong-project', org_id: H3_PROJECT.org_id, level: 'purpose', sequence: 1, description: '__SENTINEL_DET__' }
+    ];
+
+    const input = { rawProject: H3_PROJECT, rawEntries, grantLinkEvidence: null };
+    const res1 = mapToCanonicalLfaView(input);
+    const res2 = mapToCanonicalLfaView(input);
+
+    expect(res1.findings).toEqual(res2.findings);
+    expect(res1.dispositionMap).toEqual(res2.dispositionMap);
+    expect(res1.structuralStatus).toBe(res2.structuralStatus);
+    // Canonical collections deeply equal
+    expect(res1.goal?.rawEntryId).toBe(res2.goal?.rawEntryId);
+    expect(res1.purpose?.rawEntryId).toBe(res2.purpose?.rawEntryId);
+    expect(res1.outcomes.map((o) => o.rawEntryId)).toEqual(res2.outcomes.map((o) => o.rawEntryId));
+    expect(res1.outputs.map((o) => o.rawEntryId)).toEqual(res2.outputs.map((o) => o.rawEntryId));
+    expect(res1.activities.map((o) => o.rawEntryId)).toEqual(res2.activities.map((o) => o.rawEntryId));
+  });
+
+});
