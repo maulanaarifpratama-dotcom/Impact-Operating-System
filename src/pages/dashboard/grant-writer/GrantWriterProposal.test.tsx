@@ -147,7 +147,6 @@ function installSupabaseScenario(scenario: Scenario) {
         return query;
       });
       const nextEntries = scenario.existingEntriesQueue.shift() ?? [];
-      query.then = undefined;
       query[Symbol.toStringTag] = 'Object';
       (query as Record<string, unknown>).then = undefined;
       query.order = vi.fn().mockResolvedValue({ data: nextEntries, error: null });
@@ -179,7 +178,6 @@ function installSupabaseScenario(scenario: Scenario) {
       });
       query.select = vi.fn().mockReturnThis();
       query.order = vi.fn().mockResolvedValue({ data: dataForTable(), error: null });
-      query.then = undefined;
       (query as unknown as PromiseLike<{ data: unknown[]; error: null }>).then = undefined as never;
       (query as Record<string, unknown>).execute = async () => ({ data: dataForTable(), error: null });
     }

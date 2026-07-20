@@ -394,10 +394,14 @@ export default function GrantWriterProposal() {
     let sourceDoc: MaterializationSource;
     try {
       sourceDoc = resolveMaterializationSource(doc, project.id, project.organization_id);
-    } catch (err: any) {
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Dokumen proposal yang sedang dipratinjau tidak valid.';
       toast({
         title: 'Materialisasi Gagal',
-        description: err.message || 'Dokumen proposal yang sedang dipratinjau tidak valid.',
+        description: message,
         variant: 'destructive',
       });
       return;
