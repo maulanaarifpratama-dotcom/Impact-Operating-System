@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -38,6 +38,7 @@ import WBSBuilder from './WBSBuilder';
 import BudgetCalculator from './BudgetCalculator';
 import MEALPlanner from './MEALPlanner';
 import SROICalculator from './SROICalculator';
+import { buildEditorCanonicalLfaView } from '@/lib/lfa/editorCanonicalBridge';
 
 
 export default function LFABuilderEditor() {
@@ -61,7 +62,7 @@ export default function LFABuilderEditor() {
   const [activeTab, setActiveTab] = useState<'lfa' | 'wbs' | 'budget' | 'meal' | 'sroi'>(() => {
     const tabParam = searchParams.get('tab');
     if (tabParam === 'wbs' || tabParam === 'budget' || tabParam === 'meal' || tabParam === 'sroi') {
-      return tabParam as any;
+      return tabParam;
     }
     return 'lfa';
   });
@@ -626,6 +627,33 @@ export default function LFABuilderEditor() {
   const validationWarnings = runValidation();
   const completenessPercent = calculateCompleteness();
   const isSroiUnlocked = completenessPercent >= 80 && wbsExists && mealExists;
+  const canonicalDiagnostics = useMemo(() => {
+    if (!project) {
+      return { view: null, error: null as string | null };
+    }
+
+    try {
+      return {
+        view: buildEditorCanonicalLfaView({
+          project,
+          entries: [
+            ...(goal ? [goal] : []),
+            ...(purpose ? [purpose] : []),
+            ...outputs,
+            ...activities,
+          ],
+          grantLinkEvidence: null,
+          skeletonEvidence: null,
+        }),
+        error: null as string | null,
+      };
+    } catch (err) {
+      return {
+        view: null,
+        error: err instanceof Error ? err.message : 'Gagal menghitung diagnostik canonical.',
+      };
+    }
+  }, [project, goal, purpose, outputs, activities]);
 
   if (error) {
     return (
@@ -1343,6 +1371,24 @@ export default function LFABuilderEditor() {
               </div>
             </CardHeader>
             <CardContent className="p-4 text-xs">
+              {canonicalDiagnostics.error ? (
+                <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 p-2 text-[10px] text-amber-800">
+                  Diagnostik canonical tidak tersedia: {canonicalDiagnostics.error}
+                </div>
+              ) : canonicalDiagnostics.view ? (
+                <div className="mb-3 grid grid-cols-2 gap-2 text-[10px] text-slate-600">
+                  <div className="rounded bg-slate-100 px-2 py-1">Presentation: {canonicalDiagnostics.view.presentationMode}</div>
+                  <div className="rounded bg-slate-100 px-2 py-1">Structural: {canonicalDiagnostics.view.structuralStatus}</div>
+                  <div className="rounded bg-slate-100 px-2 py-1">Measurement: {canonicalDiagnostics.view.measurementStatus}</div>
+                  <div className="rounded bg-slate-100 px-2 py-1">Findings: {canonicalDiagnostics.view.findings.length}</div>
+                  <div className="rounded bg-slate-100 px-2 py-1">Reviews: {canonicalDiagnostics.view.reviewQueue.length}</div>
+                  <div className="rounded bg-slate-100 px-2 py-1">Blocking: {canonicalDiagnostics.view.hasBlockingIntegrityFinding ? 'Yes' : 'No'}</div>
+                </div>
+              ) : (
+                <div className="mb-3 rounded-md border border-slate-200 bg-slate-50 p-2 text-[10px] text-slate-500">
+                  Diagnostik canonical belum tersedia.
+                </div>
+              )}
               {validationWarnings.length === 0 ? (
                 <div className="flex items-center gap-2 text-emerald-600 font-semibold p-2 bg-emerald-50 dark:bg-emerald-950/20 rounded-md">
                   <span>✅</span>
