@@ -1,28 +1,55 @@
+import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import GrantWriterProposal from './GrantWriterProposal';
 
-const { mockSupabaseFrom, toastMock, writeCalls, selectCalls } = vi.hoisted(() => ({
+type RpcError = {
+  message?: string;
+  code?: string;
+  name?: string;
+};
+
+type RpcResult = {
+  code: string;
+  status: string;
+  materialization_id: string | null;
+  source_document_id: string | null;
+  source_document_version: number | null;
+  source_gw_project_id: string | null;
+  lfa_project_id: string | null;
+  lfa_state: string | null;
+  lfa_entries_created: number;
+  wbs_items_created: number;
+  budget_items_created: number;
+  meal_items_created: number;
+  sroi_outcomes_created: number;
+  created_modules: string[];
+  preserved_modules: string[];
+  blocked_stage: string | null;
+  failure_code: string | null;
+  warnings: Array<{ code?: string; message?: string }>;
+};
+
+type Scenario = {
+  project: Record<string, unknown> | null;
+  document: Record<string, unknown> | null;
+  existingLfa: Record<string, unknown> | null;
+};
+
+const { mockSupabaseFrom, rpcMock, toastMock, navigateMock, writeCalls } = vi.hoisted(() => ({
   mockSupabaseFrom: vi.fn(),
+  rpcMock: vi.fn(),
   toastMock: vi.fn(),
-  writeCalls: [] as Array<{
-    table: string;
-    type: 'insert' | 'update' | 'delete';
-    payload: unknown;
-    filters: Array<{ column: string; value: unknown }>;
-  }>,
-  selectCalls: [] as Array<{
-    table: string;
-    columns: unknown;
-    filters: Array<{ column: string; value: unknown }>;
-  }>,
+  navigateMock: vi.fn(),
+  writeCalls: [] as Array<{ table: string; type: 'insert' | 'update' | 'delete' }>,
 }));
 
 vi.mock('react-router-dom', async () => {
   const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
   return {
     ...actual,
-    Link: ({ children, to }: { children: React.ReactNode; to?: string }) => <a href={to || '#'}>{children}</a>,
+    Link: ({ children, to }: { children: ReactNode; to?: string }) => <a href={to ?? '#'}>{children}</a>,
+    useNavigate: () => navigateMock,
     useParams: () => ({ projectId: 'gw-project-1' }),
   };
 });
@@ -34,534 +61,403 @@ vi.mock('@/hooks/use-toast', () => ({
 vi.mock('@/integrations/supabase/client', () => ({
   supabase: {
     from: mockSupabaseFrom,
+    rpc: rpcMock,
   },
 }));
-
-type QueryState = {
-  filters: Array<{ column: string; value: unknown }>;
-  insertPayload?: unknown;
-  updatePayload?: unknown;
-};
-
-type Scenario = {
-  project: Record<string, unknown>;
-  documentQueue: Array<Record<string, unknown> | null>;
-  linkedLfaQueue: Array<Record<string, unknown> | null>;
-  existingEntriesQueue: Array<unknown[]>;
-  existingWbs: unknown[];
-  seededActivitiesWbs: unknown[];
-  existingBudget: unknown[];
-  existingMeal: unknown[];
-  existingSroi: unknown[];
-};
 
 function createScenario(overrides?: Partial<Scenario>): Scenario {
   return {
     project: {
       id: 'gw-project-1',
       organization_id: 'org-1',
-      created_by: 'user-1',
       title: 'Pinned Proposal',
       summary: 'Summary',
-      sector: 'Education',
       geography: 'Jakarta',
       duration_months: 12,
       budget_idr: 1000000000,
-      donor_standard: 'UN_OECD_DAC',
-      target_donor: null,
-      status: 'draft',
-      current_step: 7,
       wizard_data: {},
       created_at: '2026-07-21T00:00:00Z',
       updated_at: '2026-07-21T00:00:00Z',
     },
-    documentQueue: [],
-    linkedLfaQueue: [null, null],
-    existingEntriesQueue: [[], []],
-    existingWbs: [],
-    seededActivitiesWbs: [],
-    existingBudget: [],
-    existingMeal: [],
-    existingSroi: [],
+    document: {
+      id: 'doc-preview-1',
+      project_id: 'gw-project-1',
+      organization_id: 'org-1',
+      version: 7,
+      matrix: { ok: true },
+      proposal_markdown: '# Preview V7',
+      created_at: '2026-07-21T00:00:00Z',
+    },
+    existingLfa: null,
+    ...overrides,
+  };
+}
+
+function buildRpcResult(overrides?: Partial<RpcResult>): RpcResult {
+  return {
+    code: 'CREATED',
+    status: 'success',
+    materialization_id: 'mat-1',
+    source_document_id: 'doc-preview-1',
+    source_document_version: 7,
+    source_gw_project_id: 'gw-project-1',
+    lfa_project_id: 'lfa-project-1',
+    lfa_state: 'EMPTY',
+    lfa_entries_created: 4,
+    wbs_items_created: 2,
+    budget_items_created: 3,
+    meal_items_created: 1,
+    sroi_outcomes_created: 1,
+    created_modules: ['program', 'lfa', 'wbs', 'budget', 'meal', 'sroi'],
+    preserved_modules: [],
+    blocked_stage: null,
+    failure_code: null,
+    warnings: [],
     ...overrides,
   };
 }
 
 function installSupabaseScenario(scenario: Scenario) {
   mockSupabaseFrom.mockImplementation((table: string) => {
-    const state: QueryState = { filters: [] };
     const query = {
-      select: vi.fn().mockImplementation((columns?: unknown) => {
-        selectCalls.push({ table, columns, filters: [...state.filters] });
-        return proxiedQuery ?? query;
-      }),
-      eq: vi.fn().mockImplementation((column: string, value: unknown) => {
-        state.filters.push({ column, value });
-        return proxiedQuery ?? query;
-      }),
-      order: vi.fn().mockImplementation(() => proxiedQuery ?? query),
-      limit: vi.fn().mockImplementation(() => proxiedQuery ?? query),
-      maybeSingle: vi.fn().mockImplementation(async () => {
+      select: vi.fn(() => query),
+      eq: vi.fn(() => query),
+      order: vi.fn(() => query),
+      limit: vi.fn(() => query),
+      maybeSingle: vi.fn(async () => {
         if (table === 'gw_projects') {
           return { data: scenario.project, error: null };
         }
-
         if (table === 'gw_lfa_documents') {
-          return { data: scenario.documentQueue.shift() ?? null, error: null };
+          return { data: scenario.document, error: null };
         }
-
         if (table === 'lfa_projects') {
-          return { data: scenario.linkedLfaQueue.shift() ?? null, error: null };
+          return { data: scenario.existingLfa, error: null };
         }
-
-        if (table === 'lfa_sroi_config') {
-          return { data: null, error: null };
-        }
-
         return { data: null, error: null };
       }),
-      single: vi.fn().mockImplementation(async () => {
-        if (table === 'lfa_projects') {
-          return { data: { id: 'lfa-project-1' }, error: null };
-        }
-
-        if (table === 'lfa_entries') {
-          const inserted = state.insertPayload as Record<string, unknown>;
-          return { data: { id: `entry-${writeCalls.length}`, ...inserted }, error: null };
-        }
-
-        return { data: null, error: null };
+      insert: vi.fn(() => {
+        writeCalls.push({ table, type: 'insert' });
+        throw new Error(`Unexpected insert into ${table}`);
       }),
-      insert: vi.fn().mockImplementation((payload: unknown) => {
-        state.insertPayload = payload;
-        writeCalls.push({ table, type: 'insert', payload, filters: [...state.filters] });
-        return proxiedQuery ?? query;
+      update: vi.fn(() => {
+        writeCalls.push({ table, type: 'update' });
+        throw new Error(`Unexpected update into ${table}`);
       }),
-      update: vi.fn().mockImplementation((payload: unknown) => {
-        state.updatePayload = payload;
-        writeCalls.push({ table, type: 'update', payload, filters: [...state.filters] });
-        return proxiedQuery ?? query;
-      }),
-      delete: vi.fn().mockImplementation(() => {
-        writeCalls.push({ table, type: 'delete', payload: null, filters: [...state.filters] });
-        return proxiedQuery ?? query;
+      delete: vi.fn(() => {
+        writeCalls.push({ table, type: 'delete' });
+        throw new Error(`Unexpected delete from ${table}`);
       }),
     };
 
-    if (table === 'lfa_entries') {
-      query.select.mockReturnValue(query);
-      query.eq.mockImplementation((column: string, value: unknown) => {
-        state.filters.push({ column, value });
-        return proxiedQuery ?? query;
-      });
-      const nextEntries = scenario.existingEntriesQueue.shift() ?? [];
-      query[Symbol.toStringTag] = 'Object';
-      (query as Record<string, unknown>).then = undefined;
-      query.order = vi.fn().mockResolvedValue({ data: nextEntries, error: null });
-      query.select = vi.fn().mockReturnThis();
-      const originalEq = query.eq;
-      query.eq = vi.fn().mockImplementation((column: string, value: unknown) => {
-        originalEq(column, value);
-        return proxiedQuery ?? query;
-      });
-      (query as Record<string, unknown>).then = undefined;
-      (query as { resolves?: () => Promise<{ data: unknown[]; error: null }> }).resolves = async () => ({ data: nextEntries, error: null });
-    }
-
-    if (table === 'lfa_entries' || table === 'lfa_wbs_items' || table === 'lfa_budget_items' || table === 'lfa_meal_items' || table === 'lfa_sroi_outcomes') {
-      const dataForTable = () => {
-        if (table === 'lfa_wbs_items' && Array.isArray(state.insertPayload)) {
-          return state.insertPayload as unknown[];
-        }
-
-        if (table === 'lfa_wbs_items') {
-          const levelFilter = state.filters.find((filter) => filter.column === 'level')?.value;
-          return levelFilter === 2 ? scenario.seededActivitiesWbs : scenario.existingWbs;
-        }
-        if (table === 'lfa_budget_items') return scenario.existingBudget;
-        if (table === 'lfa_meal_items') return scenario.existingMeal;
-        if (table === 'lfa_sroi_outcomes') return scenario.existingSroi;
-        return scenario.existingEntriesQueue.shift() ?? [];
-      };
-
-      query.eq = vi.fn().mockImplementation((column: string, value: unknown) => {
-        state.filters.push({ column, value });
-        return proxiedQuery ?? query;
-      });
-      query.select = vi.fn().mockImplementation((columns?: unknown) => {
-        selectCalls.push({ table, columns, filters: [...state.filters] });
-        return proxiedQuery ?? query;
-      });
-      query.order = vi.fn().mockResolvedValue({ data: dataForTable(), error: null });
-      (query as unknown as PromiseLike<{ data: unknown[]; error: null }>).then = undefined as never;
-      (query as Record<string, unknown>).execute = async () => ({ data: dataForTable(), error: null });
-    }
-
-    const proxiedQuery = new Proxy(query, {
-      get(target, prop, receiver) {
-        if (prop === 'then') {
-          if (table === 'lfa_entries' || table === 'lfa_wbs_items' || table === 'lfa_budget_items' || table === 'lfa_meal_items' || table === 'lfa_sroi_outcomes') {
-            return (resolve: (value: { data: unknown[]; error: null }) => void) => {
-              let data: unknown[] = [];
-              if (table === 'lfa_entries') {
-                data = scenario.existingEntriesQueue.shift() ?? [];
-              } else if (table === 'lfa_wbs_items') {
-                if (Array.isArray(state.insertPayload)) {
-                  data = state.insertPayload as unknown[];
-                } else {
-                  const levelFilter = state.filters.find((filter) => filter.column === 'level')?.value;
-                  data = levelFilter === 2 ? scenario.seededActivitiesWbs : scenario.existingWbs;
-                }
-              } else if (table === 'lfa_budget_items') {
-                data = scenario.existingBudget;
-              } else if (table === 'lfa_meal_items') {
-                data = scenario.existingMeal;
-              } else if (table === 'lfa_sroi_outcomes') {
-                data = scenario.existingSroi;
-              }
-              resolve({ data, error: null });
-            };
-          }
-
-          return undefined;
-        }
-
-        return Reflect.get(target, prop, receiver);
-      },
-    });
-
-    return proxiedQuery;
+    return query;
   });
 }
 
-function buildLegacyMatrix(goalLabel: string, purposeLabel: string) {
-  return {
-    goal: {
-      intervention: goalLabel,
-      indicators: [`${goalLabel} indicator`],
-      meansOfVerification: [`${goalLabel} mov`],
-      assumptions: [`${goalLabel} assumption`],
-    },
-    outcomes: [
-      {
-        intervention: purposeLabel,
-        indicators: [`${purposeLabel} indicator`],
-        meansOfVerification: [`${purposeLabel} mov`],
-        assumptions: [`${purposeLabel} assumption`],
-      },
-    ],
-    outputs: [],
-    activities: [],
-  };
+async function renderReady(scenario?: Partial<Scenario>) {
+  installSupabaseScenario(createScenario(scenario));
+  render(<GrantWriterProposal />);
+  expect(await screen.findByText(/Versi 7/i)).toBeTruthy();
 }
 
-function buildProgramSkeletonMatrix(overrides?: {
-  tasks?: Array<Record<string, unknown>>;
-  budgetHints?: Array<Record<string, unknown>>;
-}): Record<string, unknown> {
-  return {
-    program_skeleton: {
-      meta: {
-        projectTitle: 'Pinned Proposal',
-        geography: 'Jakarta',
-        budgetIdr: 1000000000,
-        durationMonths: 12,
-      },
-      lfa: {
-        goal: {
-          statement: 'Goal statement',
-          indicators: [
-            {
-              id: 'goal-ind-1',
-              statement: 'Goal indicator',
-              mov: 'Goal MOV',
-            },
-          ],
-          assumptions: ['Goal assumption'],
-        },
-        purpose: {
-          id: 'outcome-1',
-          statement: 'Purpose statement',
-          indicators: [
-            {
-              id: 'purp-ind-1',
-              statement: 'Purpose indicator',
-              mov: 'Purpose MOV',
-            },
-          ],
-          assumptions: ['Purpose assumption'],
-        },
-        outcomes: [
-          {
-            id: 'outcome-1',
-            statement: 'Purpose statement',
-            indicators: [
-              {
-                id: 'purp-ind-1',
-                statement: 'Purpose indicator',
-                mov: 'Purpose MOV',
-              },
-            ],
-            assumptions: ['Purpose assumption'],
-          },
-        ],
-        outputs: [
-          {
-            id: 'output-1',
-            outcomeId: 'outcome-1',
-            statement: 'Output statement',
-            indicators: [
-              {
-                id: 'out-ind-1',
-                statement: 'Output indicator',
-                mov: 'Output MOV',
-              },
-            ],
-            assumptions: ['Output assumption'],
-          },
-        ],
-      },
-      wbs: {
-        tasks: overrides?.tasks ?? [
-          {
-            id: 'task-output-1',
-            level: 1,
-            title: 'Task output 1',
-            startMonth: 1,
-            durationWeeks: 4,
-            responsibleRole: 'Manager',
-            dependencies: [],
-          },
-          {
-            id: 'task-activity-1',
-            level: 2,
-            parentId: 'task-output-1',
-            sourceActivityId: 'output-1',
-            title: 'Task activity 1',
-            startMonth: 1,
-            durationWeeks: 2,
-            responsibleRole: 'Officer',
-            deliverable: 'Deliverable 1',
-            dependencies: ['task-output-1'],
-          },
-        ],
-      },
-      budget_hints: {
-        items: overrides?.budgetHints ?? [
-          {
-            itemName: 'Budget line 1',
-            description: 'Budget description',
-            itemType: 'Item type',
-            quantity: 2,
-            unit: 'Orang',
-            unit_price_idr: 100000,
-            category: 'personnel',
-            taskId: 'task-output-1',
-            justification: 'Need this',
-            requiresUserConfirmation: false,
-          },
-        ],
-      },
-      meal: {
-        indicators: [
-          {
-            name: 'MEAL indicator 1',
-            sourceLfaIndicatorId: 'out-ind-1',
-            baselineValue: 0,
-            targetValue: 10,
-            unit: 'orang',
-            collectionMethod: 'Survei',
-            dataSource: 'Kuesioner',
-            frequency: 'monthly',
-            responsibleRole: 'M&E',
-            verificationMethod: 'Dokumen',
-            formula: 'n/a',
-            disaggregation: [],
-          },
-        ],
-      },
-      sroi: {
-        models: [
-          {
-            outcomeStatement: 'SROI outcome',
-            sourceOutcomeId: 'outcome-1',
-            requiresValidation: true,
-            quantityHint: 1,
-            suggestedProxyValueIdr: 1000000,
-            suggestedProxyDescription: 'Proxy',
-            rationale: 'Rationale',
-            financialProxyType: 'income',
-            durationYears: 1,
-            attributionPctDraft: 80,
-            deadweightPctDraft: 20,
-            displacementPctDraft: 0,
-            dropoffPctDraft: 0,
-          },
-        ],
-      },
-      risks: [],
-    },
-  };
-}
-
-function buildDocument(matrix: Record<string, unknown>, overrides?: Partial<Record<string, unknown>>) {
-  return {
-    id: 'doc-v1',
-    project_id: 'gw-project-1',
-    organization_id: 'org-1',
-    generated_by: 'user-1',
-    version: 1,
-    matrix,
-    proposal_markdown: '# Preview V1',
-    model: 'gpt',
-    donor_standard: 'UN_OECD_DAC',
-    is_current: true,
-    created_at: '2026-07-21T00:00:00Z',
-    ...overrides,
-  };
-}
-
-function buildExistingLfaRows(options?: { withActivity?: boolean }) {
-  const withActivity = options?.withActivity ?? true;
-  const rows: Array<Record<string, unknown>> = [
-    {
-      id: 'existing-goal-1',
-      project_id: 'lfa-project-1',
-      level: 'goal',
-      parent_id: null,
-      sequence: 1,
-    },
-    {
-      id: 'existing-purpose-1',
-      project_id: 'lfa-project-1',
-      level: 'purpose',
-      parent_id: null,
-      sequence: 1,
-    },
-    {
-      id: 'existing-output-1',
-      project_id: 'lfa-project-1',
-      level: 'output',
-      parent_id: 'existing-purpose-1',
-      sequence: 1,
-    },
-  ];
-
-  if (withActivity) {
-    rows.push({
-      id: 'existing-activity-1',
-      project_id: 'lfa-project-1',
-      level: 'activity',
-      parent_id: 'existing-output-1',
-      sequence: 1,
-    });
-  }
-
-  return rows;
-}
-
-function repeatedExistingEntriesQueue(rows: Array<Record<string, unknown>>, repeats = 6) {
-  return Array.from({ length: repeats }, () => rows.map((row) => ({ ...row })));
+function expectNoTargetTableWrites() {
+  expect(writeCalls).toEqual([]);
 }
 
 beforeEach(() => {
-  writeCalls.length = 0;
-  selectCalls.length = 0;
-  toastMock.mockReset();
   mockSupabaseFrom.mockReset();
+  rpcMock.mockReset();
+  toastMock.mockReset();
+  navigateMock.mockReset();
+  writeCalls.length = 0;
 });
 
 afterEach(() => {
   vi.useRealTimers();
 });
 
-describe('GrantWriterProposal materialization source pinning', () => {
+describe('GrantWriterProposal transactional RPC cutover', () => {
   test('renders the empty proposal state when no preview document is available', async () => {
-    installSupabaseScenario(createScenario({
-      documentQueue: [null],
-    }));
+    installSupabaseScenario(createScenario({ document: null }));
 
     render(<GrantWriterProposal />);
 
     expect(await screen.findByText(/Belum ada proposal/i)).toBeTruthy();
-    expect(screen.queryByRole('button', { name: /materialisasikan sekarang/i })).toBeNull();
-    expect(writeCalls).toHaveLength(0);
+    expect(screen.queryByRole('button', { name: /Materialisasikan Sekarang/i })).toBeNull();
+    expectNoTargetTableWrites();
   });
 
-  test('uses the currently previewed document payload even when a newer document exists', async () => {
-    installSupabaseScenario(createScenario({
-      documentQueue: [
-        {
-          id: 'doc-v1',
-          project_id: 'gw-project-1',
-          organization_id: 'org-1',
-          generated_by: 'user-1',
-          version: 1,
-          matrix: buildLegacyMatrix('Goal from preview v1', 'Purpose from preview v1'),
-          proposal_markdown: '# Preview V1',
-          model: 'gpt',
-          donor_standard: 'UN_OECD_DAC',
-          is_current: false,
-          created_at: '2026-07-21T00:00:00Z',
-        },
-        {
-          id: 'doc-v2',
-          project_id: 'gw-project-1',
-          organization_id: 'org-1',
-          generated_by: 'user-1',
-          version: 2,
-          matrix: buildLegacyMatrix('Goal from newer v2', 'Purpose from newer v2'),
-          proposal_markdown: '# Preview V2',
-          model: 'gpt',
-          donor_standard: 'UN_OECD_DAC',
-          is_current: true,
-          created_at: '2026-07-21T01:00:00Z',
-        },
-      ],
-    }));
+  test('passes the pinned preview document id and version with null existing LFA id', async () => {
+    rpcMock.mockResolvedValue({ data: buildRpcResult(), error: null });
+    await renderReady();
 
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
 
     await waitFor(() => {
-      const lfaEntryInserts = writeCalls.filter((call) => call.table === 'lfa_entries' && call.type === 'insert');
-      expect(lfaEntryInserts.length).toBeGreaterThanOrEqual(2);
-    }, { timeout: 7000 });
+      expect(rpcMock).toHaveBeenCalledTimes(1);
+    });
 
-    const lfaEntryPayloads = writeCalls
-      .filter((call) => call.table === 'lfa_entries' && call.type === 'insert')
-      .map((call) => call.payload as Record<string, unknown>);
+    expect(rpcMock).toHaveBeenCalledWith('materialize_grantwriter_document', {
+      p_source_document_id: 'doc-preview-1',
+      p_expected_document_version: 7,
+      p_existing_lfa_project_id: null,
+    });
+    expectNoTargetTableWrites();
+  });
 
-    expect(lfaEntryPayloads.some((payload) => payload.description === 'Goal from preview v1')).toBe(true);
-    expect(lfaEntryPayloads.some((payload) => payload.description === 'Goal from newer v2')).toBe(false);
-  }, 10000);
+  test('passes the existing LFA project id when one is already linked', async () => {
+    rpcMock.mockResolvedValue({
+      data: buildRpcResult({ code: 'PRESERVED_EXISTING', preserved_modules: ['wbs', 'budget'] }),
+      error: null,
+    });
+    await renderReady({ existingLfa: { id: 'lfa-existing-1' } });
 
-  test('shows a deterministic error and prevents writes when the previewed document does not belong to the current project', async () => {
-    installSupabaseScenario(createScenario({
-      documentQueue: [
-        {
-          id: 'doc-invalid',
-          project_id: 'gw-project-2',
-          organization_id: 'org-1',
-          generated_by: 'user-1',
-          version: 1,
-          matrix: buildLegacyMatrix('Wrong Goal', 'Wrong Purpose'),
-          proposal_markdown: '# Invalid Preview',
-          model: 'gpt',
-          donor_standard: 'UN_OECD_DAC',
-          is_current: true,
-          created_at: '2026-07-21T00:00:00Z',
-        },
-      ],
+    fireEvent.click(screen.getByRole('button', { name: /Buka atau Sinkronkan Ulang/i }));
+
+    await waitFor(() => {
+      expect(rpcMock).toHaveBeenCalledTimes(1);
+    });
+
+    expect(rpcMock).toHaveBeenCalledWith('materialize_grantwriter_document', {
+      p_source_document_id: 'doc-preview-1',
+      p_expected_document_version: 7,
+      p_existing_lfa_project_id: 'lfa-existing-1',
+    });
+    expectNoTargetTableWrites();
+  });
+
+  test('calls the RPC exactly once and never performs target-table writes', async () => {
+    rpcMock.mockResolvedValue({ data: buildRpcResult(), error: null });
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith('/dashboard/lfa-builder/lfa-project-1?tab=lfa');
+    });
+
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+    expectNoTargetTableWrites();
+  });
+
+  test('handles CREATED with navigation, count summary, and sanitized warnings', async () => {
+    rpcMock.mockResolvedValue({
+      data: buildRpcResult({
+        warnings: [
+          { message: 'Budget pricing requires review' },
+          { code: 'MEAL_INDICATOR_SKIPPED' },
+        ],
+      }),
+      error: null,
+    });
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith('/dashboard/lfa-builder/lfa-project-1?tab=lfa');
+    });
+
+    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'Materialisasi Berhasil',
+      description: expect.stringContaining('Program berhasil dimaterialisasi secara transaksional.'),
     }));
+    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+      description: expect.stringContaining('Budget pricing requires review'),
+    }));
+    expect(screen.getByText(/Peringatan materialisasi/i)).toBeTruthy();
+    expectNoTargetTableWrites();
+  });
 
-    render(<GrantWriterProposal />);
+  test.each([
+    ['ALREADY_MATERIALIZED', 'Materialisasi Selesai', '/dashboard/lfa-builder/lfa-project-1?tab=lfa'],
+    ['PRESERVED_EXISTING', 'Materialisasi Selesai', '/dashboard/lfa-builder/lfa-project-1?tab=lfa'],
+  ])('navigates only for successful reusable results: %s', async (code, title, target) => {
+    rpcMock.mockResolvedValue({
+      data: buildRpcResult({ code, preserved_modules: code === 'PRESERVED_EXISTING' ? ['budget'] : [] }),
+      error: null,
+    });
+    await renderReady();
 
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith(target);
+    });
+    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title }));
+    expectNoTargetTableWrites();
+  });
+
+  test('does not navigate for MATERIALIZATION_IN_PROGRESS', async () => {
+    rpcMock.mockResolvedValue({
+      data: buildRpcResult({
+        code: 'MATERIALIZATION_IN_PROGRESS',
+        status: 'running',
+        lfa_project_id: null,
+        created_modules: [],
+      }),
+      error: null,
+    });
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Materialisasi Sedang Diproses',
+      }));
+    });
+    expect(navigateMock).not.toHaveBeenCalled();
+    expectNoTargetTableWrites();
+  });
+
+  test.each([
+    ['BLOCKED_PARTIAL', 'blocked', 'struktur LFA yang sudah ada belum lengkap'],
+    ['PREVIOUS_ATTEMPT_FAILED', 'failed', 'perlu ditinjau sebelum dicoba kembali'],
+    ['PREVIOUS_ATTEMPT_BLOCKED', 'blocked', 'memerlukan peninjauan manual'],
+    ['FAILED_VALIDATION', 'failed', 'Dokumen belum memenuhi syarat materialisasi'],
+    ['FAILED_DATABASE', 'failed', 'Perubahan target dibatalkan'],
+  ])('does not navigate for terminal non-success RPC result %s', async (code, status, descriptionPart) => {
+    rpcMock.mockResolvedValue({
+      data: buildRpcResult({
+        code,
+        status,
+        lfa_project_id: null,
+        created_modules: [],
+        blocked_stage: code === 'PREVIOUS_ATTEMPT_BLOCKED' ? 'lfa' : null,
+        failure_code: 'GW_STATE_MISMATCH',
+      }),
+      error: null,
+    });
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Materialisasi Gagal',
+        description: expect.stringContaining(descriptionPart),
+        variant: 'destructive',
+      }));
+    });
+    expect(navigateMock).not.toHaveBeenCalled();
+    expectNoTargetTableWrites();
+  });
+
+  test('handles transport error without fallback writes', async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: 'Failed to fetch' } });
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Materialisasi Gagal',
+        description: 'Permintaan materialisasi tidak berhasil diproses. Tidak ada fallback penulisan data yang dijalankan.',
+        variant: 'destructive',
+      }));
+    });
+    expect(navigateMock).not.toHaveBeenCalled();
+    expectNoTargetTableWrites();
+  });
+
+  test('handles malformed RPC responses safely', async () => {
+    rpcMock.mockResolvedValue({ data: { nope: true }, error: null });
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Materialisasi Gagal',
+        description: 'Respons materialisasi tidak valid. Tidak ada fallback penulisan data yang dijalankan.',
+        variant: 'destructive',
+      }));
+    });
+    expect(navigateMock).not.toHaveBeenCalled();
+    expectNoTargetTableWrites();
+  });
+
+  test('handles unknown RPC codes safely', async () => {
+    rpcMock.mockResolvedValue({
+      data: buildRpcResult({ code: 'SOMETHING_ELSE', status: 'success' }),
+      error: null,
+    });
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Materialisasi Gagal',
+        description: 'Respons materialisasi tidak valid. Tidak ada fallback penulisan data yang dijalankan.',
+        variant: 'destructive',
+      }));
+    });
+    expect(navigateMock).not.toHaveBeenCalled();
+    expectNoTargetTableWrites();
+  });
+
+  test('blocks success results that are missing lfa_project_id', async () => {
+    rpcMock.mockResolvedValue({
+      data: buildRpcResult({ lfa_project_id: null }),
+      error: null,
+    });
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Materialisasi Gagal',
+        description: 'Materialisasi selesai tetapi referensi Program Workspace tidak tersedia. Navigasi dibatalkan dengan aman.',
+        variant: 'destructive',
+      }));
+    });
+    expect(navigateMock).not.toHaveBeenCalled();
+    expectNoTargetTableWrites();
+  });
+
+  test('prevents duplicate RPC calls while a request is pending', async () => {
+    let resolveRpc: ((value: { data: RpcResult; error: RpcError | null }) => void) | undefined;
+    rpcMock.mockImplementation(
+      () => new Promise<{ data: RpcResult; error: RpcError | null }>((resolve) => {
+        resolveRpc = resolve;
+      }),
+    );
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /Memproses/i })).toBeDisabled();
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Memproses/i }));
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+
+    resolveRpc?.({ data: buildRpcResult(), error: null });
+
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith('/dashboard/lfa-builder/lfa-project-1?tab=lfa');
+    });
+    expectNoTargetTableWrites();
+  });
+
+  test('blocks the RPC when the previewed document belongs to another project', async () => {
+    await renderReady({
+      document: {
+        id: 'doc-wrong-project',
+        project_id: 'gw-project-2',
+        organization_id: 'org-1',
+        version: 7,
+        matrix: { ok: true },
+        proposal_markdown: '# Wrong Preview',
+        created_at: '2026-07-21T00:00:00Z',
+      },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
 
     await waitFor(() => {
       expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -570,481 +466,7 @@ describe('GrantWriterProposal materialization source pinning', () => {
         variant: 'destructive',
       }));
     });
-
-    expect(writeCalls).toHaveLength(0);
+    expect(rpcMock).not.toHaveBeenCalled();
+    expectNoTargetTableWrites();
   });
-
-  test('shows a deterministic error and prevents writes when the previewed document does not belong to the current organization', async () => {
-    installSupabaseScenario(createScenario({
-      documentQueue: [
-        {
-          id: 'doc-invalid-org',
-          project_id: 'gw-project-1',
-          organization_id: 'org-2',
-          generated_by: 'user-1',
-          version: 1,
-          matrix: buildLegacyMatrix('Wrong Goal', 'Wrong Purpose'),
-          proposal_markdown: '# Invalid Preview',
-          model: 'gpt',
-          donor_standard: 'UN_OECD_DAC',
-          is_current: true,
-          created_at: '2026-07-21T00:00:00Z',
-        },
-      ],
-    }));
-
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
-
-    await waitFor(() => {
-      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Materialisasi Gagal',
-        description: 'Dokumen proposal yang sedang dipratinjau tidak cocok dengan organisasi proyek ini.',
-        variant: 'destructive',
-      }));
-    });
-
-    expect(writeCalls).toHaveLength(0);
-  });
-
-  test('persists source_task_id on first materialization and links budget rows to inserted WBS IDs', async () => {
-    installSupabaseScenario(createScenario({
-      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
-    }));
-
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
-
-    await waitFor(() => {
-      const budgetInsert = writeCalls.find((call) => call.table === 'lfa_budget_items' && call.type === 'insert');
-      expect(budgetInsert).toBeTruthy();
-    }, { timeout: 12000 });
-
-    const wbsInsert = writeCalls.find((call) => call.table === 'lfa_wbs_items' && call.type === 'insert');
-    expect(wbsInsert).toBeTruthy();
-    const wbsPayload = (wbsInsert?.payload ?? []) as Array<Record<string, unknown>>;
-    expect(wbsPayload.some((row) => row.source_task_id === 'task-output-1')).toBe(true);
-
-    const identitySelectCalls = selectCalls.filter((call) =>
-      call.table === 'lfa_wbs_items' && call.columns === 'id,lfa_project_id,source_task_id'
-    );
-    expect(identitySelectCalls.length).toBeGreaterThanOrEqual(2);
-
-    const insertedOutputTaskWbsId = wbsPayload.find((row) => row.source_task_id === 'task-output-1')?.id;
-    expect(typeof insertedOutputTaskWbsId).toBe('string');
-
-    const budgetInsert = writeCalls.find((call) => call.table === 'lfa_budget_items' && call.type === 'insert');
-    const budgetPayload = (budgetInsert?.payload ?? []) as Array<Record<string, unknown>>;
-    expect(budgetPayload[0]?.wbs_item_id).toBe(insertedOutputTaskWbsId);
-  }, 15000);
-
-  test('hydrates source_task_id mapping from existing WBS rows on retry and does not reseed WBS', async () => {
-    installSupabaseScenario(createScenario({
-      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
-      existingWbs: [
-        {
-          id: 'persisted-wbs-1',
-          lfa_project_id: 'lfa-project-1',
-          source_task_id: 'task-output-1',
-        },
-      ],
-    }));
-
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
-
-    await waitFor(() => {
-      const budgetInsert = writeCalls.find((call) => call.table === 'lfa_budget_items' && call.type === 'insert');
-      expect(budgetInsert).toBeTruthy();
-    }, { timeout: 12000 });
-
-    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'insert')).toBe(false);
-    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'update')).toBe(false);
-    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'delete')).toBe(false);
-
-    const budgetInsert = writeCalls.find((call) => call.table === 'lfa_budget_items' && call.type === 'insert');
-    const budgetPayload = (budgetInsert?.payload ?? []) as Array<Record<string, unknown>>;
-    expect(budgetPayload[0]?.wbs_item_id).toBe('persisted-wbs-1');
-  }, 15000);
-
-  test('fails deterministically when existing WBS rows have null source_task_id and budget requires linkage', async () => {
-    installSupabaseScenario(createScenario({
-      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
-      existingWbs: [
-        {
-          id: 'historical-null-1',
-          lfa_project_id: 'lfa-project-1',
-          source_task_id: null,
-        },
-      ],
-    }));
-
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
-
-    await waitFor(() => {
-      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Materialisasi Gagal',
-        description: 'Materialisasi anggaran gagal karena tautan task anggaran ke WBS tidak dapat dipetakan secara deterministik.',
-        variant: 'destructive',
-      }));
-    }, { timeout: 12000 });
-
-    expect(writeCalls.some((call) => call.table === 'lfa_budget_items' && call.type === 'insert')).toBe(false);
-    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'update')).toBe(false);
-    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'delete')).toBe(false);
-  }, 15000);
-
-  test('ignores cross-project WBS identities and fails before budget insert when linkage stays unresolved', async () => {
-    installSupabaseScenario(createScenario({
-      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
-      existingWbs: [
-        {
-          id: 'cross-project-wbs-1',
-          lfa_project_id: 'lfa-project-other',
-          source_task_id: 'task-output-1',
-        },
-      ],
-    }));
-
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
-
-    await waitFor(() => {
-      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Materialisasi Gagal',
-        description: 'Materialisasi anggaran gagal karena tautan task anggaran ke WBS tidak dapat dipetakan secara deterministik.',
-        variant: 'destructive',
-      }));
-    }, { timeout: 12000 });
-
-    expect(writeCalls.some((call) => call.table === 'lfa_budget_items' && call.type === 'insert')).toBe(false);
-  }, 15000);
-
-  test('fails before WBS and budget writes when a skeleton WBS task has a missing ID', async () => {
-    const matrixWithMissingTaskId = buildProgramSkeletonMatrix({
-      tasks: [
-        {
-          id: '   ',
-          level: 1,
-          title: 'Task output 1',
-          startMonth: 1,
-          durationWeeks: 4,
-          responsibleRole: 'Manager',
-          dependencies: [],
-        },
-      ],
-      budgetHints: [
-        {
-          itemName: 'Budget line 1',
-          description: 'Budget description',
-          itemType: 'Item type',
-          quantity: 2,
-          unit: 'Orang',
-          unit_price_idr: 100000,
-          category: 'personnel',
-          taskId: 'task-output-1',
-          justification: 'Need this',
-          requiresUserConfirmation: false,
-        },
-      ],
-    });
-
-    installSupabaseScenario(createScenario({
-      documentQueue: [buildDocument(matrixWithMissingTaskId)],
-    }));
-
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
-
-    await waitFor(() => {
-      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Materialisasi Gagal',
-        description: expect.stringContaining('SKELETON VALIDATION FAILED'),
-        variant: 'destructive',
-      }));
-    }, { timeout: 12000 });
-
-    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'insert')).toBe(false);
-    expect(writeCalls.some((call) => call.table === 'lfa_budget_items' && call.type === 'insert')).toBe(false);
-  }, 15000);
-
-  test('seeds LFA once for an empty project and continues to WBS materialization', async () => {
-    installSupabaseScenario(createScenario({
-      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
-      existingEntriesQueue: [[]],
-    }));
-
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
-
-    await waitFor(() => {
-      const wbsInsert = writeCalls.find((call) => call.table === 'lfa_wbs_items' && call.type === 'insert');
-      expect(wbsInsert).toBeTruthy();
-    }, { timeout: 12000 });
-
-    const lfaInsertPayloads = writeCalls
-      .filter((call) => call.table === 'lfa_entries' && call.type === 'insert')
-      .map((call) => call.payload as Record<string, unknown>);
-    const levelCounts = lfaInsertPayloads.reduce<Record<string, number>>((acc, payload) => {
-      const level = String(payload.level);
-      acc[level] = (acc[level] ?? 0) + 1;
-      return acc;
-    }, {});
-
-    expect(levelCounts.goal ?? 0).toBe(1);
-    expect(levelCounts.purpose ?? 0).toBe(1);
-    expect(levelCounts.output ?? 0).toBe(1);
-    expect(levelCounts.activity ?? 0).toBe(1);
-  }, 15000);
-
-  test('blocks materialization on partial goal and purpose state before any dependent writes', async () => {
-    const existingGoalPurposeRows = [
-      {
-        id: 'existing-goal-1',
-        project_id: 'lfa-project-1',
-        level: 'goal',
-        parent_id: null,
-        sequence: 1,
-      },
-      {
-        id: 'existing-purpose-1',
-        project_id: 'lfa-project-1',
-        level: 'purpose',
-        parent_id: null,
-        sequence: 1,
-      },
-    ];
-
-    installSupabaseScenario(createScenario({
-      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
-      existingEntriesQueue: repeatedExistingEntriesQueue(existingGoalPurposeRows),
-    }));
-
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
-
-    await waitFor(() => {
-      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Materialisasi Gagal',
-        description: expect.stringContaining('data LFA yang sudah ada terdeteksi parsial atau tidak konsisten'),
-        variant: 'destructive',
-      }));
-      expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'insert')).toBe(false);
-    }, { timeout: 12000 });
-
-    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'insert')).toBe(false);
-
-    const hasSuccessToast = toastMock.mock.calls.some(([args]) =>
-      typeof args?.title === 'string' && args.title.includes('Materialisasi Berhasil')
-    );
-    expect(hasSuccessToast).toBe(false);
-  }, 15000);
-
-  test('blocks materialization on goal-only state', async () => {
-    const existingGoalOnlyRows = [
-      {
-        id: 'existing-goal-1',
-        project_id: 'lfa-project-1',
-        level: 'goal',
-        parent_id: null,
-        sequence: 1,
-      },
-    ];
-
-    installSupabaseScenario(createScenario({
-      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
-      existingEntriesQueue: repeatedExistingEntriesQueue(existingGoalOnlyRows),
-    }));
-
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
-
-    await waitFor(() => {
-      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Materialisasi Gagal',
-        description: expect.stringContaining('data LFA yang sudah ada terdeteksi parsial atau tidak konsisten'),
-        variant: 'destructive',
-      }));
-    }, { timeout: 12000 });
-
-    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'insert')).toBe(false);
-    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'insert')).toBe(false);
-    expect(writeCalls.some((call) => call.table === 'lfa_budget_items' && call.type === 'insert')).toBe(false);
-  }, 15000);
-
-  test('blocks materialization on orphan output hierarchy', async () => {
-    const orphanOutputRows = [
-      {
-        id: 'existing-goal-1',
-        project_id: 'lfa-project-1',
-        level: 'goal',
-        parent_id: null,
-        sequence: 1,
-      },
-      {
-        id: 'existing-purpose-1',
-        project_id: 'lfa-project-1',
-        level: 'purpose',
-        parent_id: null,
-        sequence: 1,
-      },
-      {
-        id: 'existing-output-1',
-        project_id: 'lfa-project-1',
-        level: 'output',
-        parent_id: 'missing-purpose',
-        sequence: 1,
-      },
-    ];
-
-    installSupabaseScenario(createScenario({
-      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
-      existingEntriesQueue: repeatedExistingEntriesQueue(orphanOutputRows),
-    }));
-
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
-
-    await waitFor(() => {
-      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Materialisasi Gagal',
-        description: expect.stringContaining('data LFA yang sudah ada terdeteksi parsial atau tidak konsisten'),
-        variant: 'destructive',
-      }));
-    }, { timeout: 12000 });
-
-    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'insert')).toBe(false);
-    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'insert')).toBe(false);
-    expect(writeCalls.some((call) => call.table === 'lfa_budget_items' && call.type === 'insert')).toBe(false);
-  }, 15000);
-
-  test('blocks materialization on orphan activity hierarchy', async () => {
-    const orphanActivityRows = [
-      {
-        id: 'existing-goal-1',
-        project_id: 'lfa-project-1',
-        level: 'goal',
-        parent_id: null,
-        sequence: 1,
-      },
-      {
-        id: 'existing-purpose-1',
-        project_id: 'lfa-project-1',
-        level: 'purpose',
-        parent_id: null,
-        sequence: 1,
-      },
-      {
-        id: 'existing-output-1',
-        project_id: 'lfa-project-1',
-        level: 'output',
-        parent_id: 'existing-purpose-1',
-        sequence: 1,
-      },
-      {
-        id: 'existing-activity-1',
-        project_id: 'lfa-project-1',
-        level: 'activity',
-        parent_id: 'missing-output',
-        sequence: 1,
-      },
-    ];
-
-    installSupabaseScenario(createScenario({
-      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
-      existingEntriesQueue: repeatedExistingEntriesQueue(orphanActivityRows),
-    }));
-
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
-
-    await waitFor(() => {
-      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Materialisasi Gagal',
-        description: expect.stringContaining('data LFA yang sudah ada terdeteksi parsial atau tidak konsisten'),
-        variant: 'destructive',
-      }));
-    }, { timeout: 12000 });
-
-    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'insert')).toBe(false);
-    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'insert')).toBe(false);
-    expect(writeCalls.some((call) => call.table === 'lfa_budget_items' && call.type === 'insert')).toBe(false);
-  }, 15000);
-
-  test('preserves existing safe hierarchy and skips LFA reseeding', async () => {
-    const existingSafeRows = buildExistingLfaRows();
-
-    installSupabaseScenario(createScenario({
-      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
-      existingEntriesQueue: repeatedExistingEntriesQueue(existingSafeRows),
-    }));
-
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
-
-    await waitFor(() => {
-      const wbsInsert = writeCalls.find((call) => call.table === 'lfa_wbs_items' && call.type === 'insert');
-      expect(wbsInsert).toBeTruthy();
-    }, { timeout: 12000 });
-
-    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'insert')).toBe(false);
-    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'update')).toBe(false);
-    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'delete')).toBe(false);
-
-    expect(await screen.findByText(/LFA sudah ada dan dipertahankan/i)).toBeTruthy();
-  }, 15000);
-
-  test('preserves existing safe hierarchy without activity and does not auto-repair LFA', async () => {
-    const existingSafeWithoutActivityRows = buildExistingLfaRows({ withActivity: false });
-
-    installSupabaseScenario(createScenario({
-      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
-      existingEntriesQueue: repeatedExistingEntriesQueue(existingSafeWithoutActivityRows),
-    }));
-
-    render(<GrantWriterProposal />);
-
-    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
-    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
-
-    await waitFor(() => {
-      const wbsInsert = writeCalls.find((call) => call.table === 'lfa_wbs_items' && call.type === 'insert');
-      expect(wbsInsert).toBeTruthy();
-    }, { timeout: 12000 });
-
-    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'insert')).toBe(false);
-    expect(writeCalls.some((call) => {
-      if (call.table !== 'lfa_entries' || call.type !== 'update') {
-        return false;
-      }
-
-      const payload = call.payload as Record<string, unknown>;
-      return payload.level === 'activity';
-    })).toBe(false);
-  }, 15000);
 });
