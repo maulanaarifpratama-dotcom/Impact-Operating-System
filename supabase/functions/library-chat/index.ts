@@ -128,6 +128,7 @@ ${context || 'Tidak ada dokumen yang diunggah atau ditemukan relevan.'}
     // 6) Stream SSE response
     const encoder = new TextEncoder();
     let fullText = '';
+    let aiUsage: { prompt_tokens: number; completion_tokens: number } | null = null;
 
     const stream = new ReadableStream({
       async start(controller) {
@@ -136,6 +137,12 @@ ${context || 'Tidak ada dokumen yang diunggah atau ditemukan relevan.'}
             messages,
             max_tokens: 1200,
           })) {
+            if (chunk.usage) {
+              aiUsage = {
+                prompt_tokens: chunk.usage.prompt_tokens,
+                completion_tokens: chunk.usage.completion_tokens,
+              };
+            }
             if (chunk.delta) {
               fullText += chunk.delta;
               controller.enqueue(
@@ -149,16 +156,26 @@ ${context || 'Tidak ada dokumen yang diunggah atau ditemukan relevan.'}
 
           // Persist audit log inside DB
           const admin = adminClient();
-          await admin.from('ai_generations').insert({
-            organization_id: organizationId,
-            user_id: user.id,
-            feature: 'library_chat',
-            metadata: {
-              source_module: body.source_module ?? null,
-              source_record_id: body.source_record_id ?? null,
-              retrieved_chunks: citations.length,
-            },
-          });
+          try {
+            const { error: telemetryError } = await admin.from('ai_generations').insert({
+              organization_id: organizationId,
+              user_id: user.id,
+              product: 'impactory_library',
+              prompt_tokens: aiUsage?.prompt_tokens ?? null,
+              completion_tokens: aiUsage?.completion_tokens ?? null,
+              metadata: {
+                source_module: body.source_module ?? null,
+                source_record_id: body.source_record_id ?? null,
+                retrieved_chunks: citations.length,
+              },
+            });
+
+            if (telemetryError) {
+              console.warn('[library-chat] AI usage telemetry insert failed');
+            }
+          } catch {
+            console.warn('[library-chat] AI usage telemetry insert failed');
+          }
         } catch (err) {
           const msg = (err as Error).message ?? 'stream error';
           controller.enqueue(

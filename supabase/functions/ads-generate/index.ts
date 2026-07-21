@@ -148,12 +148,20 @@ serve(async (req) => {
       raw_output: output,
     });
 
-    await admin.from('ai_generations').insert({
-      organization_id,
-      user_id: user.id,
-      feature: 'ads_generate',
-      metadata: { brief_id: briefId, count: variants.length },
-    });
+    try {
+      const { error: telemetryError } = await admin.from('ai_generations').insert({
+        organization_id,
+        user_id: user.id,
+        product: 'impactory_ads',
+        metadata: { brief_id: briefId, count: variants.length },
+      });
+
+      if (telemetryError) {
+        console.warn('[ads-generate] AI usage telemetry insert failed');
+      }
+    } catch {
+      console.warn('[ads-generate] AI usage telemetry insert failed');
+    }
 
     return json({ brief_id: briefId, variants });
   } catch (err) {

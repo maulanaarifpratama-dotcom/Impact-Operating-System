@@ -117,12 +117,20 @@ serve(async (req) => {
       }
     }
 
-    await admin.from('ai_generations').insert({
-      organization_id,
-      user_id: user.id,
-      feature: 'grantfinder_search',
-      metadata: { query, result_count: candidates.length },
-    });
+    try {
+      const { error: telemetryError } = await admin.from('ai_generations').insert({
+        organization_id,
+        user_id: user.id,
+        product: 'grantfinder',
+        metadata: { result_count: candidates.length, used_embedding: !!embedding },
+      });
+
+      if (telemetryError) {
+        console.warn('[grantfinder-search] AI usage telemetry insert failed');
+      }
+    } catch {
+      console.warn('[grantfinder-search] AI usage telemetry insert failed');
+    }
 
     return json({ results: candidates, summary, used_embedding: !!embedding });
   } catch (err) {

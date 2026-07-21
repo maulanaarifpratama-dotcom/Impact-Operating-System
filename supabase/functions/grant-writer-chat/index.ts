@@ -137,11 +137,18 @@ serve(async (req: Request) => {
     // Stream response from Foundry via SSE
     const encoder = new TextEncoder();
     let fullText = '';
+    let aiUsage: { prompt_tokens: number; completion_tokens: number } | null = null;
 
     const stream = new ReadableStream({
       async start(controller) {
         try {
           for await (const chunk of chatCompletionStream({ messages, temperature: 0.5, max_tokens: 1024 })) {
+            if (chunk.usage) {
+              aiUsage = {
+                prompt_tokens: chunk.usage.prompt_tokens,
+                completion_tokens: chunk.usage.completion_tokens,
+              };
+            }
             if (chunk.delta) {
               fullText += chunk.delta;
               controller.enqueue(
@@ -161,14 +168,22 @@ serve(async (req: Request) => {
             role: 'assistant',
             content: fullText,
           });
-          await supabaseAdmin.from('ai_generations').insert({
-            organization_id: organizationId,
-            user_id: userId,
-            feature: 'grant_writer_chat',
-            input_tokens: null,
-            output_tokens: null,
-            metadata: { project_id },
-          });
+          try {
+            const { error: telemetryError } = await supabaseAdmin.from('ai_generations').insert({
+              organization_id: organizationId,
+              user_id: userId,
+              product: 'grant_writer',
+              prompt_tokens: aiUsage?.prompt_tokens ?? null,
+              completion_tokens: aiUsage?.completion_tokens ?? null,
+              metadata: { project_id },
+            });
+
+            if (telemetryError) {
+              console.warn('[grant-writer-chat] AI usage telemetry insert failed');
+            }
+          } catch {
+            console.warn('[grant-writer-chat] AI usage telemetry insert failed');
+          }
         } catch (err) {
           const msg = (err as Error).message ?? 'stream error';
           controller.enqueue(

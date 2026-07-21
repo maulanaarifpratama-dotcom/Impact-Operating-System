@@ -277,12 +277,20 @@ serve(async (req) => {
       .eq('id', doc.id);
 
     if (inserted > 0) {
-      await admin.from('ai_generations').insert({
-        organization_id,
-        user_id: user.id,
-        product: 'impactory_library',
-        metadata: { document_id: doc.id, chunks: inserted },
-      });
+      try {
+        const { error: telemetryError } = await admin.from('ai_generations').insert({
+          organization_id,
+          user_id: user.id,
+          product: 'impactory_library',
+          metadata: { document_id: doc.id, chunks: inserted },
+        });
+
+        if (telemetryError) {
+          console.warn('[library-ingest] AI usage telemetry insert failed');
+        }
+      } catch {
+        console.warn('[library-ingest] AI usage telemetry insert failed');
+      }
     }
 
     // MANDATORY LOGGING

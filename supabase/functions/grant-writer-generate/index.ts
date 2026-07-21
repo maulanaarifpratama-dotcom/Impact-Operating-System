@@ -518,20 +518,28 @@ Deno.serve(async (req: Request) => {
       .eq('id', body.projectId);
 
     // 7. Log to ai_generations (use admin client to bypass RLS for audit logging)
-    await ctx.supabaseAdmin.from('ai_generations').insert({
-      organization_id: project.organization_id,
-      user_id: ctx.userId,
-      feature: 'grant_writer_generate',
-      model,
-      prompt_tokens: usage.prompt_tokens,
-      completion_tokens: usage.completion_tokens,
-      metadata: {
-        kind: 'lfa_generate',
-        project_id: body.projectId,
-        version: nextVersion,
-        donor_standard: donorStandard,
-      },
-    });
+    try {
+      const { error: telemetryError } = await ctx.supabaseAdmin.from('ai_generations').insert({
+        organization_id: project.organization_id,
+        user_id: ctx.userId,
+        product: 'grant_writer',
+        model,
+        prompt_tokens: usage.prompt_tokens,
+        completion_tokens: usage.completion_tokens,
+        metadata: {
+          kind: 'lfa_generate',
+          project_id: body.projectId,
+          version: nextVersion,
+          donor_standard: donorStandard,
+        },
+      });
+
+      if (telemetryError) {
+        console.warn('[grant-writer-generate] AI usage telemetry insert failed');
+      }
+    } catch {
+      console.warn('[grant-writer-generate] AI usage telemetry insert failed');
+    }
 
     return jsonResponse({ document: doc, version: nextVersion });
   } catch (err) {

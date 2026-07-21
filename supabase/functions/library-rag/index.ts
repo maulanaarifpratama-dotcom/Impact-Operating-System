@@ -123,12 +123,20 @@ serve(async (req) => {
       excerpt: (c.content ?? '').slice(0, 240),
     }));
 
-    await admin.from('ai_generations').insert({
-      organization_id,
-      user_id: user.id,
-      feature: 'library_rag',
-      metadata: { question, citations: citations.length },
-    });
+    try {
+      const { error: telemetryError } = await admin.from('ai_generations').insert({
+        organization_id,
+        user_id: user.id,
+        product: 'impactory_library',
+        metadata: { citations: citations.length },
+      });
+
+      if (telemetryError) {
+        console.warn('[library-rag] AI usage telemetry insert failed');
+      }
+    } catch {
+      console.warn('[library-rag] AI usage telemetry insert failed');
+    }
 
     return json({ answer, citations, used_ai: true });
   } catch (err) {
