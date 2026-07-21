@@ -489,22 +489,42 @@ test.describe('Sprint 5 E2E Program Materialization V2 Test Suite', () => {
     await materializeBtn.click();
     console.log('[E2E-S5] Clicked Materialisasikan Sekarang!');
 
-    // Wait for the completion redirection button
-    const openWorkspaceBtn = page.locator('a:has-text("Buka Program Workspace")').first();
-    await expect(openWorkspaceBtn).toBeVisible({ timeout: 35000 });
-    console.log('[E2E-S5] E2E Program materialization successfully completed with green checks!');
+    // Wait for the completion redirection button or automatic redirection to LFA Builder
+    let redirected = false;
+    try {
+      console.log('[E2E-S5] Checking if automatically redirected to LFA Builder...');
+      await page.waitForURL(/.*lfa-builder.*/, { timeout: 15000 });
+      redirected = true;
+      console.log('[E2E-S5] Automatically redirected to LFA Builder!');
+    } catch (e) {
+      console.log('[E2E-S5] Automatic redirect did not happen instantly, checking for button...');
+      const openWorkspaceBtn = page.locator('a:has-text("Buka Program Workspace")').first();
+      await expect(openWorkspaceBtn).toBeVisible({ timeout: 25000 });
+      console.log('[E2E-S5] E2E Program materialization button is visible!');
+      
+      // Capture visual screenshot as official proof before clicking
+      if (!fs.existsSync('playwright-report')) {
+        fs.mkdirSync('playwright-report');
+      }
+      await page.screenshot({ path: 'playwright-report/sprint5-materialize-success.png', fullPage: true });
+      console.log('[E2E-S5] Screenshot captured at: playwright-report/sprint5-materialize-success.png');
 
-    // Capture visual screenshot as official proof
-    if (!fs.existsSync('playwright-report')) {
-      fs.mkdirSync('playwright-report');
+      await openWorkspaceBtn.click();
+      await page.waitForURL(/.*lfa-builder.*/, { timeout: 15000 });
+      redirected = true;
     }
-    await page.screenshot({ path: 'playwright-report/sprint5-materialize-success.png', fullPage: true });
-    console.log('[E2E-S5] Screenshot captured at: playwright-report/sprint5-materialize-success.png');
 
-    // Click "Buka Program Workspace"
-    await openWorkspaceBtn.click();
-    await page.waitForURL(/.*lfa-builder.*/, { timeout: 15000 });
-    console.log('[E2E-S5] Successfully navigated to LFA Builder.');
+    if (redirected) {
+      console.log('[E2E-S5] Successfully navigated to LFA Builder.');
+      // Ensure screenshot exists even if automatically redirected
+      if (!fs.existsSync('playwright-report')) {
+        fs.mkdirSync('playwright-report');
+      }
+      if (!fs.existsSync('playwright-report/sprint5-materialize-success.png')) {
+        await page.screenshot({ path: 'playwright-report/sprint5-materialize-success.png', fullPage: true });
+        console.log('[E2E-S5] Redirection screenshot captured at: playwright-report/sprint5-materialize-success.png');
+      }
+    }
 
     // Verify LFA Seeding
     await page.waitForTimeout(5000); // Give React extra time to render
