@@ -421,6 +421,49 @@ function buildDocument(matrix: Record<string, unknown>, overrides?: Partial<Reco
   };
 }
 
+function buildExistingLfaRows(options?: { withActivity?: boolean }) {
+  const withActivity = options?.withActivity ?? true;
+  const rows: Array<Record<string, unknown>> = [
+    {
+      id: 'existing-goal-1',
+      project_id: 'lfa-project-1',
+      level: 'goal',
+      parent_id: null,
+      sequence: 1,
+    },
+    {
+      id: 'existing-purpose-1',
+      project_id: 'lfa-project-1',
+      level: 'purpose',
+      parent_id: null,
+      sequence: 1,
+    },
+    {
+      id: 'existing-output-1',
+      project_id: 'lfa-project-1',
+      level: 'output',
+      parent_id: 'existing-purpose-1',
+      sequence: 1,
+    },
+  ];
+
+  if (withActivity) {
+    rows.push({
+      id: 'existing-activity-1',
+      project_id: 'lfa-project-1',
+      level: 'activity',
+      parent_id: 'existing-output-1',
+      sequence: 1,
+    });
+  }
+
+  return rows;
+}
+
+function repeatedExistingEntriesQueue(rows: Array<Record<string, unknown>>, repeats = 6) {
+  return Array.from({ length: repeats }, () => rows.map((row) => ({ ...row })));
+}
+
 beforeEach(() => {
   writeCalls.length = 0;
   selectCalls.length = 0;
@@ -736,5 +779,272 @@ describe('GrantWriterProposal materialization source pinning', () => {
 
     expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'insert')).toBe(false);
     expect(writeCalls.some((call) => call.table === 'lfa_budget_items' && call.type === 'insert')).toBe(false);
+  }, 15000);
+
+  test('seeds LFA once for an empty project and continues to WBS materialization', async () => {
+    installSupabaseScenario(createScenario({
+      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
+      existingEntriesQueue: [[]],
+    }));
+
+    render(<GrantWriterProposal />);
+
+    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+
+    await waitFor(() => {
+      const wbsInsert = writeCalls.find((call) => call.table === 'lfa_wbs_items' && call.type === 'insert');
+      expect(wbsInsert).toBeTruthy();
+    }, { timeout: 12000 });
+
+    const lfaInsertPayloads = writeCalls
+      .filter((call) => call.table === 'lfa_entries' && call.type === 'insert')
+      .map((call) => call.payload as Record<string, unknown>);
+    const levelCounts = lfaInsertPayloads.reduce<Record<string, number>>((acc, payload) => {
+      const level = String(payload.level);
+      acc[level] = (acc[level] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    expect(levelCounts.goal ?? 0).toBe(1);
+    expect(levelCounts.purpose ?? 0).toBe(1);
+    expect(levelCounts.output ?? 0).toBe(1);
+    expect(levelCounts.activity ?? 0).toBe(1);
+  }, 15000);
+
+  test('blocks materialization on partial goal and purpose state before any dependent writes', async () => {
+    const existingGoalPurposeRows = [
+      {
+        id: 'existing-goal-1',
+        project_id: 'lfa-project-1',
+        level: 'goal',
+        parent_id: null,
+        sequence: 1,
+      },
+      {
+        id: 'existing-purpose-1',
+        project_id: 'lfa-project-1',
+        level: 'purpose',
+        parent_id: null,
+        sequence: 1,
+      },
+    ];
+
+    installSupabaseScenario(createScenario({
+      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
+      existingEntriesQueue: repeatedExistingEntriesQueue(existingGoalPurposeRows),
+    }));
+
+    render(<GrantWriterProposal />);
+
+    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Materialisasi Gagal',
+        description: expect.stringContaining('data LFA yang sudah ada terdeteksi parsial atau tidak konsisten'),
+        variant: 'destructive',
+      }));
+      expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'insert')).toBe(false);
+    }, { timeout: 12000 });
+
+    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'insert')).toBe(false);
+
+    const hasSuccessToast = toastMock.mock.calls.some(([args]) =>
+      typeof args?.title === 'string' && args.title.includes('Materialisasi Berhasil')
+    );
+    expect(hasSuccessToast).toBe(false);
+  }, 15000);
+
+  test('blocks materialization on goal-only state', async () => {
+    const existingGoalOnlyRows = [
+      {
+        id: 'existing-goal-1',
+        project_id: 'lfa-project-1',
+        level: 'goal',
+        parent_id: null,
+        sequence: 1,
+      },
+    ];
+
+    installSupabaseScenario(createScenario({
+      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
+      existingEntriesQueue: repeatedExistingEntriesQueue(existingGoalOnlyRows),
+    }));
+
+    render(<GrantWriterProposal />);
+
+    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Materialisasi Gagal',
+        description: expect.stringContaining('data LFA yang sudah ada terdeteksi parsial atau tidak konsisten'),
+        variant: 'destructive',
+      }));
+    }, { timeout: 12000 });
+
+    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'insert')).toBe(false);
+    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'insert')).toBe(false);
+    expect(writeCalls.some((call) => call.table === 'lfa_budget_items' && call.type === 'insert')).toBe(false);
+  }, 15000);
+
+  test('blocks materialization on orphan output hierarchy', async () => {
+    const orphanOutputRows = [
+      {
+        id: 'existing-goal-1',
+        project_id: 'lfa-project-1',
+        level: 'goal',
+        parent_id: null,
+        sequence: 1,
+      },
+      {
+        id: 'existing-purpose-1',
+        project_id: 'lfa-project-1',
+        level: 'purpose',
+        parent_id: null,
+        sequence: 1,
+      },
+      {
+        id: 'existing-output-1',
+        project_id: 'lfa-project-1',
+        level: 'output',
+        parent_id: 'missing-purpose',
+        sequence: 1,
+      },
+    ];
+
+    installSupabaseScenario(createScenario({
+      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
+      existingEntriesQueue: repeatedExistingEntriesQueue(orphanOutputRows),
+    }));
+
+    render(<GrantWriterProposal />);
+
+    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Materialisasi Gagal',
+        description: expect.stringContaining('data LFA yang sudah ada terdeteksi parsial atau tidak konsisten'),
+        variant: 'destructive',
+      }));
+    }, { timeout: 12000 });
+
+    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'insert')).toBe(false);
+    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'insert')).toBe(false);
+    expect(writeCalls.some((call) => call.table === 'lfa_budget_items' && call.type === 'insert')).toBe(false);
+  }, 15000);
+
+  test('blocks materialization on orphan activity hierarchy', async () => {
+    const orphanActivityRows = [
+      {
+        id: 'existing-goal-1',
+        project_id: 'lfa-project-1',
+        level: 'goal',
+        parent_id: null,
+        sequence: 1,
+      },
+      {
+        id: 'existing-purpose-1',
+        project_id: 'lfa-project-1',
+        level: 'purpose',
+        parent_id: null,
+        sequence: 1,
+      },
+      {
+        id: 'existing-output-1',
+        project_id: 'lfa-project-1',
+        level: 'output',
+        parent_id: 'existing-purpose-1',
+        sequence: 1,
+      },
+      {
+        id: 'existing-activity-1',
+        project_id: 'lfa-project-1',
+        level: 'activity',
+        parent_id: 'missing-output',
+        sequence: 1,
+      },
+    ];
+
+    installSupabaseScenario(createScenario({
+      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
+      existingEntriesQueue: repeatedExistingEntriesQueue(orphanActivityRows),
+    }));
+
+    render(<GrantWriterProposal />);
+
+    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Materialisasi Gagal',
+        description: expect.stringContaining('data LFA yang sudah ada terdeteksi parsial atau tidak konsisten'),
+        variant: 'destructive',
+      }));
+    }, { timeout: 12000 });
+
+    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'insert')).toBe(false);
+    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'insert')).toBe(false);
+    expect(writeCalls.some((call) => call.table === 'lfa_budget_items' && call.type === 'insert')).toBe(false);
+  }, 15000);
+
+  test('preserves existing safe hierarchy and skips LFA reseeding', async () => {
+    const existingSafeRows = buildExistingLfaRows();
+
+    installSupabaseScenario(createScenario({
+      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
+      existingEntriesQueue: repeatedExistingEntriesQueue(existingSafeRows),
+    }));
+
+    render(<GrantWriterProposal />);
+
+    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+
+    await waitFor(() => {
+      const wbsInsert = writeCalls.find((call) => call.table === 'lfa_wbs_items' && call.type === 'insert');
+      expect(wbsInsert).toBeTruthy();
+    }, { timeout: 12000 });
+
+    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'insert')).toBe(false);
+    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'update')).toBe(false);
+    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'delete')).toBe(false);
+
+    expect(await screen.findByText(/LFA sudah ada dan dipertahankan/i)).toBeTruthy();
+  }, 15000);
+
+  test('preserves existing safe hierarchy without activity and does not auto-repair LFA', async () => {
+    const existingSafeWithoutActivityRows = buildExistingLfaRows({ withActivity: false });
+
+    installSupabaseScenario(createScenario({
+      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
+      existingEntriesQueue: repeatedExistingEntriesQueue(existingSafeWithoutActivityRows),
+    }));
+
+    render(<GrantWriterProposal />);
+
+    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+
+    await waitFor(() => {
+      const wbsInsert = writeCalls.find((call) => call.table === 'lfa_wbs_items' && call.type === 'insert');
+      expect(wbsInsert).toBeTruthy();
+    }, { timeout: 12000 });
+
+    expect(writeCalls.some((call) => call.table === 'lfa_entries' && call.type === 'insert')).toBe(false);
+    expect(writeCalls.some((call) => {
+      if (call.table !== 'lfa_entries' || call.type !== 'update') {
+        return false;
+      }
+
+      const payload = call.payload as Record<string, unknown>;
+      return payload.level === 'activity';
+    })).toBe(false);
   }, 15000);
 });

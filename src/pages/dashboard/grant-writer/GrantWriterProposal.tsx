@@ -20,6 +20,10 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/database.types';
 import { INKINDO_PROVINCE_MULTIPLIERS, INKINDO_DIRECT_COST_MULTIPLIERS } from '@/data/inkindo2026';
+import {
+  classifyExistingLfaMaterializationState,
+  type ExistingLfaEntryRow,
+} from '@/lib/grant-writer/lfaMaterializationState';
 
 type LfaDoc = Database['public']['Tables']['gw_lfa_documents']['Row'];
 type Project = Database['public']['Tables']['gw_projects']['Row'];
@@ -475,10 +479,24 @@ export default function GrantWriterProposal() {
 
       const { data: existingEntries, error: entriesErr } = await supabase
         .from('lfa_entries')
-        .select('*')
+        .select('id,project_id,level,parent_id,sequence')
         .eq('project_id', currentLfaProjId);
 
       if (entriesErr) throw entriesErr;
+
+      const existingEntryRows = (existingEntries ?? []) as ExistingLfaEntryRow[];
+      const lfaState = classifyExistingLfaMaterializationState(existingEntryRows);
+      const shouldSeedLfa = lfaState.kind === 'EMPTY';
+
+      if (lfaState.kind === 'PARTIAL_UNSAFE') {
+        throw new Error(
+          `Materialisasi dihentikan karena data LFA yang sudah ada terdeteksi parsial atau tidak konsisten (${lfaState.reason}). Tinjau dan lengkapi struktur LFA terlebih dahulu.`
+        );
+      }
+
+      if (lfaState.kind === 'COMPLETE_OR_EXISTING') {
+        setSteps(prev => prev.map(s => s.id === 'lfa' ? { ...s, status: 'skipped', message: 'LFA sudah ada dan dipertahankan' } : s));
+      }
 
       const matrix = sourceDoc.matrix as any;
       const skeleton = matrix?.program_skeleton;
@@ -497,24 +515,14 @@ export default function GrantWriterProposal() {
       const taskIdToWbsId: Record<string, string> = {};
 
       if (skeleton) {
-        // Run rigorous Program Skeleton V2 Validation
-        const validationErrors = validateProgramSkeleton(skeleton, project);
-        if (validationErrors.length > 0) {
-          throw new Error(`SKELETON VALIDATION FAILED:\n- ${validationErrors.join('\n- ')}`);
-        }
-
         // V2 PATHWAY - SKELETON MATERIALIZER
-        if (existingEntries && existingEntries.some(e => e.level === 'output' || e.level === 'activity')) {
-          setSteps(prev => prev.map(s => s.id === 'lfa' ? { ...s, status: 'skipped', message: 'LFA Matrix sudah terisi' } : s));
-          
-          // Reconstruct output mapping from existing database rows by matching descriptions
-          const existingOutputs = existingEntries.filter(e => e.level === 'output');
-          const skeletonOutputs = skeleton.lfa?.outputs || [];
-          skeletonOutputs.forEach((skOut: any) => {
-            const matched = existingOutputs.find(eo => eo.description === skOut.statement);
-            if (matched) outputIdToDbId[skOut.id] = matched.id;
-          });
-        } else {
+        if (shouldSeedLfa) {
+          // Run rigorous Program Skeleton V2 Validation only before creating new rows.
+          const validationErrors = validateProgramSkeleton(skeleton, project);
+          if (validationErrors.length > 0) {
+            throw new Error(`SKELETON VALIDATION FAILED:\n- ${validationErrors.join('\n- ')}`);
+          }
+
           // Seed Goal (V2)
           const goal = skeleton.lfa?.goal;
           const firstGoalInd = goal?.indicators?.[0];
@@ -964,9 +972,7 @@ export default function GrantWriterProposal() {
         // V1 PATHWAY - LEGACY BACKWARD COMPATIBLE FALLBACK
         setSteps(prev => prev.map(s => s.id === 'sroi' ? { ...s, status: 'skipped', message: 'SROI tidak didukung untuk proposal lama' } : s));
 
-        if (existingEntries && existingEntries.some(e => e.level === 'output' || e.level === 'activity')) {
-          setSteps(prev => prev.map(s => s.id === 'lfa' ? { ...s, status: 'skipped', message: 'LFA Matrix sudah terisi' } : s));
-        } else {
+        if (shouldSeedLfa) {
           // Seed Goal
           let goalEntry = existingEntries?.find(e => e.level === 'goal');
           const goalDesc = matrix?.goal?.intervention || project.summary || '';
