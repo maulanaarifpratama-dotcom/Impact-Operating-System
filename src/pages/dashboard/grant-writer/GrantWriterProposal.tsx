@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -15,6 +15,17 @@ import {
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import type { Database } from '@/integrations/supabase/database.types';
@@ -46,7 +57,8 @@ type MaterializationRpcStatus = 'success' | 'running' | 'failed' | 'blocked';
 type MaterializationRpcWarning = {
   code?: string;
   message?: string;
-  [key: string]: unknown;
+  source_lfa_indicator_id?: string;
+  fields?: string[];
 };
 
 type MaterializationRpcResult = {
@@ -83,6 +95,22 @@ interface MaterializeStep {
   message?: string;
 }
 
+type ResultTone = 'success' | 'running' | 'blocked' | 'error';
+
+type ResultPresentation = {
+  title: string;
+  description: string;
+  tone: ResultTone;
+};
+
+type SanitizedWarning = {
+  code?: string;
+  message: string;
+  actionLabel: 'Dilewati untuk ditinjau' | 'Perlu peninjauan';
+  sourceIndicatorId?: string;
+  fields?: string[];
+};
+
 const STEP_LABELS: Array<Pick<MaterializeStep, 'id' | 'label'>> = [
   { id: 'program', label: 'Program Workspace' },
   { id: 'lfa', label: 'Logical Framework Matrix (LFA)' },
@@ -96,6 +124,41 @@ const SUCCESS_NAVIGATION_CODES = new Set<MaterializationRpcCode>([
   'CREATED',
   'ALREADY_MATERIALIZED',
   'PRESERVED_EXISTING',
+]);
+
+const MODULE_LABELS: Record<MaterializeStep['id'], string> = {
+  program: 'Program Workspace',
+  lfa: 'LFA',
+  wbs: 'WBS & Timeline',
+  budget: 'Anggaran',
+  meal: 'MEAL',
+  sroi: 'SROI',
+};
+
+const SAFE_WARNING_FIELD_NAMES = new Set([
+  'task_name',
+  'output_unit',
+  'duration_months',
+  'cost_per_unit',
+  'price_basis',
+  'meal_indicator_id',
+  'source_lfa_indicator_id',
+  'linked_meal_indicator_id',
+  'target_value',
+  'baseline_value',
+]);
+
+const WARNING_MESSAGE_BY_CODE: Record<string, string> = {
+  WBS_IGNORED_FIELDS: 'Sebagian field WBS tidak digunakan agar struktur tetap aman.',
+  BUDGET_PRICING_REVIEW_REQUIRED: 'Harga pada anggaran perlu peninjauan manual sebelum finalisasi.',
+  MEAL_INDICATOR_SKIPPED_UNRESOLVED_SOURCE: 'Indikator MEAL dilewati karena referensi sumber belum terpetakan.',
+  MEAL_INDICATORS_SKIPPED_ALL_UNRESOLVED: 'Semua indikator MEAL dilewati karena referensi sumber belum terpetakan.',
+  SROI_MEAL_LINKAGE_REVIEW_REQUIRED: 'Keterkaitan SROI dengan MEAL perlu ditinjau manual.',
+};
+
+const SKIP_WARNING_CODES = new Set([
+  'MEAL_INDICATOR_SKIPPED_UNRESOLVED_SOURCE',
+  'MEAL_INDICATORS_SKIPPED_ALL_UNRESOLVED',
 ]);
 
 const RPC_CLIENT = supabase as typeof supabase & {
@@ -295,10 +358,22 @@ function parseMaterializationWarnings(value: unknown): MaterializationRpcWarning
 
     const warning: MaterializationRpcWarning = {};
     if (typeof entry.code === 'string' && entry.code.trim() !== '') {
-      warning.code = entry.code.trim();
+      warning.code = entry.code.trim().toUpperCase();
     }
     if (typeof entry.message === 'string' && entry.message.trim() !== '') {
       warning.message = entry.message.trim();
+    }
+    if (typeof entry.source_lfa_indicator_id === 'string' && entry.source_lfa_indicator_id.trim() !== '') {
+      warning.source_lfa_indicator_id = entry.source_lfa_indicator_id.trim();
+    }
+    if (Array.isArray(entry.fields)) {
+      const safeFields = entry.fields
+        .filter((field): field is string => typeof field === 'string')
+        .map((field) => field.trim())
+        .filter((field) => SAFE_WARNING_FIELD_NAMES.has(field));
+      if (safeFields.length > 0) {
+        warning.fields = Array.from(new Set(safeFields));
+      }
     }
     warnings.push(warning);
   }
@@ -390,39 +465,123 @@ function normalizeModuleName(moduleName: string): MaterializeStep['id'] | null {
 function getResultPrimaryMessage(result: MaterializationRpcResult): string {
   switch (result.code) {
     case 'CREATED':
-      return 'Program berhasil dimaterialisasi secara transaksional.';
+      return 'Bagian kosong berhasil dibuat. Data existing yang terdeteksi tetap dipertahankan.';
     case 'ALREADY_MATERIALIZED':
-      return 'Dokumen ini sudah pernah dimaterialisasi. Data yang sama tidak dibuat ulang.';
+      return 'Data yang sama tidak dibuat ulang.';
     case 'MATERIALIZATION_IN_PROGRESS':
-      return 'Materialisasi dokumen ini sedang diproses. Tunggu hingga proses sebelumnya selesai.';
+      return 'Permintaan sebelumnya masih berjalan. Silakan tunggu hingga proses selesai.';
     case 'PRESERVED_EXISTING':
-      return 'Data program yang sudah ada dipertahankan. Tidak ada data existing yang ditimpa.';
+      return 'Tidak ada data existing yang ditimpa.';
     case 'BLOCKED_PARTIAL':
-      return 'Materialisasi dihentikan karena struktur LFA yang sudah ada belum lengkap. Tinjau data existing terlebih dahulu.';
+      return 'Tidak ada fallback write yang dijalankan.';
     case 'PREVIOUS_ATTEMPT_FAILED':
-      return 'Percobaan materialisasi sebelumnya gagal dan perlu ditinjau sebelum dicoba kembali.';
+      return 'Retry otomatis dinonaktifkan untuk mencegah data ganda atau perubahan parsial.';
     case 'PREVIOUS_ATTEMPT_BLOCKED':
-      return 'Percobaan materialisasi sebelumnya diblokir dan memerlukan peninjauan manual.';
+      return 'Tinjauan manual diperlukan sebelum sinkronisasi berikutnya.';
     case 'FAILED_VALIDATION':
-      return 'Dokumen belum memenuhi syarat materialisasi.';
+      return 'Dokumen belum dapat dimaterialisasi.';
     case 'FAILED_DATABASE':
-      return 'Materialisasi gagal. Perubahan target dibatalkan dan tidak ada data parsial yang disimpan.';
+      return 'Perubahan target dibatalkan. Tidak ada fallback client-side yang dijalankan.';
   }
 }
 
+function getResultPresentation(result: MaterializationRpcResult): ResultPresentation {
+  switch (result.code) {
+    case 'CREATED':
+      return {
+        title: 'Materialisasi selesai',
+        description: getResultPrimaryMessage(result),
+        tone: 'success',
+      };
+    case 'PRESERVED_EXISTING':
+      return {
+        title: 'Data existing dipertahankan',
+        description: getResultPrimaryMessage(result),
+        tone: 'success',
+      };
+    case 'ALREADY_MATERIALIZED':
+      return {
+        title: 'Dokumen sudah dimaterialisasi',
+        description: getResultPrimaryMessage(result),
+        tone: 'success',
+      };
+    case 'MATERIALIZATION_IN_PROGRESS':
+      return {
+        title: 'Materialisasi sedang diproses',
+        description: getResultPrimaryMessage(result),
+        tone: 'running',
+      };
+    case 'BLOCKED_PARTIAL':
+      return {
+        title: 'Sinkronisasi diblokir',
+        description: getResultPrimaryMessage(result),
+        tone: 'blocked',
+      };
+    case 'PREVIOUS_ATTEMPT_FAILED':
+      return {
+        title: 'Percobaan sebelumnya gagal',
+        description: getResultPrimaryMessage(result),
+        tone: 'blocked',
+      };
+    case 'PREVIOUS_ATTEMPT_BLOCKED':
+      return {
+        title: 'Percobaan sebelumnya diblokir',
+        description: getResultPrimaryMessage(result),
+        tone: 'blocked',
+      };
+    case 'FAILED_VALIDATION':
+      return {
+        title: 'Dokumen belum dapat dimaterialisasi',
+        description: getResultPrimaryMessage(result),
+        tone: 'error',
+      };
+    case 'FAILED_DATABASE':
+      return {
+        title: 'Materialisasi gagal',
+        description: getResultPrimaryMessage(result),
+        tone: 'error',
+      };
+  }
+}
+
+function getWarningText(warning: MaterializationRpcWarning): string {
+  if (warning.code && WARNING_MESSAGE_BY_CODE[warning.code]) {
+    return WARNING_MESSAGE_BY_CODE[warning.code];
+  }
+
+  if (typeof warning.message === 'string' && warning.message.trim() !== '') {
+    return warning.message.trim();
+  }
+
+  return 'Terdapat catatan yang perlu ditinjau.';
+}
+
+function sanitizeWarningsForDisplay(warnings: MaterializationRpcWarning[]): SanitizedWarning[] {
+  return warnings.map((warning) => {
+    const code = typeof warning.code === 'string' && warning.code.trim() !== '' ? warning.code.trim().toUpperCase() : undefined;
+
+    return {
+      code,
+      message: getWarningText(warning),
+      actionLabel: code && SKIP_WARNING_CODES.has(code) ? 'Dilewati untuk ditinjau' : 'Perlu peninjauan',
+      sourceIndicatorId: warning.source_lfa_indicator_id,
+      fields: warning.fields,
+    };
+  });
+}
+
 function sanitizeWarningMessages(warnings: MaterializationRpcWarning[]): string[] {
-  return warnings
-    .map((warning) => {
-      if (typeof warning.message === 'string' && warning.message.trim() !== '') {
-        return warning.message.trim();
-      }
-      if (typeof warning.code === 'string' && warning.code.trim() !== '') {
-        return warning.code.trim();
-      }
-      return null;
-    })
-    .filter((warning): warning is string => warning !== null)
-    .slice(0, 3);
+  return sanitizeWarningsForDisplay(warnings).map((warning) => warning.message).slice(0, 3);
+}
+
+function toModuleLabel(moduleName: string): string {
+  const normalized = normalizeModuleName(moduleName);
+  return normalized ? MODULE_LABELS[normalized] : 'Modul lainnya';
+}
+
+function mapModuleLabels(modules: string[]): string[] {
+  const labels = modules.map(toModuleLabel);
+  return Array.from(new Set(labels));
 }
 
 function buildPendingSteps(): MaterializeStep[] {
@@ -511,12 +670,13 @@ function formatWarningSummary(warnings: MaterializationRpcWarning[]): string | n
 }
 
 function buildToastDescription(result: MaterializationRpcResult): string {
-  const segments = [getResultPrimaryMessage(result)];
+  const presentation = getResultPresentation(result);
+  const segments = [presentation.description];
   const countSummary = formatCountSummary(result);
   const warningSummary = formatWarningSummary(result.warnings);
 
   if (result.code === 'PRESERVED_EXISTING' && result.preserved_modules.length > 0) {
-    segments.push(`Modul dipertahankan: ${result.preserved_modules.join(', ')}.`);
+    segments.push(`Modul dipertahankan: ${mapModuleLabels(result.preserved_modules).join(', ')}.`);
   }
 
   if (result.failure_code) {
@@ -561,6 +721,10 @@ export default function GrantWriterProposal() {
   const [completed, setCompleted] = useState(false);
   const [targetLfaProjectId, setTargetLfaProjectId] = useState<string | null>(null);
   const [materializationWarnings, setMaterializationWarnings] = useState<MaterializationRpcWarning[]>([]);
+  const [lastMaterializationResult, setLastMaterializationResult] = useState<MaterializationRpcResult | null>(null);
+  const [lastErrorSummary, setLastErrorSummary] = useState<string | null>(null);
+  const [confirmResyncOpen, setConfirmResyncOpen] = useState(false);
+  const materializationInFlightRef = useRef(false);
 
   useEffect(() => {
     if (!projectId) {
@@ -655,7 +819,7 @@ export default function GrantWriterProposal() {
   };
 
   const handleMaterialize = async () => {
-    if (!project || materializing) {
+    if (!project || materializing || materializationInFlightRef.current) {
       return;
     }
 
@@ -677,9 +841,11 @@ export default function GrantWriterProposal() {
       p_existing_lfa_project_id: targetLfaProjectId ?? null,
     };
 
+    materializationInFlightRef.current = true;
     setMaterializing(true);
     setCompleted(false);
     setMaterializationWarnings([]);
+    setLastErrorSummary(null);
     setSteps(buildPendingSteps());
 
     try {
@@ -692,6 +858,8 @@ export default function GrantWriterProposal() {
       const result = parseMaterializationRpcResult(data);
       if (!result) {
         setSteps(buildFailedSteps('Respons materialisasi tidak valid.'));
+        setLastMaterializationResult(null);
+        setLastErrorSummary('Respons materialisasi tidak valid. Tidak ada fallback penulisan data yang dijalankan.');
         toast({
           title: 'Materialisasi Gagal',
           description: 'Respons materialisasi tidak valid. Tidak ada fallback penulisan data yang dijalankan.',
@@ -701,13 +869,16 @@ export default function GrantWriterProposal() {
       }
 
       setMaterializationWarnings(result.warnings);
+      setLastMaterializationResult(result);
       setSteps(buildStepsFromResult(result));
 
       const description = buildToastDescription(result);
+      const presentation = getResultPresentation(result);
 
       if (SUCCESS_NAVIGATION_CODES.has(result.code)) {
         if (!result.lfa_project_id) {
           setCompleted(false);
+          setLastErrorSummary('Materialisasi selesai tetapi referensi Program Workspace tidak tersedia. Navigasi dibatalkan dengan aman.');
           toast({
             title: 'Materialisasi Gagal',
             description: 'Materialisasi selesai tetapi referensi Program Workspace tidak tersedia. Navigasi dibatalkan dengan aman.',
@@ -719,7 +890,7 @@ export default function GrantWriterProposal() {
         setTargetLfaProjectId(result.lfa_project_id);
         setCompleted(true);
         toast({
-          title: result.code === 'CREATED' ? 'Materialisasi Berhasil' : 'Materialisasi Selesai',
+          title: presentation.title,
           description,
         });
         navigate(`/dashboard/lfa-builder/${result.lfa_project_id}?tab=lfa`);
@@ -730,14 +901,14 @@ export default function GrantWriterProposal() {
 
       if (result.code === 'MATERIALIZATION_IN_PROGRESS') {
         toast({
-          title: 'Materialisasi Sedang Diproses',
+          title: presentation.title,
           description,
         });
         return;
       }
 
       toast({
-        title: 'Materialisasi Gagal',
+        title: presentation.title,
         description,
         variant: 'destructive',
       });
@@ -745,15 +916,62 @@ export default function GrantWriterProposal() {
       const description = getTransportErrorDescription(error);
       setSteps(buildFailedSteps(description));
       setCompleted(false);
+      setLastMaterializationResult(null);
+      setLastErrorSummary(description);
       toast({
         title: 'Materialisasi Gagal',
         description,
         variant: 'destructive',
       });
     } finally {
+      materializationInFlightRef.current = false;
       setMaterializing(false);
     }
   };
+
+  const handleMaterializeRequest = () => {
+    if (materializing) {
+      return;
+    }
+
+    if (targetLfaProjectId) {
+      setConfirmResyncOpen(true);
+      return;
+    }
+
+    void handleMaterialize();
+  };
+
+  const handleConfirmResync = () => {
+    if (materializing) {
+      return;
+    }
+
+    void (async () => {
+      await handleMaterialize();
+      setConfirmResyncOpen(false);
+    })();
+  };
+
+  const createdModuleLabels = useMemo(
+    () => (lastMaterializationResult ? mapModuleLabels(lastMaterializationResult.created_modules) : []),
+    [lastMaterializationResult],
+  );
+
+  const preservedModuleLabels = useMemo(
+    () => (lastMaterializationResult ? mapModuleLabels(lastMaterializationResult.preserved_modules) : []),
+    [lastMaterializationResult],
+  );
+
+  const warningSummaries = useMemo(
+    () => sanitizeWarningsForDisplay(materializationWarnings),
+    [materializationWarnings],
+  );
+
+  const resultPresentation = useMemo(
+    () => (lastMaterializationResult ? getResultPresentation(lastMaterializationResult) : null),
+    [lastMaterializationResult],
+  );
 
   if (loading) {
     return (
@@ -835,6 +1053,11 @@ export default function GrantWriterProposal() {
                   <p className="text-sm leading-relaxed text-muted-foreground">
                     Ubah draf proposal hasil AI ini menjadi modul program operasional yang tersinkronisasi. Tombol ini hanya memanggil satu RPC transaksional untuk membuat atau membuka Program Workspace dari dokumen preview yang sedang ditampilkan.
                   </p>
+                  <div className="rounded-lg border border-indigo-200/60 bg-indigo-50/60 p-3 text-xs text-indigo-900 dark:border-indigo-900/40 dark:bg-indigo-950/20 dark:text-indigo-100">
+                    <p className="font-semibold">Perlindungan edit manual</p>
+                    <p className="mt-1">Modul existing yang aman akan <strong>dipertahankan</strong>, bagian kosong dapat <strong>dibuat</strong>, item yang tidak terselesaikan dapat <strong>dilewati untuk ditinjau</strong>, dan struktur parsial dapat <strong>diblokir</strong>.</p>
+                    <p className="mt-1">Perubahan manual pada LFA, WBS, Anggaran, MEAL, dan SROI tidak akan diganti secara otomatis.</p>
+                  </div>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -849,7 +1072,7 @@ export default function GrantWriterProposal() {
                     variant="default"
                     className="bg-indigo-600 text-white shadow-md shadow-indigo-200/50 hover:bg-indigo-700 dark:shadow-none"
                     disabled={materializing}
-                    onClick={handleMaterialize}
+                    onClick={handleMaterializeRequest}
                   >
                     {materializing ? (
                       <>
@@ -864,12 +1087,95 @@ export default function GrantWriterProposal() {
                 </div>
               </div>
 
+              {(resultPresentation || lastErrorSummary) && (
+                <Alert
+                  className="mt-4"
+                  variant={resultPresentation?.tone === 'error' || resultPresentation?.tone === 'blocked' || lastErrorSummary ? 'destructive' : 'default'}
+                >
+                  <AlertTitle>Ringkasan hasil sinkronisasi</AlertTitle>
+                  <AlertDescription>
+                    <div className="space-y-3">
+                      {resultPresentation && (
+                        <>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <Badge variant="outline">{resultPresentation.title}</Badge>
+                            <span>{resultPresentation.description}</span>
+                          </div>
+
+                          {(lastMaterializationResult?.failure_code || lastMaterializationResult?.blocked_stage) && (
+                            <div className="flex flex-wrap gap-2 text-xs">
+                              {lastMaterializationResult.failure_code && (
+                                <Badge variant="outline">Kode aman: {lastMaterializationResult.failure_code}</Badge>
+                              )}
+                              {lastMaterializationResult.blocked_stage && (
+                                <Badge variant="outline">Tahap: {lastMaterializationResult.blocked_stage}</Badge>
+                              )}
+                            </div>
+                          )}
+
+                          {(createdModuleLabels.length > 0 || preservedModuleLabels.length > 0) && (
+                            <div className="space-y-2 text-xs">
+                              {createdModuleLabels.length > 0 && (
+                                <p>
+                                  <span className="font-semibold">Dibuat:</span> {createdModuleLabels.join(', ')}
+                                </p>
+                              )}
+                              {preservedModuleLabels.length > 0 && (
+                                <p>
+                                  <span className="font-semibold">Dipertahankan:</span> {preservedModuleLabels.join(', ')}
+                                </p>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="space-y-1 text-xs">
+                            {lastMaterializationResult.lfa_entries_created > 0 && <p>Baris LFA dibuat: {lastMaterializationResult.lfa_entries_created}</p>}
+                            {lastMaterializationResult.wbs_items_created > 0 && <p>Item WBS dibuat: {lastMaterializationResult.wbs_items_created}</p>}
+                            {lastMaterializationResult.budget_items_created > 0 && <p>Item anggaran dibuat: {lastMaterializationResult.budget_items_created}</p>}
+                            {lastMaterializationResult.meal_items_created > 0 && <p>Indikator MEAL dibuat: {lastMaterializationResult.meal_items_created}</p>}
+                            {lastMaterializationResult.sroi_outcomes_created > 0 && <p>Outcome SROI dibuat: {lastMaterializationResult.sroi_outcomes_created}</p>}
+                          </div>
+
+                          {warningSummaries.length > 0 && (
+                            <div className="space-y-2 text-xs">
+                              <p className="font-semibold">Catatan aman</p>
+                              {warningSummaries.map((warning, index) => (
+                                <div key={`${warning.message}-${index}`} className="rounded-md border border-border/60 p-2">
+                                  <p>
+                                    <span className="font-semibold">{warning.actionLabel}:</span> {warning.message}
+                                  </p>
+                                  {warning.code && <p>Kode: {warning.code}</p>}
+                                  {warning.sourceIndicatorId && <p>Referensi indikator sumber: {warning.sourceIndicatorId}</p>}
+                                  {warning.fields && warning.fields.length > 0 && <p>Field: {warning.fields.join(', ')}</p>}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {SUCCESS_NAVIGATION_CODES.has(lastMaterializationResult.code) && targetLfaProjectId && (
+                            <div>
+                              <Button size="sm" variant="outline" asChild>
+                                <Link to={`/dashboard/lfa-builder/${targetLfaProjectId}?tab=lfa`}>Buka Program Workspace</Link>
+                              </Button>
+                            </div>
+                          )}
+                        </>
+                      )}
+
+                      {lastErrorSummary && <p>{lastErrorSummary}</p>}
+                    </div>
+                  </AlertDescription>
+                </Alert>
+              )}
+
               {materializationWarnings.length > 0 && (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4 text-sm text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/20 dark:text-amber-100">
                   <div className="font-semibold">Peringatan materialisasi</div>
                   <div className="mt-2 space-y-1">
-                    {sanitizeWarningMessages(materializationWarnings).map((warning) => (
-                      <p key={warning}>{warning}</p>
+                    {sanitizeWarningsForDisplay(materializationWarnings).slice(0, 3).map((warning, index) => (
+                      <p key={`${warning.message}-${index}`}>
+                        <span className="font-semibold">{warning.actionLabel}:</span> {warning.message}
+                      </p>
                     ))}
                   </div>
                 </div>
@@ -929,6 +1235,41 @@ export default function GrantWriterProposal() {
               </div>
             </div>
           </Card>
+
+          <AlertDialog
+            open={confirmResyncOpen}
+            onOpenChange={(open) => {
+              if (!materializing) {
+                setConfirmResyncOpen(open);
+              }
+            }}
+          >
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Sinkronkan ke Program Workspace yang sudah ada?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Proses ini tidak akan menimpa modul yang sudah berisi data. Modul existing yang aman akan dipertahankan, bagian yang masih kosong dapat dibuat, dan struktur yang tidak lengkap dapat memblokir sinkronisasi.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>Perubahan manual pada LFA, WBS, Anggaran, MEAL, dan SROI tidak akan diganti secara otomatis.</p>
+                <p>
+                  <span className="font-semibold text-foreground">Sumber:</span>{' '}
+                  {doc ? `Dokumen ${doc.id} · Proposal Versi ${doc.version}` : 'Proposal belum tersedia'}
+                </p>
+                <p>
+                  <span className="font-semibold text-foreground">Target:</span>{' '}
+                  Program Workspace yang sudah terhubung
+                </p>
+              </div>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={materializing}>Batal</AlertDialogCancel>
+                <AlertDialogAction disabled={materializing} onClick={handleConfirmResync}>
+                  {materializing ? 'Memproses...' : 'Lanjutkan Sinkronisasi'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
 
           <Card className="border-accent/30 bg-accent-soft/40 p-5 shadow-card no-print">
             <h2 className="font-semibold">Draft untuk direview</h2>

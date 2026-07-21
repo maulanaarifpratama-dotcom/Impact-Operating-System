@@ -27,7 +27,7 @@ type RpcResult = {
   preserved_modules: string[];
   blocked_stage: string | null;
   failure_code: string | null;
-  warnings: Array<{ code?: string; message?: string }>;
+  warnings: Array<{ code?: string; message?: string; source_lfa_indicator_id?: string; fields?: string[] }>;
 };
 
 type Scenario = {
@@ -164,6 +164,10 @@ function expectNoTargetTableWrites() {
   expect(writeCalls).toEqual([]);
 }
 
+function expectAnyText(pattern: RegExp) {
+  expect(screen.queryAllByText(pattern).length).toBeGreaterThan(0);
+}
+
 beforeEach(() => {
   mockSupabaseFrom.mockReset();
   rpcMock.mockReset();
@@ -187,7 +191,7 @@ describe('GrantWriterProposal transactional RPC cutover', () => {
     expectNoTargetTableWrites();
   });
 
-  test('passes the pinned preview document id and version with null existing LFA id', async () => {
+  test('first-time materialization calls RPC directly with pinned source and null target id', async () => {
     rpcMock.mockResolvedValue({ data: buildRpcResult(), error: null });
     await renderReady();
 
@@ -202,10 +206,40 @@ describe('GrantWriterProposal transactional RPC cutover', () => {
       p_expected_document_version: 7,
       p_existing_lfa_project_id: null,
     });
+    expect(screen.queryByText(/Sinkronkan ke Program Workspace yang sudah ada\?/i)).toBeNull();
     expectNoTargetTableWrites();
   });
 
-  test('passes the existing LFA project id when one is already linked', async () => {
+  test('existing target opens confirmation and does not call RPC before confirm', async () => {
+    rpcMock.mockResolvedValue({ data: buildRpcResult({ code: 'PRESERVED_EXISTING' }), error: null });
+    await renderReady({ existingLfa: { id: 'lfa-existing-1' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /Buka atau Sinkronkan Ulang/i }));
+
+    expectAnyText(/Sinkronkan ke Program Workspace yang sudah ada\?/i);
+    expectAnyText(/modul yang sudah berisi data/i);
+    expectAnyText(/Perubahan manual pada LFA, WBS, Anggaran, MEAL, dan SROI tidak akan diganti secara otomatis\./i);
+    expectAnyText(/Sumber:/i);
+    expectAnyText(/Proposal Versi 7/i);
+    expectAnyText(/Target:/i);
+    expectAnyText(/Program Workspace yang sudah terhubung/i);
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  test('cancel confirmation closes dialog and keeps RPC uncalled', async () => {
+    rpcMock.mockResolvedValue({ data: buildRpcResult({ code: 'PRESERVED_EXISTING' }), error: null });
+    await renderReady({ existingLfa: { id: 'lfa-existing-1' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /Buka atau Sinkronkan Ulang/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Batal/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText(/Sinkronkan ke Program Workspace yang sudah ada\?/i)).toBeNull();
+    });
+    expect(rpcMock).not.toHaveBeenCalled();
+  });
+
+  test('confirm calls RPC exactly once with pinned source and exact linked target id', async () => {
     rpcMock.mockResolvedValue({
       data: buildRpcResult({ code: 'PRESERVED_EXISTING', preserved_modules: ['wbs', 'budget'] }),
       error: null,
@@ -213,6 +247,7 @@ describe('GrantWriterProposal transactional RPC cutover', () => {
     await renderReady({ existingLfa: { id: 'lfa-existing-1' } });
 
     fireEvent.click(screen.getByRole('button', { name: /Buka atau Sinkronkan Ulang/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Lanjutkan Sinkronisasi/i }));
 
     await waitFor(() => {
       expect(rpcMock).toHaveBeenCalledTimes(1);
@@ -226,26 +261,46 @@ describe('GrantWriterProposal transactional RPC cutover', () => {
     expectNoTargetTableWrites();
   });
 
-  test('calls the RPC exactly once and never performs target-table writes', async () => {
-    rpcMock.mockResolvedValue({ data: buildRpcResult(), error: null });
+  test('manual-edit protection copy is visible before action', async () => {
     await renderReady();
+    expectAnyText(/Perlindungan edit manual/i);
+    expectAnyText(/existing yang aman akan/i);
+    expectAnyText(/bagian kosong dapat/i);
+    expectAnyText(/dilewati untuk ditinjau/i);
+    expectAnyText(/struktur parsial dapat/i);
+  });
 
-    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
+  test('rapid confirm while pending does not double-call RPC', async () => {
+    let resolveRpc: ((value: { data: RpcResult; error: RpcError | null }) => void) | undefined;
+    rpcMock.mockImplementation(
+      () => new Promise<{ data: RpcResult; error: RpcError | null }>((resolve) => {
+        resolveRpc = resolve;
+      }),
+    );
+    await renderReady({ existingLfa: { id: 'lfa-existing-1' } });
+
+    fireEvent.click(screen.getByRole('button', { name: /Buka atau Sinkronkan Ulang/i }));
+    const confirmButton = screen.getByRole('button', { name: /Lanjutkan Sinkronisasi/i });
+    fireEvent.click(confirmButton);
+    fireEvent.click(confirmButton);
+
+    expect(rpcMock).toHaveBeenCalledTimes(1);
+
+    resolveRpc?.({ data: buildRpcResult({ code: 'PRESERVED_EXISTING' }), error: null });
 
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith('/dashboard/lfa-builder/lfa-project-1?tab=lfa');
     });
-
-    expect(rpcMock).toHaveBeenCalledTimes(1);
     expectNoTargetTableWrites();
   });
 
-  test('handles CREATED with navigation, count summary, and sanitized warnings', async () => {
+  test('shows honest CREATED summary with mapped modules and positive counts only', async () => {
     rpcMock.mockResolvedValue({
       data: buildRpcResult({
+        budget_items_created: 0,
         warnings: [
-          { message: 'Budget pricing requires review' },
-          { code: 'MEAL_INDICATOR_SKIPPED' },
+          { code: 'BUDGET_PRICING_REVIEW_REQUIRED' },
+          { code: 'MEAL_INDICATOR_SKIPPED_UNRESOLVED_SOURCE', source_lfa_indicator_id: 'ind-11', fields: ['source_lfa_indicator_id'] },
         ],
       }),
       error: null,
@@ -258,74 +313,45 @@ describe('GrantWriterProposal transactional RPC cutover', () => {
       expect(navigateMock).toHaveBeenCalledWith('/dashboard/lfa-builder/lfa-project-1?tab=lfa');
     });
 
+    expectAnyText(/Ringkasan hasil sinkronisasi/i);
+    expectAnyText(/Materialisasi selesai/i);
+    expectAnyText(/Bagian kosong berhasil dibuat/i);
+    expectAnyText(/Dibuat:/i);
+    expectAnyText(/LFA, WBS & Timeline, Anggaran, MEAL, SROI/i);
+    expectAnyText(/Baris LFA dibuat: 4/i);
+    expectAnyText(/Item WBS dibuat: 2/i);
+    expectAnyText(/Indikator MEAL dibuat: 1/i);
+    expectAnyText(/Outcome SROI dibuat: 1/i);
+    expect(screen.queryByText(/Item anggaran dibuat: 0/i)).toBeNull();
+    expectAnyText(/Harga pada anggaran perlu peninjauan manual/i);
+    expectAnyText(/Dilewati untuk ditinjau:/i);
+    expectAnyText(/Referensi indikator sumber: ind-11/i);
+
     expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-      title: 'Materialisasi Berhasil',
-      description: expect.stringContaining('Program berhasil dimaterialisasi secara transaksional.'),
+      title: 'Materialisasi selesai',
     }));
-    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-      description: expect.stringContaining('Budget pricing requires review'),
-    }));
-    expect(screen.getByText(/Peringatan materialisasi/i)).toBeTruthy();
     expectNoTargetTableWrites();
   });
 
   test.each([
-    ['ALREADY_MATERIALIZED', 'Materialisasi Selesai', '/dashboard/lfa-builder/lfa-project-1?tab=lfa'],
-    ['PRESERVED_EXISTING', 'Materialisasi Selesai', '/dashboard/lfa-builder/lfa-project-1?tab=lfa'],
-  ])('navigates only for successful reusable results: %s', async (code, title, target) => {
-    rpcMock.mockResolvedValue({
-      data: buildRpcResult({ code, preserved_modules: code === 'PRESERVED_EXISTING' ? ['budget'] : [] }),
-      error: null,
-    });
-    await renderReady();
-
-    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
-
-    await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith(target);
-    });
-    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({ title }));
-    expectNoTargetTableWrites();
-  });
-
-  test('does not navigate for MATERIALIZATION_IN_PROGRESS', async () => {
-    rpcMock.mockResolvedValue({
-      data: buildRpcResult({
-        code: 'MATERIALIZATION_IN_PROGRESS',
-        status: 'running',
-        lfa_project_id: null,
-        created_modules: [],
-      }),
-      error: null,
-    });
-    await renderReady();
-
-    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
-
-    await waitFor(() => {
-      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Materialisasi Sedang Diproses',
-      }));
-    });
-    expect(navigateMock).not.toHaveBeenCalled();
-    expectNoTargetTableWrites();
-  });
-
-  test.each([
-    ['BLOCKED_PARTIAL', 'blocked', 'struktur LFA yang sudah ada belum lengkap'],
-    ['PREVIOUS_ATTEMPT_FAILED', 'failed', 'perlu ditinjau sebelum dicoba kembali'],
-    ['PREVIOUS_ATTEMPT_BLOCKED', 'blocked', 'memerlukan peninjauan manual'],
-    ['FAILED_VALIDATION', 'failed', 'Dokumen belum memenuhi syarat materialisasi'],
-    ['FAILED_DATABASE', 'failed', 'Perubahan target dibatalkan'],
-  ])('does not navigate for terminal non-success RPC result %s', async (code, status, descriptionPart) => {
+    ['PRESERVED_EXISTING', 'success', 'Data existing dipertahankan', 'Tidak ada data existing yang ditimpa.'],
+    ['ALREADY_MATERIALIZED', 'success', 'Dokumen sudah dimaterialisasi', 'Data yang sama tidak dibuat ulang.'],
+    ['MATERIALIZATION_IN_PROGRESS', 'running', 'Materialisasi sedang diproses', 'Permintaan sebelumnya masih berjalan.'],
+    ['BLOCKED_PARTIAL', 'blocked', 'Sinkronisasi diblokir', 'Tidak ada fallback write yang dijalankan.'],
+    ['PREVIOUS_ATTEMPT_FAILED', 'failed', 'Percobaan sebelumnya gagal', 'Retry otomatis dinonaktifkan'],
+    ['PREVIOUS_ATTEMPT_BLOCKED', 'blocked', 'Percobaan sebelumnya diblokir', 'Tinjauan manual diperlukan'],
+    ['FAILED_VALIDATION', 'failed', 'Dokumen belum dapat dimaterialisasi', 'Dokumen belum dapat dimaterialisasi.'],
+    ['FAILED_DATABASE', 'failed', 'Materialisasi gagal', 'Perubahan target dibatalkan. Tidak ada fallback client-side yang dijalankan.'],
+  ])('renders persistent result summary for %s', async (code, status, title, summarySnippet) => {
     rpcMock.mockResolvedValue({
       data: buildRpcResult({
         code,
         status,
-        lfa_project_id: null,
+        lfa_project_id: code === 'MATERIALIZATION_IN_PROGRESS' || code === 'BLOCKED_PARTIAL' || code === 'PREVIOUS_ATTEMPT_FAILED' || code === 'PREVIOUS_ATTEMPT_BLOCKED' || code === 'FAILED_VALIDATION' || code === 'FAILED_DATABASE' ? null : 'lfa-project-1',
         created_modules: [],
-        blocked_stage: code === 'PREVIOUS_ATTEMPT_BLOCKED' ? 'lfa' : null,
-        failure_code: 'GW_STATE_MISMATCH',
+        preserved_modules: code === 'PRESERVED_EXISTING' ? ['budget'] : [],
+        blocked_stage: code === 'BLOCKED_PARTIAL' ? 'lfa_structure' : null,
+        failure_code: code === 'BLOCKED_PARTIAL' || code === 'FAILED_VALIDATION' ? 'GW_STATE_MISMATCH' : null,
       }),
       error: null,
     });
@@ -334,13 +360,73 @@ describe('GrantWriterProposal transactional RPC cutover', () => {
     fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
 
     await waitFor(() => {
-      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-        title: 'Materialisasi Gagal',
-        description: expect.stringContaining(descriptionPart),
-        variant: 'destructive',
-      }));
+      expect(screen.queryAllByText(new RegExp(title, 'i')).length).toBeGreaterThan(0);
     });
-    expect(navigateMock).not.toHaveBeenCalled();
+
+    expect(screen.queryAllByText(new RegExp(summarySnippet, 'i')).length).toBeGreaterThan(0);
+
+    if (code === 'CREATED' || code === 'ALREADY_MATERIALIZED' || code === 'PRESERVED_EXISTING') {
+      expect(navigateMock).toHaveBeenCalledWith('/dashboard/lfa-builder/lfa-project-1?tab=lfa');
+    } else {
+      expect(navigateMock).not.toHaveBeenCalled();
+    }
+
+    if (code === 'BLOCKED_PARTIAL') {
+      expectAnyText(/Kode aman: GW_STATE_MISMATCH/i);
+      expectAnyText(/Tahap: lfa_structure/i);
+    }
+
+    expectNoTargetTableWrites();
+  });
+
+  test('maps preserved and unknown modules safely in summary', async () => {
+    rpcMock.mockResolvedValue({
+      data: buildRpcResult({
+        code: 'PRESERVED_EXISTING',
+        created_modules: ['custom_module'],
+        preserved_modules: ['wbs', 'weird<script>'],
+      }),
+      error: null,
+    });
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
+
+    await waitFor(() => {
+      expect(screen.queryAllByText(/Data existing dipertahankan/i).length).toBeGreaterThan(0);
+    });
+
+    expectAnyText(/Dibuat:/i);
+    expectAnyText(/Dipertahankan:/i);
+    expectAnyText(/WBS & Timeline/i);
+    expect(screen.queryAllByText(/Modul lainnya/i).length).toBeGreaterThan(0);
+    expect(screen.queryByText(/weird<script>/i)).toBeNull();
+    expectNoTargetTableWrites();
+  });
+
+  test('renders known warning code mapping and safe fallback for unknown warning payload', async () => {
+    rpcMock.mockResolvedValue({
+      data: buildRpcResult({
+        warnings: [
+          { code: 'WBS_IGNORED_FIELDS', fields: ['task_name', 'unknown_field'] },
+          { code: 'SROI_MEAL_LINKAGE_REVIEW_REQUIRED' },
+          {},
+        ],
+      }),
+      error: null,
+    });
+    await renderReady();
+
+    fireEvent.click(screen.getByRole('button', { name: /Materialisasikan Sekarang/i }));
+
+    await waitFor(() => {
+      expect(screen.queryAllByText(/Sebagian field WBS tidak digunakan agar struktur tetap aman\./i).length).toBeGreaterThan(0);
+    });
+
+    expectAnyText(/Keterkaitan SROI dengan MEAL perlu ditinjau manual\./i);
+    expectAnyText(/Terdapat catatan yang perlu ditinjau\./i);
+    expectAnyText(/Field: task_name/i);
+    expect(screen.queryByText(/unknown_field/i)).toBeNull();
     expectNoTargetTableWrites();
   });
 
@@ -357,6 +443,7 @@ describe('GrantWriterProposal transactional RPC cutover', () => {
         variant: 'destructive',
       }));
     });
+    expectAnyText(/Ringkasan hasil sinkronisasi/i);
     expect(navigateMock).not.toHaveBeenCalled();
     expectNoTargetTableWrites();
   });
