@@ -2,13 +2,18 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import GrantWriterProposal from './GrantWriterProposal';
 
-const { mockSupabaseFrom, toastMock, writeCalls } = vi.hoisted(() => ({
+const { mockSupabaseFrom, toastMock, writeCalls, selectCalls } = vi.hoisted(() => ({
   mockSupabaseFrom: vi.fn(),
   toastMock: vi.fn(),
   writeCalls: [] as Array<{
     table: string;
     type: 'insert' | 'update' | 'delete';
     payload: unknown;
+    filters: Array<{ column: string; value: unknown }>;
+  }>,
+  selectCalls: [] as Array<{
+    table: string;
+    columns: unknown;
     filters: Array<{ column: string; value: unknown }>;
   }>,
 }));
@@ -86,13 +91,16 @@ function installSupabaseScenario(scenario: Scenario) {
   mockSupabaseFrom.mockImplementation((table: string) => {
     const state: QueryState = { filters: [] };
     const query = {
-      select: vi.fn().mockReturnThis(),
+      select: vi.fn().mockImplementation((columns?: unknown) => {
+        selectCalls.push({ table, columns, filters: [...state.filters] });
+        return proxiedQuery ?? query;
+      }),
       eq: vi.fn().mockImplementation((column: string, value: unknown) => {
         state.filters.push({ column, value });
-        return query;
+        return proxiedQuery ?? query;
       }),
-      order: vi.fn().mockReturnThis(),
-      limit: vi.fn().mockReturnThis(),
+      order: vi.fn().mockImplementation(() => proxiedQuery ?? query),
+      limit: vi.fn().mockImplementation(() => proxiedQuery ?? query),
       maybeSingle: vi.fn().mockImplementation(async () => {
         if (table === 'gw_projects') {
           return { data: scenario.project, error: null };
@@ -127,16 +135,16 @@ function installSupabaseScenario(scenario: Scenario) {
       insert: vi.fn().mockImplementation((payload: unknown) => {
         state.insertPayload = payload;
         writeCalls.push({ table, type: 'insert', payload, filters: [...state.filters] });
-        return query;
+        return proxiedQuery ?? query;
       }),
       update: vi.fn().mockImplementation((payload: unknown) => {
         state.updatePayload = payload;
         writeCalls.push({ table, type: 'update', payload, filters: [...state.filters] });
-        return query;
+        return proxiedQuery ?? query;
       }),
       delete: vi.fn().mockImplementation(() => {
         writeCalls.push({ table, type: 'delete', payload: null, filters: [...state.filters] });
-        return query;
+        return proxiedQuery ?? query;
       }),
     };
 
@@ -144,7 +152,7 @@ function installSupabaseScenario(scenario: Scenario) {
       query.select.mockReturnValue(query);
       query.eq.mockImplementation((column: string, value: unknown) => {
         state.filters.push({ column, value });
-        return query;
+        return proxiedQuery ?? query;
       });
       const nextEntries = scenario.existingEntriesQueue.shift() ?? [];
       query[Symbol.toStringTag] = 'Object';
@@ -154,7 +162,7 @@ function installSupabaseScenario(scenario: Scenario) {
       const originalEq = query.eq;
       query.eq = vi.fn().mockImplementation((column: string, value: unknown) => {
         originalEq(column, value);
-        return query;
+        return proxiedQuery ?? query;
       });
       (query as Record<string, unknown>).then = undefined;
       (query as { resolves?: () => Promise<{ data: unknown[]; error: null }> }).resolves = async () => ({ data: nextEntries, error: null });
@@ -162,6 +170,10 @@ function installSupabaseScenario(scenario: Scenario) {
 
     if (table === 'lfa_entries' || table === 'lfa_wbs_items' || table === 'lfa_budget_items' || table === 'lfa_meal_items' || table === 'lfa_sroi_outcomes') {
       const dataForTable = () => {
+        if (table === 'lfa_wbs_items' && Array.isArray(state.insertPayload)) {
+          return state.insertPayload as unknown[];
+        }
+
         if (table === 'lfa_wbs_items') {
           const levelFilter = state.filters.find((filter) => filter.column === 'level')?.value;
           return levelFilter === 2 ? scenario.seededActivitiesWbs : scenario.existingWbs;
@@ -174,15 +186,18 @@ function installSupabaseScenario(scenario: Scenario) {
 
       query.eq = vi.fn().mockImplementation((column: string, value: unknown) => {
         state.filters.push({ column, value });
-        return query;
+        return proxiedQuery ?? query;
       });
-      query.select = vi.fn().mockReturnThis();
+      query.select = vi.fn().mockImplementation((columns?: unknown) => {
+        selectCalls.push({ table, columns, filters: [...state.filters] });
+        return proxiedQuery ?? query;
+      });
       query.order = vi.fn().mockResolvedValue({ data: dataForTable(), error: null });
       (query as unknown as PromiseLike<{ data: unknown[]; error: null }>).then = undefined as never;
       (query as Record<string, unknown>).execute = async () => ({ data: dataForTable(), error: null });
     }
 
-    return new Proxy(query, {
+    const proxiedQuery = new Proxy(query, {
       get(target, prop, receiver) {
         if (prop === 'then') {
           if (table === 'lfa_entries' || table === 'lfa_wbs_items' || table === 'lfa_budget_items' || table === 'lfa_meal_items' || table === 'lfa_sroi_outcomes') {
@@ -191,8 +206,12 @@ function installSupabaseScenario(scenario: Scenario) {
               if (table === 'lfa_entries') {
                 data = scenario.existingEntriesQueue.shift() ?? [];
               } else if (table === 'lfa_wbs_items') {
-                const levelFilter = state.filters.find((filter) => filter.column === 'level')?.value;
-                data = levelFilter === 2 ? scenario.seededActivitiesWbs : scenario.existingWbs;
+                if (Array.isArray(state.insertPayload)) {
+                  data = state.insertPayload as unknown[];
+                } else {
+                  const levelFilter = state.filters.find((filter) => filter.column === 'level')?.value;
+                  data = levelFilter === 2 ? scenario.seededActivitiesWbs : scenario.existingWbs;
+                }
               } else if (table === 'lfa_budget_items') {
                 data = scenario.existingBudget;
               } else if (table === 'lfa_meal_items') {
@@ -210,6 +229,8 @@ function installSupabaseScenario(scenario: Scenario) {
         return Reflect.get(target, prop, receiver);
       },
     });
+
+    return proxiedQuery;
   });
 }
 
@@ -234,8 +255,175 @@ function buildLegacyMatrix(goalLabel: string, purposeLabel: string) {
   };
 }
 
+function buildProgramSkeletonMatrix(overrides?: {
+  tasks?: Array<Record<string, unknown>>;
+  budgetHints?: Array<Record<string, unknown>>;
+}): Record<string, unknown> {
+  return {
+    program_skeleton: {
+      meta: {
+        projectTitle: 'Pinned Proposal',
+        geography: 'Jakarta',
+        budgetIdr: 1000000000,
+        durationMonths: 12,
+      },
+      lfa: {
+        goal: {
+          statement: 'Goal statement',
+          indicators: [
+            {
+              id: 'goal-ind-1',
+              statement: 'Goal indicator',
+              mov: 'Goal MOV',
+            },
+          ],
+          assumptions: ['Goal assumption'],
+        },
+        purpose: {
+          id: 'outcome-1',
+          statement: 'Purpose statement',
+          indicators: [
+            {
+              id: 'purp-ind-1',
+              statement: 'Purpose indicator',
+              mov: 'Purpose MOV',
+            },
+          ],
+          assumptions: ['Purpose assumption'],
+        },
+        outcomes: [
+          {
+            id: 'outcome-1',
+            statement: 'Purpose statement',
+            indicators: [
+              {
+                id: 'purp-ind-1',
+                statement: 'Purpose indicator',
+                mov: 'Purpose MOV',
+              },
+            ],
+            assumptions: ['Purpose assumption'],
+          },
+        ],
+        outputs: [
+          {
+            id: 'output-1',
+            outcomeId: 'outcome-1',
+            statement: 'Output statement',
+            indicators: [
+              {
+                id: 'out-ind-1',
+                statement: 'Output indicator',
+                mov: 'Output MOV',
+              },
+            ],
+            assumptions: ['Output assumption'],
+          },
+        ],
+      },
+      wbs: {
+        tasks: overrides?.tasks ?? [
+          {
+            id: 'task-output-1',
+            level: 1,
+            title: 'Task output 1',
+            startMonth: 1,
+            durationWeeks: 4,
+            responsibleRole: 'Manager',
+            dependencies: [],
+          },
+          {
+            id: 'task-activity-1',
+            level: 2,
+            parentId: 'task-output-1',
+            sourceActivityId: 'output-1',
+            title: 'Task activity 1',
+            startMonth: 1,
+            durationWeeks: 2,
+            responsibleRole: 'Officer',
+            deliverable: 'Deliverable 1',
+            dependencies: ['task-output-1'],
+          },
+        ],
+      },
+      budget_hints: {
+        items: overrides?.budgetHints ?? [
+          {
+            itemName: 'Budget line 1',
+            description: 'Budget description',
+            itemType: 'Item type',
+            quantity: 2,
+            unit: 'Orang',
+            unit_price_idr: 100000,
+            category: 'personnel',
+            taskId: 'task-output-1',
+            justification: 'Need this',
+            requiresUserConfirmation: false,
+          },
+        ],
+      },
+      meal: {
+        indicators: [
+          {
+            name: 'MEAL indicator 1',
+            sourceLfaIndicatorId: 'out-ind-1',
+            baselineValue: 0,
+            targetValue: 10,
+            unit: 'orang',
+            collectionMethod: 'Survei',
+            dataSource: 'Kuesioner',
+            frequency: 'monthly',
+            responsibleRole: 'M&E',
+            verificationMethod: 'Dokumen',
+            formula: 'n/a',
+            disaggregation: [],
+          },
+        ],
+      },
+      sroi: {
+        models: [
+          {
+            outcomeStatement: 'SROI outcome',
+            sourceOutcomeId: 'outcome-1',
+            requiresValidation: true,
+            quantityHint: 1,
+            suggestedProxyValueIdr: 1000000,
+            suggestedProxyDescription: 'Proxy',
+            rationale: 'Rationale',
+            financialProxyType: 'income',
+            durationYears: 1,
+            attributionPctDraft: 80,
+            deadweightPctDraft: 20,
+            displacementPctDraft: 0,
+            dropoffPctDraft: 0,
+          },
+        ],
+      },
+      risks: [],
+    },
+  };
+}
+
+function buildDocument(matrix: Record<string, unknown>, overrides?: Partial<Record<string, unknown>>) {
+  return {
+    id: 'doc-v1',
+    project_id: 'gw-project-1',
+    organization_id: 'org-1',
+    generated_by: 'user-1',
+    version: 1,
+    matrix,
+    proposal_markdown: '# Preview V1',
+    model: 'gpt',
+    donor_standard: 'UN_OECD_DAC',
+    is_current: true,
+    created_at: '2026-07-21T00:00:00Z',
+    ...overrides,
+  };
+}
+
 beforeEach(() => {
   writeCalls.length = 0;
+  selectCalls.length = 0;
   toastMock.mockReset();
   mockSupabaseFrom.mockReset();
 });
@@ -377,4 +565,176 @@ describe('GrantWriterProposal materialization source pinning', () => {
 
     expect(writeCalls).toHaveLength(0);
   });
+
+  test('persists source_task_id on first materialization and links budget rows to inserted WBS IDs', async () => {
+    installSupabaseScenario(createScenario({
+      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
+    }));
+
+    render(<GrantWriterProposal />);
+
+    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+
+    await waitFor(() => {
+      const budgetInsert = writeCalls.find((call) => call.table === 'lfa_budget_items' && call.type === 'insert');
+      expect(budgetInsert).toBeTruthy();
+    }, { timeout: 12000 });
+
+    const wbsInsert = writeCalls.find((call) => call.table === 'lfa_wbs_items' && call.type === 'insert');
+    expect(wbsInsert).toBeTruthy();
+    const wbsPayload = (wbsInsert?.payload ?? []) as Array<Record<string, unknown>>;
+    expect(wbsPayload.some((row) => row.source_task_id === 'task-output-1')).toBe(true);
+
+    const identitySelectCalls = selectCalls.filter((call) =>
+      call.table === 'lfa_wbs_items' && call.columns === 'id,lfa_project_id,source_task_id'
+    );
+    expect(identitySelectCalls.length).toBeGreaterThanOrEqual(2);
+
+    const insertedOutputTaskWbsId = wbsPayload.find((row) => row.source_task_id === 'task-output-1')?.id;
+    expect(typeof insertedOutputTaskWbsId).toBe('string');
+
+    const budgetInsert = writeCalls.find((call) => call.table === 'lfa_budget_items' && call.type === 'insert');
+    const budgetPayload = (budgetInsert?.payload ?? []) as Array<Record<string, unknown>>;
+    expect(budgetPayload[0]?.wbs_item_id).toBe(insertedOutputTaskWbsId);
+  }, 15000);
+
+  test('hydrates source_task_id mapping from existing WBS rows on retry and does not reseed WBS', async () => {
+    installSupabaseScenario(createScenario({
+      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
+      existingWbs: [
+        {
+          id: 'persisted-wbs-1',
+          lfa_project_id: 'lfa-project-1',
+          source_task_id: 'task-output-1',
+        },
+      ],
+    }));
+
+    render(<GrantWriterProposal />);
+
+    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+
+    await waitFor(() => {
+      const budgetInsert = writeCalls.find((call) => call.table === 'lfa_budget_items' && call.type === 'insert');
+      expect(budgetInsert).toBeTruthy();
+    }, { timeout: 12000 });
+
+    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'insert')).toBe(false);
+    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'update')).toBe(false);
+    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'delete')).toBe(false);
+
+    const budgetInsert = writeCalls.find((call) => call.table === 'lfa_budget_items' && call.type === 'insert');
+    const budgetPayload = (budgetInsert?.payload ?? []) as Array<Record<string, unknown>>;
+    expect(budgetPayload[0]?.wbs_item_id).toBe('persisted-wbs-1');
+  }, 15000);
+
+  test('fails deterministically when existing WBS rows have null source_task_id and budget requires linkage', async () => {
+    installSupabaseScenario(createScenario({
+      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
+      existingWbs: [
+        {
+          id: 'historical-null-1',
+          lfa_project_id: 'lfa-project-1',
+          source_task_id: null,
+        },
+      ],
+    }));
+
+    render(<GrantWriterProposal />);
+
+    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Materialisasi Gagal',
+        description: 'Materialisasi anggaran gagal karena tautan task anggaran ke WBS tidak dapat dipetakan secara deterministik.',
+        variant: 'destructive',
+      }));
+    }, { timeout: 12000 });
+
+    expect(writeCalls.some((call) => call.table === 'lfa_budget_items' && call.type === 'insert')).toBe(false);
+    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'update')).toBe(false);
+    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'delete')).toBe(false);
+  }, 15000);
+
+  test('ignores cross-project WBS identities and fails before budget insert when linkage stays unresolved', async () => {
+    installSupabaseScenario(createScenario({
+      documentQueue: [buildDocument(buildProgramSkeletonMatrix())],
+      existingWbs: [
+        {
+          id: 'cross-project-wbs-1',
+          lfa_project_id: 'lfa-project-other',
+          source_task_id: 'task-output-1',
+        },
+      ],
+    }));
+
+    render(<GrantWriterProposal />);
+
+    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Materialisasi Gagal',
+        description: 'Materialisasi anggaran gagal karena tautan task anggaran ke WBS tidak dapat dipetakan secara deterministik.',
+        variant: 'destructive',
+      }));
+    }, { timeout: 12000 });
+
+    expect(writeCalls.some((call) => call.table === 'lfa_budget_items' && call.type === 'insert')).toBe(false);
+  }, 15000);
+
+  test('fails before WBS and budget writes when a skeleton WBS task has a missing ID', async () => {
+    const matrixWithMissingTaskId = buildProgramSkeletonMatrix({
+      tasks: [
+        {
+          id: '   ',
+          level: 1,
+          title: 'Task output 1',
+          startMonth: 1,
+          durationWeeks: 4,
+          responsibleRole: 'Manager',
+          dependencies: [],
+        },
+      ],
+      budgetHints: [
+        {
+          itemName: 'Budget line 1',
+          description: 'Budget description',
+          itemType: 'Item type',
+          quantity: 2,
+          unit: 'Orang',
+          unit_price_idr: 100000,
+          category: 'personnel',
+          taskId: 'task-output-1',
+          justification: 'Need this',
+          requiresUserConfirmation: false,
+        },
+      ],
+    });
+
+    installSupabaseScenario(createScenario({
+      documentQueue: [buildDocument(matrixWithMissingTaskId)],
+    }));
+
+    render(<GrantWriterProposal />);
+
+    expect(await screen.findByText(/Versi 1/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: /materialisasikan sekarang/i }));
+
+    await waitFor(() => {
+      expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+        title: 'Materialisasi Gagal',
+        description: expect.stringContaining('SKELETON VALIDATION FAILED'),
+        variant: 'destructive',
+      }));
+    }, { timeout: 12000 });
+
+    expect(writeCalls.some((call) => call.table === 'lfa_wbs_items' && call.type === 'insert')).toBe(false);
+    expect(writeCalls.some((call) => call.table === 'lfa_budget_items' && call.type === 'insert')).toBe(false);
+  }, 15000);
 });

@@ -124,6 +124,8 @@ function renderMarkdown(md: string): string {
 
 function validateProgramSkeleton(skeleton: any, project: any): string[] {
   const errors: string[] = [];
+  const isNonEmptyString = (value: unknown): value is string =>
+    typeof value === 'string' && value.trim() !== '';
 
   if (!skeleton) {
     errors.push("Program skeleton is missing.");
@@ -212,8 +214,8 @@ function validateProgramSkeleton(skeleton: any, project: any): string[] {
   const tasks = wbs.tasks || [];
   const taskIds = new Set<string>();
   tasks.forEach((tsk: any) => {
-    if (tsk.id) {
-      taskIds.add(tsk.id);
+    if (isNonEmptyString(tsk.id)) {
+      taskIds.add(tsk.id.trim());
     } else {
       errors.push(`WBS task "${tsk.title}" is missing an ID.`);
     }
@@ -227,8 +229,8 @@ function validateProgramSkeleton(skeleton: any, project: any): string[] {
 
   const budgetHints = skeleton.budget_hints?.items || [];
   budgetHints.forEach((hint: any) => {
-    if (hint.taskId) {
-      if (!taskIds.has(hint.taskId)) {
+    if (isNonEmptyString(hint.taskId)) {
+      if (!taskIds.has(hint.taskId.trim())) {
         errors.push(`Budget hint "${hint.itemName}" references invalid WBS task ID: "${hint.taskId}".`);
       }
     } else {
@@ -480,6 +482,14 @@ export default function GrantWriterProposal() {
 
       const matrix = sourceDoc.matrix as any;
       const skeleton = matrix?.program_skeleton;
+      const isNonEmptyString = (value: unknown): value is string =>
+        typeof value === 'string' && value.trim() !== '';
+
+      type WbsIdentityRow = {
+        id: string;
+        lfa_project_id: string;
+        source_task_id: string | null;
+      };
 
 
 
@@ -621,28 +631,55 @@ export default function GrantWriterProposal() {
 
         const { data: existingWbs, error: wbsErr } = await supabase
           .from('lfa_wbs_items')
-          .select('*')
+          .select('id,lfa_project_id,source_task_id')
           .eq('lfa_project_id', currentLfaProjId);
 
         if (wbsErr) throw wbsErr;
 
         if (existingWbs && existingWbs.length > 0) {
+          const existingWbsRows = (existingWbs ?? []) as WbsIdentityRow[];
+          for (const row of existingWbsRows) {
+            if (row.lfa_project_id !== currentLfaProjId) {
+              continue;
+            }
+
+            if (!isNonEmptyString(row.source_task_id)) {
+              continue;
+            }
+
+            const sourceTaskId = row.source_task_id.trim();
+            const previousWbsId = taskIdToWbsId[sourceTaskId];
+            if (previousWbsId && previousWbsId !== row.id) {
+              throw new Error('Identitas sumber task WBS terduplikasi. Materialisasi dihentikan untuk mencegah tautan anggaran ambigu.');
+            }
+
+            taskIdToWbsId[sourceTaskId] = row.id;
+          }
+
           setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'skipped', message: 'Struktur WBS sudah terisi' } : s));
         } else {
           const tasks = skeleton.wbs?.tasks || [];
+          const invalidTask = tasks.find((task: any) => !isNonEmptyString(task.id));
+          if (invalidTask) {
+            throw new Error('Materialisasi WBS gagal karena ada task pada program skeleton tanpa ID yang valid.');
+          }
+
           const newWbsItems: any[] = [];
 
           // Level 1 Tasks
           const lvl1Tasks = tasks.filter((t: any) => t.level === 1);
           let globalSortOrder = 0;
+          const insertionTaskMap: Record<string, string> = {};
 
           for (const task of lvl1Tasks) {
             const dbId = crypto.randomUUID();
-            taskIdToWbsId[task.id] = dbId;
+            const sourceTaskId = task.id.trim();
+            insertionTaskMap[sourceTaskId] = dbId;
             newWbsItems.push({
               id: dbId,
               lfa_project_id: currentLfaProjId,
               org_id: project.organization_id,
+              source_task_id: sourceTaskId,
               level: 1,
               parent_id: null,
               name: task.title || 'Output Utama',
@@ -659,8 +696,9 @@ export default function GrantWriterProposal() {
           const lvl2Tasks = tasks.filter((t: any) => t.level === 2);
           for (const task of lvl2Tasks) {
             const dbId = crypto.randomUUID();
-            taskIdToWbsId[task.id] = dbId;
-            const parentDbId = taskIdToWbsId[task.parentId || ''] || null;
+            const sourceTaskId = task.id.trim();
+            insertionTaskMap[sourceTaskId] = dbId;
+            const parentDbId = insertionTaskMap[task.parentId || ''] || null;
 
             const dbDeps: string[] = [];
             if (task.dependencies && Array.isArray(task.dependencies)) {
@@ -674,6 +712,7 @@ export default function GrantWriterProposal() {
               id: dbId,
               lfa_project_id: currentLfaProjId,
               org_id: project.organization_id,
+              source_task_id: sourceTaskId,
               level: 2,
               parent_id: parentDbId,
               name: task.title || 'Aktivitas Detail',
@@ -688,10 +727,34 @@ export default function GrantWriterProposal() {
           }
 
           if (newWbsItems.length > 0) {
-            const { error: insWbsErr } = await supabase
+            const { data: insertedWbs, error: insWbsErr } = await supabase
               .from('lfa_wbs_items')
-              .insert(newWbsItems);
+              .insert(newWbsItems)
+              .select('id,lfa_project_id,source_task_id');
             if (insWbsErr) throw insWbsErr;
+
+            const insertedRows = (insertedWbs ?? []) as WbsIdentityRow[];
+            if (insertedRows.length === 0) {
+              throw new Error('Materialisasi WBS gagal karena identitas task sumber dari data tersimpan tidak tersedia.');
+            }
+
+            for (const row of insertedRows) {
+              if (row.lfa_project_id !== currentLfaProjId) {
+                continue;
+              }
+
+              if (!isNonEmptyString(row.source_task_id)) {
+                continue;
+              }
+
+              const sourceTaskId = row.source_task_id.trim();
+              const previousWbsId = taskIdToWbsId[sourceTaskId];
+              if (previousWbsId && previousWbsId !== row.id) {
+                throw new Error('Identitas sumber task WBS terduplikasi. Materialisasi dihentikan untuk mencegah tautan anggaran ambigu.');
+              }
+
+              taskIdToWbsId[sourceTaskId] = row.id;
+            }
           }
           setSteps(prev => prev.map(s => s.id === 'wbs' ? { ...s, status: 'success' } : s));
         }
@@ -709,6 +772,11 @@ export default function GrantWriterProposal() {
           setSteps(prev => prev.map(s => s.id === 'budget' ? { ...s, status: 'skipped', message: 'Draf Anggaran sudah terisi' } : s));
         } else {
           const budgetHints = skeleton.budget_hints?.items || [];
+          const skeletonTaskIds = new Set<string>(
+            (skeleton.wbs?.tasks || [])
+              .map((task: any) => (isNonEmptyString(task.id) ? task.id.trim() : null))
+              .filter((taskId: string | null): taskId is string => taskId !== null)
+          );
           const skeletonItems: any[] = [];
           let sortOrder = 0;
 
@@ -718,7 +786,12 @@ export default function GrantWriterProposal() {
           const ngoFactor = 0.7;
 
           for (const item of budgetHints) {
-            const matchedWbsId = taskIdToWbsId[item.taskId] || null;
+            const budgetTaskId = isNonEmptyString(item.taskId) ? item.taskId.trim() : null;
+            const matchedWbsId = budgetTaskId ? taskIdToWbsId[budgetTaskId] || null : null;
+            if (budgetTaskId && skeletonTaskIds.has(budgetTaskId) && !matchedWbsId) {
+              throw new Error('Materialisasi anggaran gagal karena tautan task anggaran ke WBS tidak dapat dipetakan secara deterministik.');
+            }
+
             let unitPrice = item.unit_price_idr || 500000;
             const isPersonnel = item.category?.toLowerCase() === 'personnel' || item.category?.toLowerCase() === 'consultant';
 
