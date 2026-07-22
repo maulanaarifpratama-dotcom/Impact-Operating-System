@@ -257,16 +257,11 @@ test.describe('Real Azure OpenAI P0-B Generation & Downstream Materialization', 
     const materializeBtn = page.locator('button:has-text("Materialisasikan Sekarang")').first();
     await expect(materializeBtn).toBeVisible();
     await materializeBtn.click();
-    console.log('[E2E-REAL-AZURE] Clicked Materialisasikan Sekarang!');
+    console.log('[E2E-REAL-AZURE] Clicked Materialisasikan Sekarang! Waiting for direct redirection to LFA Builder...');
 
-    // Wait for the redirection button to workspace
-    const openWorkspaceBtn = page.locator('a:has-text("Buka Program Workspace")').first();
-    await expect(openWorkspaceBtn).toBeVisible({ timeout: 60000 });
-    console.log('[E2E-REAL-AZURE] Materialization success!');
-
-    await openWorkspaceBtn.click();
-    await page.waitForURL(/.*lfa-builder.*/, { timeout: 20000 });
-    console.log('[E2E-REAL-AZURE] Successfully navigated to LFA Builder.');
+    // Wait for the direct redirection to LFA Builder workspace
+    await page.waitForURL(/.*lfa-builder.*/, { timeout: 60000 });
+    console.log('[E2E-REAL-AZURE] Successfully navigated directly to LFA Builder. URL:', page.url());
 
     await page.waitForTimeout(5000);
     const bodyText = await page.innerText('body');
