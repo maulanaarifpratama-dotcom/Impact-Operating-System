@@ -27,3 +27,12 @@ dist-ssr
 playwright-report/
 test-results/
 .env.e2e
+
+# Local environment secrets
+.env
+.env.*
+!.env.example
+
+# Local scratch scripts
+scratch/
+
