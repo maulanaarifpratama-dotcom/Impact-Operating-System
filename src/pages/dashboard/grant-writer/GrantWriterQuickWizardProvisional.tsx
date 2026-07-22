@@ -29,7 +29,8 @@ import {
   adaptProvisionalResponse,
   PROVISIONAL_FIXTURES,
   ProvisionalDomainResponse,
-  ApprovedPage2Snapshot
+  ApprovedPage2Snapshot,
+  ResolutionHistoryEntry
 } from '@/lib/grant-writer/provisionalAdapter';
 
 // Visual colors for SDGs as per standards
@@ -430,24 +431,170 @@ export default function GrantWriterQuickWizardProvisional() {
     const numericBeneficiaries = beneficiaryCountUnknown ? 'unknown' : (beneficiaryCount === '' ? 'unentered' : Number(beneficiaryCount));
     const numericBudget = budgetIdrUnknown ? 'unknown' : (budgetIdr === '' ? 'unentered' : Number(budgetIdr));
 
+    const derivedGeoLevel = undefined;
+    const derivedGeoStatus = undefined;
+
+    const durationValue = typeof numericDuration === 'number' ? numericDuration : undefined;
+    const durationUnit = 'months';
+
+    const beneficiaryCountValue = typeof numericBeneficiaries === 'number' ? numericBeneficiaries : undefined;
+    const beneficiaryUnit = 'individuals';
+
+    const fundingAmount = typeof numericBudget === 'number' ? numericBudget : undefined;
+    const currency = 'IDR';
+
+    // Compile comprehensive resolution history
+    const resolutionHistory: ResolutionHistoryEntry[] = [];
+
+    // Track sector overrides
+    domainResponse?.sectors.forEach(s => {
+      const originallyAccepted = s.level !== 'rejected';
+      const actuallyAccepted = acceptedSectors.includes(s.id);
+      if (originallyAccepted !== actuallyAccepted) {
+        resolutionHistory.push({
+          itemId: s.id,
+          field: 'level',
+          action: 'override',
+          oldValue: s.level,
+          newValue: actuallyAccepted ? 'optional' : 'rejected',
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        resolutionHistory.push({
+          itemId: s.id,
+          field: 'level',
+          action: 'accept',
+          oldValue: s.level,
+          newValue: s.level,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // Track intervention overrides
+    domainResponse?.interventions.forEach(i => {
+      const originallyAccepted = i.level !== 'rejected';
+      const actuallyAccepted = acceptedInterventions.includes(i.id);
+      if (originallyAccepted !== actuallyAccepted) {
+        resolutionHistory.push({
+          itemId: i.id,
+          field: 'level',
+          action: 'override',
+          oldValue: i.level,
+          newValue: actuallyAccepted ? 'optional' : 'rejected',
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        resolutionHistory.push({
+          itemId: i.id,
+          field: 'level',
+          action: 'accept',
+          oldValue: i.level,
+          newValue: i.level,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // Track SDG overrides
+    domainResponse?.sdgs.forEach(s => {
+      const originallyAccepted = s.level !== 'rejected';
+      const actuallyAccepted = acceptedSdgs.includes(s.num);
+      if (originallyAccepted !== actuallyAccepted) {
+        resolutionHistory.push({
+          itemId: `SDG-${s.num}`,
+          field: 'level',
+          action: 'override',
+          oldValue: s.level,
+          newValue: actuallyAccepted ? 'optional' : 'rejected',
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        resolutionHistory.push({
+          itemId: `SDG-${s.num}`,
+          field: 'level',
+          action: 'accept',
+          oldValue: s.level,
+          newValue: s.level,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // Track actor role overrides
+    domainResponse?.actorRoles.forEach(a => {
+      const originallyAccepted = a.level !== 'rejected';
+      const actuallyAccepted = acceptedActorRoles.includes(a.id);
+      if (originallyAccepted !== actuallyAccepted) {
+        resolutionHistory.push({
+          itemId: a.id,
+          field: 'level',
+          action: 'override',
+          oldValue: a.role,
+          newValue: actuallyAccepted ? 'optional' : 'rejected',
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        resolutionHistory.push({
+          itemId: a.id,
+          field: 'level',
+          action: 'accept',
+          oldValue: a.role,
+          newValue: a.role,
+          timestamp: new Date().toISOString()
+        });
+      }
+    });
+
+    // Track ambiguity resolutions
+    Object.entries(ambiguityResolutions).forEach(([id, val]) => {
+      resolutionHistory.push({
+        itemId: id,
+        field: 'resolvedValue',
+        action: 'resolve',
+        newValue: val,
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    // Track missing info resolutions
+    Object.entries(missingInfoResolutions).forEach(([id, res]) => {
+      resolutionHistory.push({
+        itemId: id,
+        field: 'resolvedValue',
+        action: 'resolve',
+        newValue: res.answer,
+        timestamp: new Date().toISOString()
+      });
+    });
+
     // Compose Approved Page 2 Snapshot
     const snapshot: ApprovedPage2Snapshot = {
       programFacts: {
         proposedTitle,
         geography: geographyUnknown ? 'unknown' : geography,
+        geographyLevel: derivedGeoLevel,
+        geographyStatus: derivedGeoStatus,
         durationMonths: numericDuration,
+        durationValue,
+        durationUnit,
         beneficiaryDescription,
         beneficiaryCount: numericBeneficiaries,
+        beneficiaryCountValue,
+        beneficiaryUnit,
         budgetIdr: numericBudget,
-        targetDonor,
-        donorStandard,
+        fundingAmount,
+        currency,
+        supportingDocumentRefs: [],
         programStory
       },
-      organization: {
+      organization: orgName ? {
+        orgId: dbProject?.organization_id || undefined,
         orgName,
         orgType,
+        snapshotVersion: undefined,
         sdgFocus: []
-      },
+      } : undefined,
       originalRecommendations: {
         sectors: domainResponse?.sectors || [],
         interventions: domainResponse?.interventions || [],
@@ -484,7 +631,18 @@ export default function GrantWriterQuickWizardProvisional() {
       contractVersion: domainResponse?.contractVersion || '1.2',
       engineVersion: domainResponse?.engineVersion || 'det-engine-v1.0',
       registryVersions: domainResponse?.registryVersions || {},
-      approvalTimestamp: new Date().toISOString()
+      approvalTimestamp: new Date().toISOString(),
+
+      // Preserve full Page 2 context
+      outcomeFamilies: domainResponse?.outcomeFamilies || undefined,
+      outputFamilies: domainResponse?.outputFamilies || undefined,
+      crossCuttingRelevance: domainResponse?.crossCuttingRelevance || undefined,
+      explanationTemplateMetadata: domainResponse?.explanationTemplateMetadata || undefined,
+      resolutionHistory: resolutionHistory.length > 0 ? resolutionHistory : undefined,
+      provenance: domainResponse?.provenance || undefined,
+      passthrough: domainResponse?.passthrough || undefined,
+      rawCanonicalPayload: domainResponse?.rawCanonicalPayload || undefined,
+      adapterValidationIssues: domainResponse?.adapterValidationIssues || undefined
     };
 
     setApprovedSnapshot(snapshot);

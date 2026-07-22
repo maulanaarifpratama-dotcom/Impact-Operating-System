@@ -3,7 +3,7 @@ import { fireEvent, render, screen, waitFor, act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GrantWriterQuickWizard, { GrantWriterQuickWizardSelector } from './GrantWriterQuickWizard';
-import { PROVISIONAL_FIXTURES } from '@/lib/grant-writer/provisionalAdapter';
+import { PROVISIONAL_FIXTURES, adaptProvisionalResponse } from '@/lib/grant-writer/provisionalAdapter';
 
 const { mockSupabaseFrom, mockSupabaseInvoke, toastMock, navigateMock, writeCalls } = vi.hoisted(() => ({
   mockSupabaseFrom: vi.fn(),
@@ -569,6 +569,89 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       // Verify that default export mounts and does not throw
       await waitFor(() => {
         expect(screen.getByText('Yayasan Tani Hijau')).toBeTruthy();
+      });
+    });
+
+    test('safety: Approved snapshot carries rawCanonicalPayload, undefined snapshotVersion, and undefined geographyLevel', async () => {
+      // Load pre-existing v1.2 Scope Too Broad (FIX-DEV-SB-4)
+      installSupabaseScenario({
+        wizard_data: {
+          currentFlowPage: 'page2',
+          selectedFixtureId: 'FIX-DEV-SB-4',
+          domainResponse: adaptProvisionalResponse(PROVISIONAL_FIXTURES['FIX-DEV-SB-4']),
+          acceptedSectors: ['SEC-AGRI'],
+          acceptedInterventions: [],
+          acceptedSdgs: [2],
+          acceptedActorRoles: [],
+          blueprintEdits: {},
+          ambiguityResolutions: {},
+          missingInfoResolutions: {},
+        }
+      });
+      const queryClient = createTestQueryClient();
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <GrantWriterQuickWizardSelector isDevelopment={true} />
+        </QueryClientProvider>
+      );
+
+      // Selesaikan blockers agar tombol Setujui Blueprint aktif
+      await waitFor(() => {
+        expect(screen.getByText('Persetujuan Diblokir (1)')).toBeTruthy();
+      });
+
+      const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i });
+      expect(approveBtn.disabled).toBe(true);
+
+      const selectors = screen.getAllByRole('combobox');
+      const missingInfoDropdown = selectors.find(s => (s as HTMLSelectElement).value === 'unresolved');
+      expect(missingInfoDropdown).toBeTruthy();
+      fireEvent.change(missingInfoDropdown!, { target: { value: 'answered' } });
+
+      const answerInput = screen.getByPlaceholderText(/Tuliskan jawaban klarifikasi/i);
+      fireEvent.change(answerInput, { target: { value: 'Prioritas utama kami adalah pemberdayaan ekonomi.' } });
+
+      // Verifikasi blocker hilang dan tombol aktif
+      await waitFor(() => {
+        expect(approveBtn.disabled).toBe(false);
+      });
+
+      // Klik Setujui Blueprint
+      fireEvent.click(approveBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('Blueprint Program Disetujui!')).toBeTruthy();
+      });
+
+      // Klik Tinjau Ulang Blueprint untuk kembali ke Page 2 agar tombol Simpan Draft tersedia
+      const reviewBtn = screen.getByRole('button', { name: /Tinjau Ulang Blueprint/i });
+      fireEvent.click(reviewBtn);
+
+      await waitFor(() => {
+        expect(screen.getByText('Rekomendasi Sektor Program')).toBeTruthy();
+      });
+
+      // Simpan Draft untuk mengirim snapshot terbaru ke mock Supabase
+      const saveDraftBtn = screen.getByRole('button', { name: /Simpan Draft/i });
+      fireEvent.click(saveDraftBtn);
+
+      await waitFor(() => {
+        const lastCall = writeCalls.find(call => call.table === 'gw_projects');
+        expect(lastCall).toBeDefined();
+        const wizardData = lastCall!.data.wizard_data;
+        expect(wizardData.approvedSnapshot).toBeDefined();
+
+        const snapshot = wizardData.approvedSnapshot;
+        // 1. Lossless raw canonical payload preservation
+        expect(snapshot.rawCanonicalPayload).toBeDefined();
+        expect(snapshot.rawCanonicalPayload.contractVersion).toBe('1.2');
+
+        // 2. No synthetic geography level inference
+        expect(snapshot.programFacts.geographyLevel).toBeUndefined();
+
+        // 3. No synthetic organization version
+        expect(snapshot.organization?.snapshotVersion).toBeUndefined();
       });
     });
   });
