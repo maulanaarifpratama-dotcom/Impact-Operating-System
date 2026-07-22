@@ -30,3 +30,25 @@ export {
   assignRecommendations,
   runScoringPipeline
 } from './scoring-runner';
+
+// P0-D Program Blueprint and Page 2 Integration Exports
+export * from './blueprint-types';
+export { BLUEPRINT_TEMPLATES, BLUEPRINT_FALLBACKS } from './blueprint-config';
+export { validateCausalOrdering, deriveCausalSupportSnapshot, evaluateCausalGuardrails, checkCausalLeap } from './causal-guardrails';
+export { assembleBlueprint } from './blueprint-assembler';
+export {
+  createPage2Payload,
+  convertToProvisionalDomainResponse,
+  createManualReviewState,
+  acceptRecommendation,
+  rejectRecommendation,
+  changeRecommendationLevel,
+  selectAlternativeCanonicalCandidate,
+  addManualCandidate,
+  editBlueprintText,
+  resolveAmbiguity,
+  resolveMissingInformation,
+  acceptUnknown,
+  restoreOriginalItem,
+  buildApprovedSessionSnapshot
+} from './page2-payload';
