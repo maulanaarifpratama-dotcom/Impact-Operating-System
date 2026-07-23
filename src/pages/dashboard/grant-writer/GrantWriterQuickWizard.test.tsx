@@ -227,7 +227,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     // Now we should be on Page 2
     await waitFor(() => {
-      expect(screen.getByText('Ringkasan Fakta Masukan (Page 1)')).toBeTruthy();
+      expect(screen.getByText(/Ringkasan Fakta/i)).toBeTruthy();
     });
     expect(screen.getByText('Rekomendasi Sektor Program')).toBeTruthy();
   });
@@ -328,7 +328,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     // Verify Page 2 renders the 27.5k Brain Canonical Logframe Hierarchy
     await waitFor(() => {
-      expect(screen.getByText('Program Blueprint (Logframe Foundations)')).toBeTruthy();
+      expect(screen.getAllByText(/Program Blueprint/i).length).toBeGreaterThan(0);
     });
 
     // Click Setujui Blueprint & Lanjutkan

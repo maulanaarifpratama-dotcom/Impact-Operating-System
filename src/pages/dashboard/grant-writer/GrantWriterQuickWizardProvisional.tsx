@@ -9,6 +9,7 @@ import {
   AlertTriangle,
   Info,
   Undo2,
+  HelpCircle,
   HelpCircle as QuestionIcon,
   CheckCircle2,
   AlertOctagon,
@@ -186,37 +187,78 @@ export function getHumanReadableMissingInfoLabel(id: string, question: string): 
   const lowerId = (id || '').toLowerCase();
 
   if (lowerId.includes('001') || lowerId.includes('beneficiary') || lowerQ.includes('penerima') || lowerQ.includes('sasaran') || lowerQ.includes('jumlah')) {
-    return '⚠ Sasaran Program / Jumlah Penerima Manfaat Belum Lengkap';
+    return 'Sasaran Program & Penerima Manfaat';
   }
   if (lowerId.includes('sb') || lowerQ.includes('intervensi') || lowerQ.includes('prioritas') || lowerQ.includes('scope')) {
-    return '⚠ Prioritas Intervensi Program Belum Ditentukan';
+    return 'Prioritas Intervensi Program Belum Ditentukan';
   }
   if (lowerId.includes('002') || lowerId.includes('location') || lowerQ.includes('lokasi') || lowerQ.includes('wilayah')) {
-    return '⚠ Lokasi Program Belum Ditentukan';
+    return 'Lokasi Pelaksanaan Program';
   }
   if (lowerId.includes('003') || lowerId.includes('duration') || lowerQ.includes('durasi') || lowerQ.includes('bulan')) {
-    return '⚠ Durasi Pelaksanaan Program Belum Diisi';
+    return 'Durasi Pelaksanaan Program';
   }
   if (lowerId.includes('004') || lowerId.includes('budget') || lowerQ.includes('anggaran') || lowerQ.includes('biaya')) {
-    return '⚠ Perkiraan Anggaran Program Belum Diisi';
+    return 'Perkiraan Anggaran Program';
   }
   if (lowerId.includes('006') || lowerId.includes('actor') || lowerQ.includes('aktor')) {
-    return '⚠ Peran Aktor Utama / Mitra Belum Ditetapkan';
+    return 'Peran Aktor Utama & Mitra';
   }
   if (lowerId.includes('007') || lowerId.includes('story') || lowerQ.includes('masalah') || lowerQ.includes('cerita')) {
-    return '⚠ Cerita & Masalah Utama Program Belum Dijelaskan';
+    return 'Cerita & Masalah Utama Program';
   }
   if (lowerId.includes('010') || lowerId.includes('donor') || lowerQ.includes('donor') || lowerQ.includes('pendana')) {
-    return '⚠ Target Donor / Mitra Pendana Belum Dipilih';
+    return 'Target Donor & Mitra Pendana';
   }
 
   if (question && question.trim().length > 0) {
     const cleanQuestion = question.length > 70 ? question.substring(0, 70) + '...' : question;
-    return `⚠ Informasi Belum Lengkap: ${cleanQuestion}`;
+    return `Rincian Informasi: ${cleanQuestion}`;
   }
 
-  return `⚠ Informasi Belum Lengkap (${id})`;
+  return `Klarifikasi Detail Program`;
 }
+
+/**
+ * Convert technical role keys to clean Indonesian role labels (GW-UX-03 Task 5)
+ */
+export function getHumanReadableRoleLabel(role: string): string {
+  const r = (role || '').toLowerCase();
+  if (r.includes('beneficiary') || r.includes('target') || r.includes('penerima')) return 'Target Utama';
+  if (r.includes('donor') || r.includes('partner') || r.includes('pendana') || r.includes('mitra')) return 'Mitra Potensial';
+  if (r.includes('agency') || r.includes('actor') || r.includes('implement') || r.includes('pelaksana')) return 'Pelaksana Program';
+  return role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
+
+/**
+ * Convert technical warning codes to plain human-readable program insights (GW-UX-03 Task 2)
+ */
+export function getHumanReadableWarningTitle(code: string, message: string): { title: string; subtitle: string } {
+  const c = (code || '').toUpperCase();
+  if (c.includes('IMPACT') || c.includes('007') || message.toLowerCase().includes('dampak')) {
+    return {
+      title: 'Perubahan jangka panjang program masih belum cukup jelas',
+      subtitle: 'Jelaskan dampak sosial, ekonomi, atau lingkungan yang ingin dicapai setelah kegiatan selesai.'
+    };
+  }
+  if (c.includes('LOCATION') || message.toLowerCase().includes('lokasi')) {
+    return {
+      title: 'Lokasi pelaksanaan program memerlukan penajaman',
+      subtitle: 'Tentukan wilayah atau lokasi spesifik agar rancangan intervensi lebih akurat.'
+    };
+  }
+  if (c.includes('BENEFICIARY') || message.toLowerCase().includes('penerima') || message.toLowerCase().includes('sasaran')) {
+    return {
+      title: 'Profil dan jumlah penerima manfaat perlu diperjelas',
+      subtitle: 'Sebutkan perkiraan jumlah target penerima manfaat atau kriteria kelompok sasaran.'
+    };
+  }
+  return {
+    title: 'Catatan Penyempurnaan Program',
+    subtitle: message
+  };
+}
+
 
 function buildLiveDomainResponse(
   input: Page1Input,
@@ -1760,6 +1802,8 @@ export default function GrantWriterQuickWizardProvisional() {
       {/* PAGE 2: REVIEW BOARD AND DETERMINISTIC RECOMMENDATIONS */}
       {currentFlowPage === 'page2' && domainResponse && (
         <div className="space-y-6">
+          {/* 1. RINGKASAN PROGRAM */}
+
           {/* Fact Summary Banner (Canonical Fact Lock - UX-FACT-01) */}
           <Card className="border-indigo-100 bg-gradient-to-r from-indigo-50/80 via-purple-50/50 to-slate-50 p-4 shadow-sm" data-testid="canonical-fact-banner">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
@@ -1769,10 +1813,10 @@ export default function GrantWriterQuickWizardProvisional() {
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <h2 className="text-sm font-bold text-slate-900">Fact Summary Banner</h2>
-                    <Badge variant="outline" className="border-indigo-300 text-indigo-700 bg-indigo-50 text-[10px]">Canonical Fact Lock</Badge>
+                    <h2 className="text-sm font-bold text-slate-900">Ringkasan Fakta Utama Program</h2>
+                    <Badge variant="outline" className="border-indigo-300 text-indigo-700 bg-indigo-50 text-[10px]">Fakta Terkunci</Badge>
                   </div>
-                  <p className="text-xs text-slate-500">Ringkasan entitas terkunci dari Page 1 untuk mencegah drift entitas</p>
+                  <p className="text-xs text-slate-500">Fakta mendasar program dari masukan Anda untuk memastikan konsistensi rancangan</p>
                 </div>
               </div>
 
@@ -1808,15 +1852,15 @@ export default function GrantWriterQuickWizardProvisional() {
                   </div>
                   <p className={`text-xs ${hasCanonicalStructure ? 'text-emerald-700' : 'text-amber-800'}`}>
                     {hasCanonicalStructure
-                      ? 'Hasil ekstraksi deterministik berhasil membentuk struktur LFA.'
-                      : 'Sistem tidak menemukan indikator intervensi/tujuan spesifik dari input yang dimasukkan.'}
+                      ? 'Hasil analisis sistem berhasil membentuk struktur kerangka kerja logis (LFA).'
+                      : 'Sistem membutuhkan rincian intervensi atau tujuan yang lebih spesifik.'}
                   </p>
                 </div>
               </div>
 
               <div className="flex items-center gap-2 text-xs font-semibold">
                 <Badge variant="outline" className={`px-2.5 py-1 ${hasCanonicalStructure ? 'border-emerald-300 bg-white text-emerald-800' : 'border-amber-300 bg-white text-amber-800'}`}>
-                  Payload: {totalOutcomes} Outcome, {totalOutputs} Output, {totalActivities} Aktivitas
+                  Struktur Program (Payload: {totalOutcomes} Outcome, {totalOutputs} Output, {totalActivities} Aktivitas)
                 </Badge>
               </div>
             </div>
@@ -1913,19 +1957,19 @@ export default function GrantWriterQuickWizardProvisional() {
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
                 <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5" data-testid="status-item-facts">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <span className="text-xs font-bold text-emerald-950">Program Facts Captured</span>
+                  <span className="text-xs font-bold text-emerald-950">Fakta Program Teridentifikasi</span>
                 </div>
                 <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5" data-testid="status-item-beneficiaries">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <span className="text-xs font-bold text-emerald-950">Target Beneficiaries Identified</span>
+                  <span className="text-xs font-bold text-emerald-950">Target Penerima Manfaat Siap</span>
                 </div>
                 <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5" data-testid="status-item-direction">
                   <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                  <span className="text-xs font-bold text-emerald-950">Program Direction Identified</span>
+                  <span className="text-xs font-bold text-emerald-950">Arah Intervensi Ditentukan</span>
                 </div>
                 <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50/80 p-2.5" data-testid="status-item-lfa">
                   <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                  <span className="text-xs font-bold text-amber-950">LFA Matrix Not Yet Generated</span>
+                  <span className="text-xs font-bold text-amber-950">LFA Matrix Belum Di-generate</span>
                 </div>
               </div>
             </CardContent>
@@ -1936,7 +1980,7 @@ export default function GrantWriterQuickWizardProvisional() {
             <Alert variant="warning" className="border-amber-300 bg-amber-50/70 text-amber-900 shadow-2xs" data-testid="entity-drift-warning">
               <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <div className="text-xs">
-                <AlertTitle className="font-bold text-amber-900 text-xs">Peringatan Drift Entitas (Non-Blocking)</AlertTitle>
+                <AlertTitle className="font-bold text-amber-900 text-xs">Peringatan Konsistensi Fakta (Non-Blocking)</AlertTitle>
                 <AlertDescription className="text-amber-800 mt-0.5 leading-relaxed">
                   {driftWarning.message}
                 </AlertDescription>
@@ -1949,7 +1993,7 @@ export default function GrantWriterQuickWizardProvisional() {
             <Alert variant="warning" className="border-orange-300 bg-orange-50/50">
               <AlertTriangle className="h-5 w-5 text-orange-600" />
               <div>
-                <AlertTitle className="font-bold text-orange-900">Masukan Formulir Diubah</AlertTitle>
+                <AlertTitle className="font-bold text-orange-900">Masukan Cerita Diubah</AlertTitle>
                 <AlertDescription className="text-xs text-orange-700 leading-relaxed">
                   Anda telah mengubah detail masukan rencana program di Page 1. Blueprint program di bawah ini didasarkan pada draf analisis sebelumnya. Tekan tombol <strong>"Analisis Ulang"</strong> untuk memproses ulang blueprint yang akurat.
                 </AlertDescription>
@@ -1962,91 +2006,45 @@ export default function GrantWriterQuickWizardProvisional() {
             </Alert>
           )}
 
-          {/* Ontological Validation Warning Panel */}
+          {/* 2. PROGRAM INSIGHTS (Human-Readable Catatan Rekomendasi) */}
           {domainResponse.warnings.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500">Ontological Validation Alerts</h3>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {domainResponse.warnings.map(warn => {
-                  const isBlocking = warn.severity === 'blocking';
-                  const isImportant = warn.severity === 'important';
-                  const isReview = warn.severity === 'needs_review';
-                  return (
-                    <div
-                      key={warn.id}
-                      className={`flex gap-3 rounded-lg border p-4 text-sm shadow-sm ${
-                        isBlocking 
-                          ? 'border-rose-200 bg-rose-50/50 text-rose-900' 
-                          : isImportant
-                          ? 'border-orange-200 bg-orange-50/50 text-orange-900'
-                          : isReview
-                          ? 'border-amber-200 bg-amber-50/50 text-amber-900'
-                          : 'border-slate-200 bg-slate-50 text-slate-800'
-                      }`}
-                    >
-                      {isBlocking ? (
-                        <AlertOctagon className="h-5 w-5 shrink-0 text-rose-500" />
-                      ) : isImportant ? (
-                        <AlertTriangle className="h-5 w-5 shrink-0 text-orange-500" />
-                      ) : (
-                        <Info className="h-5 w-5 shrink-0 text-indigo-500" />
-                      )}
-                      <div>
-                        <span className="block text-xs font-bold tracking-wider uppercase text-slate-400">{warn.code} · {warn.severity}</span>
-                        <p className="mt-0.5 font-medium leading-relaxed">{warn.message}</p>
+            <Card className="border-amber-200 bg-amber-50/30 p-4 shadow-xs">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-amber-600" />
+                  <h3 className="text-sm font-bold text-amber-950">Catatan & Rekomendasi Penyempurnaan</h3>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {domainResponse.warnings.map(warn => {
+                    const insight = getHumanReadableWarningTitle(warn.code, warn.message);
+                    return (
+                      <div key={warn.id} className="flex gap-3 rounded-lg border border-amber-200/80 bg-white p-3.5 text-xs shadow-2xs">
+                        <Info className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                        <div>
+                          <span className="font-bold text-slate-800 block leading-snug">{insight.title}</span>
+                          <p className="mt-1 text-slate-600 leading-relaxed">{insight.subtitle}</p>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            </Card>
           )}
 
-          {/* Program Facts Summary */}
-          <Card className="border-slate-200 bg-slate-50/40">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <div>
-                <CardTitle className="text-md font-bold text-slate-800">Ringkasan Fakta Masukan (Page 1)</CardTitle>
-                <CardDescription className="text-xs">Fakta program yang diuji dalam sistem deterministik</CardDescription>
-              </div>
-              <Button size="sm" variant="outline" onClick={() => setCurrentFlowPage('page1')} className="h-8 text-xs font-semibold">
-                Kembali & Edit Masukan
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-2 gap-4 text-xs sm:grid-cols-4">
-                <div>
-                  <span className="text-slate-400 block font-semibold">JUDUL PROGRAM</span>
-                  <span className="font-semibold text-slate-800 block truncate">{proposedTitle}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-semibold">LOKASI</span>
-                  <span className="font-semibold text-slate-800 block truncate">{geographyUnknown ? 'Belum diketahui' : geography || '—'}</span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-semibold">DURASI</span>
-                  <span className="font-semibold text-slate-800 block truncate">
-                    {durationUnknown || durationMonths === 'unknown' ? 'Belum diketahui' : (durationMonths === 'unentered' || durationMonths === '' ? 'Belum diisi' : `${durationMonths} Bulan`)}
-                  </span>
-                </div>
-                <div>
-                  <span className="text-slate-400 block font-semibold">ANGGARAN</span>
-                  <span className="font-semibold text-slate-800 block truncate">
-                    {budgetIdrUnknown || budgetIdr === 'unknown' ? 'Belum diketahui' : (budgetIdr === 'unentered' || budgetIdr === '' ? 'Belum diisi' : `Rp ${Number(budgetIdr).toLocaleString('id-ID')}`)}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Detected Context & Overrides Grid */}
+          {/* GRID UNTUK SDG, FOKUS PROGRAM, & AKTOR KUNCI */}
           <div className="grid gap-6 md:grid-cols-2">
-            {/* Left: Sectors & Interventions */}
+            {/* LEFT COLUMN: FOKUS PROGRAM & ARKETIPE INTERVENSI */}
             <div className="space-y-6">
-              {/* Sector Recommendations (UX-HARDENING-2 Task 1: Collapse rejected sector cards) */}
+              {/* 3. FOKUS PROGRAM (Sector Insight Card) */}
               <Card className="border-slate-200" id="section-sectors">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-500">Rekomendasi Sektor Program</CardTitle>
+                  <div className="space-y-1">
+                    <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <span>💡</span> Rekomendasi Sektor Program
+                    </CardTitle>
+                    <p className="text-xs text-slate-500">Sektor intervensi yang paling sesuai berdasarkan analisis kebutuhan</p>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {(() => {
@@ -2062,10 +2060,7 @@ export default function GrantWriterQuickWizardProvisional() {
                             <div key={sec.id} className="rounded-lg border p-3.5 space-y-2 bg-white shadow-2xs">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-bold text-slate-800 text-sm">{sec.label}</span>
-                                  <Badge variant={sec.level === 'primary' ? 'default' : sec.level === 'secondary' ? 'secondary' : 'warning'}>
-                                    {sec.level}
-                                  </Badge>
+                                  <span className="font-bold text-slate-800 text-sm">✅ {sec.label}</span>
                                 </div>
                                 
                                 <div className="flex gap-1">
@@ -2082,12 +2077,12 @@ export default function GrantWriterQuickWizardProvisional() {
                                     }}
                                     className="text-xs"
                                   >
-                                    {isAccepted ? 'Diterima' : 'Terima'}
+                                    {isAccepted ? 'Terpilih' : 'Pilih'}
                                   </Button>
                                 </div>
                               </div>
 
-                              <p className="text-xs text-slate-500">{sec.explanation}</p>
+                              <p className="text-xs text-slate-600 leading-relaxed">{sec.explanation}</p>
                               
                               <div className="pt-1">
                                 <button
@@ -2095,15 +2090,14 @@ export default function GrantWriterQuickWizardProvisional() {
                                   onClick={() => toggleWhyRecommended(sec.id)}
                                   className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:underline"
                                 >
-                                  <span>Mengapa ini direkomendasikan?</span>
+                                  <span>Lihat Bukti Temuan</span>
                                   {whyRecommendedOpen[sec.id] ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
                                 </button>
                                 
                                 {whyRecommendedOpen[sec.id] && (
-                                  <div className="mt-2 rounded bg-slate-50 p-2.5 text-[11px] text-slate-600 space-y-1 border">
-                                    <span className="font-semibold block uppercase text-[9px] text-slate-400">Bukti Temuan (Evidence Span)</span>
+                                  <div className="mt-2 rounded bg-slate-50 p-2.5 text-[11px] text-slate-600 space-y-1 border border-slate-200">
+                                    <span className="font-semibold block uppercase text-[9px] text-slate-400">Bukti Kutipan Cerita</span>
                                     <blockquote className="italic border-l-2 pl-2 border-slate-300">"{sec.evidence?.text}"</blockquote>
-                                    <span className="block mt-1 font-semibold text-slate-500">Tingkat Keyakinan: {sec.confidence === 'high' ? 'Keyakinan tinggi' : sec.confidence === 'medium' ? 'Perkiraan' : 'Perlu dikonfirmasi'}</span>
                                   </div>
                                 )}
                               </div>
@@ -2132,21 +2126,23 @@ export default function GrantWriterQuickWizardProvisional() {
                 </CardContent>
               </Card>
 
-              {/* Interventions (Archetypes) */}
+              {/* Priority Interventions */}
               <Card className="border-slate-200">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-500">Arketipe Intervensi Prioritas</CardTitle>
+                  <div className="space-y-1">
+                    <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <span>🛠️</span> Arketipe Intervensi Prioritas
+                    </CardTitle>
+                    <p className="text-xs text-slate-500">Ragam kegiatan teknis yang mendukung tujuan program Anda</p>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {domainResponse.interventions.map(act => {
                     const isAccepted = acceptedInterventions.includes(act.id);
                     return (
-                      <div key={act.id} className="rounded-lg border p-3.5 space-y-2">
+                      <div key={act.id} className="rounded-lg border p-3.5 space-y-2 bg-white shadow-2xs">
                         <div className="flex items-center justify-between">
-                          <div>
-                            <span className="font-bold text-slate-800 text-sm block">{act.label}</span>
-                            <span className="text-[10px] text-slate-400 font-mono block">{act.id}</span>
-                          </div>
+                          <span className="font-bold text-slate-800 text-sm block">{act.label}</span>
                           
                           <Button
                             type="button"
@@ -2164,7 +2160,7 @@ export default function GrantWriterQuickWizardProvisional() {
                           </Button>
                         </div>
 
-                        <p className="text-xs text-slate-500 leading-relaxed">{act.explanation}</p>
+                        <p className="text-xs text-slate-600 leading-relaxed">{act.explanation}</p>
                       </div>
                     );
                   })}
@@ -2172,30 +2168,37 @@ export default function GrantWriterQuickWizardProvisional() {
               </Card>
             </div>
 
-            {/* Right: SDGs & Actor Roles */}
+            {/* RIGHT COLUMN: SDG & AKTOR KUNCI */}
             <div className="space-y-6">
-              {/* SDG Alignment */}
+              {/* 4. SDG RELEVAN (SDG Insight Card) */}
               <Card className="border-slate-200">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-500">Penyelarasan SDG / TPB</CardTitle>
+                  <div className="space-y-1">
+                    <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <span>🎯</span> SDG yang Paling Relevan
+                    </CardTitle>
+                    <p className="text-xs text-slate-500">Tujuan Pembangunan Berkelanjutan (TPB) yang selaras dengan intervensi program Anda</p>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {/* Recommended SDGs */}
                   {domainResponse.sdgs.filter(s => s.level !== 'rejected').map(sdg => {
                     const isAccepted = acceptedSdgs.includes(sdg.num);
                     return (
-                      <div key={sdg.num} className="rounded-lg border p-3.5 space-y-2">
+                      <div key={sdg.num} className="rounded-lg border p-3.5 space-y-2 bg-white shadow-2xs">
                         <div className="flex items-start justify-between gap-2">
-                          <div className="flex gap-2">
+                          <div className="flex gap-2.5 items-center">
                             <span
-                              className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-sm font-bold text-white shadow-sm"
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white shadow-xs"
                               style={{ backgroundColor: SDG_COLORS[sdg.num] || '#94A3B8' }}
                             >
                               {sdg.num}
                             </span>
                             <div>
                               <span className="font-bold text-slate-800 text-sm block">{sdg.label}</span>
-                              <span className="text-[10px] text-slate-400 block font-semibold uppercase">{sdg.level} alignment</span>
+                              <Badge variant="outline" className="text-[10px] border-emerald-300 bg-emerald-50 text-emerald-800 mt-0.5">
+                                ✅ Relevan
+                              </Badge>
                             </div>
                           </div>
 
@@ -2214,7 +2217,7 @@ export default function GrantWriterQuickWizardProvisional() {
                             {isAccepted ? 'Terpilih' : 'Pilih'}
                           </Button>
                         </div>
-                        <p className="text-xs text-slate-500">{sdg.explanation}</p>
+                        <p className="text-xs text-slate-600 leading-relaxed">{sdg.explanation}</p>
                       </div>
                     );
                   })}
@@ -2225,7 +2228,7 @@ export default function GrantWriterQuickWizardProvisional() {
                       <button
                         type="button"
                         onClick={() => setShowRejectedSdgs(!showRejectedSdgs)}
-                        className="flex w-full items-center justify-between text-xs font-semibold text-slate-600 hover:text-slate-800"
+                        className="flex w-full items-center justify-between text-xs font-semibold text-slate-500 hover:text-slate-800"
                       >
                         <span>Mengapa tujuan lain tidak direkomendasikan?</span>
                         {showRejectedSdgs ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -2234,8 +2237,8 @@ export default function GrantWriterQuickWizardProvisional() {
                       {showRejectedSdgs && (
                         <div className="mt-2 space-y-2">
                           {domainResponse.sdgs.filter(s => s.level === 'rejected').map(sdg => (
-                            <div key={sdg.num} className="rounded bg-rose-50/40 p-2.5 text-xs text-rose-950 border border-rose-200">
-                              <span className="font-bold block">SDG {sdg.num}: {sdg.label} (Ditolak)</span>
+                            <div key={sdg.num} className="rounded-lg bg-slate-50 p-2.5 text-xs text-slate-700 border border-slate-200">
+                              <span className="font-bold block">SDG {sdg.num}: {sdg.label}</span>
                               <p className="text-[11px] text-slate-500 mt-0.5">{sdg.explanation}</p>
                             </div>
                           ))}
@@ -2246,21 +2249,27 @@ export default function GrantWriterQuickWizardProvisional() {
                 </CardContent>
               </Card>
 
-              {/* Actor Roles Distinction */}
+              {/* 5. AKTOR KUNCI PROGRAM */}
               <Card className="border-slate-200">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-500">Peta & Peran Aktor Kunci</CardTitle>
+                  <div className="space-y-1">
+                    <CardTitle className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <span>👥</span> Aktor Kunci Program
+                    </CardTitle>
+                    <p className="text-xs text-slate-500">Peta kelompok sasaran dan mitra strategis yang terlibat</p>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {domainResponse.actorRoles.map(actor => {
                     const isAccepted = acceptedActorRoles.includes(actor.id);
+                    const humanRole = getHumanReadableRoleLabel(actor.role);
                     return (
-                      <div key={actor.id} className="rounded-lg border p-3.5 space-y-2">
+                      <div key={actor.id} className="rounded-lg border p-3.5 space-y-2 bg-white shadow-2xs">
                         <div className="flex items-center justify-between">
                           <div>
                             <span className="font-bold text-slate-800 text-sm block">{actor.actorName}</span>
-                            <Badge variant="outline" className="text-[10px] mt-0.5">
-                              {actor.role.replace('_', ' ')}
+                            <Badge variant="outline" className="text-[10px] mt-0.5 border-slate-300 text-slate-700 bg-slate-50">
+                              {humanRole}
                             </Badge>
                           </div>
 
@@ -2279,7 +2288,7 @@ export default function GrantWriterQuickWizardProvisional() {
                             {isAccepted ? 'Konfirmasi' : 'Konfirmasi'}
                           </Button>
                         </div>
-                        <p className="text-xs text-slate-500">{actor.explanation}</p>
+                        <p className="text-xs text-slate-600 leading-relaxed">{actor.explanation}</p>
                       </div>
                     );
                   })}
@@ -2288,25 +2297,158 @@ export default function GrantWriterQuickWizardProvisional() {
             </div>
           </div>
 
-          {/* ZONE C: ANALISIS & MATRIKS TINGKAT LANJUT (Collapsible Accordion - UX-01 Task 5 & 6) */}
-          {(domainResponse.ambiguities.length > 0 || canonicalPayload) && (
+          {/* 6. KLARIFIKASI PROGRAM (Missing Information as Human Questions) */}
+          {domainResponse.missingInformation.length > 0 && (
+            <Card className="border-indigo-200 bg-indigo-50/20 shadow-xs" id="section-missing-info">
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-bold text-indigo-950 flex items-center gap-2">
+                    <HelpCircle className="h-4 w-4 text-indigo-600" /> Klarifikasi Program
+                  </CardTitle>
+                  <Badge variant="outline" className="border-indigo-200 text-indigo-700 bg-indigo-50 text-[10px]">
+                    {domainResponse.missingInformation.length} Poin Perlu Clarifikasi
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-600">
+                  Untuk membantu menyusun Blueprint yang lebih presisi, jawab pertanyaan berikut jika Anda memiliki informasinya:
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {domainResponse.missingInformation.slice(0, 3).map((info, idx) => {
+                  const state = missingInfoResolutions[info.id]?.state || 'unresolved';
+                  const answer = missingInfoResolutions[info.id]?.answer || '';
+
+                  return (
+                    <div key={info.id} className="rounded-lg border border-slate-200 bg-white p-3.5 space-y-3 shadow-2xs">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1">
+                          <Badge variant="outline" className="text-[10px] border-indigo-200 text-indigo-700 bg-indigo-50 font-semibold">
+                            Pertanyaan {idx + 1}
+                          </Badge>
+                          <p className="text-xs font-bold text-slate-800 leading-relaxed mt-1">{info.question}</p>
+                        </div>
+                        
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <select
+                            id={`missing-info-resolution-${info.id}`}
+                            role="combobox"
+                            value={state}
+                            onChange={(e) => {
+                              const val = e.target.value as 'unresolved' | 'answered' | 'accepted_unknown';
+                              setMissingInfoResolutions(prev => ({
+                                ...prev,
+                                [info.id]: {
+                                  ...prev[info.id],
+                                  state: val,
+                                  answer: val === 'accepted_unknown' ? 'Belum diketahui' : (prev[info.id]?.answer || '')
+                                }
+                              }));
+                            }}
+                            className="sr-only"
+                          >
+                            <option value="unresolved">Belum Dijawab</option>
+                            <option value="answered">Dijawab</option>
+                            <option value="accepted_unknown">Dilewati</option>
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMissingInfoResolutions(prev => ({
+                                ...prev,
+                                [info.id]: {
+                                  ...prev[info.id],
+                                  state: state === 'answered' ? 'unresolved' : 'answered',
+                                }
+                              }));
+                            }}
+                            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all ${
+                              state === 'answered'
+                                ? 'bg-indigo-600 text-white shadow-2xs'
+                                : 'bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-200'
+                            }`}
+                          >
+                            {state === 'answered' ? '✓ Dijawab' : 'Isi Jawaban'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMissingInfoResolutions(prev => ({
+                                ...prev,
+                                [info.id]: {
+                                  ...prev[info.id],
+                                  state: state === 'accepted_unknown' ? 'unresolved' : 'accepted_unknown',
+                                  answer: 'Belum diketahui'
+                                }
+                              }));
+                            }}
+                            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all ${
+                              state === 'accepted_unknown'
+                                ? 'bg-slate-800 text-white'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200'
+                            }`}
+                          >
+                            {state === 'accepted_unknown' ? '✓ Dilewati' : 'Lewati'}
+                          </button>
+                        </div>
+                      </div>
+
+                      {state === 'answered' && (
+                        <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                          <Input
+                            placeholder="Tuliskan jawaban klarifikasi Anda di sini..."
+                            value={answer}
+                            onChange={(e) => setMissingInfoResolutions(prev => ({
+                              ...prev,
+                              [info.id]: { ...prev[info.id], state: 'answered', answer: e.target.value }
+                            }))}
+                            className="text-xs bg-slate-50 focus:bg-white"
+                          />
+                          <p className="text-[10px] text-slate-500">Jawaban ini akan diintegrasikan langsung ke dalam draf usulan.</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 7. ADVANCED ANALYSIS & DIAGNOSTIK LOGFRAME (Collapsible Accordion) */}
+          {(domainResponse.warnings.length > 0 || domainResponse.ambiguities.length > 0 || canonicalPayload) && (
             <details className="group rounded-xl border border-slate-200 bg-slate-50/60 transition-all shadow-2xs">
               <summary className="flex cursor-pointer items-center justify-between p-4 font-bold text-xs text-slate-700 hover:text-slate-900 select-none">
                 <span className="flex items-center gap-2">
                   <Sparkles className="h-4 w-4 text-indigo-600" />
-                  Detail Matriks & Diagnostik Logframe (Opsional)
+                  🔬 Advanced Analysis & Diagnostik Logframe (Opsional)
                 </span>
                 <span className="text-[10px] text-indigo-600 group-open:rotate-180 transition-transform font-bold">
                   ▼ Lihat Detail
                 </span>
               </summary>
               <div className="p-4 pt-0 space-y-4 border-t border-slate-200/80">
+                {/* Technical Warning Codes */}
+                {domainResponse.warnings.length > 0 && (
+                  <div className="space-y-2 mt-3">
+                    <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">Validation Alert Codes</h4>
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      {domainResponse.warnings.map(warn => (
+                        <div key={warn.id} className="rounded border bg-white p-2.5 text-xs">
+                          <span className="font-mono font-bold text-slate-500 text-[10px] block">{warn.code} &bull; {warn.severity}</span>
+                          <p className="text-slate-700 mt-0.5">{warn.message}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 {/* Ambiguity Resolvers Section */}
                 {domainResponse.ambiguities.length > 0 && (
                   <Card className="border-amber-200 bg-amber-50/10 mt-3" id="section-ambiguities">
                     <CardHeader className="pb-3">
                       <CardTitle className="text-sm font-bold tracking-tight text-amber-900 flex items-center gap-2">
-                        <AlertTriangle className="h-4 w-4 text-amber-600" /> Resolusi Ambiguitas
+                        <AlertTriangle className="h-4 w-4 text-amber-600" /> Resolusi Ambiguitas Logika
                       </CardTitle>
                       <p className="text-xs text-slate-500">Sistem mendeteksi tumpang tindih logika. Anda dapat menetapkan opsi pilihan secara eksplisit jika diperlukan.</p>
                     </CardHeader>
@@ -2482,7 +2624,7 @@ export default function GrantWriterQuickWizardProvisional() {
           ) : (
             <Card className="border-slate-200">
               <CardHeader>
-                <CardTitle className="text-md font-bold text-slate-800">Program Blueprint (Logframe Foundations)</CardTitle>
+                <CardTitle className="text-md font-bold text-slate-800">Program Blueprint (Fondasi Logframe)</CardTitle>
                 <CardDescription className="text-xs">Sari pati draf LFA berdasarkan logika kausalitas program</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -2536,124 +2678,7 @@ export default function GrantWriterQuickWizardProvisional() {
             </Card>
           )}
 
-          {/* Klarifikasi Program (Missing Information - UX-HARDENING-2 Task 2 & 3) */}
-          {domainResponse.missingInformation.length > 0 && (
-            <Card className="border-indigo-200 bg-indigo-50/10 shadow-xs" id="section-missing-info">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-bold tracking-tight text-indigo-950 flex items-center gap-2">
-                    <QuestionIcon className="h-4 w-4 text-indigo-600" /> Klarifikasi Program
-                  </CardTitle>
-                  <Badge variant="outline" className="border-indigo-200 text-indigo-700 bg-indigo-50 text-[10px]">
-                    {domainResponse.missingInformation.length} Poin Perlu Klarifikasi
-                  </Badge>
-                </div>
-                <p className="text-xs text-slate-600">
-                  Untuk membantu menyusun Blueprint yang lebih presisi, jawab 2–3 pertanyaan klarifikasi berikut:
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {domainResponse.missingInformation.slice(0, 3).map(info => {
-                  const state = missingInfoResolutions[info.id]?.state || 'unresolved';
-                  const answer = missingInfoResolutions[info.id]?.answer || '';
-                  const humanLabel = getHumanReadableMissingInfoLabel(info.id, info.question);
 
-                  return (
-                    <div key={info.id} className="rounded-lg border border-slate-200 bg-white p-3.5 space-y-3 shadow-2xs">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <Badge variant="outline" className="text-[10px] border-indigo-200 text-indigo-700 bg-indigo-50 font-semibold">
-                            {humanLabel}
-                          </Badge>
-                          <p className="text-xs font-bold text-slate-800 leading-relaxed mt-1">{info.question}</p>
-                        </div>
-                        
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <select
-                            id={`missing-info-resolution-${info.id}`}
-                            role="combobox"
-                            value={state}
-                            onChange={(e) => {
-                              const val = e.target.value as 'unresolved' | 'answered' | 'accepted_unknown';
-                              setMissingInfoResolutions(prev => ({
-                                ...prev,
-                                [info.id]: {
-                                  ...prev[info.id],
-                                  state: val,
-                                  answer: val === 'accepted_unknown' ? 'Belum diketahui' : (prev[info.id]?.answer || '')
-                                }
-                              }));
-                            }}
-                            className="sr-only"
-                          >
-                            <option value="unresolved">Belum Dijawab</option>
-                            <option value="answered">Dijawab</option>
-                            <option value="accepted_unknown">Dilewati</option>
-                          </select>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setMissingInfoResolutions(prev => ({
-                                ...prev,
-                                [info.id]: {
-                                  ...prev[info.id],
-                                  state: state === 'answered' ? 'unresolved' : 'answered',
-                                }
-                              }));
-                            }}
-                            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all ${
-                              state === 'answered'
-                                ? 'bg-indigo-600 text-white shadow-2xs'
-                                : 'bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-200'
-                            }`}
-                          >
-                            {state === 'answered' ? '✓ Dijawab' : 'Isi Jawaban'}
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setMissingInfoResolutions(prev => ({
-                                ...prev,
-                                [info.id]: {
-                                  ...prev[info.id],
-                                  state: state === 'accepted_unknown' ? 'unresolved' : 'accepted_unknown',
-                                  answer: 'Belum diketahui'
-                                }
-                              }));
-                            }}
-                            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all ${
-                              state === 'accepted_unknown'
-                                ? 'bg-slate-800 text-white'
-                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200'
-                            }`}
-                          >
-                            {state === 'accepted_unknown' ? '✓ Dilewati' : 'Lewati'}
-                          </button>
-                        </div>
-                      </div>
-
-                      {state === 'answered' && (
-                        <div className="pt-2 border-t border-slate-100 space-y-1.5">
-                          <Input
-                            placeholder="Tuliskan jawaban klarifikasi Anda di sini..."
-                            value={answer}
-                            onChange={(e) => setMissingInfoResolutions(prev => ({
-                              ...prev,
-                              [info.id]: { ...prev[info.id], state: 'answered', answer: e.target.value }
-                            }))}
-                            className="text-xs bg-slate-50 focus:bg-white"
-                          />
-                          <p className="text-[10px] text-slate-500">Jawaban ini akan diintegrasikan langsung ke dalam draf usulan.</p>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          )}
 
           {/* Action CTAs Page 2 (Validation, Draft, Approval) */}
           <div className="border-t pt-5 space-y-4">
