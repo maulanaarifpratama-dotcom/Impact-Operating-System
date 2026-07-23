@@ -229,7 +229,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     await waitFor(() => {
       expect(screen.getByText(/Yang Kami Pahami Tentang Program Anda/i)).toBeTruthy();
     });
-    expect(screen.getByText(/Fokus Program yang Direkomendasikan/i)).toBeTruthy();
+    expect(screen.getByTestId('advanced-analysis-accordion')).toBeTruthy();
   });
 
   test('Page 2 validates blocker logic and blocks approval until resolved', async () => {
@@ -258,23 +258,12 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     // Wait for Page 2 content
     await waitFor(() => {
-      expect(screen.getByText(/Pertanyaan Klarifikasi Program/i)).toBeTruthy();
-      expect(screen.getByText(/Rekomendasi Tambahan/i)).toBeTruthy();
+      expect(screen.getByText(/AI Menyarankan Informasi Tambahan/i)).toBeTruthy();
     });
 
     // The approval button is enabled because missing information is non-blocking
     const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i });
     expect(approveBtn.disabled).toBe(false);
-
-    // Resolve the missing information question if dropdown present
-    const selectors = screen.getAllByRole('combobox');
-    const missingInfoDropdown = selectors.find(s => (s as HTMLSelectElement).value === 'unresolved');
-    if (missingInfoDropdown) {
-      fireEvent.change(missingInfoDropdown, { target: { value: 'answered' } });
-
-      const answerInput = screen.getByPlaceholderText(/Tuliskan jawaban klarifikasi/i);
-      fireEvent.change(answerInput, { target: { value: 'Prioritas utama kami adalah pemberdayaan ekonomi.' } });
-    }
 
     // Approve the blueprint
     fireEvent.click(approveBtn);
@@ -416,7 +405,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     expect(screen.getByTestId('fact-lokasi').textContent).toBe('Cirebon');
     expect(screen.getByTestId('fact-sasaran').textContent).toBe('Janda');
-    expect(screen.getByTestId('fact-program').textContent).toBe('Pemberdayaan Janda Cirebon');
+    expect(screen.getByTestId('fact-program').textContent).toBe('Terwujudnya peningkatan kemampuan dan hasil nyata bagi Janda Cirebon.');
 
     // Verify duplicate location rendering ("Janda di Cirebon di Cirebon" or "Cirebon di Cirebon") DOES NOT exist
     const fullBodyText = document.body.textContent || '';
@@ -766,20 +755,11 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
       // Clarification questions are non-blocking recommendations, button is enabled
       await waitFor(() => {
-        expect(screen.getByText(/Pertanyaan Klarifikasi Program/i)).toBeTruthy();
+        expect(screen.getByText(/AI Menyarankan Informasi Tambahan/i)).toBeTruthy();
       });
 
       const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i });
       expect(approveBtn.disabled).toBe(false);
-
-      const selectors = screen.getAllByRole('combobox');
-      const missingInfoDropdown = selectors.find(s => (s as HTMLSelectElement).value === 'unresolved');
-      if (missingInfoDropdown) {
-        fireEvent.change(missingInfoDropdown, { target: { value: 'answered' } });
-
-        const answerInput = screen.getByPlaceholderText(/Tuliskan jawaban klarifikasi/i);
-        fireEvent.change(answerInput, { target: { value: 'Prioritas utama kami adalah pemberdayaan ekonomi.' } });
-      }
 
       // Klik Setujui Blueprint
       fireEvent.click(approveBtn);
@@ -793,7 +773,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       fireEvent.click(reviewBtn);
 
       await waitFor(() => {
-        expect(screen.getByText(/Fokus Program yang Direkomendasikan/i)).toBeTruthy();
+        expect(screen.getByTestId('advanced-analysis-accordion')).toBeTruthy();
       });
 
       // Simpan Draft untuk mengirim snapshot terbaru ke mock Supabase
@@ -845,7 +825,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText(/Fokus Program yang Direkomendasikan/i)).toBeTruthy();
+        expect(screen.getByTestId('advanced-analysis-accordion')).toBeTruthy();
       });
 
       const toggleBtn = screen.queryByTestId('toggle-sectors-btn');
@@ -880,10 +860,10 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText(/Pertanyaan Klarifikasi Program/i)).toBeTruthy();
+        expect(screen.getByText(/AI Menyarankan Informasi Tambahan/i)).toBeTruthy();
       });
 
-      expect(screen.getByText(/Rekomendasi Tambahan/i)).toBeTruthy();
+      expect(screen.getByText(/Saran Penyempurnaan Opsional/i)).toBeTruthy();
     });
 
     describe('RC-9B.5 Regression Tests: Empty Canonical Payload Guard', () => {

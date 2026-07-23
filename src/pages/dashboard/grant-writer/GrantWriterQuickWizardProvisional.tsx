@@ -626,9 +626,48 @@ export default function GrantWriterQuickWizardProvisional() {
   // Disclosure states
   const [whyRecommendedOpen, setWhyRecommendedOpen] = useState<Record<string, boolean>>({});
   const [showRejectedSdgs, setShowRejectedSdgs] = useState(false);
+  const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
 
   // Check if inputs have been modified since review started (review is stale)
   const [reviewIsStale, setReviewIsStale] = useState(false);
+
+  // Extract expected change/outcome cleanly (never copy proposedTitle)
+  const extractedExpectedChanges = useMemo<string[]>(() => {
+    const titleClean = proposedTitle.trim().toLowerCase();
+
+    // 1. Check canonicalPayload outcomes
+    if (canonicalPayload?.outcomes && canonicalPayload.outcomes.length > 0) {
+      const titles = canonicalPayload.outcomes
+        .map(o => (o.title || (o as any).statement || (o as any).description || '').trim())
+        .filter(Boolean)
+        .filter(t => t.toLowerCase() !== titleClean);
+      if (titles.length > 0) return titles;
+    }
+
+    // 2. Check domainResponse rawCanonicalPayload outcomes
+    const rawOutcomes = domainResponse?.rawCanonicalPayload?.outcomes;
+    if (Array.isArray(rawOutcomes) && rawOutcomes.length > 0) {
+      const titles = rawOutcomes
+        .map((o: any) => (o.title || o.statement || o.description || '').trim())
+        .filter(Boolean)
+        .filter((t: string) => t.toLowerCase() !== titleClean);
+      if (titles.length > 0) return titles;
+    }
+
+    // 3. Check blueprint items for expected change / outcome / hasil / dampak
+    const blueprintItems = domainResponse?.blueprint?.items || [];
+    const outcomeItem = blueprintItems.find(i => {
+      const sec = (i.section || '').toLowerCase();
+      const txt = (i.text || '').trim();
+      return (sec.includes('expected') || sec.includes('hasil') || sec.includes('dampak') || sec.includes('outcome') || sec.includes('perubahan')) &&
+             txt && txt.toLowerCase() !== titleClean;
+    });
+    if (outcomeItem?.text) {
+      return [outcomeItem.text.trim()];
+    }
+
+    return [];
+  }, [canonicalPayload, domainResponse, proposedTitle]);
 
   // Canonical facts computed from Page 1 fields (UX-FACT-01)
   const canonicalFacts = useMemo<CanonicalFacts>(() => {
@@ -1892,79 +1931,52 @@ export default function GrantWriterQuickWizardProvisional() {
                 {/* 5. Perubahan yang Ingin Dicapai */}
                 <div className="rounded-lg border border-slate-200/80 bg-white/90 p-3 shadow-2xs space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Perubahan Ingin Dicapai</span>
-                  <p className="text-xs font-semibold text-slate-800 line-clamp-3 leading-snug" data-testid="fact-program">
-                    {proposedTitle.trim() || domainResponse.blueprint.items.find(i => i.section.toLowerCase().includes('expected') || i.section.toLowerCase().includes('hasil') || i.section.toLowerCase().includes('dampak') || i.section.toLowerCase().includes('outcome'))?.text || 'Belum dijelaskan'}
-                  </p>
+                  {extractedExpectedChanges.length > 0 ? (
+                    <ul className="text-xs font-semibold text-slate-800 space-y-0.5 list-disc list-inside leading-snug" data-testid="fact-program">
+                      {extractedExpectedChanges.map((change, idx) => (
+                        <li key={idx} className="line-clamp-2">{change}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-xs font-semibold text-amber-700 italic leading-snug" data-testid="fact-program">
+                      Belum dapat diidentifikasi
+                    </p>
+                  )}
                 </div>
               </div>
             </div>
           </Card>
 
-          {/* SECTION B: SARAN PENYEMPURNAAN OPSIONAL */}
-          <Card className="border-slate-200 bg-amber-50/20 shadow-xs">
+          {/* SECTION B: SARAN PENYEMPURNAAN OPSIONAL (PURE READ-ONLY TEXT) */}
+          <Card className="border-slate-200 bg-amber-50/20 shadow-xs" data-testid="saran-penyempurnaan-card">
             <CardHeader className="pb-2">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                   <Sparkles className="h-4 w-4 text-amber-600" />
-                  Pertanyaan Klarifikasi Program
+                  💡 AI Menyarankan Informasi Tambahan
                 </CardTitle>
                 <Badge variant="outline" className="border-amber-300 text-amber-800 bg-amber-50 text-[10px]">
-                  Rekomendasi Tambahan — Opsional
+                  Saran Penyempurnaan Opsional
                 </Badge>
               </div>
-              <p className="text-xs text-slate-600">
-                Untuk menghasilkan proposal yang lebih kuat, AI menyarankan informasi tambahan berikut jika Anda memilikinya:
-              </p>
             </CardHeader>
             <CardContent className="space-y-3">
               {domainResponse.missingInformation.length > 0 ? (
-                domainResponse.missingInformation.slice(0, 3).map((info) => {
-                  const humanQuestion = getHumanReadableMissingQuestion(info.id, info.question);
-                  const currentRes = missingInfoResolutions[info.id] || { state: 'unresolved', answer: '' };
-
-                  return (
-                    <div key={info.id} className="rounded-lg border border-slate-200 bg-white p-3 text-xs space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-bold text-slate-800 block">💡 {humanQuestion}</span>
-                        <select
-                          className="h-7 rounded border border-slate-300 bg-slate-50 text-[11px] px-2 font-medium"
-                          value={currentRes.state}
-                          onChange={(e) => {
-                            const newState = e.target.value;
-                            setMissingInfoResolutions(prev => ({
-                              ...prev,
-                              [info.id]: { state: newState as any, answer: prev[info.id]?.answer || '' }
-                            }));
-                          }}
-                        >
-                          <option value="unresolved">Belum Dijawab</option>
-                          <option value="answered">Dijawab</option>
-                          <option value="skipped">Lewati</option>
-                        </select>
-                      </div>
-
-                      {currentRes.state === 'answered' && (
-                        <Input
-                          type="text"
-                          placeholder="Tuliskan jawaban klarifikasi program..."
-                          value={currentRes.answer || ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setMissingInfoResolutions(prev => ({
-                              ...prev,
-                              [info.id]: { state: 'answered', answer: val }
-                            }));
-                          }}
-                          className="h-8 text-xs bg-slate-50"
-                        />
-                      )}
-
-                      <p className="text-[11px] text-slate-500">
-                        Saran ini dapat Anda lengkapi sekarang atau langsung disempurnakan di tahap penyusunan LFA Matrix.
-                      </p>
-                    </div>
-                  );
-                })
+                <div className="space-y-2 text-xs">
+                  <ul className="space-y-1.5 list-disc list-inside text-slate-800 font-medium">
+                    {domainResponse.missingInformation.slice(0, 4).map((info) => {
+                      const humanQuestion = getHumanReadableMissingQuestion(info.id, info.question);
+                      return (
+                        <li key={info.id} className="leading-snug">
+                          {humanQuestion}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="text-[11px] text-slate-500 italic pt-1 border-t border-slate-200/60">
+                    Informasi ini dapat dilengkapi nanti saat penyusunan LFA.
+                  </p>
+                </div>
               ) : (
                 <div className="rounded-lg border border-slate-200 bg-white p-3 text-xs text-slate-600">
                   ✅ Informasi awal program Anda sudah memadai untuk pembuatan draf LFA Matrix.
@@ -1973,20 +1985,26 @@ export default function GrantWriterQuickWizardProvisional() {
             </CardContent>
           </Card>
 
-          {/* ADVANCED ANALYSIS ACCORDION (SINGLE ACCORDION COLLAPSED BY DEFAULT) */}
-          <details className="group rounded-xl border border-slate-200 bg-slate-50/60 transition-all shadow-2xs">
-            <summary className="flex cursor-pointer items-center justify-between p-4 font-bold text-xs text-slate-700 hover:text-slate-900 select-none">
+          {/* ADVANCED ANALYSIS ACCORDION (WORKING COLLAPSIBLE) */}
+          <div className="rounded-xl border border-slate-200 bg-slate-50/60 transition-all shadow-2xs overflow-hidden" data-testid="advanced-analysis-accordion">
+            <button
+              type="button"
+              onClick={() => setIsAdvancedOpen(prev => !prev)}
+              className="w-full flex items-center justify-between p-4 font-bold text-xs text-slate-700 hover:text-slate-900 hover:bg-slate-100/80 transition-colors select-none text-left cursor-pointer"
+              data-testid="advanced-analysis-toggle"
+            >
               <span className="flex items-center gap-2">
                 <Sliders className="h-4 w-4 text-indigo-600" />
                 🔬 Analisis Lanjutan (Opsional)
               </span>
-              <span className="text-[10px] text-indigo-600 group-open:rotate-180 transition-transform font-bold">
-                ▼ Lihat Detail
+              <span className="flex items-center gap-1 text-[11px] text-indigo-600 font-bold">
+                {isAdvancedOpen ? '▲ Sembunyikan' : '▼ Lihat Detail'}
               </span>
-            </summary>
-            <div className="p-4 pt-0 space-y-6 border-t border-slate-200/80">
-              
-              {/* Recommended Sectors */}
+            </button>
+
+            {isAdvancedOpen && (
+              <div className="p-4 pt-2 space-y-6 border-t border-slate-200 bg-white" data-testid="advanced-analysis-content">
+                {/* Recommended Sectors */}
               <div id="section-sectors" className="space-y-2 mt-3">
                 <h4 className="text-xs font-bold text-slate-800 flex items-center gap-2">
                   <span>💡</span> Fokus Program yang Direkomendasikan
@@ -2146,38 +2164,6 @@ export default function GrantWriterQuickWizardProvisional() {
                 </Card>
               </div>
 
-              {/* Review Status Card for tests */}
-              {!hasCanonicalStructure ? (
-                <div className="space-y-3">
-                  <Card className="p-3 border border-amber-200 bg-amber-50/50" data-testid="review-status-card">
-                    <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
-                      <AlertTriangle className="h-4 w-4 text-amber-600" />
-                      <span>Struktur Logframe Belum Terbentuk</span>
-                    </div>
-                    <p className="text-[11px] text-amber-700 mt-1">Sistem membutuhkan rincian intervensi untuk membentuk kerangka kerja logis</p>
-                  </Card>
-
-                  <Card className="p-3 border border-amber-300 bg-amber-50" data-testid="empty-canonical-payload-warning">
-                    <div className="text-xs space-y-1 text-amber-900">
-                      <p className="font-bold">Kami belum dapat mengidentifikasi struktur intervensi</p>
-                      <p>Contoh Input yang Lebih Spesifik untuk Program Anda:</p>
-                    </div>
-                  </Card>
-
-                  <Alert className="border-red-200 bg-red-50 text-red-900 text-xs" data-testid="empty-payload-approval-blocker">
-                    <AlertTitle className="font-bold">Persetujuan Diblokir: Struktur Logframe Belum Terbentuk</AlertTitle>
-                  </Alert>
-                </div>
-              ) : (
-                <Card className="p-3 border border-emerald-200 bg-emerald-50/50" data-testid="review-status-card">
-                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                    <span>Struktur Logframe Siap</span>
-                  </div>
-                  <p className="text-[11px] text-emerald-700 mt-1">Hasil analisis sistem berhasil membentuk kerangka kerja logis</p>
-                </Card>
-              )}
-
               {/* Canonical Hierarchy / Logframe Structure */}
               {canonicalPayload && (
                 <div className="space-y-2">
@@ -2189,10 +2175,43 @@ export default function GrantWriterQuickWizardProvisional() {
                 </div>
               )}
             </div>
-          </details>
+          )}
+        </div>
 
           {/* SECTION C: KONFIRMASI */}
           <div className="border-t pt-5 space-y-4">
+            {/* Review Status / Blocker Card */}
+            {!hasCanonicalStructure ? (
+              <div className="space-y-3">
+                <Card className="p-3 border border-amber-200 bg-amber-50/50" data-testid="review-status-card">
+                  <div className="flex items-center gap-2 text-xs font-bold text-amber-900">
+                    <AlertTriangle className="h-4 w-4 text-amber-600" />
+                    <span>Struktur Logframe Belum Terbentuk</span>
+                  </div>
+                  <p className="text-[11px] text-amber-700 mt-1">Sistem membutuhkan rincian intervensi untuk membentuk kerangka kerja logis</p>
+                </Card>
+
+                <Card className="p-3 border border-amber-300 bg-amber-50" data-testid="empty-canonical-payload-warning">
+                  <div className="text-xs space-y-1 text-amber-900">
+                    <p className="font-bold">Kami belum dapat mengidentifikasi struktur intervensi</p>
+                    <p>Contoh Input yang Lebih Spesifik untuk Program Anda:</p>
+                  </div>
+                </Card>
+
+                <Alert className="border-red-200 bg-red-50 text-red-900 text-xs" data-testid="empty-payload-approval-blocker">
+                  <AlertTitle className="font-bold">Persetujuan Diblokir: Struktur Logframe Belum Terbentuk</AlertTitle>
+                </Alert>
+              </div>
+            ) : (
+              <Card className="p-3 border border-emerald-200 bg-emerald-50/50" data-testid="review-status-card">
+                <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  <span>Struktur Logframe Siap</span>
+                </div>
+                <p className="text-[11px] text-emerald-700 mt-1">Hasil analisis sistem berhasil membentuk kerangka kerja logis</p>
+              </Card>
+            )}
+
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <Button
                 type="button"
