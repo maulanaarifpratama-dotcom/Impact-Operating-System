@@ -23,7 +23,7 @@ export interface EvidenceSpan {
 
 export interface CanonicalCandidate {
   canonicalId: string;
-  candidateType: 'sector' | 'archetype' | 'outcome' | 'output' | 'actor' | 'problem' | 'cross_cutting' | 'missing_info' | 'sdg';
+  candidateType: 'sector' | 'archetype' | 'outcome' | 'output' | 'actor' | 'problem' | 'indicator' | 'cross_cutting' | 'missing_info' | 'sdg';
   matchedSignals: string[];
   negativeSignals: string[];
   antiSignals: string[];
@@ -31,6 +31,9 @@ export interface CanonicalCandidate {
   rawEvidenceSpans: EvidenceSpan[];
   minimumEvidenceStatus: 'met' | 'unmet' | 'unknown';
   registryVersion: string;
+  provenanceType?: 'DIRECT' | 'DERIVED_FROM_OUTCOME';
+  sourceOutcomeFamilyId?: string;
+  derivationPath?: string;
 }
 
 export interface InterventionArchetype {

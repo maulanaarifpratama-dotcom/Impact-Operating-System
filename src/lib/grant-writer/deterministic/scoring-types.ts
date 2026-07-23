@@ -19,6 +19,8 @@ export interface DetailedScoringResult {
   }[];
 }
 
+export type AssignmentStatus = 'ASSIGNED' | 'AMBIGUOUS' | 'INSUFFICIENT_EVIDENCE';
+
 export interface RecommendationResult {
   primarySector: string | null;
   secondarySectors: string[];
@@ -31,4 +33,14 @@ export interface RecommendationResult {
   confidenceScore: number;
   isAmbiguous: boolean;
   provenanceLogs: string[];
+  assignmentStatus?: AssignmentStatus;
+  assignmentReason?: string;
+  assignmentDetails?: {
+    top1Sector: string | null;
+    top1Score: number;
+    top2Sector: string | null;
+    top2Score: number;
+    gap: number;
+  };
 }
+

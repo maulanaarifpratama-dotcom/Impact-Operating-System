@@ -1,13 +1,15 @@
 import type { Page1Input, CanonicalCandidate, EvidenceSpan } from './types';
-import type { ComponentScore, DetailedScoringResult, RecommendationResult } from './scoring-types';
+import type { ComponentScore, DetailedScoringResult, RecommendationResult, AssignmentStatus } from './scoring-types';
 import { SCORING_CONFIG } from './scoring-config';
 import { collectCandidates } from './candidates';
 import { isMorphologyOnlyMatch } from './morphology';
 import {
   INTERVENTION_ARCHETYPES,
   OUTCOME_FAMILIES,
-  SECTORS
+  SECTORS,
+  INDICATOR_FAMILIES
 } from './registry';
+import { evaluateMethodologyQualityGate } from './methodology-gate';
 
 /**
  * -------------------------------------------------------------------------
@@ -189,6 +191,23 @@ export function preprocessEligibility(candidates: CanonicalCandidate[]): Canonic
  * Ontological Support Mapping Helper Functions
  * -------------------------------------------------------------------------
  */
+const DIRECT_ARCHETYPE_SECTOR_AFFINITIES: Record<string, string[]> = {
+  'ARCH-TRAINING-001': ['SECTOR-EDU-006', 'SECTOR-AGRI-001', 'SECTOR-LIVELIHOOD-002', 'SECTOR-HEALTH-007', 'SECTOR-CSO-021', 'SECTOR-CCA-010', 'SECTOR-FININC-004'],
+  'ARCH-TOT-002': ['SECTOR-EDU-006', 'SECTOR-AGRI-001', 'SECTOR-CSO-021', 'SECTOR-HEALTH-007'],
+  'ARCH-MENTOR-003': ['SECTOR-LIVELIHOOD-002', 'SECTOR-CSO-021', 'SECTOR-AGRI-001', 'SECTOR-GEWE-017', 'SECTOR-FININC-004'],
+  'ARCH-FACIL-004': ['SECTOR-CSO-021', 'SECTOR-AGRI-001', 'SECTOR-WASH-009', 'SECTOR-HEALTH-007', 'SECTOR-CCA-010'],
+  'ARCH-BCC-005': ['SECTOR-HEALTH-007', 'SECTOR-WASH-009', 'SECTOR-CCA-010', 'SECTOR-EDU-006'],
+  'ARCH-AWARE-006': ['SECTOR-HEALTH-007', 'SECTOR-WASH-009', 'SECTOR-CCA-010', 'SECTOR-GEWE-017'],
+  'ARCH-DIGDEV-007': ['SECTOR-DIGITAL-023', 'SECTOR-CIVTECH-022', 'SECTOR-LIVELIHOOD-002', 'SECTOR-EDU-006', 'SECTOR-HEALTH-007'],
+  'ARCH-DASH-009': ['SECTOR-DIGITAL-023', 'SECTOR-CIVTECH-022', 'SECTOR-HEALTH-007'],
+  'ARCH-EQUIP-010': ['SECTOR-AGRI-001', 'SECTOR-LIVELIHOOD-002', 'SECTOR-HEALTH-007', 'SECTOR-WASH-009', 'SECTOR-DIGITAL-023'],
+  'ARCH-A2F-013': ['SECTOR-FININC-004', 'SECTOR-LIVELIHOOD-002', 'SECTOR-AGRI-001'],
+  'ARCH-MARKET-015': ['SECTOR-LIVELIHOOD-002', 'SECTOR-AGRI-001', 'SECTOR-FININC-004'],
+  'ARCH-CAPACITY-018': ['SECTOR-CSO-021', 'SECTOR-CIVTECH-022', 'SECTOR-LIVELIHOOD-002', 'SECTOR-EDU-006'],
+  'ARCH-POLICY-019': ['SECTOR-CIVTECH-022', 'SECTOR-CSO-021', 'SECTOR-GEWE-017', 'SECTOR-CCA-010'],
+  'ARCH-PREPAREDNESS-036': ['SECTOR-CCA-010', 'SECTOR-WASH-009', 'SECTOR-HEALTH-007', 'SECTOR-AGRI-001']
+};
+
 export function isArchetypeSupportingSector(archetypeId: string, sectorId: string): boolean {
   const arch = INTERVENTION_ARCHETYPES.find(a => a.archetype_id === archetypeId);
   if (!arch) return false;
@@ -204,6 +223,12 @@ export function isArchetypeSupportingSector(archetypeId: string, sectorId: strin
     if (outcome.likely_sectors.includes(sectorId) && outcome.likely_archetypes.includes(archetypeId)) {
       return true;
     }
+  }
+
+  // Fallback: direct archetype-to-sector affinity
+  const directSectors = DIRECT_ARCHETYPE_SECTOR_AFFINITIES[archetypeId];
+  if (directSectors && directSectors.includes(sectorId)) {
+    return true;
   }
 
   return false;
@@ -328,12 +353,17 @@ export function scoreSector(sectorId: string, eligibleCandidates: CanonicalCandi
     });
   };
 
-  // 1. Problem Family Alignment (Tsat = 3.0, W = 0.25)
+  // 0. Direct Sector Evidence Alignment (Tsat = 2.0, W = 0.25)
+  const sectorCandidate = eligibleCandidates.find(c => c.canonicalId === sectorId && c.candidateType === 'sector');
+  const sumSectorEvidence = sectorCandidate ? sectorCandidate.rawEvidenceSpans.reduce((sum, span) => sum + getSpanConfidence(span), 0) : 0;
+  addComp('Direct Sector Evidence Alignment', sumSectorEvidence, SCORING_CONFIG.sector_scoring.saturation_thresholds.direct_sector_evidence_alignment, SCORING_CONFIG.sector_scoring.weights.direct_sector_evidence_alignment);
+
+  // 1. Problem Family Alignment (Tsat = 3.0, W = 0.125)
   const problemCandidates = eligibleCandidates.filter(c => c.candidateType === 'problem' && isProblemSupportingSector(c.canonicalId, sectorId));
   const sumProblem = problemCandidates.reduce((sum, c) => sum + getCandidateConfidence(c), 0);
   addComp('Problem Family Alignment', sumProblem, SCORING_CONFIG.sector_scoring.saturation_thresholds.problem_family_alignment, SCORING_CONFIG.sector_scoring.weights.problem_family_alignment);
 
-  // 2. Outcome Family Alignment (Tsat = 2.0, W = 0.25)
+  // 2. Outcome Family Alignment (Tsat = 2.0, W = 0.125)
   const outcomeCandidates = eligibleCandidates.filter(c => {
     if (c.candidateType !== 'outcome') return false;
     const outcome = OUTCOME_FAMILIES.find(o => o.outcome_family_id === c.canonicalId);
@@ -353,7 +383,9 @@ export function scoreSector(sectorId: string, eligibleCandidates: CanonicalCandi
   addComp('Intervention Alignment', sumArch, SCORING_CONFIG.sector_scoring.saturation_thresholds.intervention_alignment, SCORING_CONFIG.sector_scoring.weights.intervention_alignment);
 
   // 5. Indicator Family Alignment (Tsat = 2.0, W = 0.10)
-  addComp('Indicator Family Alignment', sumOutcome, SCORING_CONFIG.sector_scoring.saturation_thresholds.indicator_family_alignment, SCORING_CONFIG.sector_scoring.weights.indicator_family_alignment);
+  const indicatorCandidates = eligibleCandidates.filter(c => c.candidateType === 'indicator');
+  const sumIndicator = indicatorCandidates.reduce((sum, c) => sum + getCandidateConfidence(c), 0);
+  addComp('Indicator Family Alignment', sumIndicator, SCORING_CONFIG.sector_scoring.saturation_thresholds.indicator_family_alignment, SCORING_CONFIG.sector_scoring.weights.indicator_family_alignment);
 
   // 6. Language Alignment (Tsat = 2.0, W = 0.05)
   const langSpans = getLanguageAlignmentSpans(eligibleCandidates, sectorId);
@@ -410,7 +442,17 @@ export function scoreSDG(sdgId: string, eligibleCandidates: CanonicalCandidate[]
   addComp('Intervention Alignment', sumArch, SCORING_CONFIG.sdg_scoring.saturation_thresholds.intervention_alignment, SCORING_CONFIG.sdg_scoring.weights.intervention_alignment);
 
   // 5. Indicator Family Alignment (Tsat = 2.0, W = 0.25)
-  addComp('Indicator Family Alignment', sumOutcome, SCORING_CONFIG.sdg_scoring.saturation_thresholds.indicator_family_alignment, SCORING_CONFIG.sdg_scoring.weights.indicator_family_alignment);
+  const sdgIndicatorCandidates = eligibleCandidates.filter(c => {
+    if (c.candidateType !== 'indicator') return false;
+    const ind = INDICATOR_FAMILIES.find(i => i.id === c.canonicalId);
+    if (!ind || !ind.sdg_targets) return false;
+    return ind.sdg_targets.some(target => target === sdgId || target.startsWith(sdgId) || target.replace('_', '.').startsWith(sdgId.replace('_', '.')));
+  });
+  const sumSdgIndicator = sdgIndicatorCandidates.reduce((sum, c) => sum + getCandidateConfidence(c), 0);
+  const totalIndicatorSum = eligibleCandidates.filter(c => c.candidateType === 'indicator').reduce((sum, c) => sum + getCandidateConfidence(c), 0);
+  const effectiveIndicatorSum = sumSdgIndicator > 0 ? sumSdgIndicator : totalIndicatorSum;
+  const sdgIndicatorValue = effectiveIndicatorSum;
+  addComp('Indicator Family Alignment', sdgIndicatorValue, SCORING_CONFIG.sdg_scoring.saturation_thresholds.indicator_family_alignment, SCORING_CONFIG.sdg_scoring.weights.indicator_family_alignment);
 
   // 6. Cross-Cutting Relevance (Tsat = 1.0, W = 0.04)
   const xcValue = isAnyCrossCuttingActive(eligibleCandidates) ? 1.0 : 0.0;
@@ -754,19 +796,42 @@ export function assignRecommendations(
   let primarySector: string | null = null;
   const secondarySectors: string[] = [];
   let isAmbiguous = false;
+  let assignmentStatus: AssignmentStatus = 'INSUFFICIENT_EVIDENCE';
+  let assignmentReason = 'Evidence score fails minimum floor threshold.';
+
+  const top1Sector = sortedSectors.length > 0 ? sortedSectors[0].targetId : null;
+  const top1Score = sortedSectors.length > 0 ? sortedSectors[0].finalScore : 0.0;
+  const top2Sector = sortedSectors.length > 1 ? sortedSectors[1].targetId : null;
+  const top2Score = sortedSectors.length > 1 ? sortedSectors[1].finalScore : 0.0;
+  const gap = top1Score - top2Score;
+
+  const EVIDENCE_FLOOR = SCORING_CONFIG.sector_scoring.evidence_floor || 0.3500;
+  const DOMINANCE_MARGIN = SCORING_CONFIG.sector_scoring.dominance_margin || 0.0500;
+  const AMBIGUITY_MARGIN = SCORING_CONFIG.sector_scoring.ambiguity_margin || 0.1000;
 
   if (sortedSectors.length > 0) {
     const topSector = sortedSectors[0];
     const secondSector = sortedSectors[1] || null;
 
-    const topScore = topSector.finalScore;
-    const secondScore = secondSector ? secondSector.finalScore : 0.0;
-
-    if (topScore >= SCORING_CONFIG.sector_scoring.thresholds.primary) {
+    if (top1Score < EVIDENCE_FLOOR) {
+      assignmentStatus = 'INSUFFICIENT_EVIDENCE';
+      assignmentReason = 'Evidence score fails minimum floor threshold.';
+      primarySector = null;
+      for (const s of sortedSectors) {
+        if (s.finalScore >= SCORING_CONFIG.sector_scoring.thresholds.secondary) {
+          secondarySectors.push(s.targetId);
+        }
+      }
+    } else {
       const isAgriLivelihoodAmbiguity = secondSector &&
         ((topSector.targetId === 'SECTOR-AGRI-001' && secondSector.targetId === 'SECTOR-LIVELIHOOD-002') ||
          (topSector.targetId === 'SECTOR-LIVELIHOOD-002' && secondSector.targetId === 'SECTOR-AGRI-001')) &&
-        Math.abs(topScore - secondScore) < SCORING_CONFIG.sector_scoring.ambiguity_margin;
+        Math.abs(gap) < AMBIGUITY_MARGIN;
+
+      const isKnownConfusablePair = secondSector &&
+        ((topSector.targetId === 'SECTOR-CIVTECH-022' && secondSector.targetId === 'SECTOR-DIGITAL-023') ||
+         (topSector.targetId === 'SECTOR-DIGITAL-023' && secondSector.targetId === 'SECTOR-CIVTECH-022')) &&
+        Math.abs(gap) < DOMINANCE_MARGIN;
 
       if (isAgriLivelihoodAmbiguity) {
         // Resolve using outcome families tie breaking
@@ -775,35 +840,48 @@ export function assignRecommendations(
         const hasLivelihoodOutcome = activeOutcomeIds.has('OF-009');
 
         if (hasAgriOutcome && !hasLivelihoodOutcome) {
+          assignmentStatus = 'ASSIGNED';
+          assignmentReason = 'Dominant sector signal resolved via Agri outcome evidence.';
           primarySector = 'SECTOR-AGRI-001';
           const secondary = topSector.targetId === 'SECTOR-AGRI-001' ? secondSector.targetId : topSector.targetId;
           secondarySectors.push(secondary);
         } else if (hasLivelihoodOutcome && !hasAgriOutcome) {
+          assignmentStatus = 'ASSIGNED';
+          assignmentReason = 'Dominant sector signal resolved via Livelihood outcome evidence.';
           primarySector = 'SECTOR-LIVELIHOOD-002';
           const secondary = topSector.targetId === 'SECTOR-LIVELIHOOD-002' ? secondSector.targetId : topSector.targetId;
           secondarySectors.push(secondary);
         } else if (hasAgriOutcome && hasLivelihoodOutcome) {
+          assignmentStatus = 'ASSIGNED';
+          assignmentReason = 'Primary Agri sector assigned with Livelihood secondary alignment.';
           primarySector = 'SECTOR-AGRI-001';
           secondarySectors.push('SECTOR-LIVELIHOOD-002');
         } else {
+          assignmentStatus = 'AMBIGUOUS';
+          assignmentReason = 'Top sectors (Agri/Livelihood) tie without decisive outcome evidence.';
           isAmbiguous = true;
           primarySector = null;
           secondarySectors.push(topSector.targetId);
           secondarySectors.push(secondSector.targetId);
           triggeredConflicts.push('CONF-001');
         }
+      } else if (isKnownConfusablePair || gap < DOMINANCE_MARGIN) {
+        assignmentStatus = 'AMBIGUOUS';
+        assignmentReason = isKnownConfusablePair
+          ? 'Top sector signals are tied between confusable pair.'
+          : 'Dominance margin insufficient between top sectors.';
+        isAmbiguous = true;
+        primarySector = null;
+        secondarySectors.push(topSector.targetId);
+        if (secondSector) secondarySectors.push(secondSector.targetId);
       } else {
+        assignmentStatus = 'ASSIGNED';
+        assignmentReason = 'Dominant sector signal detected.';
         primarySector = topSector.targetId;
         for (let i = 1; i < sortedSectors.length; i++) {
           if (sortedSectors[i].finalScore >= SCORING_CONFIG.sector_scoring.thresholds.secondary) {
             secondarySectors.push(sortedSectors[i].targetId);
           }
-        }
-      }
-    } else {
-      for (const s of sortedSectors) {
-        if (s.finalScore >= SCORING_CONFIG.sector_scoring.thresholds.secondary) {
-          secondarySectors.push(s.targetId);
         }
       }
     }
@@ -892,10 +970,7 @@ export function assignRecommendations(
 
   for (const item of sortedSDGs) {
     if (item.finalScore >= SCORING_CONFIG.sdg_scoring.thresholds.primary) {
-      // UNRESOLVED state handles automatically in P0-C before P0-D runtime linkage is completed
-      // Downgrade to secondary and trigger TPL-AMB-001
-      secondarySDGs.push(item.targetId);
-      logs.push(`SDG ${item.targetId} is unresolved at P0-C level; capped at secondary with TPL-AMB-001.`);
+      primarySDGs.push(item.targetId);
     } else if (item.finalScore >= SCORING_CONFIG.sdg_scoring.thresholds.secondary) {
       secondarySDGs.push(item.targetId);
     }
@@ -951,7 +1026,16 @@ export function assignRecommendations(
     missingInformation,
     confidenceScore,
     isAmbiguous,
-    provenanceLogs: logs
+    provenanceLogs: logs,
+    assignmentStatus,
+    assignmentReason,
+    assignmentDetails: {
+      top1Sector,
+      top1Score,
+      top2Sector,
+      top2Score,
+      gap: roundHalfUp(gap, 4)
+    }
   };
 }
 
@@ -984,5 +1068,8 @@ export function runScoringPipeline(input: Page1Input): RecommendationResult {
   );
 
   // Assemble recommendations
-  return assignRecommendations(eligibleCandidates, nextSectors, nextSDGs, input, triggeredConflicts);
+  const initialResult = assignRecommendations(eligibleCandidates, nextSectors, nextSDGs, input, triggeredConflicts);
+
+  // Apply Methodology Quality Gate post-assignment wrapper
+  return evaluateMethodologyQualityGate(initialResult, eligibleCandidates, input);
 }

@@ -1,0 +1,10 @@
+version: "0.1.0"
+schema_version: "1.0"
+counts:
+sectors: 30
+  problem_families: 29
+  outcome_families: 26
+  actors: 35
+  archetypes: 14
+status: "M1_TRANSCRIPTION_COMPLETE"
+epistemic_policy: "CANONICAL_VERBATIM"

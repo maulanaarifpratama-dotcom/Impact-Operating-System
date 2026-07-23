@@ -1,0 +1,99 @@
+# CANONICAL INDICATOR FAMILIES ONTOLOGY
+# Authority: ADR-0001 Rev 2 & Corpus v1 / v1.1 §24
+# Ontology Version: 0.1.0
+
+- id: "IND-MSME-REV-001"
+  name: "UMKM Revenue & Turnover Growth"
+  domain: "MSME / Economic"
+  code: "IND-001"
+  sdg_targets: ["SDG_8.3", "SDG_1.4"]
+  signals: ["omzet meningkat", "pendapatan naik", "penjualan bertambah", "revenue growth", "turnover"]
+  status: "ACTIVE"
+
+- id: "IND-MSME-PRACT-002"
+  name: "Business Best Practice Adoption Rate"
+  domain: "MSME / Operations"
+  code: "IND-002"
+  sdg_targets: ["SDG_8.3"]
+  signals: ["pencatatan keuangan", "SOP usaha", "tata kelola UMKM", "sop diterapkan"]
+  status: "ACTIVE"
+
+- id: "IND-MSME-DIGTX-003"
+  name: "Digital Tool & E-commerce Adoption Rate"
+  domain: "MSME / Digital"
+  code: "IND-003"
+  sdg_targets: ["SDG_9.c", "SDG_8.3"]
+  signals: ["onboarding e-commerce", "pemasaran digital", "pakai qris", "transaksi digital"]
+  status: "ACTIVE"
+
+- id: "IND-MSME-JOB-004"
+  name: "Direct & Indirect Jobs Created"
+  domain: "MSME / Employment"
+  code: "IND-004"
+  sdg_targets: ["SDG_8.5"]
+  signals: ["lapangan kerja", "tenaga kerja baru", "rekrut karyawan", "jobs created"]
+  status: "ACTIVE"
+
+- id: "IND-AGRI-YIELD-010"
+  name: "Agricultural Crop Productivity & Yield"
+  domain: "Agriculture"
+  code: "IND-010"
+  sdg_targets: ["SDG_2.3"]
+  signals: ["produktivitas panen", "hasil ton per hektar", "panen meningkat", "crop yield"]
+  status: "ACTIVE"
+
+- id: "IND-AGRI-PRICE-011"
+  name: "Farmer Selling Price & Farmgate Value"
+  domain: "Agriculture"
+  code: "IND-011"
+  sdg_targets: ["SDG_2.3"]
+  signals: ["harga jual panen", "harga jual petani", "farmgate price", "harga tingkat petani"]
+  status: "ACTIVE"
+
+- id: "IND-AGRI-LOSS-054"
+  name: "Post-Harvest Loss Reduction Rate"
+  domain: "Agriculture"
+  code: "IND-054"
+  sdg_targets: ["SDG_12.3", "SDG_2.3"]
+  signals: ["susut panen berkurang", "kerusakan hasil panen", "post-harvest loss"]
+  status: "ACTIVE"
+
+- id: "IND-WASH-USE-018"
+  name: "Safe Water & Sanitation Access Rate"
+  domain: "WASH"
+  code: "IND-018"
+  sdg_targets: ["SDG_6.1", "SDG_6.2"]
+  signals: ["akses air bersih", "sanitasi layak", "toilet sehat", "bebas buang air sembarangan", "ODF"]
+  status: "ACTIVE"
+
+- id: "IND-EDU-LEARN-014"
+  name: "Student Learning Outcome & Literacy Rate"
+  domain: "Education"
+  code: "IND-014"
+  sdg_targets: ["SDG_4.1", "SDG_4.6"]
+  signals: ["kemampuan membaca", "literasi numerasi", "nilai tes meningkat", "learning score"]
+  status: "ACTIVE"
+
+- id: "IND-GEWE-DECIS-031"
+  name: "Women Household & Community Decision Making"
+  domain: "Gender & Inclusion"
+  code: "IND-031"
+  sdg_targets: ["SDG_5.5"]
+  signals: ["keputusan rumah tangga", "peran perempuan", "partisipasi perempuan", "women leadership"]
+  status: "ACTIVE"
+
+- id: "IND-DRR-EWS-060"
+  name: "Disaster Early Warning & Preparedness Coverage"
+  domain: "Disaster / Climate"
+  code: "IND-060"
+  sdg_targets: ["SDG_13.1", "SDG_11.5"]
+  signals: ["sistem peringatan dini", "simulasi bencana", "peta risiko bencana", "early warning"]
+  status: "ACTIVE"
+
+- id: "IND-CSO-OCA-008"
+  name: "CSO Organizational Capacity Score"
+  domain: "CSO / Governance"
+  code: "IND-008"
+  sdg_targets: ["SDG_16.6", "SDG_17.17"]
+  signals: ["kredibilitas meningkat", "kapasitas organisasi", "akuntabilitas lembaga", "cso capacity"]
+  status: "ACTIVE"

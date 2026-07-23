@@ -10,7 +10,7 @@ export {
   PROBLEM_FAMILIES,
   ANTI_SIGNALS,
   verifyRegistryIntegrity
-} from './registry';
+} from '../../../../generated/registry.generated';
 export { collectCandidates } from './candidates';
 export { REGRESSION_FIXTURES } from './fixtures';
 export { runRegressionFixtures, getExecutionProofStatus } from './runner';
@@ -30,6 +30,7 @@ export {
   assignRecommendations,
   runScoringPipeline
 } from './scoring-runner';
+export { evaluateMethodologyQualityGate } from './methodology-gate';
 
 // P0-D Program Blueprint and Page 2 Integration Exports
 export * from './blueprint-types';

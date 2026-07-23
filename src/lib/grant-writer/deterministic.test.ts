@@ -15,6 +15,8 @@ import {
   processConflictsAndPenalties,
   getTriggeredMissingInformationRules,
   assignRecommendations,
+  runScoringPipeline,
+  evaluateMethodologyQualityGate,
   assembleBlueprint,
   validateCausalOrdering,
   deriveCausalSupportSnapshot,
@@ -2394,6 +2396,186 @@ describe('P0-C Scoring Engine Exhaustive Verification Layer', () => {
       expect(hardNegative.every(id => id.startsWith('FIX-HN-'))).toBe(true);
       expect(gold.every(id => id.startsWith('FIX-GOLD-'))).toBe(true);
     });
+  });
+
+  describe('RC-7C Methodology Quality Gate Wrapper Tests', () => {
+
+    test('MQG-01: Activity-Only Training Gate demotes ASSIGNED to INSUFFICIENT_EVIDENCE', () => {
+      const mockResult = {
+        primarySector: 'SECTOR-AGRI-001',
+        secondarySectors: [],
+        primaryInterventions: ['ARCH-TRAINING-001'],
+        supportingInterventions: [],
+        primarySDGs: [],
+        secondarySDGs: [],
+        warnings: [],
+        missingInformation: [],
+        confidenceScore: 0.85,
+        isAmbiguous: false,
+        provenanceLogs: [],
+        assignmentStatus: 'ASSIGNED' as const,
+        assignmentReason: 'Clear dominance'
+      };
+
+      const mockCandidates: CanonicalCandidate[] = [
+        {
+          canonicalId: 'ARCH-TRAINING-001',
+          candidateType: 'archetype',
+          matchedSignals: [],
+          negativeSignals: [],
+          antiSignals: [],
+          confusableCandidateIds: [],
+          rawEvidenceSpans: [],
+          minimumEvidenceStatus: 'met',
+          registryVersion: '1.2'
+        }
+      ];
+
+      const mockInput: Page1Input = { program_story: 'Melakukan pelatihan tani.' };
+
+      const gated = evaluateMethodologyQualityGate(mockResult, mockCandidates, mockInput);
+
+      expect(gated.assignmentStatus).toBe('INSUFFICIENT_EVIDENCE');
+      expect(gated.assignmentReason).toContain('MQG_REJECT_ACTIVITY_ONLY_TRAINING');
+    });
+
+    test('MQG-02: Awareness-Only Campaign Gate demotes ASSIGNED to INSUFFICIENT_EVIDENCE', () => {
+      const mockResult = {
+        primarySector: 'SECTOR-HEALTH-001',
+        secondarySectors: [],
+        primaryInterventions: ['ARCH-AWARE-006'],
+        supportingInterventions: [],
+        primarySDGs: [],
+        secondarySDGs: [],
+        warnings: [],
+        missingInformation: [],
+        confidenceScore: 0.80,
+        isAmbiguous: false,
+        provenanceLogs: [],
+        assignmentStatus: 'ASSIGNED' as const,
+        assignmentReason: 'High score'
+      };
+
+      const mockCandidates: CanonicalCandidate[] = [
+        {
+          canonicalId: 'ARCH-AWARE-006',
+          candidateType: 'archetype',
+          matchedSignals: [],
+          negativeSignals: [],
+          antiSignals: [],
+          confusableCandidateIds: [],
+          rawEvidenceSpans: [],
+          minimumEvidenceStatus: 'met',
+          registryVersion: '1.2'
+        }
+      ];
+
+      const mockInput: Page1Input = { program_story: 'Kampanye kesadaran gizi.' };
+
+      const gated = evaluateMethodologyQualityGate(mockResult, mockCandidates, mockInput);
+
+      expect(gated.assignmentStatus).toBe('INSUFFICIENT_EVIDENCE');
+      expect(gated.assignmentReason).toContain('MQG_REJECT_AWARENESS_ONLY');
+    });
+
+    test('MQG-03: Ungrounded Cash Transfer Gate demotes ASSIGNED to INSUFFICIENT_EVIDENCE', () => {
+      const mockResult = {
+        primarySector: 'SECTOR-ECON-001',
+        secondarySectors: [],
+        primaryInterventions: ['ARCH-EQUIP-010'],
+        supportingInterventions: [],
+        primarySDGs: [],
+        secondarySDGs: [],
+        warnings: [],
+        missingInformation: [],
+        confidenceScore: 0.82,
+        isAmbiguous: false,
+        provenanceLogs: [],
+        assignmentStatus: 'ASSIGNED' as const,
+        assignmentReason: 'Dominant match'
+      };
+
+      const mockCandidates: CanonicalCandidate[] = [
+        {
+          canonicalId: 'ARCH-EQUIP-010',
+          candidateType: 'archetype',
+          matchedSignals: [],
+          negativeSignals: [],
+          antiSignals: [],
+          confusableCandidateIds: [],
+          rawEvidenceSpans: [],
+          minimumEvidenceStatus: 'met',
+          registryVersion: '1.2'
+        }
+      ];
+
+      const mockInput: Page1Input = { program_story: 'Pembagian modal tunai agar kemiskinan tuntas.' };
+
+      const gated = evaluateMethodologyQualityGate(mockResult, mockCandidates, mockInput);
+
+      expect(gated.assignmentStatus).toBe('INSUFFICIENT_EVIDENCE');
+      expect(gated.assignmentReason).toContain('MQG_REJECT_UNGROUNDED_CASH_TRANSFER');
+    });
+
+    test('MQG-04: Multi-Sector Stuffing Gate demotes ASSIGNED or AMBIGUOUS to INSUFFICIENT_EVIDENCE', () => {
+      const mockResult = {
+        primarySector: 'SECTOR-AGRI-001',
+        secondarySectors: ['SECTOR-HEALTH-001'],
+        primaryInterventions: [],
+        supportingInterventions: [],
+        primarySDGs: [],
+        secondarySDGs: [],
+        warnings: [],
+        missingInformation: ['MISS-019'],
+        confidenceScore: 0.88,
+        isAmbiguous: false,
+        provenanceLogs: [],
+        assignmentStatus: 'ASSIGNED' as const,
+        assignmentReason: 'High score'
+      };
+
+      const mockCandidates: CanonicalCandidate[] = [];
+      const mockInput: Page1Input = { program_story: 'Program multi sektor luas.' };
+
+      const gated = evaluateMethodologyQualityGate(mockResult, mockCandidates, mockInput);
+
+      expect(gated.assignmentStatus).toBe('INSUFFICIENT_EVIDENCE');
+      expect(gated.primarySector).toBeNull();
+      expect(gated.assignmentReason).toContain('MQG_REJECT_MULTI_SECTOR_STUFFING');
+    });
+
+    test('Hard Negative Fixture Evaluation: FIX-HN-102, 105, 111, 112 are properly gated to INSUFFICIENT_EVIDENCE', () => {
+      const hnIds = ['FIX-HN-102', 'FIX-HN-105', 'FIX-HN-111', 'FIX-HN-112'];
+
+      for (const hnId of hnIds) {
+        const fixture = REGRESSION_FIXTURES.find(f => f.fixture_id === hnId);
+        expect(fixture).toBeDefined();
+
+        if (fixture) {
+          const res = runScoringPipeline(fixture.page_1_input);
+          expect(res.assignmentStatus).toBe('INSUFFICIENT_EVIDENCE');
+          expect(res.assignmentReason).toMatch(/MQG_REJECT_/);
+        }
+      }
+    });
+
+    test('GOLD Fixture Regression Evaluation: All assigned GOLD fixtures retain ASSIGNED status without false positives from MQG', () => {
+      const goldIds = P0E_GOLD_DEFERRED_IDS;
+
+      for (const goldId of goldIds) {
+        const fixture = REGRESSION_FIXTURES.find(f => f.fixture_id === goldId);
+        expect(fixture).toBeDefined();
+
+        if (fixture) {
+          const res = runScoringPipeline(fixture.page_1_input);
+          if (res.assignmentReason?.includes('MQG_REJECT_')) {
+            console.log(`[GOLD MQG REJECT DEBUG] ${goldId}: status=${res.assignmentStatus}, reason=${res.assignmentReason}`);
+          }
+          expect(res.assignmentReason).not.toMatch(/MQG_REJECT_/);
+        }
+      }
+    });
+
   });
 
 });

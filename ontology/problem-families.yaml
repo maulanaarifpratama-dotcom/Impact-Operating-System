@@ -1,0 +1,587 @@
+problem_families:
+  - id: PF-001
+    family: limited_market_access
+    manifestasi_khas: susah jualan, tengkulak
+    sector_id: 001,002,003
+    likely_arch:
+      - "015"
+      - "016"
+      - "035"
+    likely_of:
+      - "008"
+      - "009"
+      - "010"
+    invalid_shortcut: MoU=akses
+    positive_signals:
+      - susah jualan
+      - tengkulak
+      - akses pasar
+      - bergantung tengkulak
+      - stok tak terserap
+      - belum masuk pasar modern
+      - tidak ada kontak pembeli
+      - kontrak jual beli
+      - pembeli
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: CANONICAL_IMPACTORY
+  - id: PF-002
+    family: low_income
+    manifestasi_khas: pendapatan kecil, pas-pasan
+    sector_id: 002,001,015
+    likely_arch:
+      - "001"
+      - "012"
+      - "013"
+      - "015"
+    likely_of:
+      - "009"
+      - "012"
+    invalid_shortcut: transfer=income naik permanen
+    positive_signals:
+      - pendapatan kecil
+      - pas-pasan
+      - omzet rendah
+      - usaha mikro
+      - pendapatan
+      - omzet
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-003
+    family: low_margin
+    manifestasi_khas: harga rendah, rugi
+    sector_id: 001,002
+    likely_arch:
+      - "015"
+      - "016"
+    likely_of:
+      - "010"
+    invalid_shortcut: harga pasar naik=program
+    positive_signals:
+      - harga rendah
+      - rugi
+      - margin kecil
+      - harga dimainkan pengepul
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-004
+    family: low_productivity
+    manifestasi_khas: hasil sedikit, lambat
+    sector_id: 001,002
+    likely_arch:
+      - "001"
+      - "033"
+      - "034"
+      - "010"
+    likely_of:
+      - "011"
+    invalid_shortcut: alat=produktivitas (ANTI-03)
+    positive_signals:
+      - hasil sedikit
+      - lambat
+      - produktivitas rendah
+      - panen sedikit
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-005
+    family: weak_business_records
+    manifestasi_khas: belum ada pencatatan
+    sector_id: 002,003
+    likely_arch:
+      - "001"
+      - "003"
+    likely_of:
+      - 003 practice
+    invalid_shortcut: catat=untung
+    positive_signals:
+      - belum ada pencatatan
+      - tidak mencatat keuangan
+      - pembukuan
+      - catatan usaha
+      - manajemen keuangan
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-006
+    family: limited_finance_access
+    manifestasi_khas: belum bankable, susah modal
+    sector_id: 004,002
+    likely_arch:
+      - "013"
+      - "014"
+    likely_of:
+      - "009"
+      - 012 via penggunaan
+    invalid_shortcut: cair=tumbuh (ANTI-08)
+    positive_signals:
+      - belum bankable
+      - susah modal
+      - modal usaha
+      - akses pembiayaan
+      - hibah modal
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-007
+    family: weak_institutional_capacity
+    manifestasi_khas: organisasi tak jalan, SOP tak ada
+    sector_id: 021,003,020
+    likely_arch:
+      - "018"
+      - "017"
+    likely_of:
+      - "014"
+    invalid_shortcut: pelatihan=kapasitas
+    positive_signals:
+      - organisasi tak jalan
+      - SOP tak ada
+      - tata kelola internal
+      - akuntabilitas keuangan
+      - kredibilitas lembaga
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-008
+    family: low_service_access
+    manifestasi_khas: layanan jauh, mahal
+    sector_id: 007,006,009
+    likely_arch:
+      - "022"
+      - "023"
+      - "039"
+    likely_of:
+      - "005"
+    invalid_shortcut: dibangun=diakses
+    positive_signals:
+      - layanan jauh
+      - mahal
+      - akses faskes
+      - akses sekolah
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-009
+    family: low_service_utilization
+    manifestasi_khas: ada tapi tak dipakai
+    sector_id: 007,009
+    likely_arch:
+      - "005"
+      - "022"
+    likely_of:
+      - "006"
+    invalid_shortcut: sosialisasi=pakai
+    positive_signals:
+      - ada tapi tak dipakai
+      - kurang sosialisasi
+      - pemanfaatan rendah
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-010
+    family: poor_service_quality
+    manifestasi_khas: layanan ribet, lama
+    sector_id: 020,007
+    likely_arch:
+      - "022"
+      - "018"
+    likely_of:
+      - "007"
+    invalid_shortcut: SOP=kualitas
+    positive_signals:
+      - layanan ribet
+      - lama
+      - kualitas buruk
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-011
+    family: low_technology_adoption
+    manifestasi_khas: belum melek digital, manual
+    sector_id: 023,001,002
+    likely_arch:
+      - "007"
+      - "008"
+      - "033"
+    likely_of:
+      - "004"
+    invalid_shortcut: platform=adopsi
+    positive_signals:
+      - belum melek digital
+      - manual
+      - belum terdigitalisasi
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-012
+    family: weak_accountability
+    manifestasi_khas: tidak transparan, keluhan diabaikan
+    sector_id: 020,022
+    likely_arch:
+      - "029"
+      - "028"
+    likely_of:
+      - "017"
+    invalid_shortcut: dashboard=akuntabel (ANTI-02)
+    positive_signals:
+      - tidak transparan
+      - keluhan diabaikan
+      - akuntabilitas publik
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-013
+    family: limited_participation
+    manifestasi_khas: warga tidak didengar
+    sector_id: 020,022
+    likely_arch:
+      - "030"
+      - "029"
+    likely_of:
+      - "016"
+    invalid_shortcut: hadir=berpengaruh
+    positive_signals:
+      - warga tidak didengar
+      - partisipasi rendah
+      - hak suara
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-014
+    family: exclusion_and_discrimination
+    manifestasi_khas: tersisih, tidak dilibatkan
+    sector_id: 018,017,015
+    likely_arch:
+      - "004"
+      - "038"
+    likely_of:
+      - "013"
+      - "016"
+    invalid_shortcut: kuota=inklusi
+    positive_signals:
+      - tersisih
+      - tidak dilibatkan
+      - diskriminasi
+      - kelompok terpinggirkan
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-015
+    family: skills_mismatch
+    manifestasi_khas: lulusan nganggur, skill tak cocok
+    sector_id: 005,019
+    likely_arch:
+      - "001"
+      - "014"
+    likely_of:
+      - "013"
+    invalid_shortcut: sertifikat=kerja (IND-030 nota)
+    positive_signals:
+      - lulusan nganggur
+      - skill tak cocok
+      - pengangguran muda
+      - kompetensi kerja
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-016
+    family: food_insecurity
+    manifestasi_khas: rawan pangan, makan seadanya
+    sector_id: 008,001,014
+    likely_arch:
+      - "011"
+      - "037"
+      - "001"
+    likely_of:
+      - "022"
+      - "024"
+    invalid_shortcut: distribusi=tahan pangan
+    positive_signals:
+      - rawan pangan
+      - makan seadanya
+      - kekurangan gizi
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-017
+    family: health_service_gap
+    manifestasi_khas: faskes jauh, kader kurang
+    sector_id: "007"
+    likely_arch:
+      - "022"
+      - "001"
+      - "039"
+    likely_of:
+      - "005"
+      - "006"
+      - "007"
+    invalid_shortcut: kunjungan naik=sehat
+    positive_signals:
+      - faskes jauh
+      - kader kurang
+      - hipertensi
+      - lansia
+      - penyakit tidak menular
+      - tensi darah
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-018
+    family: learning_gap
+    manifestasi_khas: nilai rendah, tak naik kelas
+    sector_id: "006"
+    likely_arch:
+      - "001"
+      - "003"
+      - "002"
+    likely_of:
+      - "001"
+      - 003 (guru)
+    invalid_shortcut: guru dilatih=nilai naik
+    positive_signals:
+      - nilai rendah
+      - tak naik kelas
+      - literasi rendah
+      - learning gap
+      - kualitas belajar rendah
+      - guru dilatih
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-019
+    family: (id sama dgn 018 utk kehadiran/ATS) learning_gap-attendance
+    manifestasi_khas: sering bolos, putus sekolah
+    sector_id: "006"
+    likely_arch:
+      - "004"
+      - "038"
+    likely_of:
+      - 005 re-enrol
+    invalid_shortcut: kembali=bertahan
+    positive_signals:
+      - sering bolos
+      - putus sekolah
+      - presensi rendah
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-020
+    family: WASH_access_gap
+    manifestasi_khas: air susah, BABS
+    sector_id: "009"
+    likely_arch:
+      - "023"
+      - "004"
+    likely_of:
+      - "006"
+      - "021"
+    invalid_shortcut: terbangun=dipakai
+    positive_signals:
+      - air susah
+      - BABS
+      - air bersih
+      - sanitasi
+      - buang air sembarangan
+      - ODF
+      - STBM
+      - air minum
+      - tangki air
+      - jamban
+      - MCK
+      - kesulitan air
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-021
+    family: climate_vulnerability
+    manifestasi_khas: musim tak menentu, gagal panen iklim
+    sector_id: 010,001
+    likely_arch:
+      - "034"
+      - "033"
+      - "036"
+    likely_of:
+      - "023"
+    invalid_shortcut: kata iklim=SDG13
+    positive_signals:
+      - musim tak menentu
+      - gagal panen iklim
+      - perubahan iklim
+      - iklim
+      - sekolah lapang iklim
+      - sensor cuaca
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-022
+    family: environmental_degradation
+    manifestasi_khas: sampah, banjir kiriman, hutan gundul
+    sector_id: "012"
+    likely_arch:
+      - "023"
+      - "004"
+      - "006"
+    likely_of:
+      - 022 kondisi
+    invalid_shortcut: pohon ditanam=pulih
+    positive_signals:
+      - sampah
+      - banjir kiriman
+      - hutan gundul
+      - pencemaran
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-023
+    family: disaster_vulnerability
+    manifestasi_khas: rawan bencana, tak siap
+    sector_id: "013"
+    likely_arch:
+      - "036"
+      - "030"
+    likely_of:
+      - 021 kesiapan
+    invalid_shortcut: dokumen=siap
+    positive_signals:
+      - rawan bencana
+      - tak siap
+      - kebencanaan
+      - peringatan dini
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-024
+    family: weak_protection_response
+    manifestasi_khas: kasus tak ditangani
+    sector_id: 016,017
+    likely_arch:
+      - "038"
+      - "039"
+    likely_of:
+      - "025"
+    invalid_shortcut: laporan turun=aman (HN-91)
+    positive_signals:
+      - kasus tak ditangani
+      - kekerasan
+      - perlindungan anak
+      - perlindungan perempuan
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-025
+    family: policy_implementation_gap
+    manifestasi_khas: perda ada tapi tak jalan
+    sector_id: 020,030
+    likely_arch:
+      - "019"
+      - "021"
+      - "020"
+    likely_of:
+      - "017"
+    invalid_shortcut: disahkan=dijalankan
+    positive_signals:
+      - perda ada tapi tak jalan
+      - pelaksanaan kebijakan
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-026
+    family: data_fragmentation
+    manifestasi_khas: data berantakan, tak terpakai
+    sector_id: 020,023
+    likely_arch:
+      - "009"
+      - "027"
+    likely_of:
+      - "015"
+    invalid_shortcut: dashboard=keputusan
+    positive_signals:
+      - data berantakan
+      - tak terpakai
+      - fragmentasi data
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-027
+    family: weak_evidence_use
+    manifestasi_khas: keputusan tanpa data
+    sector_id: 020,030
+    likely_arch:
+      - "025"
+      - "040"
+      - "009"
+    likely_of:
+      - "015"
+    invalid_shortcut: riset=kebijakan
+    positive_signals:
+      - keputusan tanpa data
+      - bukti kurang
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-028
+    family: coordination_gap
+    manifestasi_khas: program tumpang tindih
+    sector_id: 020,021
+    likely_arch:
+      - "031"
+      - "030"
+    likely_of:
+      - 018 kolaborasi
+    invalid_shortcut: forum=koordinasi (HN-24)
+    positive_signals:
+      - program tumpang tindih
+      - koordinasi lemah
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED
+  - id: PF-029
+    family: infrastructure_gap
+    manifestasi_khas: jalan/sarana rusak/tak ada
+    sector_id: 026,009,028
+    likely_arch:
+      - "023"
+      - "024"
+    likely_of:
+      - "005"
+      - "006"
+    invalid_shortcut: dibangun=manfaat
+    positive_signals:
+      - jalan/sarana rusak/tak ada
+      - jalan rusak
+      - sarana tak ada
+      - infrastruktur rusak
+    negative_signals: []
+    source_document: impactory_deterministic_program_context_sdg_mapping_v1_1.md
+    source_section: Section 16
+    epistemic_label: HUMAN_REVIEW_REQUIRED

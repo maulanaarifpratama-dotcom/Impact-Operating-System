@@ -1,5 +1,8 @@
 # Impactory Deterministic Program Context & SDG/TPB Mapping v1
 
+> [!NOTE]
+> **NARRATIVE COMPANION** — Data authority resides in `/ontology/*.yaml` (since ontology_version 0.1.0, per ADR-0001 Rev 2).
+
 **Artifact:** `impactory_deterministic_program_context_sdg_mapping_v1.md`
 **Mode:** DEEP RESEARCH + ONTOLOGY AUTHORING + DETERMINISTIC MAPPING DESIGN + REGISTRY DATA AUTHORING + FUZZY-SCORING DESIGN + EXPLANATION-TEMPLATE AUTHORING + REGRESSION-FIXTURE AUTHORING.
 **Bukan implementasi.** Tidak ada application code, migration, UI, prompt runtime, atau panggilan Azure di dokumen ini. Dokumen ini adalah knowledge feeding untuk implementasi Antigravity setelah review.

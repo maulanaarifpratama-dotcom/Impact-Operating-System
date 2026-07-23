@@ -1,0 +1,19 @@
+# DANGLING REFERENCE AUDIT INPUT
+
+**Date:** 2026-07-23  
+**Source:** Pre-M1 Runtime Registry Integrity Audit  
+
+## Unresolved References in Active Runtime Archetypes
+1. `ARCH-TRAINING-001` -> `PF-018`, `PF-005`
+2. `ARCH-TOT-002` -> `PF-017`, `ACT-034`
+3. `ARCH-MENTOR-003` -> `PF-005`, `PF-006`
+4. `ARCH-FACIL-004` -> `PF-012`, `ACT-021`, `ACT-030`, `ACT-031`
+5. `ARCH-BCC-005` -> `ACT-015`
+6. `ARCH-AWARE-006` -> `PF-018`, `ACT-030`
+7. `ARCH-DIGDEV-007` -> `PF-006`, `OF-011`
+8. `ARCH-EQUIP-010` -> `PF-005`
+9. `ARCH-A2F-013` -> `PF-005`
+10. `ARCH-MARKET-015` -> `PF-005`
+11. `ARCH-CAPACITY-018` -> `PF-017`
+12. `ARCH-POLICY-019` -> `PF-012`, `ACT-030`
+13. `ARCH-PREPAREDNESS-036` -> `OF-021`, `ACT-030`

@@ -8,6 +8,7 @@ import {
   SECTORS,
   ACTORS,
   PROBLEM_FAMILIES,
+  INDICATOR_FAMILIES,
   ANTI_SIGNALS,
   ALIAS_MAPPINGS,
   REGISTRY_VERSION
@@ -82,7 +83,8 @@ export function collectCandidates(input: Page1Input): CanonicalCandidate[] {
         confusableCandidateIds: Array.from(new Set(confusables)),
         rawEvidenceSpans: [...spans],
         minimumEvidenceStatus: spans.length > 0 ? 'met' : 'unmet',
-        registryVersion: REGISTRY_VERSION
+        registryVersion: REGISTRY_VERSION,
+        provenanceType: type === 'indicator' ? 'DIRECT' : undefined
       });
     }
   }
@@ -132,6 +134,13 @@ export function collectCandidates(input: Page1Input): CanonicalCandidate[] {
       rawMatches.push(...findRawMatches(normResult.normalized, prob.positive_signals, 'positive_signal', prob.id));
     }
 
+    // 7. Scan Indicator Families
+    for (const ind of INDICATOR_FAMILIES) {
+      if (ind.signals) {
+        rawMatches.push(...findRawMatches(normResult.normalized, ind.signals, 'positive_signal', ind.id));
+      }
+    }
+
     // Apply Longest Match First partitioned by candidate category to allow
     // multiple layers of metadata (e.g. Archetype and Output) on the same string span.
     const partitionMatches: Record<string, RawMatch[]> = {};
@@ -144,6 +153,7 @@ export function collectCandidates(input: Page1Input): CanonicalCandidate[] {
       else if (regId.startsWith('ACT-')) category = 'actor';
       else if (regId.startsWith('PF-')) category = 'problem';
       else if (regId.startsWith('SECTOR-')) category = 'sector';
+      else if (regId.startsWith('IND-')) category = 'indicator';
 
       if (!partitionMatches[category]) {
         partitionMatches[category] = [];
@@ -201,6 +211,8 @@ export function collectCandidates(input: Page1Input): CanonicalCandidate[] {
         type = 'actor';
       } else if (regId.startsWith('PF-')) {
         type = 'problem';
+      } else if (regId.startsWith('IND-')) {
+        type = 'indicator';
       } else if (regId.startsWith('SECTOR-')) {
         type = 'sector';
         const item = SECTORS.find(s => s.id === regId);
@@ -222,6 +234,33 @@ export function collectCandidates(input: Page1Input): CanonicalCandidate[] {
       if (matchedSigs.length > 0) {
         const antiSpans = buildEvidenceSpans(matchedSigs, normResult.original, normResult.indexMapping, field.name);
         addCandidate(rule.id, 'sdg', antiSpans, [], matchedSigs.map(m => m.matchedValue), [], []);
+      }
+    }
+  }
+
+  // Derive canonical indicator candidates from outcome candidates via OF.indicator_family_ids
+  const outcomeCandidates = Array.from(candidatesMap.values()).filter(c => c.candidateType === 'outcome');
+  for (const ofCand of outcomeCandidates) {
+    const ofItem = OUTCOME_FAMILIES.find(o => o.outcome_family_id === ofCand.canonicalId);
+    if (ofItem && ofItem.indicator_family_ids && ofItem.indicator_family_ids.length > 0) {
+      for (const indId of ofItem.indicator_family_ids) {
+        const indKey = `${indId}::indicator`;
+        if (!candidatesMap.has(indKey)) {
+          candidatesMap.set(indKey, {
+            canonicalId: indId,
+            candidateType: 'indicator',
+            matchedSignals: [...ofCand.matchedSignals],
+            negativeSignals: [],
+            antiSignals: [],
+            confusableCandidateIds: [],
+            rawEvidenceSpans: [...ofCand.rawEvidenceSpans],
+            minimumEvidenceStatus: ofCand.minimumEvidenceStatus,
+            registryVersion: ofCand.registryVersion,
+            provenanceType: 'DERIVED_FROM_OUTCOME',
+            sourceOutcomeFamilyId: ofCand.canonicalId,
+            derivationPath: `${ofCand.canonicalId} -> indicator_family_ids -> ${indId}`
+          });
+        }
       }
     }
   }

@@ -16,8 +16,9 @@ export const SCORING_CONFIG = {
   // Sector scoring parameters
   sector_scoring: {
     weights: {
-      problem_family_alignment: 0.25,
-      outcome_family_alignment: 0.25,
+      direct_sector_evidence_alignment: 0.25,
+      problem_family_alignment: 0.125,
+      outcome_family_alignment: 0.125,
       target_actor_alignment: 0.15,
       intervention_alignment: 0.15,
       indicator_family_alignment: 0.10,
@@ -25,6 +26,7 @@ export const SCORING_CONFIG = {
       supporting_document_bonus: 0.05,
     },
     saturation_thresholds: {
+      direct_sector_evidence_alignment: 2.0,
       problem_family_alignment: 3.0,
       outcome_family_alignment: 2.0,
       target_actor_alignment: 1.0,
@@ -34,14 +36,16 @@ export const SCORING_CONFIG = {
       supporting_document_bonus: 1.0,
     },
     thresholds: {
-      primary: 0.70,
-      secondary: 0.50,
-      optional: 0.40,
+      primary: 0.35,
+      secondary: 0.25,
+      optional: 0.20,
     },
     limits: {
       max_primary: 1,
       max_secondary: 2,
     },
+    evidence_floor: 0.35,
+    dominance_margin: 0.05,
     ambiguity_margin: 0.10,
   },
 

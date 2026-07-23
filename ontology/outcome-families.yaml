@@ -1,0 +1,1335 @@
+outcome_families:
+  - outcome_family_id: OF-001
+    canonical_name_id: pengetahuan_meningkat
+    canonical_name_en: knowledge_increased
+    definition: Peningkatan pemahaman kognitif kelompok sasaran terhadap konsep,
+      metodologi, atau isu tertentu.
+    allowed_target_actor_types:
+      - ACT-019
+      - ACT-017
+      - ACT-001
+      - ACT-007
+    positive_predicates_id:
+      - paham
+      - mengerti
+      - memiliki wawasan
+      - sadar
+      - skor literasi
+      - literasi siswa
+    positive_predicates_en:
+      - understands
+      - aware
+      - acquired knowledge
+      - literacy scores
+      - student literacy
+      - reading scores
+    object_of_change_ids:
+      - wawasan teoritis
+      - skor pre-post test
+    negative_signals:
+      - menghadiri kelas
+    anti_signals:
+      - SDG-ANTI-TRAINING-006
+    minimum_evidence: Hasil rekapitulasi penilaian ujian kognitif pre-test dan post-test
+    likely_sectors:
+      - SECTOR-EDU-006
+      - SECTOR-HEALTH-007
+    likely_archetypes:
+      - ARCH-TRAINING-001
+      - ARCH-AWARE-006
+    indicator_family_ids:
+      - IND-EDU-TEACH-013
+    sdg_affinities: []
+    time_horizon_guidance: Sekejap paska pelatihan (1-2 hari)
+    common_output_confusions:
+      - OPF-001
+      - OPF-002
+    common_activity_confusions:
+      - kegiatan penyuluhan
+    causal_leap_risks:
+      - ANTI-01
+      - ANTI-12
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-002
+    canonical_name_id: keahlian_dikuasai
+    canonical_name_en: skill_retained
+    definition: Penguasaan keahlian psikomotorik atau kompetensi teknis praktis yang
+      terverifikasi melalui uji kompetensi.
+    allowed_target_actor_types:
+      - ACT-019
+      - ACT-007
+      - ACT-016
+    positive_predicates_id:
+      - mampu mempraktikkan
+      - terampil
+      - menguasai metode
+      - cakap
+      - sertifikasi kompetensi
+      - kompetensi teknisi
+      - sertifikasi
+    positive_predicates_en:
+      - competent
+      - mastered
+      - skilled
+      - capable
+    object_of_change_ids:
+      - skor unjuk kerja
+      - pencatatan teknis
+    negative_signals:
+      - memiliki sertifikat kehadiran
+    anti_signals:
+      - SDG-ANTI-TRAINING-006
+    minimum_evidence: Rubrik lembar penilaian uji kompetensi praktik langsung
+    likely_sectors:
+      - SECTOR-SKILLS-005
+      - SECTOR-EDU-006
+    likely_archetypes:
+      - ARCH-TRAINING-001
+      - ARCH-TOT-002
+    indicator_family_ids:
+      - IND-HLTH-CAPAC-056
+    sdg_affinities: []
+    time_horizon_guidance: 1-4 minggu paska intervensi teknis
+    common_output_confusions:
+      - OPF-002
+    common_activity_confusions:
+      - sesi praktikum
+    causal_leap_risks:
+      - ANTI-01
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-003
+    canonical_name_id: praktik_diadopsi
+    canonical_name_en: practice_adopted
+    definition: Penerapan kompetensi baru secara konsisten di dalam rutinitas kerja
+      sehari-hari oleh kelompok sasaran.
+    allowed_target_actor_types:
+      - ACT-019
+      - ACT-001
+      - ACT-017
+      - ACT-007
+    positive_predicates_id:
+      - mengadopsi
+      - mempraktikkan rutin
+      - rutin mencatat
+      - rutin menyusui
+    positive_predicates_en:
+      - routinely applies
+      - adopted practice
+      - systematically registers
+      - apply differentiated instruction
+      - apply differentiated
+      - differentiated instruction
+    object_of_change_ids:
+      - rutinitas harian
+      - buku pencatatan
+    negative_signals:
+      - mengetahui cara
+    anti_signals: []
+    minimum_evidence: Observasi berkala tim penilai independen di lapangan
+    likely_sectors:
+      - SECTOR-AGRI-001
+      - SECTOR-LIVELIHOOD-002
+      - SECTOR-EDU-006
+      - SECTOR-CCA-010
+    likely_archetypes:
+      - ARCH-MENTOR-003
+      - ARCH-BCC-005
+    indicator_family_ids:
+      - IND-MSME-PRACT-002
+      - IND-AGRI-ADOPT-009
+      - IND-EDU-TEACH-013
+      - IND-CCA-PRACT-023
+    sdg_affinities:
+      - sdg_id: SDG_4
+        official_target_ids:
+          - "4.1"
+        condition: Bila target actor adalah guru
+    time_horizon_guidance: 3-6 bulan paska pendampingan rutin
+    common_output_confusions:
+      - OPF-002
+      - OPF-009
+    common_activity_confusions:
+      - praktik terbimbing
+    causal_leap_risks:
+      - ANTI-01
+      - ANTI-12
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-004
+    canonical_name_id: teknologi_digunakan
+    canonical_name_en: technology_used
+    definition: Penggunaan alat produksi atau platform digital secara aktif oleh
+      pengguna akhir dalam frekuensi normal.
+    allowed_target_actor_types:
+      - ACT-001
+      - ACT-007
+      - ACT-027
+    positive_predicates_id:
+      - menggunakan alat
+      - mengoperasikan mesin
+      - login aktif
+      - bertransaksi digital
+    positive_predicates_en:
+      - routinely operates
+      - active usage
+      - logged in actively
+    object_of_change_ids:
+      - utilitas mesin
+      - log aplikasi MAU
+    negative_signals:
+      - menerima pembagian mesin
+    anti_signals:
+      - SDG-ANTI-DIGITAL-004
+    minimum_evidence: Data analitik digital (MAU/DAU) atau lembar log utilitas jam mesin
+    likely_sectors:
+      - SECTOR-DIGITAL-023
+      - SECTOR-AGRI-001
+    likely_archetypes:
+      - ARCH-DIGDEV-007
+      - ARCH-EQUIP-010
+    indicator_family_ids:
+      - IND-DIG-MAU-043
+      - IND-MSME-DIGTX-003
+    sdg_affinities: []
+    time_horizon_guidance: 3-12 bulan paska go-live/serah terima
+    common_output_confusions:
+      - OPF-006
+      - OPF-014
+      - OPF-020
+    common_activity_confusions:
+      - instalasi hardware
+    causal_leap_risks:
+      - ANTI-03
+      - ANTI-06
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-005
+    canonical_name_id: layanan_diakses
+    canonical_name_en: service_accessed
+    definition: Pencapaian akses fisik, finansial, atau prosedural ke titik layanan
+      publik oleh kelompok sasaran terpinggirkan.
+    allowed_target_actor_types:
+      - ACT-010
+      - ACT-011
+      - ACT-015
+      - ACT-022
+    positive_predicates_id:
+      - mengakses faskes
+      - mendaftar sekolah
+      - mendapat rujukan
+      - terdaftar layanan
+    positive_predicates_en:
+      - accessed facility
+      - registered to service
+      - referred successfully
+    object_of_change_ids:
+      - jarak tempuh
+      - registrasi pendaftaran
+    negative_signals:
+      - berdirinya gedung baru
+    anti_signals: []
+    minimum_evidence: Buku register kunjungan instansi formal mitra
+    likely_sectors:
+      - SECTOR-HEALTH-007
+      - SECTOR-EDU-006
+      - SECTOR-WASH-009
+    likely_archetypes:
+      - ARCH-EQUIP-010
+      - ARCH-FACIL-004
+    indicator_family_ids:
+      - IND-EDU-ATS-015
+    sdg_affinities:
+      - sdg_id: SDG_1
+        official_target_ids:
+          - "1.4"
+        condition: Konteks kemiskinan
+    time_horizon_guidance: 1-6 bulan
+    common_output_confusions:
+      - OPF-015
+    common_activity_confusions:
+      - pembukaan loket pendaftaran
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-006
+    canonical_name_id: layanan_digunakan_rutin
+    canonical_name_en: service_utilized_routinely
+    definition: Kelompok sasaran menggunakan layanan secara berkala untuk memenuhi
+      standar hidup dasarminimum yang layak.
+    allowed_target_actor_types:
+      - ACT-010
+      - ACT-011
+      - ACT-021
+    positive_predicates_id:
+      - rutin berkunjung
+      - imunisasi lengkap
+      - menggunakan jamban sehat
+      - menyetor sampah
+      - bebas buang air sembarangan
+      - verifikasi odf
+      - deklarasi odf
+      - odf
+    positive_predicates_en:
+      - regularly utilizes
+      - complete immunization
+      - routinely uses toilets
+    object_of_change_ids:
+      - frekuensi berkala
+      - volume konsumsi/pasokan
+    negative_signals:
+      - pernah berkunjung sekali
+    anti_signals: []
+    minimum_evidence: Kartu KMS Posyandu, log pemeliharaan air bersih, atau
+      kuesioner utilitas berkala
+    likely_sectors:
+      - SECTOR-HEALTH-007
+      - SECTOR-WASH-009
+      - SECTOR-ENERGY-028
+    likely_archetypes:
+      - ARCH-BCC-005
+      - ARCH-EQUIP-010
+    indicator_family_ids:
+      - IND-HLTH-UTIL-016
+      - IND-WASH-USE-018
+      - IND-ENERGY-USE-042
+    sdg_affinities:
+      - sdg_id: SDG_3
+        official_target_ids:
+          - "3.8"
+        condition: Layanan kesehatan
+      - sdg_id: SDG_6
+        official_target_ids:
+          - "6.1"
+          - "6.2"
+        condition: Layanan air/sanitasi
+    time_horizon_guidance: 6-12 bulan
+    common_output_confusions:
+      - OPF-015
+      - OPF-011
+    common_activity_confusions:
+      - sosialisasi pembukaan layanan
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-007
+    canonical_name_id: kualitas_layanan_meningkat
+    canonical_name_en: service_quality_improved
+    definition: Pemberi layanan meningkatkan waktu respons, akurasi penanganan, dan
+      tingkat kepuasan warga.
+    allowed_target_actor_types:
+      - ACT-027
+      - ACT-028
+      - ACT-029
+    positive_predicates_id:
+      - layanan lebih cepat
+      - keluhan direspon
+      - kepuasan meningkat
+    positive_predicates_en:
+      - faster response
+      - complaints resolved
+      - satisfaction index grew
+    object_of_change_ids:
+      - indeks kepuasan SP4N-LAPOR
+      - SLA waktu tanggap
+    negative_signals:
+      - SOP disahkan
+    anti_signals: []
+    minimum_evidence: Data survei kepuasan pelanggan independen semesteran
+    likely_sectors:
+      - SECTOR-GOV-020
+      - SECTOR-CIVTECH-022
+    likely_archetypes:
+      - ARCH-CAPACITY-018
+      - ARCH-DIGDEV-007
+    indicator_family_ids:
+      - IND-GOV-SVC-022
+    sdg_affinities:
+      - sdg_id: SDG_16
+        official_target_ids:
+          - "16.6"
+        condition: Peningkatan mutu kepuasan 16.6.2
+    time_horizon_guidance: 6-18 bulan
+    common_output_confusions:
+      - OPF-009
+      - OPF-010
+    common_activity_confusions:
+      - pembagian kuesioner kepuasan
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-008
+    canonical_name_id: akses_pasar_membaik
+    canonical_name_en: market_access_improved
+    definition: Petani/UMKM melakukan transaksi perdagangan rutin ke kanal pasar
+      formal dengan harga jual yang disepakati bersama.
+    allowed_target_actor_types:
+      - ACT-001
+      - ACT-007
+      - ACT-008
+    positive_predicates_id:
+      - menjual langsung ke pembeli
+      - mengapalkan produk
+      - kontrak disepakati
+      - kontrak jual beli
+      - pks jual beli
+      - dokumen kontrak
+    positive_predicates_en:
+      - routinely supplies
+      - finalized trade contract
+      - direct sales modern trade
+    object_of_change_ids:
+      - volume pasokan bulanan
+      - kontrak kerja sama aktif
+    negative_signals:
+      - MoU tanpa pengiriman barang
+    anti_signals: []
+    minimum_evidence: Arsip surat jalan PO (Purchase Order) + kuitansi pembayaran modern trade
+    likely_sectors:
+      - SECTOR-AGRI-001
+      - SECTOR-LIVELIHOOD-002
+      - SECTOR-COOP-003
+    likely_archetypes:
+      - ARCH-MARKET-015
+    indicator_family_ids:
+      - IND-AGRI-PRICE-011
+    sdg_affinities:
+      - sdg_id: SDG_2
+        official_target_ids:
+          - "2.3"
+        condition: Nelayan/petani kecil
+      - sdg_id: SDG_8
+        official_target_ids:
+          - "8.3"
+        condition: Konteks integrasi UMKM
+    time_horizon_guidance: 6-12 bulan
+    common_output_confusions:
+      - OPF-023
+    common_activity_confusions:
+      - pertemuan silaturahmi dengan offtaker
+    causal_leap_risks:
+      - ANTI-01
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-009
+    canonical_name_id: pendapatan_membaik
+    canonical_name_en: income_improved
+    definition: Peningkatan pendapatan/omzet riil aktor sasaran dari aktivitas
+      ekonomi yang didukung program, terverifikasi terhadap baseline.
+    allowed_target_actor_types:
+      - ACT-001
+      - ACT-007
+      - ACT-008
+      - ACT-012
+      - ACT-014
+    positive_predicates_id:
+      - pendapatan meningkat
+      - omzet naik
+      - penghasilan bertambah
+    positive_predicates_en:
+      - income increased
+      - revenue grew
+    object_of_change_ids:
+      - pendapatan/omzet usaha atau rumah tangga
+    minimum_evidence:
+      - catatan penjualan/pendapatan + baseline musim setara (IND-MSME-REV-001
+        logic)
+    minimum_use_definition_required: false
+    time_horizon_guidance: 12–18 bulan; hati-hati musiman
+    likely_sectors:
+      - SECTOR-LIVELIHOOD-002
+      - SECTOR-AGRI-001
+      - SECTOR-GEWE-017
+    likely_archetypes:
+      - ARCH-TRAINING-001
+      - ARCH-MENTOR-003
+      - ARCH-MARKET-015
+      - ARCH-A2F-013
+      - ARCH-GRANTS-012
+    indicator_family_ids:
+      - IND-MSME-REV-001
+      - IND-AGRI-PRICE-011
+      - IND-MSME-JOB-004
+    sdg_affinities:
+      - sdg_id: SDG_8
+        official_target_ids:
+          - "8.3"
+        condition: Usaha kecil
+      - sdg_id: SDG_1
+        official_target_ids:
+          - "1.4"
+        condition: Kelompok miskin
+      - sdg_id: SDG_2
+        official_target_ids:
+          - "2.3"
+        condition: Petani kecil
+    common_output_confusions:
+      - dana tersalur (OPF-022)
+      - pelatihan selesai
+    common_activity_confusions:
+      - kegiatan pemasaran
+    causal_leap_risks:
+      - ANTI-01
+      - ANTI-08
+    negative_signals:
+      - omzet musim ramai tanpa baseline setara
+    anti_signals:
+      - klaim % naik tanpa baseline (HN-57)
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-010
+    canonical_name_id: margin_membaik
+    canonical_name_en: margin_improved
+    definition: Peningkatan laba bersih produsen dengan menekan kerugian paska panen
+      atau memotong perantara asimetri informasi.
+    allowed_target_actor_types:
+      - ACT-001
+      - ACT-007
+      - ACT-008
+    positive_predicates_id:
+      - laba bersih naik
+      - harga per kg meningkat
+      - susut panen berkurang
+      - margin harga
+      - margin harga stabil
+      - harga stabil
+    positive_predicates_en:
+      - net margin increased
+      - profit margins rose
+      - post-harvest loss minimized
+    object_of_change_ids:
+      - selisih harga jual dan pokok produksi
+      - persentase susut tonase
+    negative_signals:
+      - harga komoditas pasar nasional naik secara umum di luar kendali program
+    anti_signals: []
+    minimum_evidence: Buku kas rugi laba bulanan pelaku usaha
+    likely_sectors:
+      - SECTOR-AGRI-001
+      - SECTOR-LIVELIHOOD-002
+    likely_archetypes:
+      - ARCH-MARKET-015
+      - ARCH-EQUIP-010
+    indicator_family_ids:
+      - IND-AGRI-PRICE-011
+      - IND-AGRI-LOSS-054
+    sdg_affinities:
+      - sdg_id: SDG_2
+        official_target_ids:
+          - "2.3"
+        condition: Petani/nelayan kecil
+    time_horizon_guidance: 6-12 bulan
+    common_output_confusions:
+      - OPF-023
+    common_activity_confusions:
+      - audit harga pasar
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-011
+    canonical_name_id: produktivitas_meningkat
+    canonical_name_en: productivity_improved
+    definition: "Peningkatan hasil keluaran per satuan unit input secara
+      berkelanjutan (misal: tonase panen per hektar)."
+    allowed_target_actor_types:
+      - ACT-001
+      - ACT-007
+    positive_predicates_id:
+      - hasil panen meningkat
+      - yield naik
+      - kapasitas produksi harian bertambah
+    positive_predicates_en:
+      - yield per hectare increased
+      - daily production capacity grew
+    object_of_change_ids:
+      - ton per hektar
+      - unit output per jam kerja
+    negative_signals:
+      - lahan diperluas secara fisik (itu ekstensifikasi
+      - bukan produktivitas)
+    anti_signals: []
+    minimum_evidence: Laporan ubinan panen dinas pertanian daerah / lembar log produksi pabrik
+    likely_sectors:
+      - SECTOR-AGRI-001
+      - SECTOR-LIVELIHOOD-002
+    likely_archetypes:
+      - ARCH-EQUIP-010
+      - ARCH-TRAINING-001
+    indicator_family_ids:
+      - IND-AGRI-YIELD-010
+    sdg_affinities:
+      - sdg_id: SDG_2
+        official_target_ids:
+          - "2.3"
+        condition: Petani kecil
+      - sdg_id: SDG_8
+        official_target_ids:
+          - "8.2"
+        condition: Diversifikasi teknologi
+    time_horizon_guidance: 1 siklus musim panen penuh (3-6 bulan)
+    common_output_confusions:
+      - OPF-014
+    common_activity_confusions:
+      - pembajakan sawah bersama
+    causal_leap_risks:
+      - ANTI-03
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-012
+    canonical_name_id: kinerja_usaha_membaik
+    canonical_name_en: business_performance_improved
+    definition: Unit usaha (UMKM atau Koperasi) mencapai kesehatan finansial,
+      pertumbuhan neraca, dan penciptaan lapangan kerja baru.
+    allowed_target_actor_types:
+      - ACT-007
+      - ACT-005
+      - ACT-006
+    positive_predicates_id:
+      - kelayakan kredit naik
+      - penyerapan tenaga kerja bertambah
+      - koperasi berkembang
+    positive_predicates_en:
+      - credit rating improved
+      - formal jobs created
+      - cooperative assets grew
+    object_of_change_ids:
+      - jumlah karyawan formal baru
+      - nilai neraca aset tahunan
+    negative_signals: []
+    anti_signals: []
+    minimum_evidence: Arsip laporan SPT tahunan usaha atau dokumen neraca audited Koperasi
+    likely_sectors:
+      - SECTOR-LIVELIHOOD-002
+      - SECTOR-COOP-003
+    likely_archetypes:
+      - ARCH-CAPACITY-018
+      - ARCH-MARKET-015
+    indicator_family_ids:
+      - IND-MSME-REV-001
+      - IND-MSME-JOB-004
+    sdg_affinities:
+      - sdg_id: SDG_8
+        official_target_ids:
+          - "8.3"
+          - "8.5"
+        condition: Pengembangan usaha
+    time_horizon_guidance: 12-24 bulan
+    common_output_confusions:
+      - OPF-010
+    common_activity_confusions:
+      - pembuatan logo merek baru
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-013
+    canonical_name_id: pekerjaan_diperoleh
+    canonical_name_en: employment_obtained
+    definition: Pencari kerja atau pemuda NEET berhasil mendapatkan kontrak kerja
+      formal minimal 6 bulan paska intervensi.
+    allowed_target_actor_types:
+      - ACT-016
+      - ACT-010
+    positive_predicates_id:
+      - bekerja formal
+      - terserap industri
+      - mendapat kontrak kerja
+      - diterima magang
+      - program magang
+      - magang industri
+      - menyalurkan lulusan
+    positive_predicates_en:
+      - employed formally
+      - signed employment contract
+      - hired
+      - transitioned to work
+    object_of_change_ids:
+      - jumlah bulan slip gaji rutin
+      - surat keputusan penerimaan kerja
+    negative_signals:
+      - menerima sertifikat kompetensi tanpa kontrak kerja
+    anti_signals: []
+    minimum_evidence: Surat kontrak kerja resmi yang diverifikasi lewat tracer study bulan ke-6
+    likely_sectors:
+      - SECTOR-SKILLS-005
+      - SECTOR-YOUTH-019
+    likely_archetypes:
+      - ARCH-TRAINING-001
+      - ARCH-TOT-002
+    indicator_family_ids:
+      - IND-SKILLS-JOB6-029
+      - IND-YOUTH-NEET-035
+    sdg_affinities:
+      - sdg_id: SDG_8
+        official_target_ids:
+          - "8.5"
+          - "8.6"
+        condition: Pemuda NEET/Pekerjaan Layak
+    time_horizon_guidance: 6-12 bulan paska kelulusan kelas pelatihan
+    common_output_confusions:
+      - OPF-002
+      - OPF-024
+    common_activity_confusions:
+      - sesi bursa kerja (job fair)
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-014
+    canonical_name_id: kinerja_institusi_membaik
+    canonical_name_en: institutional_performance_improved
+    definition: Lembaga masyarakat, koperasi, atau kantor pemda mencapai
+      transparansi pelaporan keuangan dan opini audit wajar.
+    allowed_target_actor_types:
+      - ACT-025
+      - ACT-005
+      - ACT-006
+      - ACT-027
+    positive_predicates_id:
+      - laporan keuangan wajar
+      - kapasitas organisasi naik
+      - akuntabilitas terjamin
+      - audit akuntabilitas
+      - akuntabilitas keuangan
+      - tata kelola internal
+    positive_predicates_en:
+      - unqualified audit opinion
+      - compliance index improved
+      - capacity score increased
+    object_of_change_ids:
+      - indeks penilaian kapasitas OCA
+      - opini KAP keuangan
+    negative_signals:
+      - SOP sekedar disusun di laci
+    anti_signals: []
+    minimum_evidence: Sertifikat audit kepatuhan eksternal independen / piagam OCA
+    likely_sectors:
+      - SECTOR-CSO-021
+      - SECTOR-COOP-003
+      - SECTOR-GOV-020
+    likely_archetypes:
+      - ARCH-CAPACITY-018
+    indicator_family_ids:
+      - IND-CSO-AUDIT-005
+      - IND-CSO-FUND-006
+      - IND-CSO-PRACT-007
+      - IND-COOP-RAT-025
+      - IND-RURAL-BUMDES-050
+    sdg_affinities:
+      - sdg_id: SDG_16
+        official_target_ids:
+          - "16.6"
+        condition: Kredibilitas lembaga
+      - sdg_id: SDG_17
+        official_target_ids:
+          - "17.17"
+        condition: Kemitraan OMS
+    time_horizon_guidance: 12-18 bulan
+    common_output_confusions:
+      - OPF-009
+      - OPF-010
+    common_activity_confusions:
+      - kegiatan rapat koordinasi
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-015
+    canonical_name_id: keputusan_berbasis_bukti
+    canonical_name_en: data_informed_decision_making
+    definition: Pemangku kebijakan menggunakan dashboard terintegrasi untuk menyusun
+      alokasi program kerja daerah nyata paska integrasi.
+    allowed_target_actor_types:
+      - ACT-026
+      - ACT-027
+    positive_predicates_id:
+      - menggunakan dashboard keputusan
+      - kebijakan berbasis data
+      - alokasi berbasis peta
+    positive_predicates_en:
+      - decided based on dashboard
+      - policy informed by evidence
+      - data-driven budget allocation
+    object_of_change_ids:
+      - dokumen usulan APBD
+      - notulen rapat kabinet daerah
+    negative_signals:
+      - dashboard sekadar diinstal tanpa riwayat login berkala pimpinan
+    anti_signals:
+      - SDG-ANTI-DIGITAL-004
+    minimum_evidence: Kutipan dokumen RKPD daerah resmi yang mereferensikan analisis
+      dashboard data program
+    likely_sectors:
+      - SECTOR-GOV-020
+      - SECTOR-DIGITAL-023
+    likely_archetypes:
+      - ARCH-DASH-009
+    indicator_family_ids:
+      - IND-GOV-SVC-022
+    sdg_affinities:
+      - sdg_id: SDG_16
+        official_target_ids:
+          - "16.6"
+        condition: Responsivitas data
+    time_horizon_guidance: 6-12 bulan
+    common_output_confusions:
+      - OPF-007
+      - OPF-008
+    common_activity_confusions:
+      - serah terima password admin
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-016
+    canonical_name_id: partisipasi_warga_meningkat
+    canonical_name_en: participation_improved
+    definition: Warga sipil terpinggirkan berhasil memasukkan aspirasi tertulis ke
+      dalam draf persetujuan anggaran pembangunan formal.
+    allowed_target_actor_types:
+      - ACT-021
+      - ACT-031
+      - ACT-010
+    positive_predicates_id:
+      - menyampaikan usulan
+      - suara didengar
+      - usulan masuk RKPD
+      - terlibat aktif rembuk
+    positive_predicates_en:
+      - proposals included in planning
+      - active citizen participation
+      - voice incorporated
+    object_of_change_ids:
+      - jumlah lembar usulan warga yang disetujui
+      - notulen musrenbang resmi
+    negative_signals:
+      - hadir musrenbang tanpa berbicara/usul (hanya sekadar tanda tangan daftar
+        hadir)
+    anti_signals: []
+    minimum_evidence: Dokumen berita acara Musrenbangdes tertanda tangan perwakilan
+      warga marjinal
+    likely_sectors:
+      - SECTOR-GOV-020
+      - SECTOR-CIVTECH-022
+    likely_archetypes:
+      - ARCH-FACIL-004
+    indicator_family_ids:
+      - IND-CIVIC-ACTIVE-020
+      - IND-GOV-BUDGET-046
+    sdg_affinities:
+      - sdg_id: SDG_16
+        official_target_ids:
+          - "16.7"
+        condition: Keterwakilan inklusif 16.7.2
+    time_horizon_guidance: 6-12 bulan
+    common_output_confusions:
+      - OPF-018
+      - OPF-021
+    common_activity_confusions:
+      - penyediaan konsumsi rembuk
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-017
+    canonical_name_id: kebijakan_dijalankan
+    canonical_name_en: policy_implemented
+    definition: Peraturan yang telah disahkan terverifikasi diimplementasikan dengan
+      adanya alokasi anggaran dan tim pelaksana khusus.
+    allowed_target_actor_types:
+      - ACT-026
+      - ACT-027
+    positive_predicates_id:
+      - perda berjalan
+      - regulasi ditegakkan
+      - anggaran dialokasikan perda
+    positive_predicates_en:
+      - policy enforced
+      - budget allocated to regulation
+      - execution team formed
+    object_of_change_ids:
+      - nilai DPA APBD pelaksanaan regulasi
+      - laporan pengawasan penegakan SK
+    negative_signals:
+      - perda disahkan tanpa anggaran turunan (SOP kosong)
+    anti_signals:
+      - SDG-ANTI-POLICYDOC-012
+    minimum_evidence: Arsip lembar dokumen DPA pelaksanaan perda/regulasi resmi dinas terkait
+    likely_sectors:
+      - SECTOR-GOV-020
+      - SECTOR-KNOW-030
+    likely_archetypes:
+      - ARCH-POLICY-019
+    indicator_family_ids:
+      - IND-CIVTECH-INST-045
+    sdg_affinities:
+      - sdg_id: SDG_16
+        official_target_ids:
+          - "16.6"
+        condition: Kinerja kepatuhan formal
+    time_horizon_guidance: 12-24 bulan paska pengesahan naskah
+    common_output_confusions:
+      - OPF-019
+      - OPF-018
+    common_activity_confusions:
+      - sosialisasi naskah perda
+    causal_leap_risks:
+      - ANTI-05
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-018
+    canonical_name_id: kepatuhan_mitra_meningkat
+    canonical_name_en: compliance_improved
+    definition: Pemasok atau mitra rantai pasok menerapkan prinsip etika bisnis dan
+      standar keberlanjutan yang diaudit berkala.
+    allowed_target_actor_types:
+      - ACT-033
+      - ACT-007
+    positive_predicates_id:
+      - lulus audit CSR
+      - mematuhi standar ketenagakerjaan
+      - sertifikasi berkelanjutan diperoleh
+    positive_predicates_en:
+      - passed sustainability audit
+      - complies with labor standards
+      - certified sustainable
+    object_of_change_ids:
+      - persentase kepatuhan pasokan
+      - opini audit eksternal CSR
+    negative_signals:
+      - menandatangani kode etik kemitraan tanpa audit kepatuhan lapangan
+    anti_signals: []
+    minimum_evidence: Sertifikat kelulusan audit keberlanjutan dari lembaga
+      sertifikasi independen
+    likely_sectors:
+      - SECTOR-CSR-029
+      - SECTOR-ENV-012
+    likely_archetypes:
+      - ARCH-CAPACITY-018
+    indicator_family_ids:
+      - IND-CSR-SUPPLIER-051
+    sdg_affinities:
+      - sdg_id: SDG_12
+        official_target_ids:
+          - "12.6"
+        condition: Pelaporan berkelanjutan perusahaan
+      - sdg_id: SDG_8
+        official_target_ids:
+          - "8.8"
+        condition: Hak ketenagakerjaan
+    time_horizon_guidance: 12-18 bulan
+    common_output_confusions:
+      - OPF-021
+    common_activity_confusions:
+      - rapat sosialisasi kode etik
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-019
+    canonical_name_id: akuntabilitas_kelembagaan
+    canonical_name_en: accountability_improved
+    definition: Lembaga penyedia layanan merespons laporan warga secara tervalidasi
+      dan transparan sesuai komitmen SLA.
+    allowed_target_actor_types:
+      - ACT-027
+      - ACT-028
+      - ACT-029
+    positive_predicates_id:
+      - laporan diselesaikan
+      - responsif penanganan kasus
+      - transparan merespons
+    positive_predicates_en:
+      - cases resolved
+      - transparent reply published
+      - citizen grievance addressed
+    object_of_change_ids:
+      - persentase penyelesaian pengaduan LAPOR
+      - log kepatuhan audit internal
+    negative_signals:
+      - menerima laporan pengaduan tanpa adanya bukti penyelesaian/tindakan
+        balasan
+    anti_signals: []
+    minimum_evidence: Laporan indeks kepatuhan penanganan pengaduan resmi SP4N-LAPOR
+    likely_sectors:
+      - SECTOR-CIVTECH-022
+      - SECTOR-GOV-020
+    likely_archetypes:
+      - ARCH-DIGDEV-007
+    indicator_family_ids:
+      - IND-CIVTECH-INST-045
+      - IND-CIVIC-RESP-021
+    sdg_affinities:
+      - sdg_id: SDG_16
+        official_target_ids:
+          - "16.6"
+          - "16.10"
+        condition: Transparansi kelembagaan
+    time_horizon_guidance: 6-12 bulan
+    common_output_confusions:
+      - OPF-020
+    common_activity_confusions:
+      - pemasangan kotak aduan fisik
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-020
+    canonical_name_id: norma_sosial_berubah
+    canonical_name_en: social_norm_changed
+    definition: Perubahan pandangan kolektif komunitas yang tercermin dari penurunan
+      penerimaan tindak kekerasan atau bias gender di desa.
+    allowed_target_actor_types:
+      - ACT-030
+      - ACT-021
+    positive_predicates_id:
+      - menolak kekerasan
+      - mendukung kesetaraan gender
+      - tidak mempekerjakan anak
+    positive_predicates_en:
+      - rejected domestic violence
+      - supports equal leadership
+      - child labor restricted
+    object_of_change_ids:
+      - persentase persetujuan norma bias gender
+      - indeks sikap komunitas
+    negative_signals:
+      - pemasangan banner sosialisasi anti kekerasan
+    anti_signals: []
+    minimum_evidence: Hasil survei persepsi norma komunitas (KAP Survey) tahunan oleh eksternal
+    likely_sectors:
+      - SECTOR-GEWE-017
+      - SECTOR-CHILD-016
+    likely_archetypes:
+      - ARCH-BCC-005
+      - ARCH-FACIL-004
+    indicator_family_ids: []
+    sdg_affinities:
+      - sdg_id: SDG_5
+        official_target_ids:
+          - "5.1"
+          - "5.2"
+        condition: Konteks diskriminasi gender
+    time_horizon_guidance: 18-36 bulan (Sangat panjang)
+    common_output_confusions:
+      - OPF-001
+    common_activity_confusions:
+      - penyuluhan satu hari
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-021
+    canonical_name_id: resiliensi_ekonomi_meningkat
+    canonical_name_en: economic_resilience_improved
+    definition: Rumah tangga miskin memiliki tabungan darurat aktif dan
+      diversifikasi aset penghidupan agar tangguh terhadap guncangan ekonomi.
+    allowed_target_actor_types:
+      - ACT-011
+      - ACT-014
+    positive_predicates_id:
+      - memiliki aset cadangan
+      - tabungan darurat terbentuk
+      - tangguh guncangan ekonomi
+    positive_predicates_en:
+      - emergency savings established
+      - livelihood diversified
+      - economically resilient
+    object_of_change_ids:
+      - indeks kepemilikan aset dasar
+      - jumlah bulan cadangan biaya hidup
+    negative_signals:
+      - menerima transfer tunai langsung (itu bantuan darurat
+      - belum tentu tangguh)
+    anti_signals: []
+    minimum_evidence: Buku rekening tabungan keluarga / survei neraca rumah tangga kohor miskin
+    likely_sectors:
+      - SECTOR-SOCPRO-015
+      - SECTOR-FININC-004
+    likely_archetypes:
+      - ARCH-A2F-013
+      - ARCH-TRAINING-001
+    indicator_family_ids:
+      - IND-FININC-ACTIVE-027
+    sdg_affinities:
+      - sdg_id: SDG_1
+        official_target_ids:
+          - "1.5"
+        condition: Pengurangan kerentanan kemiskinan
+      - sdg_id: SDG_8
+        official_target_ids:
+          - "8.10"
+        condition: Akses lembaga keuangan
+    time_horizon_guidance: 12-24 bulan
+    common_output_confusions:
+      - OPF-022
+    common_activity_confusions:
+      - pembagian sembako gratis
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-022
+    canonical_name_id: resiliensi_iklim_petani
+    canonical_name_en: climate_resilience_improved
+    definition: Petani menerapkan kalender tanam adaptif, benih tahan kekeringan,
+      dan mitigasi risiko iklim terverifikasi.
+    allowed_target_actor_types:
+      - ACT-001
+      - ACT-003
+    positive_predicates_id:
+      - menerapkan benih adaptif iklim
+      - menyesuaikan jadwal tanam
+      - menggunakan irigasi hemat
+      - adopsi benih
+      - benih varietas
+      - toleran panas
+      - varietas padi gogo
+    positive_predicates_en:
+      - implemented climate-smart crop
+      - adjusted calendar of cultivation
+      - used precision irrigation
+    object_of_change_ids:
+      - tingkat keberhasilan panen saat anomali cuaca
+      - persentase lahan beririgasi hemat
+    negative_signals:
+      - hadir sekolah lapang iklim tanpa modifikasi cara tanam
+    anti_signals:
+      - SDG-ANTI-CLIMATE-005
+    minimum_evidence: Laporan observasi lapangan komparatif paska periode cuaca ekstrem ekstrem
+    likely_sectors:
+      - SECTOR-CCA-010
+      - SECTOR-AGRI-001
+    likely_archetypes:
+      - ARCH-BCC-005
+      - ARCH-PREPAREDNESS-036
+    indicator_family_ids:
+      - IND-CCA-PRACT-023
+      - IND-INFOUSE-059
+      - IND-DRR-EWS-060
+    sdg_affinities:
+      - sdg_id: SDG_13
+        official_target_ids:
+          - "13.1"
+        condition: Adaptasi iklim
+      - sdg_id: SDG_2
+        official_target_ids:
+          - "2.4"
+        condition: Sistem pangan berkelanjutan
+    time_horizon_guidance: 12-18 bulan
+    common_output_confusions:
+      - OPF-014
+      - OPF-001
+    common_activity_confusions:
+      - pembagian brosur perkiraan cuaca BMKG
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-023
+    canonical_name_id: kondisi_lingkungan_membaik
+    canonical_name_en: environmental_condition_improved
+    definition: Penurunan timbulan sampah terkelola, pemulihan tutupan mangrove
+      dalam hektar, dan peningkatan kualitas DAS lokal.
+    allowed_target_actor_types:
+      - ACT-010
+      - ACT-021
+    positive_predicates_id:
+      - tutupan hutan pulih
+      - sampah plastik berkurang
+      - sungai bersih dari limbah
+    positive_predicates_en:
+      - hectares of forest restored
+      - waste volume reduced
+      - river clean index improved
+    object_of_change_ids:
+      - jumlah tonase sampah daur ulang
+      - persentase kelangsungan hidup bibit mangrove
+    negative_signals:
+      - jumlah bibit pohon yang ditanam (itu output
+      - bukan tutupan hutan yang hidup berkala)
+    anti_signals: []
+    minimum_evidence: Hasil foto udara citra satelit atau laporan timbangan bulanan TPS3R
+    likely_sectors:
+      - SECTOR-ENV-012
+      - SECTOR-URBAN-026
+    likely_archetypes:
+      - ARCH-FACIL-004
+      - ARCH-EQUIP-010
+    indicator_family_ids:
+      - IND-ENV-HECT-041
+    sdg_affinities:
+      - sdg_id: SDG_15
+        official_target_ids:
+          - "15.2"
+          - "15.3"
+        condition: Tutupan lahan
+      - sdg_id: SDG_12
+        official_target_ids:
+          - "12.5"
+        condition: Daur ulang sampah
+    time_horizon_guidance: 12-36 bulan (Sangat panjang)
+    common_output_confusions:
+      - OPF-011
+      - OPF-014
+    common_activity_confusions:
+      - seremonial penanaman sejuta pohon
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-024
+    canonical_name_id: kebutuhan_dasar_terpenuhi
+    canonical_name_en: basic_needs_met
+    definition: Korban terdampak bencana alam/darurat memperoleh air bersih, pangan
+      darurat sesuai standar kecukupan kalori Sphere.
+    allowed_target_actor_types:
+      - ACT-021
+      - ACT-022
+    positive_predicates_id:
+      - menerima air bersih layak
+      - kebutuhan gizi darurat terpenuhi
+      - hunian darurat didiami
+    positive_predicates_en:
+      - received daily water ration
+      - nutritional diet secured
+      - temporary shelter inhabited
+    object_of_change_ids:
+      - liter air per kapita per hari
+      - kalori konsumsi harian
+    negative_signals:
+      - distribusi logistik di posko (itu output serah terima
+      - bukan konsumsi nyata warga di shelter)
+    anti_signals: []
+    minimum_evidence: Hasil survei PDM (Post Distribution Monitoring) tingkat keluarga korban
+    likely_sectors:
+      - SECTOR-HUM-014
+      - SECTOR-WASH-009
+    likely_archetypes:
+      - ARCH-EQUIP-010
+      - ARCH-PREPAREDNESS-036
+    indicator_family_ids:
+      - IND-HUM-BASIC-038
+    sdg_affinities:
+      - sdg_id: SDG_2
+        official_target_ids:
+          - "2.1"
+        condition: Krisis darurat pangan
+    time_horizon_guidance: Siklus tanggap darurat jangka pendek (1-3 bulan)
+    common_output_confusions:
+      - OPF-014
+      - OPF-011
+    common_activity_confusions:
+      - bongkar muat logistik di pelabuhan
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-025
+    canonical_name_id: penanganan_kasus_meningkat
+    canonical_name_en: protection_response_improved
+    definition: Anak atau perempuan korban kekerasan memperoleh layanan konseling
+      psikologis dan bantuan hukum yang tuntas.
+    allowed_target_actor_types:
+      - ACT-027
+      - ACT-010
+    positive_predicates_id:
+      - kasus diproses hukum
+      - memperoleh pemulihan psikologis
+      - pendampingan UPTD tuntas
+    positive_predicates_en:
+      - case legally prosecuted
+      - received trauma counseling
+      - referred to protection unit
+    object_of_change_ids:
+      - jumlah berkas kasus P21 resmi
+      - skor asesmen trauma paska konseling
+    negative_signals:
+      - jumlah laporan kasus masuk menurun (bisa jadi fenomena gunung es karena
+        takut melapor)
+    anti_signals: []
+    minimum_evidence: Berita acara penutupan kasus resmi dari dinas DP3A/UPTD PPA
+    likely_sectors:
+      - SECTOR-CHILD-016
+      - SECTOR-GEWE-017
+    likely_archetypes:
+      - ARCH-CAPACITY-018
+    indicator_family_ids:
+      - IND-CHILD-CASE-036
+      - IND-GEWE-GBVREF-033
+    sdg_affinities:
+      - sdg_id: SDG_16
+        official_target_ids:
+          - "16.2"
+        condition: Kekerasan anak
+      - sdg_id: SDG_5
+        official_target_ids:
+          - "5.2"
+        condition: KDRT/GBV
+    time_horizon_guidance: 6-12 bulan
+    common_output_confusions:
+      - OPF-026
+    common_activity_confusions:
+      - pembagian brosur stiker anti kekerasan
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C1
+  - outcome_family_id: OF-026
+    canonical_name_id: graduasi_mustahik
+    canonical_name_en: mustahik_graduation
+    definition: Transformasi mustahik (penerima zakat) menjadi muzakki (pemberi
+      zakat) melalui program pemberdayaan ekonomi terstruktur.
+    allowed_target_actor_types:
+      - ACT-012
+      - ACT-008
+    positive_predicates_id:
+      - mustahik graduasi
+      - mandiri ekonomi zakat
+      - keluar dari asnaf miskin
+    positive_predicates_en:
+      - mustahik graduated
+      - economically self-sufficient
+      - transitioned out of mustahik status
+    object_of_change_ids:
+      - garis kemiskinan BPS daerah
+      - nilai wajib zakat tahunan
+    negative_signals:
+      - menerima santunan zakat konsumtif rutin bulanan
+    anti_signals: []
+    minimum_evidence: Surat ketetapan kelulusan program pemberdayaan yang dikeluarkan BAZNAS/LAZ
+    likely_sectors:
+      - SECTOR-SOCPRO-015
+      - SECTOR-LIVELIHOOD-002
+    likely_archetypes:
+      - ARCH-A2F-013
+      - ARCH-TRAINING-001
+    indicator_family_ids:
+      - IND-MSME-REV-001
+    sdg_affinities:
+      - sdg_id: SDG_1
+        official_target_ids:
+          - "1.2"
+        condition: Pengurangan kemiskinan nasional
+    time_horizon_guidance: 12-18 bulan
+    common_output_confusions:
+      - OPF-022
+    common_activity_confusions:
+      - seremoni penyerahan dana zakat produktif
+    causal_leap_risks: []
+    epistemic_label: CANONICAL_IMPACTORY
+    sources:
+      - S-C2
