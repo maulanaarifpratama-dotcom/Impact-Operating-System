@@ -104,6 +104,17 @@ function installSupabaseScenario(projectOverrides?: Record<string, unknown>, org
         };
         return updateChain;
       }),
+      upsert: vi.fn(async (data) => {
+        writeCalls.push({ table, type: 'upsert', data });
+        return { error: null };
+      }),
+      delete: vi.fn(() => ({
+        eq: vi.fn(async () => ({ error: null }))
+      })),
+      insert: vi.fn(async (data) => {
+        writeCalls.push({ table, type: 'insert', data });
+        return { error: null };
+      }),
     };
     return query;
   });
@@ -281,7 +292,53 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     });
   });
 
+  test('RC-9B.1 Cutover: Submitting Page 1 executes 27.5k Brain assembler and approving blueprint navigates directly to LFABuilder', async () => {
+    installSupabaseScenario();
+    const queryClient = createTestQueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <GrantWriterQuickWizardSelector isDevelopment={true} />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Yayasan Tani Hijau')).toBeTruthy();
+    });
+
+    vi.useFakeTimers();
+
+    // Populate required inputs
+    fireEvent.change(screen.getByLabelText('Kelompok Sasaran Penerima Manfaat *'), { target: { value: 'Petani miskin Desa Gunungkidul' } });
+    fireEvent.change(screen.getByLabelText('Cerita Program (Program Story) *'), { target: { value: 'Program pemberdayaan pertanian ramah lingkungan untuk meningkatkan pendapatan petani miskin.' } });
+
+    // Submit Page 1
+    fireEvent.submit(screen.getByText(/Tinjau Program Blueprint/i).closest('form')!);
+
+    // Fast forward processing timer
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+
+    vi.useRealTimers();
+
+    // Verify Page 2 renders the 27.5k Brain Canonical Logframe Hierarchy
+    await waitFor(() => {
+      expect(screen.getByText('27.5k Brain Canonical Logframe Hierarchy (V2)')).toBeTruthy();
+    });
+
+    // Click Setujui Blueprint & Lanjutkan
+    const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i });
+    fireEvent.click(approveBtn);
+
+    // Verify direct navigation to LFABuilder
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith('/dashboard/lfa-builder/gw-project-1');
+    });
+  });
+
   test('Saving drafts persists complete state to Supabase gw_projects table', async () => {
+
     installSupabaseScenario();
     const queryClient = createTestQueryClient();
 

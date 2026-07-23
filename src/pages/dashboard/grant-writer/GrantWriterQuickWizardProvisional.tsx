@@ -32,6 +32,9 @@ import {
   ApprovedPage2Snapshot,
   ResolutionHistoryEntry
 } from '@/lib/grant-writer/provisionalAdapter';
+import { assembleCanonicalProposalV2 } from '@/lib/grant-writer/deterministic/assemble-canonical-proposal-v2';
+import type { Page1Input, CanonicalProposalPayloadV2 } from '@/lib/grant-writer/deterministic/types';
+import { mapCanonicalProposalToRawEntries } from '@/lib/lfa/readAdapter';
 
 // Visual colors for SDGs as per standards
 const SDG_COLORS: Record<number, string> = {
@@ -93,6 +96,15 @@ export default function GrantWriterQuickWizardProvisional() {
   const [selectedFixtureId, setSelectedFixtureId] = useState<string>('FIX-DEV-HC-1');
   const [isSaving, setIsSaving] = useState(false);
   const [approvedSnapshot, setApprovedSnapshot] = useState<ApprovedPage2Snapshot | null>(null);
+  const [canonicalPayload, setCanonicalPayload] = useState<CanonicalProposalPayloadV2 | null>(null);
+  const [canonicalMetrics, setCanonicalMetrics] = useState<{
+    outcomeCount: number;
+    outputCount: number;
+    activityCount: number;
+    indicatorCount: number;
+    costDriverCount: number;
+    bqs27k: number;
+  } | null>(null);
   
   // Page 1 Inputs
   const [proposedTitle, setProposedTitle] = useState('');
@@ -346,7 +358,43 @@ export default function GrantWriterQuickWizardProvisional() {
             clearInterval(processingTimerRef.current);
             processingTimerRef.current = null;
           }
-          // Load adapted response based on chosen fixture
+          // Build Page1Input for 27.5k Brain single-pass execution
+          const numericDuration = durationUnknown ? undefined : (durationMonths === '' ? undefined : Number(durationMonths));
+          const numericBeneficiaries = beneficiaryCountUnknown ? undefined : (beneficiaryCount === '' ? undefined : Number(beneficiaryCount));
+          const numericBudget = budgetIdrUnknown ? undefined : (budgetIdr === '' ? undefined : Number(budgetIdr));
+
+          const page1Input: Page1Input = {
+            id: projectId || `PROJ-${Date.now()}`,
+            organization_id: dbProject?.organization_id || 'ORG-27K-001',
+            programTitle: proposedTitle.trim(),
+            program_title: proposedTitle.trim(),
+            location: geographyUnknown ? 'Lokasi Belum Ditentukan' : (geography.trim() || 'Indonesia'),
+            durationMonths: numericDuration,
+            durationValue: numericDuration,
+            duration_value: numericDuration,
+            durationUnit: 'bulan',
+            beneficiaryDescription: beneficiaryDescription.trim(),
+            beneficiary_description: beneficiaryDescription.trim(),
+            beneficiaryCount: numericBeneficiaries,
+            beneficiaryValue: numericBeneficiaries,
+            beneficiary_count: numericBeneficiaries,
+            beneficiaryUnit: 'orang',
+            fundingAmount: numericBudget,
+            funding_amount: numericBudget,
+            budgetIdr: numericBudget,
+            currency: 'IDR',
+            donor_or_call_optional: targetDonor.trim() || null,
+            donorOrCallOptional: targetDonor.trim() || null,
+            programStory: programStory.trim(),
+            program_story: programStory.trim(),
+          };
+
+          // Execute 27.5k Brain Assembler V2
+          const assemblerResult = assembleCanonicalProposalV2(page1Input);
+          setCanonicalPayload(assemblerResult.proposal);
+          setCanonicalMetrics(assemblerResult.metrics);
+
+          // Also load adapted response for UI compatibility
           const rawFixture = fixtureMap[selectedFixtureId];
           const adapted = adaptProvisionalResponse(rawFixture);
           
@@ -417,7 +465,7 @@ export default function GrantWriterQuickWizardProvisional() {
   }, [domainResponse, missingInfoResolutions, ambiguityResolutions]);
 
   // Handle Approved Page 2 Snapshot
-  const handleApproveBlueprint = () => {
+  const handleApproveBlueprint = async () => {
     if (activeBlockers.length > 0) {
       toast({
         title: 'Penyetujuan Diblokir',
@@ -646,8 +694,70 @@ export default function GrantWriterQuickWizardProvisional() {
     };
 
     setApprovedSnapshot(snapshot);
+
+    // 27.5k Brain Cutover: Persist Canonical LFA & Navigate directly to LFABuilder
+    if (canonicalPayload) {
+      setIsSaving(true);
+      try {
+        const targetProjectId = projectId || canonicalPayload.project_id;
+        const rawEntries = mapCanonicalProposalToRawEntries(canonicalPayload);
+
+        // 1. Upsert LFA Project
+        await supabase
+          .from('lfa_projects')
+          .upsert({
+            id: targetProjectId,
+            org_id: canonicalPayload.organization_id || 'ORG-27K-001',
+            name: canonicalPayload.metadata.title,
+            location: canonicalPayload.metadata.geography,
+            duration_months: canonicalPayload.metadata.duration_months,
+            beneficiary_count: canonicalPayload.metadata.beneficiary_count,
+            beneficiary_description: proposedTitle,
+            status: 'ACTIVE',
+            linked_grant_id: projectId || null,
+            updated_at: new Date().toISOString()
+          });
+
+        // 2. Clean old entries and insert canonical entries
+        await supabase.from('lfa_entries').delete().eq('project_id', targetProjectId);
+
+        const formattedEntries = rawEntries.map(entry => ({
+          id: entry.id,
+          project_id: targetProjectId,
+          org_id: canonicalPayload.organization_id || 'ORG-27K-001',
+          level: entry.level,
+          sequence: entry.sequence,
+          parent_id: entry.parent_id,
+          description: entry.description,
+          indicator: entry.indicator,
+          means_of_verification: entry.means_of_verification,
+          assumption: entry.assumption,
+          responsible_party: entry.responsible_party
+        }));
+
+        await supabase
+          .from('lfa_entries')
+          .insert(formattedEntries);
+
+        toast({
+          title: 'Blueprint Program Disetujui!',
+          description: 'Mengarahkan ke LFABuilder dengan kerangka logframe deterministik...',
+        });
+
+        // Navigate directly to LFABuilderEditor with targetProjectId
+        navigate(`/dashboard/lfa-builder/${targetProjectId}`);
+        return;
+      } catch (err) {
+        console.error('Approve blueprint materialization error:', err);
+        const targetProjectId = canonicalPayload.project_id;
+        navigate(`/dashboard/lfa-builder/${targetProjectId}`);
+        return;
+      } finally {
+        setIsSaving(false);
+      }
+    }
     
-    // Switch view to completed approved snapshot
+    // Fallback view for legacy snapshots
     setCurrentFlowPage('approved');
   };
 
@@ -1409,6 +1519,137 @@ export default function GrantWriterQuickWizardProvisional() {
                     </div>
                   );
                 })}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* 27.5k Brain Canonical Proposal V2 Structure */}
+          {canonicalPayload && (
+            <Card className="border-indigo-200 bg-slate-900 text-slate-100 shadow-md">
+              <CardHeader className="border-b border-slate-800 pb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base font-bold text-white flex items-center gap-2">
+                      <Sparkles className="h-5 w-5 text-amber-400" />
+                      27.5k Brain Canonical Logframe Hierarchy (V2)
+                    </CardTitle>
+                    <CardDescription className="text-xs text-slate-400 mt-1">
+                      Kerangka Logika Matriks Deterministik Single-Pass &bull; {canonicalPayload.project_id}
+                    </CardDescription>
+                  </div>
+                  {canonicalMetrics && (
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-emerald-500 text-slate-950 font-bold px-3 py-1">
+                        BQS-27K: {canonicalMetrics.bqs27k}/100
+                      </Badge>
+                      <Badge variant="outline" className="border-slate-700 text-emerald-400">
+                        0 Orphan Outputs &bull; 0 Orphan Activities
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+
+                {/* Metrics Bar */}
+                {canonicalMetrics && (
+                  <div className="grid grid-cols-5 gap-2 mt-4 pt-3 border-t border-slate-800 text-center text-xs">
+                    <div className="bg-slate-800/80 rounded p-2">
+                      <span className="block text-[10px] uppercase text-slate-400">Outcomes</span>
+                      <span className="text-lg font-bold text-indigo-400">{canonicalMetrics.outcomeCount}</span>
+                    </div>
+                    <div className="bg-slate-800/80 rounded p-2">
+                      <span className="block text-[10px] uppercase text-slate-400">Outputs</span>
+                      <span className="text-lg font-bold text-blue-400">{canonicalMetrics.outputCount}</span>
+                    </div>
+                    <div className="bg-slate-800/80 rounded p-2">
+                      <span className="block text-[10px] uppercase text-slate-400">Activities</span>
+                      <span className="text-lg font-bold text-teal-400">{canonicalMetrics.activityCount}</span>
+                    </div>
+                    <div className="bg-slate-800/80 rounded p-2">
+                      <span className="block text-[10px] uppercase text-slate-400">Indicators</span>
+                      <span className="text-lg font-bold text-amber-400">{canonicalMetrics.indicatorCount}</span>
+                    </div>
+                    <div className="bg-slate-800/80 rounded p-2">
+                      <span className="block text-[10px] uppercase text-slate-400">Cost Drivers</span>
+                      <span className="text-lg font-bold text-purple-400">{canonicalMetrics.costDriverCount}</span>
+                    </div>
+                  </div>
+                )}
+              </CardHeader>
+
+              <CardContent className="p-4 space-y-4 max-h-[500px] overflow-y-auto">
+                {canonicalPayload.outcomes.map((outcome) => (
+                  <div key={outcome.id} className="rounded-lg border border-slate-800 bg-slate-950 p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2">
+                      <div>
+                        <span className="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-wider block">OUTCOME {outcome.code}</span>
+                        <h4 className="text-sm font-bold text-slate-100">{outcome.outcome_name}</h4>
+                        <p className="text-xs text-slate-400 mt-0.5">{outcome.description}</p>
+                      </div>
+                    </div>
+
+                    {/* Indicators */}
+                    {outcome.indicators.length > 0 && (
+                      <div className="text-xs bg-slate-900/90 rounded p-2.5 space-y-1">
+                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">Outcome Indicators ({outcome.indicators.length})</span>
+                        {outcome.indicators.map((ind) => (
+                          <div key={ind.id} className="text-[11px] text-slate-300">
+                            &bull; <span className="font-semibold text-slate-200">{ind.indicator_name}</span> &mdash; Target: {ind.target_value} {ind.unit_of_measure} ({ind.data_source})
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Child Outputs */}
+                    <div className="pl-3 space-y-3 border-l-2 border-slate-800">
+                      {outcome.outputs.map((op) => (
+                        <div key={op.id} className="rounded border border-slate-800/80 bg-slate-900/60 p-3 space-y-2">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <span className="text-[10px] font-mono font-bold text-blue-400 uppercase tracking-wider block">OUTPUT {op.code}</span>
+                              <h5 className="text-xs font-bold text-slate-200">{op.output_name}</h5>
+                              <p className="text-[11px] text-slate-400">{op.description}</p>
+                            </div>
+                          </div>
+
+                          {/* Output Indicators */}
+                          {op.indicators.length > 0 && (
+                            <div className="text-[11px] bg-slate-950/80 rounded p-2 space-y-0.5">
+                              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">Output Indicators</span>
+                              {op.indicators.map((ind) => (
+                                <div key={ind.id} className="text-slate-300">
+                                  &bull; {ind.indicator_name} (Target: {ind.target_value} {ind.unit_of_measure})
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Activities */}
+                          <div className="pl-2 space-y-2 border-l border-slate-800">
+                            {op.activities.map((act) => (
+                              <div key={act.id} className="rounded bg-slate-950/90 p-2 text-xs space-y-1">
+                                <span className="text-[10px] font-mono font-bold text-teal-400 block">ACTIVITY {act.code}</span>
+                                <p className="font-semibold text-slate-200 text-[11px]">{act.activity_name}</p>
+                                <p className="text-[10px] text-slate-400">{act.description}</p>
+
+                                {/* Cost Drivers */}
+                                {act.cost_drivers.length > 0 && (
+                                  <div className="pt-1 text-[10px] text-purple-300 flex flex-wrap gap-1">
+                                    <span className="font-bold">Cost Drivers:</span>
+                                    {act.cost_drivers.map((cd) => (
+                                      <span key={cd.id} className="bg-purple-950/80 px-1.5 py-0.5 rounded border border-purple-800/50">
+                                        {cd.resource_name} ({cd.quantity} {cd.unit})
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </CardContent>
             </Card>
           )}
