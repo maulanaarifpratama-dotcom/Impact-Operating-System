@@ -642,7 +642,8 @@ export interface ValidationResult {
 export function validateGrounding(
   matrix: any,
   programFacts: ProgramFacts,
-  resolvedContext: ResolvedOntologyContext
+  resolvedContext: ResolvedOntologyContext,
+  proposalMarkdown?: string
 ): ValidationResult {
   const failures: string[] = [];
 
@@ -654,26 +655,27 @@ export function validateGrounding(
     ...(matrix?.outcomes || []).flatMap((o: any) => o.indicators || []),
     ...(matrix?.outputs || []).flatMap((o: any) => o.indicators || [])
   ].join(' ').toLowerCase();
-  const fullLfaText = `${goalText} ${outcomesText} ${outputsText} ${indicatorsText}`;
+  const markdownText = (proposalMarkdown || '').toLowerCase();
+  const fullText = `${goalText} ${outcomesText} ${outputsText} ${indicatorsText} ${markdownText}`;
 
   if (programFacts.beneficiaryDescription) {
     const benTerm = programFacts.beneficiaryDescription.toLowerCase();
-    if (!goalText.includes(benTerm) && !outcomesText.includes(benTerm)) {
-      failures.push(`Goal atau Outcome belum merujuk penerima manfaat: "${programFacts.beneficiaryDescription}".`);
+    if (!fullText.includes(benTerm)) {
+      failures.push(`Goal/Outcome/Proposal belum merujuk penerima manfaat: "${programFacts.beneficiaryDescription}".`);
     }
   }
 
   if (programFacts.geography) {
     const geoTerm = programFacts.geography.toLowerCase();
-    if (!goalText.includes(geoTerm) && !outcomesText.includes(geoTerm)) {
-      failures.push(`Goal atau Outcome belum merujuk lokasi program: "${programFacts.geography}".`);
+    if (!fullText.includes(geoTerm)) {
+      failures.push(`Goal/Outcome/Proposal belum merujuk lokasi program: "${programFacts.geography}".`);
     }
   }
 
-  if (programFacts.beneficiaryCount !== null) {
+  if (programFacts.beneficiaryCount !== null && programFacts.beneficiaryCount !== undefined && programFacts.beneficiaryCount > 0) {
     const countStr = String(programFacts.beneficiaryCount);
-    if (!fullLfaText.includes(countStr)) {
-      failures.push(`LFA belum menyebutkan angka penerima manfaat: ${countStr}.`);
+    if (!fullText.includes(countStr)) {
+      failures.push(`LFA/Proposal belum menyebutkan angka penerima manfaat: ${countStr}.`);
     }
   }
 
@@ -692,14 +694,15 @@ export function buildDynamicRetryPrompt(
 
   return `RETRY REQUEST — GROUNDING PENERBITAN LFA BELUM MEMENUHI KUALITAS:
 
-Rewrite using these required grounding terms derived from current input:
+Rewrite using these required grounding terms derived from current request:
 ${requiredGroundingTerms.map((t) => `- ${t}`).join('\n')}
 
-Missing or weak grounding:
+Missing or weak grounding failures to fix:
 ${failures.map((f) => `- ${f}`).join('\n')}
 
-Do not invent any facts listed as missing:
-${programFacts.missingFacts.map((mf) => `- ${mf}`).join('\n')}
+Do NOT invent any facts listed as missing:
+${programFacts.missingFacts.length > 0 ? programFacts.missingFacts.map((mf) => `- ${mf}`).join('\n') : '- None'}
 
-Silakan hasilkan ulang JSON LFA lengkap dengan grounding yang tepat.`;
+Instruction:
+Please regenerate the full LFA matrix, proposal markdown, and program skeleton ensuring all required grounding terms and program facts are strictly integrated. Do not use generic statements.`;
 }
