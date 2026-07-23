@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, FileText, Loader2, ArrowRight, Zap, Layers, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Plus, FileText, Loader2, ArrowRight, Search, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,115 +18,143 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
-import type { Database, GwProjectStatus } from '@/integrations/supabase/database.types';
+import type { Database } from '@/integrations/supabase/database.types';
 import { cn } from '@/lib/utils';
-import { QUICK_STEPS, WIZARD_STEPS } from '@/lib/grant-writer/types';
 
 type Project = Database['public']['Tables']['gw_projects']['Row'];
 
-const STATUS_LABEL: Record<GwProjectStatus, string> = {
-  draft: 'Draft',
-  generating: 'Sedang dibuat',
-  completed: 'Selesai',
-  archived: 'Diarsipkan',
-};
+type StageKey = 'all' | 'stage1' | 'stage2' | 'stage3' | 'stage4' | 'stage5' | 'stage6';
 
-type WizardMode = 'quick' | 'lfa';
-const VALID_MODES: WizardMode[] = ['quick', 'lfa'];
-const VALID_ROLES = [
-  'foundation_lead',
-  'umkm_owner',
-  'changemaker',
-  'consultant',
-  'other',
-] as const;
-type RoleParam = (typeof VALID_ROLES)[number];
+interface StageInfo {
+  stageNumber: number;
+  stageKey: StageKey;
+  badgeLabel: string;
+  badgeClass: string;
+  nextStepText: string;
+  ctaText: string;
+  targetHref: string;
+  progressPercent: number;
+  activeNodeIndex: number; // 0: Blueprint, 1: LFA, 2: WBS, 3: Budget, 4: Ready
+}
 
-const TRUST_BADGES = [
-  {
-    title: 'Draft, bukan final',
-    description: 'Output Grantwriter adalah draft awal yang harus direview sebelum submit.',
-  },
-  {
-    title: 'Human Review Required',
-    description: 'Proposal, angka impact, eligibility, dan budget narrative wajib dicek manusia.',
-  },
-  {
-    title: 'No Fabrication',
-    description: 'AI tidak boleh mengarang requirement, deadline, funding amount, atau klaim impact.',
-  },
-  {
-    title: 'Source + Asset',
-    description: 'Gunakan Grant Pipeline dan Impact Library sebagai konteks.',
-  },
-];
+function formatRelativeTime(dateStr: string): string {
+  try {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
 
-const REVIEW_CHECKLIST = [
-  'Requirement donor sudah dicek dari sumber resmi',
-  'Eligibility organisasi sudah sesuai',
-  'Deadline dan format submission sudah benar',
-  'Angka penerima manfaat dan budget berasal dari data organisasi',
-  'Cerita dan dokumentasi memiliki izin penggunaan',
-  'Draft sudah direview oleh PIC program/fundraising',
-];
+    if (diffMins < 5) return 'Baru saja';
+    if (diffMins < 60) return `${diffMins} menit lalu`;
+    if (diffHours < 24) return `${diffHours} jam lalu`;
+    if (diffDays === 1) return 'Kemarin';
+    if (diffDays < 7) return `${diffDays} hari lalu`;
+    return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+  } catch {
+    return 'Baru saja';
+  }
+}
 
-const FABRICATION_RULES = [
-  'Jangan mengarang jumlah penerima manfaat',
-  'Jangan mengarang funding amount',
-  'Jangan mengarang eligibility',
-  'Jangan mengarang requirement donor',
-  'Jangan mengarang kutipan penerima manfaat',
-  'Jangan mengarang capaian organisasi',
-  'Tandai bagian yang membutuhkan verifikasi',
-];
+function getProjectStageInfo(
+  p: Project,
+  lfaProjects: any[],
+  lfaDocs: any[]
+): StageInfo {
+  const wd = (p.wizard_data ?? {}) as Record<string, any>;
+  const hasProgram = lfaProjects.some((lp) => lp.linked_grant_id === p.id);
+  const hasDoc = lfaDocs.some((ld) => ld.project_id === p.id);
+  const isBlueprintApproved = wd.blueprintApproved === true;
+  const currentStep = p.current_step ?? 1;
 
-const WORKFLOW_CARDS = [
-  {
-    title: 'Grant Pipeline',
-    description: 'Mulai dari peluang grant yang sudah jelas source, deadline, eligibility, dan fit.',
-    cta: 'Buka Grant Pipeline',
-    href: '/dashboard/grantfinder',
-  },
-  {
-    title: 'Impact Library',
-    description: 'Gunakan profil organisasi, proposal lama, laporan impact, data program, dan cerita penerima manfaat.',
-    cta: 'Buka Impact Library',
-    href: '/dashboard/impactory-library',
-  },
-  {
-    title: 'Readiness Scorecard',
-    description: 'Pastikan fondasi organisasi cukup siap sebelum mengejar grant prioritas.',
-    cta: 'Cek Readiness',
-    href: '/dashboard/readiness',
-  },
-];
+  // Stage 6: Ready (Completed & exported proposal)
+  if (p.status === 'completed' && (hasDoc || hasProgram)) {
+    return {
+      stageNumber: 6,
+      stageKey: 'stage6',
+      badgeLabel: 'Stage 6: Ready',
+      badgeClass: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-300',
+      nextStepText: 'Proposal program lengkap dan siap diunduh/submit',
+      ctaText: 'Lihat Proposal Final',
+      targetHref: `/dashboard/grant-writer/${p.id}/proposal`,
+      progressPercent: 100,
+      activeNodeIndex: 4,
+    };
+  }
 
-const ROLE_COPY: Record<RoleParam, { suggestedMode: WizardMode; hint: string }> = {
-  foundation_lead: {
-    suggestedMode: 'lfa',
-    hint: 'Untuk yayasan/NGO — kami sarankan mode LFA Lengkap (standar UN/OECD-DAC).',
-  },
-  consultant: {
-    suggestedMode: 'lfa',
-    hint: 'Untuk konsultan/fasilitator — mode LFA Lengkap memberi struktur penuh untuk klien.',
-  },
-  umkm_owner: {
-    suggestedMode: 'quick',
-    hint: 'Untuk UMKM sosial — mode Quick paling cepat ke proposal donor lokal/private.',
-  },
-  changemaker: {
-    suggestedMode: 'quick',
-    hint: 'Untuk changemaker individu — mode Quick cukup untuk hibah ringan.',
-  },
-  other: {
-    suggestedMode: 'quick',
-    hint: 'Pilih mode yang paling sesuai dengan kebutuhan proposal Anda.',
-  },
-};
+  // Stage 5: Budget Studio
+  if (wd.budgetReady === true) {
+    return {
+      stageNumber: 5,
+      stageKey: 'stage5',
+      badgeLabel: 'Stage 5: Budget Studio',
+      badgeClass: 'bg-purple-100 text-purple-800 dark:bg-purple-950/60 dark:text-purple-300 border-purple-300',
+      nextStepText: 'Lengkapi rincian anggaran biaya program',
+      ctaText: 'Buka Studio Anggaran',
+      targetHref: `/dashboard/grant-writer/${p.id}/proposal`,
+      progressPercent: 85,
+      activeNodeIndex: 3,
+    };
+  }
 
-function getProjectMode(p: Project): WizardMode {
-  const wd = (p.wizard_data ?? {}) as Record<string, unknown>;
-  return wd._mode === 'quick' ? 'quick' : 'lfa';
+  // Stage 4: WBS & Schedule
+  if (wd.wbsReady === true) {
+    return {
+      stageNumber: 4,
+      stageKey: 'stage4',
+      badgeLabel: 'Stage 4: WBS & Schedule',
+      badgeClass: 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/60 dark:text-cyan-300 border-cyan-300',
+      nextStepText: 'Susun rincian jadwal dan rencana kerja (WBS)',
+      ctaText: 'Susun WBS',
+      targetHref: `/dashboard/grant-writer/${p.id}/proposal`,
+      progressPercent: 70,
+      activeNodeIndex: 2,
+    };
+  }
+
+  // Stage 3: LFA Studio
+  if (isBlueprintApproved || hasProgram || hasDoc) {
+    return {
+      stageNumber: 3,
+      stageKey: 'stage3',
+      badgeLabel: 'Stage 3: LFA Studio',
+      badgeClass: 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300',
+      nextStepText: 'Lengkapi Outcome, Output, dan Indikator di LFA Studio',
+      ctaText: 'Buka LFA Studio',
+      targetHref: (hasDoc || hasProgram) ? `/dashboard/grant-writer/${p.id}/proposal` : `/dashboard/grant-writer/quick/${p.id}`,
+      progressPercent: 50,
+      activeNodeIndex: 1,
+    };
+  }
+
+  // Stage 2: Review Blueprint
+  if (currentStep >= 2 || wd.currentFlowPage === 2 || wd.generatedContent) {
+    return {
+      stageNumber: 2,
+      stageKey: 'stage2',
+      badgeLabel: 'Stage 2: Review Blueprint',
+      badgeClass: 'bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300',
+      nextStepText: 'Review dan setujui draf kerangka program',
+      ctaText: 'Tinjau Blueprint',
+      targetHref: `/dashboard/grant-writer/quick/${p.id}`,
+      progressPercent: 30,
+      activeNodeIndex: 0,
+    };
+  }
+
+  // Stage 1: Blueprint Draft
+  return {
+    stageNumber: 1,
+    stageKey: 'stage1',
+    badgeLabel: 'Stage 1: Blueprint Draft',
+    badgeClass: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border-slate-300',
+    nextStepText: 'Lengkapi cerita dan parameter utama program',
+    ctaText: 'Lengkapi Blueprint',
+    targetHref: `/dashboard/grant-writer/quick/${p.id}`,
+    progressPercent: 15,
+    activeNodeIndex: 0,
+  };
 }
 
 export default function GrantWriterIndex() {
@@ -140,10 +168,9 @@ export default function GrantWriterIndex() {
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
   const [title, setTitle] = useState('');
-  const [mode, setMode] = useState<WizardMode>('quick');
   const [creating, setCreating] = useState(false);
-  const [roleHint, setRoleHint] = useState<string | null>(null);
-  const [paramWarning, setParamWarning] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [stageFilter, setStageFilter] = useState<StageKey>('all');
   const deepLinkHandled = useRef(false);
 
   const load = async () => {
@@ -156,7 +183,7 @@ export default function GrantWriterIndex() {
       toast({ title: 'Gagal memuat proyek', description: error.message, variant: 'destructive' });
     } else {
       setProjects(data ?? []);
-      
+
       const { data: lfap } = await supabase
         .from('lfa_projects')
         .select('id, linked_grant_id');
@@ -175,43 +202,19 @@ export default function GrantWriterIndex() {
     void load();
   }, []);
 
-  // Demo-mode deep link from landing CTAs:
-  //   /dashboard/grant-writer?role=foundation_lead&mode=lfa
-  //
-  // Rules:
-  //   - Auto-open the "create project" dialog ONLY when both `role` and
-  //     `mode` are present and valid. Anything else stays on the index
-  //     page so the user can pick deliberately.
-  //   - If a param is present but invalid, surface a soft warning instead
-  //     of silently ignoring it.
-  //   - Always strip the params after handling so reloads behave normally.
   useEffect(() => {
     if (deepLinkHandled.current) return;
     const roleParam = searchParams.get('role');
     const modeParam = searchParams.get('mode');
-    if (!roleParam && !modeParam) return;
-    deepLinkHandled.current = true;
-
-    const isValidRole = roleParam !== null && (VALID_ROLES as readonly string[]).includes(roleParam);
-    const isValidMode = modeParam !== null && (VALID_MODES as string[]).includes(modeParam);
-
-    if (isValidRole && isValidMode) {
-      const role = roleParam as RoleParam;
-      setMode(modeParam as WizardMode);
-      setRoleHint(ROLE_COPY[role].hint);
+    if (roleParam || modeParam) {
+      deepLinkHandled.current = true;
       setCreateOpen(true);
-    } else {
-      setParamWarning(
-        'Tautan onboarding tidak lengkap atau tidak dikenali. Pilih mode di bawah untuk melanjutkan.',
-      );
+      const next = new URLSearchParams(searchParams);
+      next.delete('role');
+      next.delete('mode');
+      setSearchParams(next, { replace: true });
     }
-
-    const next = new URLSearchParams(searchParams);
-    next.delete('role');
-    next.delete('mode');
-    setSearchParams(next, { replace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [searchParams, setSearchParams]);
 
   useEffect(() => {
     const lfaId = searchParams.get('lfa_project_id');
@@ -226,7 +229,6 @@ export default function GrantWriterIndex() {
           if (error) throw error;
           if (data?.name) {
             setTitle(data.name);
-            setMode('lfa');
             setCreateOpen(true);
             toast({
               title: 'LFA Ditemukan',
@@ -239,14 +241,7 @@ export default function GrantWriterIndex() {
       };
       void fetchLfaProjectName();
     }
-  }, [searchParams]);
-
-  const openCreateWithMode = (m: WizardMode) => {
-    setMode(m);
-    setRoleHint(null);
-    setParamWarning(null);
-    setCreateOpen(true);
-  };
+  }, [searchParams, toast]);
 
   const handleCreate = async () => {
     if (!user || !title.trim()) return;
@@ -263,7 +258,7 @@ export default function GrantWriterIndex() {
           title: title.trim(),
           status: 'draft',
           current_step: 1,
-          wizard_data: { _mode: mode, ...(lfaProjectId ? { lfa_project_id: lfaProjectId } : {}) } as never,
+          wizard_data: { _mode: 'quick', ...(lfaProjectId ? { lfa_project_id: lfaProjectId } : {}) } as never,
         })
         .select('id')
         .single();
@@ -277,426 +272,330 @@ export default function GrantWriterIndex() {
       }
 
       toast({
-        title: 'Proyek dibuat',
-        description:
-          mode === 'quick'
-            ? 'Mode cepat: 4 langkah ke proposal donor-ready.'
-            : 'Mode LFA lengkap: 7 langkah standar UN/OECD-DAC.',
+        title: 'Program dibuat',
+        description: 'Membuka Program Blueprint Studio...',
       });
-      navigate(
-        mode === 'quick'
-          ? `/dashboard/grant-writer/quick/${data.id}`
-          : `/dashboard/grant-writer/${data.id}`,
-      );
+      navigate(`/dashboard/grant-writer/quick/${data.id}`);
     } catch (err) {
       const error = err as Error;
-      toast({ title: 'Gagal membuat proyek', description: error.message, variant: 'destructive' });
+      toast({ title: 'Gagal membuat program', description: error.message, variant: 'destructive' });
     } finally {
       setCreating(false);
       setCreateOpen(false);
       setTitle('');
-      setMode('quick');
-      setRoleHint(null);
     }
   };
 
+  // Compute stage info and counts for all projects
+  const decoratedProjects = projects.map((p) => {
+    const stageInfo = getProjectStageInfo(p, lfaProjects, lfaDocs);
+    return { project: p, stageInfo };
+  });
+
+  const blueprintCount = decoratedProjects.filter(
+    (dp) => dp.stageInfo.stageNumber === 1 || dp.stageInfo.stageNumber === 2
+  ).length;
+  const lfaCount = decoratedProjects.filter((dp) => dp.stageInfo.stageNumber === 3).length;
+  const wbsCount = decoratedProjects.filter((dp) => dp.stageInfo.stageNumber === 4).length;
+  const budgetCount = decoratedProjects.filter((dp) => dp.stageInfo.stageNumber === 5).length;
+  const readyCount = decoratedProjects.filter((dp) => dp.stageInfo.stageNumber === 6).length;
+
+  const filteredProjects = decoratedProjects.filter(({ project, stageInfo }) => {
+    const matchesSearch = searchQuery
+      ? project.title.toLowerCase().includes(searchQuery.toLowerCase())
+      : true;
+
+    if (!matchesSearch) return false;
+    if (stageFilter === 'all') return true;
+    if (stageFilter === 'stage1') return stageInfo.stageNumber === 1;
+    if (stageFilter === 'stage2') return stageInfo.stageNumber === 2;
+    if (stageFilter === 'stage3') return stageInfo.stageNumber === 3;
+    if (stageFilter === 'stage4') return stageInfo.stageNumber === 4;
+    if (stageFilter === 'stage5') return stageInfo.stageNumber === 5;
+    if (stageFilter === 'stage6') return stageInfo.stageNumber === 6;
+    return true;
+  });
+
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
+      {/* Task 4: Simplified Header */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-h2">Grantwriter</h1>
-          <p className="text-sm text-muted-foreground">
-            Bangun draft proposal, concept note, dan LFA dari peluang grant yang jelas, aset organisasi yang rapi, dan
-            review manusia.
+          <h1 className="text-h2 font-extrabold tracking-tight">GRANTWRITER</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Susun Blueprint, LFA, WBS, dan Anggaran Program Anda.
           </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-1.5 h-4 w-4" /> Proyek baru
+        <Button
+          size="lg"
+          onClick={() => setCreateOpen(true)}
+          className="gap-2 font-semibold shadow-md shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+        >
+          <Plus className="h-5 w-5" /> Program Baru
         </Button>
       </div>
 
-      <Card className="border-accent/30 bg-accent-soft/40 p-5 shadow-card">
-        <h2 className="font-semibold">Proposal tidak dimulai dari halaman kosong</h2>
-        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-          Proposal yang kuat lahir dari tiga bahan: peluang grant yang sudah diverifikasi, aset organisasi yang rapi,
-          dan review manusia. Grantwriter membantu membuat draft, bukan menggantikan tanggung jawab operator.
-        </p>
-      </Card>
-
-      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-        {TRUST_BADGES.map((item) => (
-          <Card key={item.title} className="p-4 shadow-card">
-            <ShieldCheck className="h-4 w-4 text-accent" />
-            <h3 className="mt-3 font-semibold">{item.title}</h3>
-            <p className="mt-2 text-xs leading-5 text-muted-foreground">{item.description}</p>
-          </Card>
-        ))}
-      </div>
-
-      {paramWarning && (
-        <div
-          role="status"
-          className="flex items-start gap-2.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-900 dark:text-amber-200"
-        >
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          <div className="flex-1">{paramWarning}</div>
+      {/* Task 5: Pipeline Summary Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3.5 shadow-xs">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-foreground">Program Saya</span>
+          <Badge variant="secondary" className="rounded-full text-xs font-bold px-2 py-0.5">
+            {projects.length} Total
+          </Badge>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
           <button
             type="button"
-            onClick={() => setParamWarning(null)}
-            className="text-xs font-medium uppercase tracking-wide opacity-70 hover:opacity-100"
+            onClick={() => setStageFilter(stageFilter === 'stage1' || stageFilter === 'stage2' ? 'all' : 'stage1')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors',
+              stageFilter === 'stage1' || stageFilter === 'stage2'
+                ? 'bg-primary/15 text-primary font-bold'
+                : 'bg-muted/60 hover:bg-muted text-muted-foreground'
+            )}
           >
-            Tutup
+            <span>📝 Blueprint:</span>
+            <span className="font-bold">{blueprintCount}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStageFilter(stageFilter === 'stage3' ? 'all' : 'stage3')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors',
+              stageFilter === 'stage3'
+                ? 'bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold'
+                : 'bg-muted/60 hover:bg-muted text-muted-foreground'
+            )}
+          >
+            <span>📊 LFA:</span>
+            <span className="font-bold">{lfaCount}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStageFilter(stageFilter === 'stage4' ? 'all' : 'stage4')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors',
+              stageFilter === 'stage4'
+                ? 'bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 font-bold'
+                : 'bg-muted/60 hover:bg-muted text-muted-foreground'
+            )}
+          >
+            <span>📅 WBS:</span>
+            <span className="font-bold">{wbsCount}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStageFilter(stageFilter === 'stage5' ? 'all' : 'stage5')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors',
+              stageFilter === 'stage5'
+                ? 'bg-purple-500/20 text-purple-700 dark:text-purple-300 font-bold'
+                : 'bg-muted/60 hover:bg-muted text-muted-foreground'
+            )}
+          >
+            <span>💰 Budget:</span>
+            <span className="font-bold">{budgetCount}</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setStageFilter(stageFilter === 'stage6' ? 'all' : 'stage6')}
+            className={cn(
+              'flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-colors',
+              stageFilter === 'stage6'
+                ? 'bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold'
+                : 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/20'
+            )}
+          >
+            <span>✅ Ready:</span>
+            <span className="font-bold">{readyCount}</span>
           </button>
         </div>
-      )}
-
-      {/* Mode picker — always visible so users know the two onboarding paths
-          even when they did not arrive via a role-aware deep link. */}
-      <Card>
-        <CardContent className="grid gap-3 p-4 sm:grid-cols-2">
-          <ModeOption
-            active={false}
-            onClick={() => openCreateWithMode('quick')}
-            icon={<Zap className="h-4 w-4" />}
-            title="Mulai mode Quick"
-            subtitle="4 langkah · cocok untuk donor lokal/private"
-            meta="≈ 15 menit"
-          />
-          <ModeOption
-            active={false}
-            onClick={() => openCreateWithMode('lfa')}
-            icon={<Layers className="h-4 w-4" />}
-            title="Mulai mode LFA Lengkap"
-            subtitle="7 langkah · standar UN/OECD-DAC, World Bank, USAID"
-            meta="≈ 1–2 jam"
-          />
-        </CardContent>
-      </Card>
+      </div>
 
       {loading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat proyek…
+          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Memuat program…
         </div>
       ) : projects.length === 0 ? (
-        <Card>
+        <Card className="border-dashed">
           <CardContent className="flex flex-col items-center gap-4 py-16 text-center">
-            <div className="rounded-full bg-accent/10 p-4">
-              <FileText className="h-8 w-8 text-accent" />
+            <div className="rounded-full bg-primary/10 p-4 text-primary">
+              <FileText className="h-8 w-8" />
             </div>
             <div>
-              <h3 className="text-h4">Belum ada draft proposal</h3>
-              <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-                Mulai dari peluang grant yang sudah jelas atau gunakan mode Quick untuk menyusun draft awal. Proposal
-                tetap harus direview sebelum submit.
+              <h3 className="text-h4 font-bold">Belum ada program</h3>
+              <p className="mt-1 max-w-md text-sm text-muted-foreground">
+                Mulai susun proposal Anda dari ide dasar. Sistem akan memandu Anda dari Blueprint hingga Anggaran.
               </p>
             </div>
-            <div className="flex flex-wrap justify-center gap-2">
-              <Button onClick={() => openCreateWithMode('quick')}>
-                <Zap className="mr-1.5 h-4 w-4" /> Mulai mode Quick
-              </Button>
-              <Button variant="outline" onClick={() => openCreateWithMode('lfa')}>
-                <Layers className="mr-1.5 h-4 w-4" /> Mulai LFA Lengkap
-              </Button>
-              <Button asChild variant="outline">
-                <Link to="/dashboard/grantfinder">Buka Grant Pipeline</Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link to="/dashboard/impactory-library">Buka Impact Library</Link>
-              </Button>
-            </div>
+            <Button size="lg" onClick={() => setCreateOpen(true)} className="gap-2 font-semibold">
+              <Plus className="h-5 w-5" /> Buat Program Pertama
+            </Button>
           </CardContent>
         </Card>
       ) : (
-        <section className="space-y-3">
-          <div>
-            <h2 className="text-h4">Draft proposal tersimpan</h2>
-            <p className="text-sm text-muted-foreground">
-              Gunakan draft ini sebagai working document. Pastikan setiap proposal melewati human review sebelum dikirim
-              ke donor atau funder.
-            </p>
+        <section className="space-y-4">
+          {/* Search & Filter Bar */}
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="relative flex-1 max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari nama program..."
+                className="pl-9 text-sm"
+              />
+            </div>
+            {stageFilter !== 'all' && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setStageFilter('all')}
+                className="text-xs text-muted-foreground hover:text-foreground w-fit"
+              >
+                Reset Filter ({stageFilter.replace('stage', 'Stage ')})
+              </Button>
+            )}
           </div>
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {projects.map((p) => {
-            const m = getProjectMode(p);
-            const total = m === 'quick' ? QUICK_STEPS.length : WIZARD_STEPS.length;
-            
-            const hasProgram = lfaProjects.some(lp => lp.linked_grant_id === p.id);
-            const hasDoc = lfaDocs.some(ld => ld.project_id === p.id);
-            const isGenerating = p.status === 'generating';
-            const isFailed = p.status === 'failed' || p.status === 'error';
-            const inputsComplete = p.current_step >= total;
 
-            let statusLabel = 'Draf';
-            let statusColor = 'bg-slate-100 text-slate-700 dark:bg-slate-900/50 dark:text-slate-300 border-slate-200';
+          {filteredProjects.length === 0 ? (
+            <div className="py-12 text-center text-sm text-muted-foreground border rounded-lg bg-card">
+              Tidak ada program yang sesuai dengan kriteria pencarian atau filter.
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {filteredProjects.map(({ project: p, stageInfo }) => {
+                const wd = (p.wizard_data ?? {}) as Record<string, any>;
+                const locationStr = wd.lokasi ? String(wd.lokasi) : null;
+                const targetStr = wd.sasaran ? String(wd.sasaran) : null;
 
-            if (hasProgram) {
-              statusLabel = 'Program Sudah Dibuat';
-              statusColor = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200';
-            } else if (hasDoc) {
-              statusLabel = 'Proposal Selesai';
-              statusColor = 'bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300 border-blue-200';
-            } else if (isGenerating) {
-              statusLabel = 'Sedang Membuat Proposal';
-              statusColor = 'bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 animate-pulse';
-            } else if (isFailed) {
-              statusLabel = 'Generate Gagal';
-              statusColor = 'bg-rose-100 text-rose-800 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200';
-            } else if (inputsComplete) {
-              statusLabel = 'Input Lengkap';
-              statusColor = 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-200';
-            }
+                return (
+                  <Link key={p.id} to={stageInfo.targetHref} className="group">
+                    <Card className="h-full flex flex-col justify-between transition-all hover:shadow-elegant hover:border-primary/40 border">
+                      <CardHeader className="pb-3 space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <CardTitle className="line-clamp-2 text-base font-bold group-hover:text-primary transition-colors">
+                            {p.title}
+                          </CardTitle>
+                          <Badge className={cn('shrink-0 border text-[10px] font-bold px-2 py-0.5', stageInfo.badgeClass)}>
+                            {stageInfo.badgeLabel}
+                          </Badge>
+                        </div>
 
-            const href = (hasDoc || hasProgram)
-              ? `/dashboard/grant-writer/${p.id}/proposal`
-              : m === 'quick'
-                ? `/dashboard/grant-writer/quick/${p.id}`
-                : `/dashboard/grant-writer/${p.id}`;
-            return (
-              <Link key={p.id} to={href} className="group">
-                <Card className="h-full transition-all hover:shadow-elegant">
-                  <CardHeader>
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="line-clamp-2 text-base">{p.title}</CardTitle>
-                      <Badge className={cn("shrink-0 border text-[10px] font-bold px-2 py-0.5", statusColor)}>
-                        {statusLabel}
-                      </Badge>
-                    </div>
-                    <div className="mt-1">
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          'gap-1 text-xs',
-                          m === 'quick'
-                            ? 'border-primary/30 text-primary'
-                            : 'border-accent/30 text-accent',
+                        {(locationStr || targetStr) && (
+                          <p className="text-xs text-muted-foreground line-clamp-1">
+                            {[locationStr, targetStr].filter(Boolean).join(' · ')}
+                          </p>
                         )}
-                      >
-                        {m === 'quick' ? (
-                          <>
-                            <Zap className="h-3 w-3" /> Quick · 4 langkah
-                          </>
-                        ) : (
-                          <>
-                            <Layers className="h-3 w-3" /> LFA Lengkap · 7 langkah
-                          </>
-                        )}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-3 text-sm">
-                    <div className="flex items-center justify-between text-muted-foreground">
-                      <span>
-                        Langkah {Math.min(p.current_step, total)}/{total}
-                      </span>
-                      <span>{new Date(p.updated_at).toLocaleDateString('id-ID')}</span>
-                    </div>
-                    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                      <div
-                        className="h-full bg-accent transition-all"
-                        style={{
-                          width: `${Math.min(100, (p.current_step / total) * 100)}%`,
-                        }}
-                      />
-                    </div>
-                    <div className="flex items-center text-accent group-hover:underline">
-                      Lanjutkan <ArrowRight className="ml-1 h-3.5 w-3.5" />
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
+                      </CardHeader>
+
+                      <CardContent className="space-y-4 text-sm pt-0 flex-1 flex flex-col justify-between">
+                        {/* Next Step Helper Text */}
+                        <div className="rounded-md bg-muted/50 p-2.5 text-xs space-y-1">
+                          <span className="font-semibold text-foreground/80 block">Langkah Berikutnya:</span>
+                          <p className="text-muted-foreground leading-relaxed">{stageInfo.nextStepText}</p>
+                        </div>
+
+                        {/* Task 8: Progress Node Timeline Visualization */}
+                        <div className="space-y-2 pt-1">
+                          <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground">
+                            <span>Progress Lifecycle</span>
+                            <span>{stageInfo.progressPercent}%</span>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground overflow-x-auto py-1">
+                            {['Blueprint', 'LFA', 'WBS', 'Budget', 'Ready'].map((nodeName, idx) => {
+                              const isCompleted = idx < stageInfo.activeNodeIndex;
+                              const isCurrent = idx === stageInfo.activeNodeIndex;
+                              return (
+                                <div key={nodeName} className="flex items-center gap-1 shrink-0">
+                                  {idx > 0 && <span className="text-muted-foreground/30 text-[10px]">→</span>}
+                                  <span
+                                    className={cn(
+                                      'flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[10px]',
+                                      isCurrent
+                                        ? 'bg-primary/15 font-bold text-primary ring-1 ring-primary/30'
+                                        : isCompleted
+                                          ? 'text-emerald-700 dark:text-emerald-400 font-semibold'
+                                          : 'text-muted-foreground/50'
+                                    )}
+                                  >
+                                    <span>{isCompleted ? '●' : isCurrent ? '⚡' : '○'}</span>
+                                    <span>{nodeName}</span>
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Card Footer: Timestamp + CTA */}
+                        <div className="flex items-center justify-between pt-3 border-t text-xs">
+                          <span className="text-muted-foreground text-[11px]">
+                            {formatRelativeTime(p.updated_at)}
+                          </span>
+                          <div className="flex items-center gap-1 font-bold text-primary group-hover:translate-x-0.5 transition-transform">
+                            <span>{stageInfo.ctaText}</span>
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </section>
       )}
 
-      <section className="grid gap-4 lg:grid-cols-2">
-        <Card className="p-5 shadow-card">
-          <h2 className="text-h4">Human Review Required</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            AI dapat mempercepat draft proposal, tetapi keputusan final tetap di tangan operator. Jangan submit proposal
-            tanpa mengecek requirement donor, eligibility, angka impact, budget, dan kesesuaian program.
-          </p>
-          <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-            {REVIEW_CHECKLIST.map((item) => (
-              <li key={item} className="flex gap-2">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-
-        <Card className="p-5 shadow-card">
-          <h2 className="text-h4">No Fabrication Rule</h2>
-          <p className="mt-2 text-sm leading-6 text-muted-foreground">
-            Grantwriter tidak boleh mengarang data. Jika informasi belum tersedia, tandai sebagai perlu dilengkapi,
-            bukan dibuat seolah-olah benar.
-          </p>
-          <ul className="mt-4 space-y-2 text-sm text-muted-foreground">
-            {FABRICATION_RULES.map((item) => (
-              <li key={item} className="flex gap-2">
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-        </Card>
-      </section>
-
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-h4">Dari Pipeline dan Library ke Proposal</h2>
-          <p className="text-sm text-muted-foreground">
-            Draft proposal paling kuat ketika Grantwriter memakai konteks dari Grant Pipeline dan Impact Library.
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-3">
-          {WORKFLOW_CARDS.map((card) => (
-            <Card key={card.title} className="flex h-full flex-col p-5 shadow-card">
-              <h3 className="font-semibold">{card.title}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">{card.description}</p>
-              <Button asChild variant="outline" size="sm" className="mt-4 w-fit">
-                <Link to={card.href}>
-                  {card.cta}
-                  <ArrowRight className="ml-2 h-3.5 w-3.5" />
-                </Link>
-              </Button>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <Card className="flex flex-col gap-3 p-5 shadow-card md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="font-semibold">Review adalah bagian dari sistem</h2>
-          <p className="text-sm text-muted-foreground">
-            AI mempercepat draft, manusia memastikan akurasi.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link to="/dashboard">Kembali ke Dashboard</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link to="/dashboard/grantfinder">Buka Grant Pipeline</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link to="/dashboard/impactory-library">Buka Impact Library</Link>
-          </Button>
-          <Button asChild variant="outline">
-            <Link to="/dashboard/readiness">Cek Readiness</Link>
-          </Button>
-        </div>
-      </Card>
-
-      <Dialog
-        open={createOpen}
-        onOpenChange={(open) => {
-          setCreateOpen(open);
-          if (!open) setRoleHint(null);
-        }}
-      >
-        <DialogContent className="sm:max-w-lg">
+      {/* Task 1: Single Streamlined Create Modal */}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Buat proyek baru</DialogTitle>
+            <DialogTitle className="text-h4 font-bold flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Buat Program Baru
+            </DialogTitle>
             <DialogDescription>
-              Pilih mode dan beri nama proyek. Mode tidak bisa diubah setelah proyek dibuat.
+              Masukkan nama program atau proyek yang ingin Anda susun. Sistem akan membuka Program Blueprint Studio.
             </DialogDescription>
           </DialogHeader>
+
           <div className="space-y-4 py-2">
-            {roleHint && (
-              <p className="rounded-md border border-accent/30 bg-accent-soft px-3 py-2 text-xs text-accent">
-                {roleHint}
-              </p>
-            )}
-            <div className="grid gap-3 sm:grid-cols-2">
-              <ModeOption
-                active={mode === 'quick'}
-                onClick={() => setMode('quick')}
-                icon={<Zap className="h-4 w-4" />}
-                title="Quick"
-                subtitle="4 langkah · cocok untuk donor lokal/private"
-                meta="≈ 15 menit"
-              />
-              <ModeOption
-                active={mode === 'lfa'}
-                onClick={() => setMode('lfa')}
-                icon={<Layers className="h-4 w-4" />}
-                title="LFA Lengkap"
-                subtitle="7 langkah · standar UN/OECD-DAC, World Bank, USAID"
-                meta="≈ 1–2 jam"
+            <div className="space-y-2">
+              <Label htmlFor="project-title" className="font-semibold">Nama Program / Proyek</Label>
+              <Input
+                id="project-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="Mis. Pemberdayaan Digital Janda Cirebon"
+                className="text-sm"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && title.trim() && !creating) {
+                    void handleCreate();
+                  }
+                }}
               />
             </div>
-            <div className="space-y-2">
-            <Label htmlFor="project-title">Nama proyek</Label>
-            <Input
-              id="project-title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="Mis. Program Literasi Anak Pesisir"
-              autoFocus
-            />
           </div>
-          </div>
-          <DialogFooter>
+
+          <DialogFooter className="gap-2 sm:gap-0">
             <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
               Batal
             </Button>
-            <Button onClick={handleCreate} disabled={!title.trim() || creating}>
-              {creating && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Buat proyek
+            <Button onClick={handleCreate} disabled={!title.trim() || creating} className="gap-2 font-semibold">
+              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              Buat Program
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-function ModeOption({
-  active,
-  onClick,
-  icon,
-  title,
-  subtitle,
-  meta,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  title: string;
-  subtitle: string;
-  meta: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'group flex flex-col items-start gap-1.5 rounded-lg border p-3 text-left transition-all',
-        active
-          ? 'border-primary bg-primary/5 ring-2 ring-primary/15'
-          : 'border-border hover:border-primary/40 hover:bg-muted/50',
-      )}
-    >
-      <div className="flex w-full items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              'flex h-7 w-7 items-center justify-center rounded-md',
-              active ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground',
-            )}
-          >
-            {icon}
-          </span>
-          <span className="text-sm font-semibold">{title}</span>
-        </div>
-        <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
-          {meta}
-        </span>
-      </div>
-      <p className="text-xs text-muted-foreground">{subtitle}</p>
-    </button>
   );
 }
