@@ -200,3 +200,79 @@ export interface FixtureRunnerOutput {
     issues: string[];
   }[];
 }
+
+// ============================================================================
+// CANONICAL PROPOSAL CONTRACT V2 (27.5K BRAIN ENGINE SPECIFICATION)
+// ============================================================================
+
+export interface CostDriverV2 {
+  id: string;
+  item_name: string;
+  quantity: number;
+  unit: string;                     // e.g., "orang", "paket", "unit", "sesi", "bulan"
+  frequency: number;
+  duration_days?: number;
+  estimated_unit_cost_idr?: number;
+  price_basis?: string;             // e.g., "Standard SBM 2026", "Survei Pasar"
+}
+
+export interface IndicatorV2 {
+  id: string;
+  indicator_name: string;
+  baseline_value: string | number;
+  target_value: string | number;
+  unit_of_measure: string;
+  means_of_verification: string;    // e.g., "Laporan Absensi", "Berita Acara ODF", "Log System"
+}
+
+export interface CanonicalActivityV2 {
+  id: string;
+  parent_output_id: string;         // Explicit parent reference
+  code: string;                     // e.g., "ACT-1.1.1"
+  activity_name: string;
+  description: string;
+  activity_type: 'workshop' | 'procurement' | 'coaching' | 'construction' | 'software_dev' | 'campaign';
+  owner_role: string;               // e.g., "Project Manager", "Field Facilitator"
+  cost_drivers: CostDriverV2[];
+}
+
+export interface CanonicalOutputV2 {
+  id: string;
+  parent_outcome_id: string;        // Explicit parent reference
+  code: string;                     // e.g., "OUT-1.1"
+  output_name: string;
+  description: string;
+  deliverable_type: 'tangible_good' | 'training_completed' | 'sop_document' | 'digital_system' | 'service';
+  indicators: IndicatorV2[];
+  activities: CanonicalActivityV2[];
+}
+
+export interface CanonicalOutcomeV2 {
+  id: string;
+  code: string;                     // e.g., "OC-1"
+  outcome_name: string;
+  description: string;
+  impact_category: 'economic' | 'health' | 'education' | 'environment' | 'governance';
+  indicators: IndicatorV2[];
+  outputs: CanonicalOutputV2[];
+}
+
+export interface CanonicalProposalPayloadV2 {
+  project_id: string;
+  organization_id: string;
+  version: number;                  // Version 2
+  metadata: {
+    title: string;
+    geography: string;
+    duration_months: number;
+    beneficiary_count: number;
+    total_budget_idr: number;
+    target_donor: string;
+    donor_standard: string;
+  };
+  outcomes: CanonicalOutcomeV2[];   // Array of Outcomes (1-3)
+  unlinked_nodes?: {
+    activities: CanonicalActivityV2[];
+  };
+}
+

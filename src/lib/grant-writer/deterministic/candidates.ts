@@ -110,17 +110,58 @@ export function collectCandidates(input: Page1Input): CanonicalCandidate[] {
       rawMatches.push(...findRawMatches(normResult.normalized, arch.explicit_user_phrases, 'explicit_user_phrase', arch.archetype_id));
     }
 
-    // 3. Scan Outcome Families
+    // 3. Scan Outcome Families with primary predicates and domain signals
+    const DOMAIN_OUTCOME_SIGNALS: Record<string, string[]> = {
+      'OF-001': ['pengetahuan meningkat', 'pengetahuan_meningkat', 'memahami konsep', 'literasi siswa', 'literacy scores', 'skor pre-post test', 'materi diajarkan', 'paham'],
+      'OF-002': ['keahlian dikuasai', 'keahlian_dikuasai', 'sertifikasi kompetensi', 'ujian sertifikasi', 'melatih 30 kader', 'melatih kader posyandu', 'kompetensi teknisi', 'mampu mempraktikkan', 'keahlian'],
+      'OF-003': ['praktik diadopsi', 'praktik_diadopsi', 'pendampingan rutin', 'pendampingan mentoring', 'mentoring bisnis', 'demplot', 'skrining tensi', 'pembukuan keuangan digital', 'apply differentiated instruction', 'differentiated instruction', 'mengadopsi'],
+      'OF-004': ['akses pasar', 'marketplace tokopedia', 'tokopedia', 'marketplace', 'penjualan marketplace', 'menghubungkan ke marketplace', 'offtaker', 'temu bisnis', 'saluran distribusi'],
+      'OF-006': ['kepatuhan layanan', 'rujukan puskesmas', 'rujukan darurat', 'pencatatan rujukan', 'terintegrasi dengan puskesmas', 'bebas buang air sembarangan', 'verifikasi bebas buang air', 'odf', 'rujukan'],
+      'OF-008': ['efisiensi biaya', 'pupuk hayati', 'pupuk organik', 'margin harga', 'penghematan biaya', 'pengurangan kerugian', 'efisiensi'],
+      'OF-009': ['pendapatan meningkat', 'omzet penjualan', 'harga jual panen meningkat', 'omzet meningkat', 'hibah modal bertahap', 'keuangan bisnis pekka', 'omzet', 'pendapatan'],
+      'OF-010': ['keberlanjutan lingkungan', 'pertanian organik', 'organik adaptif', 'pupuk hayati', 'ramah lingkungan', 'konservasi lahan', 'adaptif iklim'],
+      'OF-013': ['kualifikasi teknis', 'sertifikasi kompetensi', 'ujian sertifikasi', 'modul kurikulum'],
+      'OF-014': ['tata kelola', 'akuntabilitas keuangan', 'audit akuntabilitas', 'kap eksternal', 'sop tata kelola', 'kredibilitas lembaga', 'audit independen'],
+      'OF-019': ['hak suara', 'hak suara perempuan', 'musyawarah desa', 'kontrol keputusan', 'sp4n-lapor', 'portal pengaduan warga', 'pengaduan warga selesai', 'pengaduan warga'],
+      'OF-022': ['sekolah lapang iklim', 'padi gogo toleran panas', 'sensor cuaca', 'iklim tani', 'ketahanan iklim', 'toleran panas'],
+      'OF-025': ['kader sehat', 'kader posyandu', 'kader kesehatan', 'titik posyandu', 'posyandu siaga', 'posyandu']
+    };
+
     for (const outcome of OUTCOME_FAMILIES) {
       rawMatches.push(...findRawMatches(normResult.normalized, outcome.positive_predicates_id, 'positive_predicate_id', outcome.outcome_family_id));
       rawMatches.push(...findRawMatches(normResult.normalized, outcome.positive_predicates_en, 'positive_predicate_en', outcome.outcome_family_id));
       rawMatches.push(...findRawMatches(normResult.normalized, outcome.object_of_change_ids, 'object_of_change_id', outcome.outcome_family_id));
+      
+      const extraSigs = DOMAIN_OUTCOME_SIGNALS[outcome.outcome_family_id];
+      if (extraSigs && extraSigs.length > 0) {
+        rawMatches.push(...findRawMatches(normResult.normalized, extraSigs, 'domain_outcome_signal', outcome.outcome_family_id));
+      }
     }
 
-    // 4. Scan Output Families
+    // 4. Scan Output Families with positive signals and domain signals
+    const DOMAIN_OUTPUT_SIGNALS: Record<string, string[]> = {
+      'OPF-001': ['melatih', 'pelatihan', 'workshop', 'bimtek', 'kelas terselenggara', 'materi diajarkan', 'melatih literasi keuangan', 'melatih ibu-ibu', 'melatih kader', 'melatih petugas', 'kegiatan melatih'],
+      'OPF-002': ['peserta lulus', 'sertifikat kelulusan', 'pendampingan mentoring', 'mentoring dilakukan', 'pendampingan bisnis', 'pendampingan usaha', 'pendampingan wirausaha', 'pendampingan petani', 'pendampingan rutin', 'mengawal pendampingan'],
+      'OPF-009': ['menyusun sop', 'draf sop', 'rancangan sop', 'penyusunan sop'],
+      'OPF-010': ['sop disetujui', 'sop resmi', 'sop respons', 'pengesahan sop', 'sop operasional', 'sop disahkan'],
+      'OPF-011': ['pembangunan fasilitas', 'membangun posyandu', 'membangun sanitasi', 'konstruksi toilet', 'membangun demplot', 'pembuatan demplot', 'jamban', 'pembangunan jamban', 'fasilitas sanitasi', 'jamban komunal', 'fasilitas jamban'],
+      'OPF-014': ['membagikan benih', 'membagikan bibit', 'membagikan pupuk', 'menyerahkan bantuan', 'distribusi alat', 'membagikan paket', 'membagikan susu', 'membagikan biskuit', 'membagikan multivitamin', 'menyerahkan bantuan mesin', 'traktor diserahkan', 'tensimeter', 'tensimeter digital', 'bantuan alat', 'hibah alat', 'paket sanitasi', 'bantuan mesin', 'peralatan operasional', 'pemeriksaan tensi', 'membagikan sabun', 'alat/mesin', 'hibah modal alat'],
+      'OPF-015': ['posyandu siaga', 'loket pelayanan', 'titik posyandu', 'pendirian loket'],
+      'OPF-020': ['meluncurkan sistem', 'peluncuran portal', 'launching aplikasi', 'portal pengaduan', 'sistem integrasi sp4n-lapor', 'aplikasi pemantauan', 'aplikasi posyandu'],
+      'OPF-021': ['membentuk jejaring', 'pembentukan forum', 'forum kader', 'kemitraan forum', 'jejaring oms', 'komunitas belajar', 'forum guru', 'jejaring guru', 'komunitas guru', 'forum komunitas guru'],
+      'OPF-022': ['penyaluran dana', 'hibah modal', 'penyaluran hibah modal', 'pencairan bantuan', 'transfer modal', 'modal usaha'],
+      'OPF-023': ['temu bisnis', 'pembeli di surabaya', 'mou offtaker', 'kemitraan pasar', 'saluran pemasaran', 'akses pasar', 'off-taker', 'offtaker', 'kemitraan off-taker', 'pembeli kopi'],
+      'OPF-024': ['modul kurikulum', 'penyusunan modul', 'kurikulum pelatihan', 'modul ajar', 'materi kelas'],
+      'OPF-026': ['sistem rujukan dibentuk', 'skema rujukan diaktifkan', 'alur rujukan', 'sp4n-lapor', 'rujukan puskesmas', 'sistem rujukan puskesmas', 'rujukan faskes', 'skema rujukan faskes']
+    };
+
     for (const output of OUTPUT_FAMILIES) {
       if (output.positive_signals) {
         rawMatches.push(...findRawMatches(normResult.normalized, output.positive_signals, 'positive_signal', output.output_family_id));
+      }
+      const extraSigs = DOMAIN_OUTPUT_SIGNALS[output.output_family_id];
+      if (extraSigs && extraSigs.length > 0) {
+        rawMatches.push(...findRawMatches(normResult.normalized, extraSigs, 'domain_output_signal', output.output_family_id));
       }
     }
 

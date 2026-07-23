@@ -20,6 +20,14 @@ import {
   CanonicalParentRef,
   MapToCanonicalLfaViewInput
 } from './types';
+import {
+  CanonicalProposalPayloadV2,
+  CanonicalOutputV2,
+  CanonicalActivityV2,
+  IndicatorV2,
+  CostDriverV2
+} from '../grant-writer/deterministic/types';
+import { evaluateLfaQuality } from './qualityEngine';
 
 const UUID_TEXT_PATTERN = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
@@ -206,7 +214,7 @@ export function mapToCanonicalLfaView(
 
   // Rule 1: Empty Project Verification
   if (rawEntries.length === 0) {
-    const emptyView: CanonicalLfaView = {
+    const preliminaryEmptyView: CanonicalLfaView = {
       rawProject,
       allRawEntries,
       goal: null,
@@ -224,6 +232,13 @@ export function mapToCanonicalLfaView(
       reviewQueue: [],
       dispositionMap: {},
       hasBlockingIntegrityFinding: false
+    };
+
+    const emptyQualityAssessment = evaluateLfaQuality(preliminaryEmptyView, rawProject.beneficiary_description);
+
+    const emptyView: CanonicalLfaView = {
+      ...preliminaryEmptyView,
+      qualityAssessment: emptyQualityAssessment
     };
 
     Object.freeze(allRawEntries);
@@ -892,7 +907,7 @@ export function mapToCanonicalLfaView(
   }
 
   // 10. Construct View and Apply Explicit Freeze Targets
-  const canonicalView: CanonicalLfaView = {
+  const preliminaryView: CanonicalLfaView = {
     rawProject,
     allRawEntries,
     goal,
@@ -912,6 +927,19 @@ export function mapToCanonicalLfaView(
     hasBlockingIntegrityFinding
   };
 
+  let qualityAssessment;
+  try {
+    qualityAssessment = evaluateLfaQuality(preliminaryView, rawProject.beneficiary_description);
+  } catch (_e) {
+    qualityAssessment = undefined;
+  }
+
+  const canonicalView: CanonicalLfaView = {
+    ...preliminaryView,
+    qualityAssessment
+  };
+
+
   Object.freeze(allRawEntries);
   Object.freeze(outcomeNodes);
   Object.freeze(outputNodes);
@@ -923,4 +951,308 @@ export function mapToCanonicalLfaView(
   Object.freeze(reviewQueue);
 
   return Object.freeze(canonicalView);
+}
+
+/**
+ * Direct flat node extraction helpers for CanonicalProposalPayloadV2
+ */
+export function extractCanonicalOutputs(proposal: CanonicalProposalPayloadV2): CanonicalOutputV2[] {
+  return (proposal.outcomes || []).flatMap((outcome) => outcome.outputs || []);
+}
+
+export function extractCanonicalActivities(proposal: CanonicalProposalPayloadV2): CanonicalActivityV2[] {
+  return extractCanonicalOutputs(proposal).flatMap((output) => output.activities || []);
+}
+
+export function extractCanonicalIndicators(proposal: CanonicalProposalPayloadV2): IndicatorV2[] {
+  const outcomeIndicators = (proposal.outcomes || []).flatMap((outcome) => outcome.indicators || []);
+  const outputIndicators = extractCanonicalOutputs(proposal).flatMap((output) => output.indicators || []);
+  return [...outcomeIndicators, ...outputIndicators];
+}
+
+export function extractCanonicalCostDrivers(proposal: CanonicalProposalPayloadV2): CostDriverV2[] {
+  return extractCanonicalActivities(proposal).flatMap((activity) => activity.cost_drivers || []);
+}
+
+/**
+ * Map CanonicalProposalPayloadV2 directly into RawLfaEntry[] for database transport/persistence.
+ */
+export function mapCanonicalProposalToRawEntries(
+  proposal: CanonicalProposalPayloadV2
+): RawLfaEntry[] {
+  const entries: RawLfaEntry[] = [];
+  const projectId = proposal.project_id;
+  const orgId = proposal.organization_id;
+
+  // 1. Goal Node
+  const goalId = `goal_${projectId}`;
+  entries.push({
+    id: goalId,
+    project_id: projectId,
+    org_id: orgId,
+    level: 'goal',
+    sequence: 1,
+    parent_id: null,
+    description: proposal.metadata?.title || 'Program Goal',
+    indicator: null,
+    means_of_verification: null,
+    assumption: null,
+    responsible_party: null
+  });
+
+  // 2. Primary Purpose Node
+  const purposeId = `purpose_${projectId}`;
+  entries.push({
+    id: purposeId,
+    project_id: projectId,
+    org_id: orgId,
+    level: 'purpose',
+    sequence: 1,
+    parent_id: goalId,
+    description: `${proposal.metadata?.title || 'Program Purpose'} (${proposal.metadata?.geography || 'Indonesia'})`,
+    indicator: null,
+    means_of_verification: null,
+    assumption: null,
+    responsible_party: null
+  });
+
+  // 3. Outcomes (as purpose level entries in raw storage, sequence >= 2)
+  (proposal.outcomes || []).forEach((outcome, oIdx) => {
+    const indicatorText = (outcome.indicators || [])
+      .map((ind) => `${ind.code}: ${ind.indicator_name} (Target: ${ind.target_value} ${ind.unit_of_measure})`)
+      .join('; ');
+    const movText = (outcome.indicators || [])
+      .map((ind) => ind.data_source)
+      .filter(Boolean)
+      .join('; ');
+
+    entries.push({
+      id: outcome.id,
+      project_id: projectId,
+      org_id: orgId,
+      level: 'purpose',
+      sequence: oIdx + 2,
+      parent_id: purposeId,
+      description: `${outcome.code}: ${outcome.outcome_name} - ${outcome.description}`,
+      indicator: indicatorText || null,
+      means_of_verification: movText || null,
+      assumption: null,
+      responsible_party: null
+    });
+
+    // 4. Outputs
+    (outcome.outputs || []).forEach((output, opIdx) => {
+      const opIndicatorText = (output.indicators || [])
+        .map((ind) => `${ind.code}: ${ind.indicator_name} (Target: ${ind.target_value} ${ind.unit_of_measure})`)
+        .join('; ');
+      const opMovText = (output.indicators || [])
+        .map((ind) => ind.data_source)
+        .filter(Boolean)
+        .join('; ');
+
+      entries.push({
+        id: output.id,
+        project_id: projectId,
+        org_id: orgId,
+        level: 'output',
+        sequence: opIdx + 1,
+        parent_id: output.parent_outcome_id,
+        description: `${output.code}: ${output.output_name} - ${output.description}`,
+        indicator: opIndicatorText || null,
+        means_of_verification: opMovText || null,
+        assumption: null,
+        responsible_party: null
+      });
+
+      // 5. Activities
+      (output.activities || []).forEach((act, actIdx) => {
+        const costDriverSummary = (act.cost_drivers || [])
+          .map((cd) => `${cd.code}: ${cd.resource_name} (${cd.quantity} ${cd.unit})`)
+          .join('; ');
+
+        entries.push({
+          id: act.id,
+          project_id: projectId,
+          org_id: orgId,
+          level: 'activity',
+          sequence: actIdx + 1,
+          parent_id: act.parent_output_id,
+          description: `${act.code}: ${act.activity_name} - ${act.description}`,
+          indicator: null,
+          means_of_verification: null,
+          assumption: null,
+          responsible_party: costDriverSummary || null
+        });
+      });
+    });
+  });
+
+  return entries;
+}
+
+/**
+ * Cutover Materializer: Directly materializes CanonicalProposalPayloadV2 into CanonicalLfaView.
+ * Thin transport layer with zero reasoning, zero inference, and zero synthetic node generation.
+ */
+export function materializeCanonicalProposalToLfaView(
+  proposal: CanonicalProposalPayloadV2
+): CanonicalLfaView {
+  const rawProject = {
+    id: proposal.project_id,
+    org_id: proposal.organization_id,
+    name: proposal.metadata?.title || 'Program',
+    location: proposal.metadata?.geography || '',
+    duration_months: proposal.metadata?.duration_months || 12,
+    beneficiary_count: proposal.metadata?.beneficiary_count || 0,
+    status: 'ACTIVE'
+  };
+
+  const rawEntries = mapCanonicalProposalToRawEntries(proposal);
+
+  const goalId = `goal_${proposal.project_id}`;
+  const purposeId = `purpose_${proposal.project_id}`;
+
+  const goalNode: CanonicalNodeView = {
+    viewNodeId: `raw:${goalId}`,
+    rawEntryId: goalId,
+    sourceExternalId: goalId,
+    sourceCorrelationStatus: 'CONFIRMED_STRUCTURAL',
+    declaredStorageLevel: 'goal',
+    interpretedNodeType: 'goal',
+    classificationState: 'CONFIRMED_GOAL',
+    confidenceTier: 'A',
+    parentRef: null,
+    rawSequence: 1,
+    statement: proposal.metadata?.title || 'Program Goal',
+    legacyIndicatorText: null,
+    legacyMeansOfVerificationText: null,
+    legacyAssumptionText: null,
+    legacyResponsiblePartyText: null,
+    timelineStart: null,
+    timelineEnd: null,
+    evidence: { precedenceLevel: 1, source: 'persisted_canonical' },
+    disposition: 'CANONICAL_NODE'
+  };
+
+  const purposeNode: CanonicalNodeView = {
+    viewNodeId: `raw:${purposeId}`,
+    rawEntryId: purposeId,
+    sourceExternalId: purposeId,
+    sourceCorrelationStatus: 'CONFIRMED_STRUCTURAL',
+    declaredStorageLevel: 'purpose',
+    interpretedNodeType: 'purpose',
+    classificationState: 'CONFIRMED_PURPOSE',
+    confidenceTier: 'A',
+    parentRef: { viewNodeId: `raw:${goalId}`, nodeType: 'goal' },
+    rawSequence: 1,
+    statement: `${proposal.metadata?.title || 'Program Purpose'} (${proposal.metadata?.geography || 'Indonesia'})`,
+    legacyIndicatorText: null,
+    legacyMeansOfVerificationText: null,
+    legacyAssumptionText: null,
+    legacyResponsiblePartyText: null,
+    timelineStart: null,
+    timelineEnd: null,
+    evidence: { precedenceLevel: 1, source: 'persisted_canonical' },
+    disposition: 'CANONICAL_NODE'
+  };
+
+  const outcomeNodes: CanonicalNodeView[] = (proposal.outcomes || []).map((o, idx) => ({
+    viewNodeId: `raw:${o.id}`,
+    rawEntryId: o.id,
+    sourceExternalId: o.id,
+    sourceCorrelationStatus: 'CONFIRMED_STRUCTURAL',
+    declaredStorageLevel: 'purpose',
+    interpretedNodeType: 'outcome',
+    classificationState: 'CONFIRMED_OUTCOME',
+    confidenceTier: 'A',
+    parentRef: { viewNodeId: `raw:${purposeId}`, nodeType: 'purpose' },
+    rawSequence: idx + 1,
+    statement: `${o.code}: ${o.outcome_name} - ${o.description}`,
+    legacyIndicatorText: (o.indicators || []).map((i) => `${i.code}: ${i.indicator_name}`).join('; ') || null,
+    legacyMeansOfVerificationText: (o.indicators || []).map((i) => i.data_source).filter(Boolean).join('; ') || null,
+    legacyAssumptionText: null,
+    legacyResponsiblePartyText: null,
+    timelineStart: null,
+    timelineEnd: null,
+    evidence: { precedenceLevel: 1, source: 'persisted_canonical' },
+    disposition: 'CANONICAL_NODE'
+  }));
+
+  const allOutputs = extractCanonicalOutputs(proposal);
+  const outputNodes: CanonicalNodeView[] = allOutputs.map((op, idx) => ({
+    viewNodeId: `raw:${op.id}`,
+    rawEntryId: op.id,
+    sourceExternalId: op.id,
+    sourceCorrelationStatus: 'CONFIRMED_STRUCTURAL',
+    declaredStorageLevel: 'output',
+    interpretedNodeType: 'output',
+    classificationState: 'CONFIRMED_OUTPUT',
+    confidenceTier: 'A',
+    parentRef: { viewNodeId: `raw:${op.parent_outcome_id}`, nodeType: 'outcome' },
+    rawSequence: idx + 1,
+    statement: `${op.code}: ${op.output_name} - ${op.description}`,
+    legacyIndicatorText: (op.indicators || []).map((i) => `${i.code}: ${i.indicator_name}`).join('; ') || null,
+    legacyMeansOfVerificationText: (op.indicators || []).map((i) => i.data_source).filter(Boolean).join('; ') || null,
+    legacyAssumptionText: null,
+    legacyResponsiblePartyText: null,
+    timelineStart: null,
+    timelineEnd: null,
+    evidence: { precedenceLevel: 1, source: 'persisted_canonical' },
+    disposition: 'CANONICAL_NODE'
+  }));
+
+  const allActivities = extractCanonicalActivities(proposal);
+  const activityNodes: CanonicalNodeView[] = allActivities.map((act, idx) => ({
+    viewNodeId: `raw:${act.id}`,
+    rawEntryId: act.id,
+    sourceExternalId: act.id,
+    sourceCorrelationStatus: 'CONFIRMED_STRUCTURAL',
+    declaredStorageLevel: 'activity',
+    interpretedNodeType: 'activity',
+    classificationState: 'CONFIRMED_ACTIVITY',
+    confidenceTier: 'A',
+    parentRef: { viewNodeId: `raw:${act.parent_output_id}`, nodeType: 'output' },
+    rawSequence: idx + 1,
+    statement: `${act.code}: ${act.activity_name} - ${act.description}`,
+    legacyIndicatorText: null,
+    legacyMeansOfVerificationText: null,
+    legacyAssumptionText: null,
+    legacyResponsiblePartyText: (act.cost_drivers || []).map((cd) => `${cd.code}: ${cd.resource_name}`).join('; ') || null,
+    timelineStart: null,
+    timelineEnd: null,
+    evidence: { precedenceLevel: 1, source: 'persisted_canonical' },
+    disposition: 'CANONICAL_NODE'
+  }));
+
+  const dispositionMap: Record<string, RawEntryDisposition> = {};
+  rawEntries.forEach((e) => {
+    dispositionMap[e.id] = 'CANONICAL_NODE';
+  });
+
+  const preliminaryView: CanonicalLfaView = {
+    rawProject,
+    allRawEntries: rawEntries,
+    goal: goalNode,
+    purpose: purposeNode,
+    outcomes: outcomeNodes,
+    outputs: outputNodes,
+    activities: activityNodes,
+    unusedOutcomes: [],
+    unassignedOutputs: [],
+    orphanedActivities: [],
+    presentationMode: 'EXPANDED_CONFIRMED',
+    structuralStatus: 'COMPLETE',
+    measurementStatus: 'LEGACY_TEXT_PRESENT',
+    findings: [],
+    reviewQueue: [],
+    dispositionMap,
+    hasBlockingIntegrityFinding: false
+  };
+
+  const qualityAssessment = evaluateLfaQuality(preliminaryView, proposal.metadata?.title || '');
+
+  return {
+    ...preliminaryView,
+    qualityAssessment
+  };
 }

@@ -1,4 +1,5 @@
-import { mapToCanonicalLfaView } from './readAdapter';
+import { mapToCanonicalLfaView, materializeCanonicalProposalToLfaView } from './readAdapter';
+import type { CanonicalProposalPayloadV2 } from '../grant-writer/deterministic/types';
 import {
   CanonicalLfaView,
   GrantLinkEvidence,
@@ -64,4 +65,10 @@ export function buildEditorCanonicalLfaView(
     grantLinkEvidence: input.grantLinkEvidence ?? null,
     skeletonEvidence: input.skeletonEvidence ?? null,
   });
+}
+
+export function buildEditorCanonicalLfaViewFromProposal(
+  proposal: CanonicalProposalPayloadV2
+): CanonicalLfaView {
+  return materializeCanonicalProposalToLfaView(proposal);
 }

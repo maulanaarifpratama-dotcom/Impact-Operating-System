@@ -198,6 +198,34 @@ export interface AdapterReviewItem {
   readonly createdAt: string;
 }
 
+export type DimensionQualityStatus = 'COMPLETE' | 'PARTIAL' | 'INCOMPLETE';
+
+export type QualityReadinessTier =
+  | 'TIER_1_PRODUCTION_READY'
+  | 'TIER_2_BLUEPRINT_VIABLE'
+  | 'TIER_3_NEEDS_REPAIR';
+
+export interface QualityDimensionResult {
+  readonly status: DimensionQualityStatus;
+  readonly scoreConfidence: number;
+  readonly activeMissingRules: readonly string[];
+  readonly activeFindingCodes: readonly AdapterFindingCode[];
+  readonly repairActionPrompts: readonly string[];
+}
+
+export interface LfaQualityAssessment {
+  readonly readinessTier: QualityReadinessTier;
+  readonly vectors: {
+    readonly causalLogic: QualityDimensionResult;
+    readonly outcomeQuality: QualityDimensionResult;
+    readonly actorClarity: QualityDimensionResult;
+    readonly mealReadiness: QualityDimensionResult;
+    readonly sustainability: QualityDimensionResult;
+  };
+  readonly blockingIssueCount: number;
+  readonly recommendedNextStep: string;
+}
+
 export interface CanonicalLfaView {
   readonly rawProject: RawLfaProject;
   readonly allRawEntries: readonly RawLfaEntry[];
@@ -216,6 +244,7 @@ export interface CanonicalLfaView {
   readonly reviewQueue: readonly AdapterReviewItem[];
   readonly dispositionMap: Record<string, RawEntryDisposition>;
   readonly hasBlockingIntegrityFinding: boolean;
+  readonly qualityAssessment?: LfaQualityAssessment;
 }
 
 export interface MapToCanonicalLfaViewInput {
@@ -224,3 +253,4 @@ export interface MapToCanonicalLfaViewInput {
   readonly grantLinkEvidence?: GrantLinkEvidence | null;
   readonly skeletonEvidence?: ValidatedStructuralSkeletonEvidence | null;
 }
+

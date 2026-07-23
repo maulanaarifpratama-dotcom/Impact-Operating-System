@@ -1,0 +1,217 @@
+/**
+ * Canonical Pipeline Assembler (27.5k Brain Engine Specification)
+ * Module: assemble-canonical-proposal-v2.ts
+ *
+ * Responsibilities:
+ * - Executes all 5 layers of the 27.5k Brain sequentially in a single pass:
+ *   Step 1: collectCandidates(input)
+ *   Step 2: expandOutcomes(input, candidates)
+ *   Step 3: expandOutputs(input, outcomes, candidates)
+ *   Step 4: decomposeActivities(input, outputs, candidates)
+ *   Step 5: scaffoldOutcomeIndicators(input, outcome)
+ *   Step 6: scaffoldOutputIndicators(input, output)
+ *   Step 7: extractCostDrivers(input, activity)
+ *   Step 8: evaluateBQS27K(proposalPayload)
+ * - Performs internal validation for unique IDs, parent references, and orphan nodes.
+ * - Guarantees zero reasoning during transport or materialization.
+ */
+
+import type {
+  Page1Input,
+  CanonicalProposalPayloadV2,
+  CanonicalOutcomeV2
+} from './types';
+
+import { collectCandidates } from './candidates';
+import { expandOutcomes } from './outcome-expansion';
+import { expandOutputs } from './output-expansion';
+import { decomposeActivities } from './activity-decomposition';
+import {
+  scaffoldOutcomeIndicators,
+  scaffoldOutputIndicators
+} from './indicator-scaffolding';
+import { extractCostDrivers } from './cost-driver-extraction';
+import { evaluateBQS27K } from './bqs-27k';
+
+export interface PipelineAssemblerOutput {
+  proposal: CanonicalProposalPayloadV2;
+  metrics: {
+    outcomeCount: number;
+    outputCount: number;
+    activityCount: number;
+    indicatorCount: number;
+    costDriverCount: number;
+    bqs27k: number;
+  };
+  validation: {
+    orphanOutputs: number;
+    orphanActivities: number;
+    duplicateIds: number;
+    status: 'PASS' | 'WARNING' | 'FAIL';
+    issues: string[];
+  };
+}
+
+export function assembleCanonicalProposalV2(
+  input: Page1Input
+): PipelineAssemblerOutput {
+  const issues: string[] = [];
+
+  // Step 1: Collect Candidates from input
+  const candidates = collectCandidates(input);
+
+  // Step 2: Expand Outcomes (Layer 1)
+  const { outcomes: rawOutcomes } = expandOutcomes(input, candidates);
+
+  // Step 3: Expand Outputs (Layer 2)
+  const { outputs: rawOutputs } = expandOutputs(input, rawOutcomes, candidates);
+
+  // Step 4: Decompose Activities (Layer 3)
+  const { outputsWithActivities } = decomposeActivities(input, rawOutputs, candidates);
+
+  let totalIndicators = 0;
+  let totalCostDrivers = 0;
+
+  // Steps 5, 6, 7: Scaffold Indicators & Extract Cost Drivers (Layers 4 & 5)
+  const fullOutcomes: CanonicalOutcomeV2[] = rawOutcomes.map((oc) => {
+    // Step 5: Scaffold Outcome Indicators
+    const ocIndicators = scaffoldOutcomeIndicators(input, oc);
+    totalIndicators += ocIndicators.length;
+
+    const childOutputs = outputsWithActivities
+      .filter((op) => op.parent_outcome_id === oc.id)
+      .map((op) => {
+        // Step 6: Scaffold Output Indicators
+        const opIndicators = scaffoldOutputIndicators(input, op);
+        totalIndicators += opIndicators.length;
+
+        const childActivities = (op.activities || []).map((act) => {
+          // Step 7: Extract Activity Cost Drivers
+          const cds = extractCostDrivers(input, act);
+          totalCostDrivers += cds.length;
+          return {
+            ...act,
+            cost_drivers: cds
+          };
+        });
+
+        return {
+          ...op,
+          indicators: opIndicators,
+          activities: childActivities
+        };
+      });
+
+    return {
+      ...oc,
+      indicators: ocIndicators,
+      outputs: childOutputs
+    };
+  });
+
+  // Construct Canonical Proposal Contract V2 Payload
+  const proposal: CanonicalProposalPayloadV2 = {
+    project_id: input.id ? `PROJ-${input.id}` : `PROJ-27K-${Date.now()}`,
+    organization_id: input.organization_id || 'ORG-27K-001',
+    version: 2,
+    metadata: {
+      title: input.program_title || input.programTitle || 'Untitled Grant Proposal',
+      geography: input.location || 'Indonesia',
+      duration_months: input.duration_value || input.durationValue || 12,
+      beneficiary_count: input.beneficiary_count || input.beneficiaryCount || 100,
+      total_budget_idr: input.funding_amount || input.fundingAmount || 100000000,
+      target_donor: input.target_donor || 'Global Fund / CSR 2026',
+      donor_standard: 'BQS-27K Standard Specification'
+    },
+    outcomes: fullOutcomes
+  };
+
+  // Step 8: Evaluate BQS-27K Score
+  const bqsResult = evaluateBQS27K(proposal);
+
+  // =========================================================================
+  // INTERNAL VALIDATION LAYER
+  // =========================================================================
+
+  const allOutcomeIds = new Set(fullOutcomes.map((o) => o.id));
+  const allOutputIds = new Set<string>();
+  const allActivityIds = new Set<string>();
+
+  const seenIds = new Set<string>();
+  let duplicateIds = 0;
+  let orphanOutputs = 0;
+  let orphanActivities = 0;
+
+  for (const oc of fullOutcomes) {
+    if (seenIds.has(oc.id)) duplicateIds++;
+    else seenIds.add(oc.id);
+
+    for (const ind of oc.indicators) {
+      if (seenIds.has(ind.id)) duplicateIds++;
+      else seenIds.add(ind.id);
+    }
+
+    for (const op of oc.outputs) {
+      if (seenIds.has(op.id)) duplicateIds++;
+      else seenIds.add(op.id);
+      allOutputIds.add(op.id);
+
+      if (!op.parent_outcome_id || !allOutcomeIds.has(op.parent_outcome_id)) {
+        orphanOutputs++;
+        issues.push(`Orphan Output detected: ${op.id} (${op.output_name})`);
+      }
+
+      for (const ind of op.indicators) {
+        if (seenIds.has(ind.id)) duplicateIds++;
+        else seenIds.add(ind.id);
+      }
+
+      for (const act of op.activities) {
+        if (seenIds.has(act.id)) duplicateIds++;
+        else seenIds.add(act.id);
+        allActivityIds.add(act.id);
+
+        if (!act.parent_output_id || !allOutputIds.has(act.parent_output_id)) {
+          orphanActivities++;
+          issues.push(`Orphan Activity detected: ${act.id} (${act.activity_name})`);
+        }
+
+        for (const cd of act.cost_drivers) {
+          if (seenIds.has(cd.id)) duplicateIds++;
+          else seenIds.add(cd.id);
+        }
+      }
+    }
+  }
+
+  if (duplicateIds > 0) {
+    issues.push(`Found ${duplicateIds} duplicate node IDs.`);
+  }
+
+  // Determine overall status
+  let status: 'PASS' | 'WARNING' | 'FAIL' = 'PASS';
+  if (duplicateIds > 0 || orphanOutputs > 0 || orphanActivities > 0 || bqsResult.total_score < 70) {
+    status = 'FAIL';
+  } else if (bqsResult.total_score < 88) {
+    status = 'WARNING';
+  }
+
+  return {
+    proposal,
+    metrics: {
+      outcomeCount: fullOutcomes.length,
+      outputCount: bqsResult.metrics.output_count,
+      activityCount: bqsResult.metrics.activity_count,
+      indicatorCount: totalIndicators,
+      costDriverCount: totalCostDrivers,
+      bqs27k: bqsResult.total_score
+    },
+    validation: {
+      orphanOutputs,
+      orphanActivities,
+      duplicateIds,
+      status,
+      issues
+    }
+  };
+}
