@@ -576,7 +576,8 @@ export default function GrantWriterQuickWizardProvisional() {
   const isDev = import.meta.env.DEV;
 
   // Local UI State
-  const [currentFlowPage, setCurrentFlowPage] = useState<'page1' | 'processing' | 'page2' | 'approved'>('page1');
+  const [currentFlowPage, setCurrentFlowPage] = useState<'page1' | 'processing' | 'page2' | 'materializing' | 'approved'>('page1');
+  const [materializationStage, setMaterializationStage] = useState<'saving_project' | 'writing_entries' | 'preparing_workspace' | 'complete'>('saving_project');
   const [selectedFixtureId, setSelectedFixtureId] = useState<string>('live-engine');
   const [isSaving, setIsSaving] = useState(false);
   const [approvedSnapshot, setApprovedSnapshot] = useState<ApprovedPage2Snapshot | null>(null);
@@ -1371,9 +1372,12 @@ export default function GrantWriterQuickWizardProvisional() {
 
     setApprovedSnapshot(snapshot);
 
-    // 27.5k Brain Cutover: Persist Canonical LFA & Navigate directly to LFABuilder
+    // 27.5k Brain Cutover: Persist Canonical LFA & Materialize Workspace
     if (canonicalPayload) {
       setIsSaving(true);
+      setCurrentFlowPage('materializing');
+      setMaterializationStage('saving_project');
+
       try {
         const targetProjectId = projectId || canonicalPayload.project_id;
         const rawEntries = mapCanonicalProposalToRawEntries(canonicalPayload);
@@ -1393,6 +1397,10 @@ export default function GrantWriterQuickWizardProvisional() {
             linked_grant_id: projectId || null,
             updated_at: new Date().toISOString()
           });
+
+        // Stage transition delay for visual clarity
+        await new Promise((r) => setTimeout(r, 600));
+        setMaterializationStage('writing_entries');
 
         // 2. Clean old entries and insert canonical entries
         await supabase.from('lfa_entries').delete().eq('project_id', targetProjectId);
@@ -1415,12 +1423,18 @@ export default function GrantWriterQuickWizardProvisional() {
           .from('lfa_entries')
           .insert(formattedEntries);
 
+        await new Promise((r) => setTimeout(r, 600));
+        setMaterializationStage('preparing_workspace');
+
+        await new Promise((r) => setTimeout(r, 800));
+        setMaterializationStage('complete');
+
         toast({
-          title: '✅ Blueprint Program Disetujui',
-          description: 'Membuka LFA Matrix...',
+          title: '✅ Workspace & Kerangka Program Disiapkan',
+          description: 'Membuka LFA Matrix Studio...',
         });
 
-        // Navigate directly to LFABuilderEditor with targetProjectId
+        // Navigate to LFABuilderEditor with targetProjectId
         navigate(`/dashboard/lfa-builder/${targetProjectId}?from=quick_proposal`, { state: { fromQuickProposal: true } });
         return;
       } catch (err) {
@@ -2215,6 +2229,74 @@ export default function GrantWriterQuickWizardProvisional() {
           </div>
         </div>
       )}
+      {currentFlowPage === 'materializing' && (
+        <Card className="mx-auto max-w-xl border-emerald-100 bg-white py-8 px-6 my-6 shadow-sm" data-testid="materialization-screen">
+          <CardContent className="flex flex-col items-center justify-center space-y-6">
+            <div className="relative">
+              <div className="absolute inset-0 rounded-full bg-emerald-100 animate-ping opacity-75"></div>
+              <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-white shadow-md">
+                <Sparkles className="h-8 w-8 animate-pulse" />
+              </div>
+            </div>
+
+            <div className="text-center space-y-2">
+              <h3 className="text-lg font-extrabold text-slate-900" data-testid="materialization-title">
+                AI Sedang Menyiapkan Workspace & Kerangka Program Anda
+              </h3>
+              <p className="text-xs text-slate-600 max-w-md mx-auto">
+                Hasil formulasi program sedang disimpan ke database dan disiapkan dalam format Logical Framework Matrix (LFA).
+              </p>
+            </div>
+
+            <div className="w-full max-w-md bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-200 shadow-2xs">
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className="text-slate-800 flex items-center gap-1.5">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  Kerangka Program ({canonicalMetrics?.outcomeCount || 1} Outcome, {canonicalMetrics?.outputCount || 2} Output, {canonicalMetrics?.activityCount || 4} Aktivitas, {canonicalMetrics?.indicatorCount || 6} Indikator) Siap
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className={materializationStage === 'saving_project' ? 'text-slate-900 font-bold' : 'text-slate-700'}>
+                  Mendaftarkan profil & parameter program...
+                </span>
+                {materializationStage === 'saving_project' ? (
+                  <Loader2 className="h-4 w-4 text-emerald-600 animate-spin shrink-0" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                )}
+              </div>
+
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className={materializationStage === 'writing_entries' ? 'text-slate-900 font-bold' : materializationStage === 'saving_project' ? 'text-slate-400' : 'text-slate-700'}>
+                  Menulis matriks LFA ke database workspace...
+                </span>
+                {materializationStage === 'writing_entries' ? (
+                  <Loader2 className="h-4 w-4 text-emerald-600 animate-spin shrink-0" />
+                ) : materializationStage === 'saving_project' ? (
+                  <div className="h-4 w-4 rounded-full border-2 border-slate-200 shrink-0" />
+                ) : (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                )}
+              </div>
+
+              <div className="flex items-center justify-between text-xs font-semibold">
+                <span className={materializationStage === 'preparing_workspace' || materializationStage === 'complete' ? 'text-slate-900 font-bold' : 'text-slate-400'}>
+                  Membuka LFA Studio Editor...
+                </span>
+                {materializationStage === 'preparing_workspace' ? (
+                  <Loader2 className="h-4 w-4 text-emerald-600 animate-spin shrink-0" />
+                ) : materializationStage === 'complete' ? (
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                ) : (
+                  <div className="h-4 w-4 rounded-full border-2 border-slate-200 shrink-0" />
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {currentFlowPage === 'approved' && approvedSnapshot && (
         <Card className="border-emerald-200 bg-emerald-50/10 py-8 px-6 text-center space-y-6" data-testid="transition-confirmation-card">
           <CardContent className="flex flex-col items-center justify-center space-y-4">

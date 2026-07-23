@@ -326,10 +326,15 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i });
     fireEvent.click(approveBtn);
 
-    // Verify direct navigation to LFABuilder
+    // Verify materialization screen is displayed first
+    await waitFor(() => {
+      expect(screen.getByTestId('materialization-screen')).toBeInTheDocument();
+    });
+
+    // Verify navigation to LFABuilder occurs after materialization completes
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith('/dashboard/lfa-builder/gw-project-1?from=quick_proposal', { state: { fromQuickProposal: true } });
-    });
+    }, { timeout: 4000 });
   });
 
   test('RC-9B.4 — Page 2 Review renders live deterministic output from user inputs and excludes fixture content', async () => {
