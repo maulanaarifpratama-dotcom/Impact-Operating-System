@@ -287,7 +287,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     // Verify it proceeds to page 3 (Approved page) and shows the exact success message
     await waitFor(() => {
       expect(screen.getByText('Blueprint Program Disetujui!')).toBeTruthy();
-      expect(screen.getByText(/Blueprint disetujui untuk sesi ini dan siap menjadi handoff/i)).toBeTruthy();
+      expect(screen.getByText(/Blueprint disetujui untuk sesi ini/i)).toBeTruthy();
     });
   });
 
@@ -333,7 +333,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     // Verify direct navigation to LFABuilder
     await waitFor(() => {
-      expect(navigateMock).toHaveBeenCalledWith('/dashboard/lfa-builder/gw-project-1');
+      expect(navigateMock).toHaveBeenCalledWith('/dashboard/lfa-builder/gw-project-1?from=quick_proposal', { state: { fromQuickProposal: true } });
     });
   });
 

@@ -1307,12 +1307,12 @@ export default function GrantWriterQuickWizardProvisional() {
         });
 
         // Navigate directly to LFABuilderEditor with targetProjectId
-        navigate(`/dashboard/lfa-builder/${targetProjectId}`);
+        navigate(`/dashboard/lfa-builder/${targetProjectId}?from=quick_proposal`, { state: { fromQuickProposal: true } });
         return;
       } catch (err) {
         console.error('Approve blueprint materialization error:', err);
         const targetProjectId = canonicalPayload.project_id;
-        navigate(`/dashboard/lfa-builder/${targetProjectId}`);
+        navigate(`/dashboard/lfa-builder/${targetProjectId}?from=quick_proposal`, { state: { fromQuickProposal: true } });
         return;
       } finally {
         setIsSaving(false);
@@ -1751,6 +1751,115 @@ export default function GrantWriterQuickWizardProvisional() {
                 </Badge>
               </div>
             </div>
+          </Card>
+
+          {/* PROGRAM DEVELOPMENT PIPELINE (RC-9B.6 Task 1) */}
+          <Card className="border-slate-200" data-testid="program-pipeline-card">
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Program Development Pipeline
+                </CardTitle>
+                <Badge variant="outline" className="text-[10px] border-indigo-200 text-indigo-700 bg-indigo-50 font-medium">
+                  Tahap 1 dari 7
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-7">
+                {/* 1. Program Blueprint */}
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50/70 p-2.5 flex flex-col justify-between" data-testid="pipeline-stage-blueprint">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-xs font-bold text-emerald-900 truncate">Program Blueprint</span>
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  </div>
+                  <span className="text-[10px] font-semibold text-emerald-700">Completed</span>
+                </div>
+
+                {/* 2. LFA Matrix */}
+                <div className="rounded-lg border border-amber-300 bg-amber-50/80 p-2.5 flex flex-col justify-between" data-testid="pipeline-stage-lfa">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-xs font-bold text-amber-900 truncate">LFA Matrix</span>
+                    <span className="text-amber-600 font-bold text-sm leading-none shrink-0">⭕</span>
+                  </div>
+                  <span className="text-[10px] font-semibold text-amber-800">Not Generated</span>
+                </div>
+
+                {/* 3. WBS */}
+                <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 flex flex-col justify-between opacity-75" data-testid="pipeline-stage-wbs">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-xs font-medium text-slate-700 truncate">WBS</span>
+                    <Lock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  </div>
+                  <span className="text-[10px] text-slate-400">Requires LFA</span>
+                </div>
+
+                {/* 4. Budget */}
+                <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 flex flex-col justify-between opacity-75" data-testid="pipeline-stage-budget">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-xs font-medium text-slate-700 truncate">Budget</span>
+                    <Lock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  </div>
+                  <span className="text-[10px] text-slate-400">Requires LFA</span>
+                </div>
+
+                {/* 5. MEAL */}
+                <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 flex flex-col justify-between opacity-75" data-testid="pipeline-stage-meal">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-xs font-medium text-slate-700 truncate">MEAL</span>
+                    <Lock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  </div>
+                  <span className="text-[10px] text-slate-400">Requires LFA</span>
+                </div>
+
+                {/* 6. Evaluation */}
+                <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 flex flex-col justify-between opacity-75" data-testid="pipeline-stage-evaluation">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-xs font-medium text-slate-700 truncate">Evaluation</span>
+                    <Lock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  </div>
+                  <span className="text-[10px] text-slate-400">Requires MEAL</span>
+                </div>
+
+                {/* 7. SROI */}
+                <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-2.5 flex flex-col justify-between opacity-75" data-testid="pipeline-stage-sroi">
+                  <div className="flex items-center justify-between gap-1 mb-1">
+                    <span className="text-xs font-medium text-slate-700 truncate">SROI</span>
+                    <Lock className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                  </div>
+                  <span className="text-[10px] text-slate-400">Requires Evaluation</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* BLUEPRINT STATUS CARD (RC-9B.6 Task 2) */}
+          <Card className="border-slate-200" data-testid="blueprint-status-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Blueprint Status
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5" data-testid="status-item-facts">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span className="text-xs font-bold text-emerald-950">Program Facts Captured</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5" data-testid="status-item-beneficiaries">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span className="text-xs font-bold text-emerald-950">Target Beneficiaries Identified</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/50 p-2.5" data-testid="status-item-direction">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span className="text-xs font-bold text-emerald-950">Program Direction Identified</span>
+                </div>
+                <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50/80 p-2.5" data-testid="status-item-lfa">
+                  <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
+                  <span className="text-xs font-bold text-amber-950">LFA Matrix Not Yet Generated</span>
+                </div>
+              </div>
+            </CardContent>
           </Card>
 
           {/* Non-blocking Drift Warning */}
@@ -2509,8 +2618,9 @@ export default function GrantWriterQuickWizardProvisional() {
                   onClick={handleApproveBlueprint}
                   disabled={activeBlockers.length > 0 || !hasCanonicalStructure}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 disabled:opacity-50 disabled:cursor-not-allowed"
+                  data-testid="approve-blueprint-btn"
                 >
-                  <CheckCircle2 className="mr-1.5 h-4 w-4" /> Setujui Blueprint & Lanjutkan
+                  <CheckCircle2 className="mr-1.5 h-4 w-4" /> Setujui Blueprint dan Lanjut ke Tahap LFA
                 </Button>
               </div>
             </div>
@@ -2518,18 +2628,21 @@ export default function GrantWriterQuickWizardProvisional() {
         </div>
       )}
 
-      {/* PERSATUAN DAN HANDOFF BOUNDARY */}
+      {/* PERSATUAN DAN HANDOFF BOUNDARY (RC-9B.6 Task 4) */}
       {currentFlowPage === 'approved' && approvedSnapshot && (
-        <Card className="border-emerald-200 bg-emerald-50/10 py-8 px-6 text-center space-y-6">
+        <Card className="border-emerald-200 bg-emerald-50/10 py-8 px-6 text-center space-y-6" data-testid="transition-confirmation-card">
           <CardContent className="flex flex-col items-center justify-center space-y-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
               <Check className="h-8 w-8" />
             </div>
 
             <div className="space-y-2">
-              <h2 className="text-xl font-extrabold text-emerald-900">Blueprint Program Disetujui!</h2>
-              <p className="text-sm text-emerald-700 font-medium">
-                Blueprint disetujui untuk sesi ini dan siap menjadi handoff setelah integrasi engine tersedia.
+              <h2 className="text-xl font-extrabold text-emerald-900" data-testid="transition-title">Blueprint Program Disetujui!</h2>
+              <p className="text-sm font-semibold text-emerald-800" data-testid="transition-next-step">
+                Langkah berikutnya: Generate dan susun Logical Framework Matrix (LFA).
+              </p>
+              <p className="text-xs text-emerald-700 font-medium max-w-md mx-auto">
+                Blueprint disetujui untuk sesi ini dan siap menjadi dasar formulasi LFA Matrix.
               </p>
             </div>
 
@@ -2559,19 +2672,30 @@ export default function GrantWriterQuickWizardProvisional() {
             <Alert className="border-indigo-100 bg-indigo-50/50 p-4 max-w-lg text-left text-xs">
               <Sparkles className="h-5 w-5 text-indigo-500 shrink-0 mt-0.5 animate-pulse" />
               <div>
-                <AlertTitle className="font-bold text-indigo-900">Golden Generation Handoff Boundary</AlertTitle>
+                <AlertTitle className="font-bold text-indigo-900">Program Development Lifecycle Transition</AlertTitle>
                 <AlertDescription className="text-indigo-700 leading-relaxed mt-1">
-                  Blueprint disetujui dan siap digunakan sebagai konteks penyusunan proposal. Kerangka logframe saat ini aman dari halusinasi model. Pemanggilan API LLM (Azure OpenAI / GPT-5.5) hanya diizinkan melintasi batas handoff pasca persetujuan ini.
+                  Tahap Program Blueprint selesai. Anda akan memasuki Tahap LFA Matrix untuk menyusun Goal, Purpose, Output, dan Activity secara terstruktur.
                 </AlertDescription>
               </div>
             </Alert>
 
-            <div className="flex gap-2">
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 px-4"
+                onClick={() => {
+                  const targetId = projectId || canonicalPayload?.project_id || approvedSnapshot?.metadata.proposedTitle;
+                  navigate(`/dashboard/lfa-builder/${targetId}?from=quick_proposal`, { state: { fromQuickProposal: true } });
+                }}
+                data-testid="continue-to-lfa-btn"
+              >
+                Lanjut ke Tahap LFA Matrix &rarr;
+              </Button>
               <Button variant="outline" size="sm" onClick={() => setCurrentFlowPage('page2')} className="text-slate-600 font-semibold h-9">
                 Tinjau Ulang Blueprint
               </Button>
-              <Button size="sm" className="bg-slate-900 hover:bg-slate-800 text-white font-bold h-9" onClick={() => navigate('/dashboard/grant-writer')}>
-                Selesai & Kembali ke Dashboard
+              <Button variant="ghost" size="sm" onClick={() => navigate('/dashboard/grant-writer')} className="text-slate-600 font-semibold h-9">
+                Kembali ke Dashboard
               </Button>
             </div>
           </CardContent>

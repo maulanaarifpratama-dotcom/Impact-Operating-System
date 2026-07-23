@@ -20,6 +20,7 @@ import {
   Lock,
   ArrowRight,
   FileText,
+  CheckCircle2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -682,6 +683,30 @@ export default function LFABuilderEditor() {
 
   return (
     <div data-testid="lfa-editor-root" className="mx-auto max-w-7xl space-y-6 py-1">
+      {/* LFA ENTRY INFORMATION BANNER (RC-9B.6 Task 5) */}
+      {searchParams.get('from') === 'quick_proposal' && (
+        <div data-testid="lfa-entry-banner" className="rounded-lg border border-indigo-200 bg-indigo-50/90 p-4 text-indigo-950 dark:bg-indigo-950/40 dark:text-indigo-100 shadow-sm flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white shrink-0 shadow-xs">
+              <CheckCircle2 className="h-5 w-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                  Program Blueprint telah disetujui.
+                </span>
+              </div>
+              <p className="text-xs text-indigo-900 dark:text-indigo-200 font-medium mt-0.5">
+                Tahap saat ini: <span className="font-bold underline">Penyusunan LFA Matrix</span>
+              </p>
+            </div>
+          </div>
+          <Badge variant="outline" className="border-indigo-300 text-indigo-800 dark:border-indigo-700 dark:text-indigo-300 font-semibold text-[10px] bg-white/80 dark:bg-indigo-950/80 shrink-0">
+            Tahap 2: LFA Matrix
+          </Badge>
+        </div>
+      )}
+
       {/* TOP BAR BAR */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between border-b pb-4">
         <div className="flex items-center gap-3">
