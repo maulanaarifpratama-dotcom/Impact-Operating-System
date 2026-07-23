@@ -893,5 +893,159 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       const fixLink = screen.getByRole('button', { name: /perbaiki/i });
       expect(fixLink).toBeTruthy();
     });
+
+    describe('RC-9B.5 Regression Tests: Empty Canonical Payload Guard', () => {
+      test('Empty canonical payload (Janda Cirebon) displays warning status, masks fake blueprint, and blocks approval', async () => {
+        const baseResponse = adaptProvisionalResponse(PROVISIONAL_FIXTURES['FIX-DEV-HC-1']);
+        const emptyDomainResponse = {
+          ...baseResponse,
+          canonicalMetrics: { outcomesCount: 0, outputsCount: 0, activitiesCount: 0 }
+        };
+
+        installSupabaseScenario({
+          wizard_data: {
+            currentFlowPage: 'page2',
+            selectedFixtureId: 'FIX-DEV-HC-1',
+            proposedTitle: 'Janda Cirebon',
+            canonicalPayload: {
+              proposal_id: 'prop-empty',
+              title: 'Janda Cirebon',
+              geography: 'Cirebon',
+              target_group: 'Janda',
+              summary: '',
+              sectors: [],
+              interventions: [],
+              outcomes: [],
+              sdg_ids: [],
+              actor_roles: {},
+              metadata: { assembler_version: '2.0.0', generated_at: new Date().toISOString() }
+            },
+            domainResponse: emptyDomainResponse,
+            acceptedSectors: ['SEC-DIGITAL'],
+            acceptedInterventions: ['INT-DIG-LIT'],
+            acceptedSdgs: [4],
+            acceptedActorRoles: ['ACT-WOMEN'],
+            blueprintEdits: {},
+            ambiguityResolutions: {},
+            missingInfoResolutions: { 'INFO-PRIORITY': { state: 'answered', answer: 'Pemberdayaan' } },
+          }
+        });
+        const queryClient = createTestQueryClient();
+
+        render(
+          <QueryClientProvider client={queryClient}>
+            <GrantWriterQuickWizardSelector isDevelopment={true} />
+          </QueryClientProvider>
+        );
+
+        await waitFor(() => {
+          expect(screen.getByTestId('review-status-card')).toBeTruthy();
+        }, { timeout: 4000 });
+
+        // 1. Status card shows "Struktur Logframe Belum Terbentuk"
+        expect(screen.getAllByText(/Struktur Logframe Belum Terbentuk/i).length).toBeGreaterThan(0);
+        expect(screen.getByText(/Payload: 0 Outcome, 0 Output, 0 Aktivitas/i)).toBeTruthy();
+
+        // 2. Empty payload warning card is displayed with example guidance
+        expect(screen.getByTestId('empty-canonical-payload-warning')).toBeTruthy();
+        expect(screen.getByText(/Blueprint belum memiliki struktur program yang cukup/i)).toBeTruthy();
+        expect(screen.getByText(/❌ Janda Cirebon/i)).toBeTruthy();
+        expect(screen.getByText(/✅ Pelatihan digital untuk janda di Cirebon/i)).toBeTruthy();
+
+        // 3. Approval blocker alert is rendered
+        expect(screen.getByTestId('empty-payload-approval-blocker')).toBeTruthy();
+        expect(screen.getByText(/Persetujuan Diblokir: Struktur Logframe Belum Terbentuk/i)).toBeTruthy();
+
+        // 4. Approval button is disabled
+        const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i }) as HTMLButtonElement;
+        expect(approveBtn.disabled).toBe(true);
+      });
+
+      test('Valid canonical payload (Pelatihan digital untuk janda di Cirebon) shows ready status and allows approval', async () => {
+        const baseResponse = adaptProvisionalResponse(PROVISIONAL_FIXTURES['FIX-DEV-HC-1']);
+        const validDomainResponse = {
+          ...baseResponse,
+          canonicalMetrics: { outcomesCount: 1, outputsCount: 1, activitiesCount: 1 }
+        };
+
+        installSupabaseScenario({
+          wizard_data: {
+            currentFlowPage: 'page2',
+            selectedFixtureId: 'FIX-DEV-HC-1',
+            proposedTitle: 'Pelatihan digital untuk janda di Cirebon',
+            canonicalPayload: {
+              proposal_id: 'prop-valid',
+              title: 'Pelatihan digital untuk janda di Cirebon',
+              geography: 'Cirebon',
+              target_group: 'Janda',
+              summary: 'Pelatihan keterampilan digital',
+              sectors: ['SEC-DIGITAL'],
+              interventions: ['INT-DIG-LIT'],
+              outcomes: [
+                {
+                  id: 'out-1',
+                  code: '1',
+                  outcome_name: 'Peningkatan literasi digital',
+                  description: 'Janda di Cirebon menguasai aplikasi keuangan digital',
+                  indicators: [],
+                  outputs: [
+                    {
+                      id: 'op-1',
+                      code: '1.1',
+                      output_name: 'Modul pelatihan digital terdistribusi',
+                      description: 'Terbaginya modul ke 100 peserta',
+                      indicators: [],
+                      activities: [
+                        {
+                          id: 'act-1',
+                          code: '1.1.1',
+                          activity_name: 'Pelaksanaan workshop harian',
+                          description: 'Workshop 3 hari di Cirebon',
+                          cost_drivers: []
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ],
+              sdg_ids: [4, 5],
+              actor_roles: {},
+              metadata: { assembler_version: '2.0.0', generated_at: new Date().toISOString() }
+            },
+            domainResponse: validDomainResponse,
+            acceptedSectors: ['SEC-DIGITAL'],
+            acceptedInterventions: ['INT-DIG-LIT'],
+            acceptedSdgs: [4],
+            acceptedActorRoles: ['ACT-WOMEN'],
+            blueprintEdits: {},
+            ambiguityResolutions: {},
+            missingInfoResolutions: { 'INFO-PRIORITY': { state: 'answered', answer: 'Pemberdayaan' } },
+          }
+        });
+        const queryClient = createTestQueryClient();
+
+        render(
+          <QueryClientProvider client={queryClient}>
+            <GrantWriterQuickWizardSelector isDevelopment={true} />
+          </QueryClientProvider>
+        );
+
+        await waitFor(() => {
+          expect(screen.getByTestId('review-status-card')).toBeTruthy();
+        }, { timeout: 4000 });
+
+        // 1. Status card shows "Struktur Logframe Siap"
+        expect(screen.getByText(/Struktur Logframe Siap/i)).toBeTruthy();
+        expect(screen.getByText(/Payload: 1 Outcome, 1 Output, 1 Aktivitas/i)).toBeTruthy();
+
+        // 2. Empty payload warning card and approval blocker are NOT present
+        expect(screen.queryByTestId('empty-canonical-payload-warning')).toBeNull();
+        expect(screen.queryByTestId('empty-payload-approval-blocker')).toBeNull();
+
+        // 3. Approval button is enabled
+        const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i }) as HTMLButtonElement;
+        expect(approveBtn.disabled).toBe(false);
+      });
+    });
   });
 });

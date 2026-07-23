@@ -532,6 +532,56 @@ export default function GrantWriterQuickWizardProvisional() {
     };
   }, [proposedTitle, beneficiaryDescription, geography, geographyUnknown]);
 
+  // RC-9B.5: Empty Canonical Payload Readiness Check (Task 1 & Task 4)
+  const { totalOutcomes, totalOutputs, totalActivities, hasCanonicalStructure } = useMemo(() => {
+    // 1. If canonicalPayload is present (from assembler execution)
+    if (canonicalPayload) {
+      const outcomes = canonicalPayload.outcomes || [];
+      const outputs = outcomes.flatMap(o => o.outputs || []);
+      const activities = outputs.flatMap(op => op.activities || []);
+      const hasStructure = outcomes.length > 0 || outputs.length > 0 || activities.length > 0;
+      return {
+        totalOutcomes: outcomes.length,
+        totalOutputs: outputs.length,
+        totalActivities: activities.length,
+        hasCanonicalStructure: hasStructure
+      };
+    }
+
+    // 2. If rawCanonicalPayload in domainResponse has outcomes array
+    const rawOutcomes = domainResponse?.rawCanonicalPayload?.outcomes;
+    if (Array.isArray(rawOutcomes)) {
+      const outputs = rawOutcomes.flatMap((o: any) => o.outputs || []);
+      const activities = outputs.flatMap((op: any) => op.activities || []);
+      const hasStructure = rawOutcomes.length > 0 || outputs.length > 0 || activities.length > 0;
+      return {
+        totalOutcomes: rawOutcomes.length,
+        totalOutputs: outputs.length,
+        totalActivities: activities.length,
+        hasCanonicalStructure: hasStructure
+      };
+    }
+
+    // 3. If canonicalMetrics exists
+    if (canonicalMetrics) {
+      const hasStructure = canonicalMetrics.outcomeCount > 0 || canonicalMetrics.outputCount > 0 || canonicalMetrics.activityCount > 0;
+      return {
+        totalOutcomes: canonicalMetrics.outcomeCount,
+        totalOutputs: canonicalMetrics.outputCount,
+        totalActivities: canonicalMetrics.activityCount,
+        hasCanonicalStructure: hasStructure
+      };
+    }
+
+    // 4. Fallback for legacy test fixtures where canonicalPayload is not attached
+    return {
+      totalOutcomes: 0,
+      totalOutputs: 0,
+      totalActivities: 0,
+      hasCanonicalStructure: true
+    };
+  }, [canonicalPayload, domainResponse, canonicalMetrics]);
+
   const reviewContentTexts = useMemo(() => {
     if (!domainResponse) return [];
     const texts: string[] = [];
@@ -713,6 +763,7 @@ export default function GrantWriterQuickWizardProvisional() {
         
         if (wd.currentFlowPage !== undefined) setCurrentFlowPage(wd.currentFlowPage);
         if (wd.selectedFixtureId !== undefined) setSelectedFixtureId(wd.selectedFixtureId);
+        if (wd.canonicalPayload !== undefined) setCanonicalPayload(wd.canonicalPayload);
         if (wd.domainResponse !== undefined) setDomainResponse(wd.domainResponse);
         if (wd.acceptedSectors !== undefined) setAcceptedSectors(wd.acceptedSectors || []);
         if (wd.acceptedInterventions !== undefined) setAcceptedInterventions(wd.acceptedInterventions || []);
@@ -765,6 +816,7 @@ export default function GrantWriterQuickWizardProvisional() {
         
         currentFlowPage,
         selectedFixtureId,
+        canonicalPayload: canonicalPayload || undefined,
         domainResponse: domainResponse || undefined,
         acceptedSectors,
         acceptedInterventions,
@@ -967,6 +1019,15 @@ export default function GrantWriterQuickWizardProvisional() {
 
   // Handle Approved Page 2 Snapshot
   const handleApproveBlueprint = async () => {
+    if (!hasCanonicalStructure) {
+      toast({
+        title: 'Penyetujuan Diblokir',
+        description: 'Blueprint tidak dapat disetujui karena belum menghasilkan struktur logframe.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
     if (activeBlockers.length > 0) {
       toast({
         title: 'Penyetujuan Diblokir',
@@ -1663,6 +1724,35 @@ export default function GrantWriterQuickWizardProvisional() {
             </div>
           </Card>
 
+          {/* Review Status Card (RC-9B.5 Task 4) */}
+          <Card className={`p-4 border shadow-2xs ${hasCanonicalStructure ? 'border-emerald-200 bg-emerald-50/50' : 'border-amber-300 bg-amber-50/70'}`} data-testid="review-status-card">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className={`flex h-8 w-8 items-center justify-center rounded-lg text-white font-bold shrink-0 ${hasCanonicalStructure ? 'bg-emerald-600' : 'bg-amber-500'}`}>
+                  {hasCanonicalStructure ? <CheckCircle2 className="h-5 w-5" /> : <AlertTriangle className="h-5 w-5" />}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-sm font-extrabold ${hasCanonicalStructure ? 'text-emerald-900' : 'text-amber-900'}`}>
+                      {hasCanonicalStructure ? '✅ Struktur Logframe Siap' : '⚠ Struktur Logframe Belum Terbentuk'}
+                    </span>
+                  </div>
+                  <p className={`text-xs ${hasCanonicalStructure ? 'text-emerald-700' : 'text-amber-800'}`}>
+                    {hasCanonicalStructure
+                      ? 'Hasil ekstraksi deterministik berhasil membentuk struktur LFA.'
+                      : 'Sistem tidak menemukan indikator intervensi/tujuan spesifik dari input yang dimasukkan.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 text-xs font-semibold">
+                <Badge variant="outline" className={`px-2.5 py-1 ${hasCanonicalStructure ? 'border-emerald-300 bg-white text-emerald-800' : 'border-amber-300 bg-white text-amber-800'}`}>
+                  Payload: {totalOutcomes} Outcome, {totalOutputs} Output, {totalActivities} Aktivitas
+                </Badge>
+              </div>
+            </div>
+          </Card>
+
           {/* Non-blocking Drift Warning */}
           {driftWarning?.hasDrift && (
             <Alert variant="warning" className="border-amber-300 bg-amber-50/70 text-amber-900 shadow-2xs" data-testid="entity-drift-warning">
@@ -2196,61 +2286,91 @@ export default function GrantWriterQuickWizardProvisional() {
             </Card>
           )}
 
-          {/* Program Blueprint (SMART facts blocks with edit actions) */}
-          <Card className="border-slate-200">
-            <CardHeader>
-              <CardTitle className="text-md font-bold text-slate-800">Program Blueprint (Logframe Foundations)</CardTitle>
-              <CardDescription className="text-xs">Sari pati draf LFA berdasarkan logika kausalitas program</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                {domainResponse.blueprint.items.map(item => {
-                  const currentText = blueprintEdits[item.id] !== undefined ? blueprintEdits[item.id] : item.text;
-                  const isModified = blueprintEdits[item.id] !== undefined && blueprintEdits[item.id] !== item.text;
-                  
-                  return (
-                    <div key={item.id} className="rounded-lg border p-4 space-y-2 bg-white relative">
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-xs text-indigo-600 block">{item.section}</span>
-                        <span className="text-[10px] font-semibold text-slate-400 uppercase">
-                          {isModified ? 'Diubah manual' : item.status === 'from_source' ? 'Dari informasi Anda' : item.status === 'inferred' ? 'Perkiraan sistem' : 'Sudah dikonfirmasi'}
-                        </span>
-                      </div>
-
-                      <textarea
-                        rows={3}
-                        value={currentText}
-                        onChange={(e) => setBlueprintEdits(prev => ({ ...prev, [item.id]: e.target.value }))}
-                        className="w-full text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed rounded border-slate-200 p-2 bg-slate-50/50 hover:bg-slate-50 focus:bg-white focus:ring-1 focus:ring-slate-300 border focus:border-slate-300 outline-none resize-none"
-                      />
-
-                      {/* Potensial partner label as requested */}
-                      {item.section === 'Suggested Partners' && (
-                        <span className="text-[10px] font-bold text-amber-600 block">Mitra potensial — perlu dikonfirmasi</span>
-                      )}
-
-                      {/* Revert option if modified */}
-                      {isModified && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setBlueprintEdits(prev => {
-                              const next = { ...prev };
-                              delete next[item.id];
-                              return next;
-                            });
-                          }}
-                          className="flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-slate-700"
-                        >
-                          <Undo2 className="h-3 w-3" /> Kembalikan ke asal
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+          {/* Program Blueprint or Empty Structure Warning (RC-9B.5 Task 2) */}
+          {!hasCanonicalStructure ? (
+            <Card className="border-amber-300 bg-amber-50/80 p-6 space-y-4 shadow-2xs" data-testid="empty-canonical-payload-warning">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500 text-white shrink-0 shadow-2xs">
+                  <AlertTriangle className="h-5 w-5" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-base font-bold text-amber-900">
+                    ⚠ Blueprint belum memiliki struktur program yang cukup.
+                  </h3>
+                  <p className="text-xs text-amber-800 leading-relaxed font-medium">
+                    Tambahkan informasi yang lebih spesifik mengenai:
+                  </p>
+                  <ul className="list-disc pl-5 text-xs text-amber-800 space-y-1 font-medium">
+                    <li>tujuan perubahan</li>
+                    <li>bentuk intervensi</li>
+                    <li>kegiatan utama</li>
+                  </ul>
+                  <div className="pt-3 border-t border-amber-200/80 text-xs space-y-1.5">
+                    <p className="font-semibold text-amber-900">Contoh Input yang Lebih Spesifik:</p>
+                    <p className="text-rose-700 font-mono text-[11px] font-bold">❌ Janda Cirebon</p>
+                    <p className="text-emerald-700 font-medium text-[11px]">✅ Pelatihan digital untuk janda di Cirebon</p>
+                    <p className="text-emerald-700 font-medium text-[11px]">✅ Pendampingan usaha mikro bagi janda di Cirebon</p>
+                    <p className="text-emerald-700 font-medium text-[11px]">✅ Literasi keuangan keluarga untuk janda di Cirebon</p>
+                  </div>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </Card>
+          ) : (
+            <Card className="border-slate-200">
+              <CardHeader>
+                <CardTitle className="text-md font-bold text-slate-800">Program Blueprint (Logframe Foundations)</CardTitle>
+                <CardDescription className="text-xs">Sari pati draf LFA berdasarkan logika kausalitas program</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  {domainResponse.blueprint.items.map(item => {
+                    const currentText = blueprintEdits[item.id] !== undefined ? blueprintEdits[item.id] : item.text;
+                    const isModified = blueprintEdits[item.id] !== undefined && blueprintEdits[item.id] !== item.text;
+                    
+                    return (
+                      <div key={item.id} className="rounded-lg border p-4 space-y-2 bg-white relative">
+                        <div className="flex items-center justify-between">
+                          <span className="font-bold text-xs text-indigo-600 block">{item.section}</span>
+                          <span className="text-[10px] font-semibold text-slate-400 uppercase">
+                            {isModified ? 'Diubah manual' : item.status === 'from_source' ? 'Dari informasi Anda' : item.status === 'inferred' ? 'Perkiraan sistem' : 'Sudah dikonfirmasi'}
+                          </span>
+                        </div>
+
+                        <textarea
+                          rows={3}
+                          value={currentText}
+                          onChange={(e) => setBlueprintEdits(prev => ({ ...prev, [item.id]: e.target.value }))}
+                          className="w-full text-xs text-slate-700 dark:text-slate-300 font-medium leading-relaxed rounded border-slate-200 p-2 bg-slate-50/50 hover:bg-slate-50 focus:bg-white focus:ring-1 focus:ring-slate-300 border focus:border-slate-300 outline-none resize-none"
+                        />
+
+                        {/* Potensial partner label as requested */}
+                        {item.section === 'Suggested Partners' && (
+                          <span className="text-[10px] font-bold text-amber-600 block">Mitra potensial — perlu dikonfirmasi</span>
+                        )}
+
+                        {/* Revert option if modified */}
+                        {isModified && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBlueprintEdits(prev => {
+                                const next = { ...prev };
+                                delete next[item.id];
+                                return next;
+                              });
+                            }}
+                            className="flex items-center gap-1 text-[10px] font-bold text-slate-500 hover:text-slate-700"
+                          >
+                            <Undo2 className="h-3 w-3" /> Kembalikan ke asal
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Missing Information Resolvers (UX-HARDENING-2 Task 2 & 3) */}
           {domainResponse.missingInformation.length > 0 && (
@@ -2332,6 +2452,17 @@ export default function GrantWriterQuickWizardProvisional() {
 
           {/* Action CTAs Page 2 (Validation, Draft, Approval) */}
           <div className="border-t pt-5 space-y-4">
+            {/* Empty Canonical Payload Approval Guard Alert (RC-9B.5 Task 3) */}
+            {!hasCanonicalStructure && (
+              <Alert variant="destructive" className="border-amber-300 bg-amber-50/90 text-amber-900 shadow-2xs" data-testid="empty-payload-approval-blocker">
+                <AlertOctagon className="h-5 w-5 text-amber-600 shrink-0" />
+                <AlertTitle className="font-bold text-amber-900 text-xs">Persetujuan Diblokir: Struktur Logframe Belum Terbentuk</AlertTitle>
+                <AlertDescription className="text-xs text-amber-800 mt-1 font-medium leading-relaxed">
+                  Blueprint tidak dapat disetujui karena belum menghasilkan struktur logframe. Silakan perbarui input informasi program di Page 1 agar lebih spesifik.
+                </AlertDescription>
+              </Alert>
+            )}
+
             {/* Blocker alert if exists (UX-HARDENING-2 Task 2 & 3: Human readable blocker labels & click to fix) */}
             {activeBlockers.length > 0 && (
               <Alert variant="destructive" className="border-rose-300 bg-rose-50/50">
@@ -2376,8 +2507,8 @@ export default function GrantWriterQuickWizardProvisional() {
                 <Button
                   type="button"
                   onClick={handleApproveBlueprint}
-                  disabled={activeBlockers.length > 0}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9"
+                  disabled={activeBlockers.length > 0 || !hasCanonicalStructure}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-9 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <CheckCircle2 className="mr-1.5 h-4 w-4" /> Setujui Blueprint & Lanjutkan
                 </Button>
