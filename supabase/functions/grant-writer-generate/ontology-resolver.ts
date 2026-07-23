@@ -1,5 +1,5 @@
 // supabase/functions/grant-writer-generate/ontology-resolver.ts
-// Resolves raw ontology IDs into rich, human-readable definitions for GPT-5.5 grounding.
+// Resolves raw ontology IDs into rich, human-readable definitions for GPT grounding.
 
 import {
   SECTORS,
@@ -74,6 +74,19 @@ export interface ResolvedProgramFacts {
   budgetIdr: number;
 }
 
+export interface ProgramFacts {
+  title: string | null;
+  story: string | null;
+  beneficiaryDescription: string | null;
+  beneficiaryCount: number | string | null;
+  geography: string | null;
+  durationMonths: number | null;
+  budgetIdr: number | null;
+  optionalNotes: string | null;
+  knownFacts: string[];
+  missingFacts: string[];
+}
+
 export interface ResolvedOntologyContext {
   facts: ResolvedProgramFacts;
   sectors: ResolvedSector[];
@@ -122,27 +135,27 @@ const SDG_DICTIONARY: Record<number, { title: string; targets: string[] }> = {
   4: {
     title: "SDG 4: Pendidikan Bermutu (Quality Education)",
     targets: [
-      "4.4: Peningkatan jumlah pemuda dan dewasa yang memiliki keterampilan relevan, termasuk keterampilan teknis dan kejuruan untuk kewirausahaan"
+      "4.4: Peningkatan jumlah pemuda dan dewasa yang memiliki keterampilan relevan, termasuk keterampilan teknis dan kejuruan"
     ]
   },
   5: {
     title: "SDG 5: Kesetaraan Gender & Pemberdayaan Perempuan (Gender Equality)",
     targets: [
       "5.5: Memastikan partisipasi penuh dan efektif perempuan serta kesempatan yang sama untuk memimpin dalam kehidupan ekonomi dan publik",
-      "5.a: Melakukan reformasi untuk memberi perempuan hak yang sama terhadap sumber daya ekonomi dan akses ke layanan keuangan/pemasaran"
+      "5.a: Melakukan reformasi untuk memberi perempuan hak yang sama terhadap sumber daya ekonomi"
     ]
   },
   8: {
     title: "SDG 8: Pekerjaan Layak & Pertumbuhan Ekonomi (Decent Work & Economic Growth)",
     targets: [
-      "8.3: Mempromosikan kebijakan yang mendukung aktivitas produktif, penciptaan lapangan kerja layak, kewirausahaan, kreativitas, dan pertumbuhan UMKM",
-      "8.5: Mencapai pekerjaan layak dan produktif bagi semua perempuan dan laki-laki, termasuk peningkatan pendapatan usaha"
+      "8.3: Mempromosikan kebijakan yang mendukung aktivitas produktif, penciptaan lapangan kerja layak, kewirausahaan, dan kreativitas",
+      "8.5: Mencapai pekerjaan layak dan produktif bagi semua perempuan dan laki-laki"
     ]
   },
   9: {
     title: "SDG 9: Industri, Inovasi, & Infrastruktur (Industry, Innovation & Infrastructure)",
     targets: [
-      "9.3: Meningkatkan akses industri skala kecil dan UMKM terhadap jasa keuangan dan integrasi ke dalam rantai nilai serta pasar digital"
+      "9.3: Meningkatkan akses industri skala kecil terhadap jasa keuangan dan integrasi ke dalam rantai nilai"
     ]
   },
   10: {
@@ -177,17 +190,184 @@ const SDG_DICTIONARY: Record<number, { title: string; targets: string[] }> = {
   }
 };
 
+export function buildProgramFactsForPrompt(input: any): ProgramFacts {
+  const pFacts = input?.programFacts || input?.ontology_context?.programFacts || input || {};
+  const project = input?.project || {};
+  const wizardData = input?.wizard_data || {};
+  const wizardContext = wizardData?.context || {};
+
+  const title = (pFacts.proposedTitle || pFacts.title || project.title || wizardContext.proposedTitle || null)?.trim() || null;
+  const story = (pFacts.programStory || pFacts.story || project.summary || wizardContext.background || wizardContext.problemStatement || null)?.trim() || null;
+  const beneficiaryDescription = (pFacts.beneficiaryDescription || wizardContext.beneficiaryDescription || null)?.trim() || null;
+
+  const rawCount = pFacts.beneficiaryCount ?? input?.beneficiaries ?? project.beneficiaryCount ?? wizardContext.beneficiaryCount;
+  let beneficiaryCount: number | string | null = null;
+  if (rawCount !== undefined && rawCount !== null && rawCount !== '' && Number(rawCount) > 0) {
+    beneficiaryCount = Number(rawCount);
+  }
+
+  const geography = (pFacts.geography || project.geography || wizardContext.geography || null)?.trim() || null;
+  
+  const rawDuration = pFacts.durationMonths ?? project.duration_months ?? wizardContext.durationMonths;
+  let durationMonths: number | null = null;
+  if (rawDuration !== undefined && rawDuration !== null && rawDuration !== '' && Number(rawDuration) > 0) {
+    durationMonths = Number(rawDuration);
+  }
+
+  const rawBudget = pFacts.budgetIdr ?? project.budget_idr ?? wizardContext.budgetIdr;
+  let budgetIdr: number | null = null;
+  if (rawBudget !== undefined && rawBudget !== null && rawBudget !== '' && Number(rawBudget) > 0) {
+    budgetIdr = Number(rawBudget);
+  }
+
+  const optionalNotes = (pFacts.optionalNotes || pFacts.notes || wizardContext.notes || null)?.trim() || null;
+
+  const knownFacts: string[] = [];
+  const missingFacts: string[] = [];
+
+  if (title) {
+    knownFacts.push(`Judul Program: ${title}`);
+  } else {
+    missingFacts.push("Judul program belum dijelaskan oleh pengguna.");
+  }
+
+  if (story) {
+    knownFacts.push(`Cerita Program: ${story}`);
+  } else {
+    missingFacts.push("Cerita/latar belakang program belum dijelaskan oleh pengguna.");
+  }
+
+  if (beneficiaryDescription) {
+    knownFacts.push(`Deskripsi Penerima Manfaat: ${beneficiaryDescription}`);
+  } else {
+    missingFacts.push("Deskripsi penerima manfaat belum dijelaskan oleh pengguna.");
+  }
+
+  if (beneficiaryCount !== null) {
+    knownFacts.push(`Jumlah Penerima Manfaat: ${beneficiaryCount}`);
+  } else {
+    missingFacts.push("Jumlah penerima manfaat belum dijelaskan oleh pengguna. Jangan mengarang angka penerima manfaat.");
+  }
+
+  if (geography) {
+    knownFacts.push(`Lokasi/Geografi: ${geography}`);
+  } else {
+    missingFacts.push("Lokasi belum dijelaskan oleh pengguna. Jangan mengarang lokasi.");
+  }
+
+  if (durationMonths !== null) {
+    knownFacts.push(`Durasi: ${durationMonths} bulan`);
+  } else {
+    missingFacts.push("Durasi belum dijelaskan oleh pengguna. Jangan mengarang durasi.");
+  }
+
+  if (budgetIdr !== null) {
+    knownFacts.push(`Anggaran: Rp ${budgetIdr.toLocaleString('id-ID')}`);
+  } else {
+    missingFacts.push("Anggaran belum dijelaskan oleh pengguna. Jangan mengarang nilai anggaran.");
+  }
+
+  if (optionalNotes) {
+    knownFacts.push(`Catatan Opsional: ${optionalNotes}`);
+  }
+
+  return {
+    title,
+    story,
+    beneficiaryDescription,
+    beneficiaryCount,
+    geography,
+    durationMonths,
+    budgetIdr,
+    optionalNotes,
+    knownFacts,
+    missingFacts
+  };
+}
+
+export function extractGroundingTerms(programFacts: ProgramFacts, resolvedContext: ResolvedOntologyContext): string[] {
+  const termsSet = new Set<string>();
+
+  if (programFacts.beneficiaryDescription) {
+    termsSet.add(programFacts.beneficiaryDescription);
+  }
+  if (programFacts.geography) {
+    termsSet.add(programFacts.geography);
+  }
+  if (programFacts.beneficiaryCount !== null) {
+    termsSet.add(String(programFacts.beneficiaryCount));
+  }
+  if (programFacts.durationMonths !== null) {
+    termsSet.add(`${programFacts.durationMonths} bulan`);
+  }
+  if (programFacts.budgetIdr !== null) {
+    termsSet.add(`Rp ${programFacts.budgetIdr.toLocaleString('id-ID')}`);
+  }
+
+  if (programFacts.story) {
+    const cleanedStory = programFacts.story.replace(/[^\w\s-]/g, ' ');
+    const stopWords = new Set([
+      'dan', 'di', 'ke', 'dari', 'yang', 'untuk', 'pada', 'dengan', 'adalah', 'ini', 'itu',
+      'atau', 'sebagai', 'oleh', 'serta', 'dalam', 'akan', 'dapat', 'kami', 'program',
+      'tersebut', 'sangat', 'melalui', 'secara', 'agar', 'bisa', 'para', 'bagi'
+    ]);
+    const words = cleanedStory
+      .split(/\s+/)
+      .map((w) => w.trim())
+      .filter((w) => w.length > 3 && !stopWords.has(w.toLowerCase()));
+
+    words.slice(0, 10).forEach((w) => termsSet.add(w));
+  }
+
+  // Extract ONLY from matched sectors
+  if (resolvedContext.sectors) {
+    resolvedContext.sectors.forEach((s) => {
+      if (s.name_id) termsSet.add(s.name_id);
+      s.outcome_families?.slice(0, 3).forEach((of) => {
+        if (of.name) termsSet.add(of.name);
+      });
+      s.output_families?.slice(0, 3).forEach((opf) => {
+        if (opf.name) termsSet.add(opf.name);
+      });
+    });
+  }
+
+  // Extract ONLY from matched interventions
+  if (resolvedContext.interventions) {
+    resolvedContext.interventions.forEach((i) => {
+      if (i.name_id) termsSet.add(i.name_id);
+    });
+  }
+
+  // Extract ONLY from matched SDGs
+  if (resolvedContext.sdgs) {
+    resolvedContext.sdgs.forEach((s) => {
+      if (s.title) termsSet.add(s.title);
+    });
+  }
+
+  // Extract ONLY from matched Actors
+  if (resolvedContext.actors) {
+    resolvedContext.actors.forEach((a) => {
+      if (a.name) termsSet.add(a.name);
+    });
+  }
+
+  return Array.from(termsSet).filter(Boolean);
+}
+
 export function resolveOntologyContext(raw: RawOntologyContext): ResolvedOntologyContext {
   const pFacts = raw.programFacts || {};
+  const pf = buildProgramFactsForPrompt(pFacts);
 
   const facts: ResolvedProgramFacts = {
-    proposedTitle: String(pFacts.proposedTitle || 'Program Pemberdayaan Usaha'),
-    programStory: String(pFacts.programStory || ''),
-    beneficiaryDescription: String(pFacts.beneficiaryDescription || 'penerima manfaat'),
-    beneficiaryCount: Number(pFacts.beneficiaryCount || 0),
-    geography: String(pFacts.geography || 'Indonesia'),
-    durationMonths: Number(pFacts.durationMonths || 6),
-    budgetIdr: Number(pFacts.budgetIdr || 0)
+    proposedTitle: pf.title || '',
+    programStory: pf.story || '',
+    beneficiaryDescription: pf.beneficiaryDescription || '',
+    beneficiaryCount: Number(pf.beneficiaryCount || 0),
+    geography: pf.geography || '',
+    durationMonths: Number(pf.durationMonths || 0),
+    budgetIdr: Number(pf.budgetIdr || 0)
   };
 
   // 1. Resolve Sectors
@@ -200,30 +380,42 @@ export function resolveOntologyContext(raw: RawOntologyContext): ResolvedOntolog
     const nameId = matched ? matched.name : sectorId;
     const nameEn = matched ? (matched.canonical_name_en || matched.name) : sectorId;
     
-    // Map associated outcome families for this sector
     const linkedOutcomes = OUTCOME_FAMILIES.filter(
       (of) => of.likely_sectors && of.likely_sectors.some((ls) => ls === sectorId || sectorId.includes(ls))
     ).map((of) => ({
       family_id: of.outcome_family_id,
       name: of.canonical_name_id.replace(/_/g, ' '),
-      definition: of.definition || 'Perubahan kapasitas atau praktik usaha target',
+      definition: of.definition || 'Perubahan kapasitas atau praktik target',
       example_statements: [
-        `${facts.beneficiaryCount} ${facts.beneficiaryDescription} di ${facts.geography} mengalami peningkatan ${of.canonical_name_id.replace(/_/g, ' ')}.`
+        `Peningkatan ${of.canonical_name_id.replace(/_/g, ' ')} pada penerima manfaat.`
       ]
     }));
 
-    // Map associated output families
     const linkedOutputs = OUTPUT_FAMILIES.map((opf) => ({
       family_id: opf.output_family_id,
       name: opf.canonical_name.replace(/_/g, ' '),
       definition: opf.common_confusions || 'Hasil langsung intervensi program',
       example_statements: [
-        `Paket pelatihan dan pendampingan ${opf.canonical_name.replace(/_/g, ' ')} terlaksana bagi ${facts.beneficiaryDescription}`
+        `Layanan/produk ${opf.canonical_name.replace(/_/g, ' ')} terlaksana`
       ]
     }));
 
-    // Map associated indicator families
-    const linkedIndicators = INDICATOR_FAMILIES.map((ind) => ({
+    const linkedIndicators = INDICATOR_FAMILIES.filter((ind) => {
+      const lowerSec = sectorId.toLowerCase();
+      const lowerDomain = (ind.domain || '').toLowerCase();
+      const lowerCode = (ind.code || '').toLowerCase();
+
+      if (lowerSec.includes('health') || lowerSec.includes('posyandu') || lowerSec.includes('007')) {
+        return lowerDomain.includes('health') || lowerDomain.includes('nutrition') || lowerCode.includes('health');
+      }
+      if (lowerSec.includes('agri') || lowerSec.includes('panen') || lowerSec.includes('001')) {
+        return lowerDomain.includes('agri') || lowerDomain.includes('food') || lowerCode.includes('agri');
+      }
+      if (lowerSec.includes('liv') || lowerSec.includes('umkm') || lowerSec.includes('002')) {
+        return lowerDomain.includes('msme') || lowerDomain.includes('economic');
+      }
+      return true;
+    }).map((ind) => ({
       family_id: ind.id,
       name: ind.name,
       definition: `Indikator ${ind.domain} (${ind.code})`
@@ -234,15 +426,14 @@ export function resolveOntologyContext(raw: RawOntologyContext): ResolvedOntolog
       name_id: nameId,
       name_en: nameEn,
       description: matched
-        ? `Sektor ${nameId} dengan fokus intervensi pada pemberdayaan dan pengembangan kapasitas ${facts.beneficiaryDescription}.`
-        : `Sektor pemberdayaan ${sectorId}`,
+        ? `Sektor ${nameId} dengan fokus intervensi pada kelompok sasaran.`
+        : `Sektor ${sectorId}`,
       outcome_families: linkedOutcomes,
       output_families: linkedOutputs,
       indicator_families: linkedIndicators
     };
   });
 
-  // Collect all unique outcome/output/indicator families
   const allOutcomeFamiliesMap = new Map<string, { family_id: string; name: string; definition: string; example_statements: string[] }>();
   OUTCOME_FAMILIES.forEach((of) => {
     allOutcomeFamiliesMap.set(of.outcome_family_id, {
@@ -250,7 +441,7 @@ export function resolveOntologyContext(raw: RawOntologyContext): ResolvedOntolog
       name: of.canonical_name_id.replace(/_/g, ' '),
       definition: of.definition,
       example_statements: [
-        `${facts.beneficiaryDescription} di ${facts.geography} mengadopsi praktik ${of.canonical_name_id.replace(/_/g, ' ')}.`
+        `Penerima manfaat mengadopsi praktik ${of.canonical_name_id.replace(/_/g, ' ')}.`
       ]
     });
   });
@@ -262,7 +453,7 @@ export function resolveOntologyContext(raw: RawOntologyContext): ResolvedOntolog
       name: opf.canonical_name.replace(/_/g, ' '),
       definition: opf.expected_verification || 'Produk/layanan langsung program',
       example_statements: [
-        `Sesi ${opf.canonical_name.replace(/_/g, ' ')} terlaksana untuk ${facts.beneficiaryCount} ${facts.beneficiaryDescription}`
+        `Sesi ${opf.canonical_name.replace(/_/g, ' ')} terlaksana`
       ]
     });
   });
@@ -276,7 +467,7 @@ export function resolveOntologyContext(raw: RawOntologyContext): ResolvedOntolog
     });
   });
 
-  // 2. Resolve Interventions (Archetypes)
+  // 2. Resolve Interventions
   const rawInterventions = raw.acceptedInterventions || [];
   const resolvedInterventions: ResolvedIntervention[] = rawInterventions.map((archId) => {
     const matched = INTERVENTION_ARCHETYPES.find(
@@ -289,15 +480,15 @@ export function resolveOntologyContext(raw: RawOntologyContext): ResolvedOntolog
       name_en: matched ? matched.name_en : archId,
       causal_mechanism: matched && matched.definition
         ? matched.definition
-        : `Intervensi ${archId} berupa pendampingan intensif dan pelatihan praktis untuk meningkatkan kapasitas ${facts.beneficiaryDescription}.`,
+        : `Intervensi ${archId} berupa pendampingan dan pelatihan praktis untuk meningkatkan kapasitas target.`,
       expected_outputs: [
-        `Pelatihan dan modul pendampingan ${facts.beneficiaryDescription} selesai dilaksanakan`,
-        `Katalog digital/sistem pencatatan teradopsi oleh ${facts.beneficiaryCount} peserta`
+        `Pelatihan dan modul pendampingan selesai dilaksanakan`,
+        `Sistem/modul teradopsi oleh peserta`
       ],
       likely_activities: [
-        `Penyelenggaraan pelatihan teknis (pemasaran digital & literasi keuangan)`,
-        `Pendampingan usaha harian/mingguan dan pembuatan katalog produk`,
-        `Monitoring penerimaan dan perkembangan akses pasar ${facts.geography}`
+        `Penyelenggaraan pelatihan teknis`,
+        `Pendampingan harian/mingguan`,
+        `Monitoring perkembangan peserta`
       ]
     };
   });
@@ -315,7 +506,7 @@ export function resolveOntologyContext(raw: RawOntologyContext): ResolvedOntolog
 
     const info = SDG_DICTIONARY[sdgNum] || {
       title: `SDG ${sdgNum}: Pembangunan Berkelanjutan`,
-      targets: [`${sdgNum}.1: Target pembangunan berkelanjutan terkait pemberdayaan ${facts.beneficiaryDescription}`]
+      targets: [`${sdgNum}.1: Target pembangunan berkelanjutan terkait kelompok sasaran`]
     };
 
     return {
@@ -332,11 +523,9 @@ export function resolveOntologyContext(raw: RawOntologyContext): ResolvedOntolog
 
     return {
       id: actorId,
-      name: matched
-        ? `${matched.name} (${facts.beneficiaryDescription})`
-        : `Aktor ${actorId} (${facts.beneficiaryDescription})`,
-      description: `Kelompok sasaran utama (${facts.beneficiaryCount} ${facts.beneficiaryDescription} di ${facts.geography}) yang berpartisipasi langsung dalam intervensi.`,
-      relevance: `Subjek utama penerima pelatihan, pendampingan usaha, serta penerapan pemasaran digital dan literasi keuangan.`
+      name: matched ? matched.name : `Aktor ${actorId}`,
+      description: `Kelompok sasaran utama yang berpartisipasi langsung dalam intervensi.`,
+      relevance: `Subjek utama penerima manfaat dan partisipan aktivitas program.`
     };
   });
 
@@ -352,36 +541,42 @@ export function resolveOntologyContext(raw: RawOntologyContext): ResolvedOntolog
   };
 }
 
-export function buildGroundingPromptMessage(resolved: ResolvedOntologyContext): string {
-  const { facts, sectors, interventions, sdgs, actors, allOutcomeFamilies, allOutputFamilies, allIndicatorFamilies } = resolved;
+export function buildGroundingPromptMessage(resolved: ResolvedOntologyContext, factsInput?: ProgramFacts): string {
+  const programFacts = factsInput || buildProgramFactsForPrompt(resolved.facts);
+  const requiredGroundingTerms = extractGroundingTerms(programFacts, resolved);
+
+  const { sectors, interventions, sdgs, actors, allOutcomeFamilies, allOutputFamilies, allIndicatorFamilies } = resolved;
 
   const sectorText = sectors.length > 0
     ? sectors.map((s) => `- ${s.name_id} (${s.id}): ${s.description}`).join('\n')
-    : `- Sektor Livelihood & Wirausaha Perempuan (${facts.beneficiaryDescription})`;
+    : `- Sektor belum teridentifikasi`;
 
-  const outcomeFamText = allOutcomeFamilies.length > 0
-    ? allOutcomeFamilies.slice(0, 10).map((of) => `- ${of.family_id} [${of.name}]: ${of.definition}`).join('\n')
-    : `- OF-009 [Akses Pasar]: Peningkatan omzet dan perluasan akses pasar online/offline\n- OF-012 [Peningkatan Kapasitas Usaha]: Adopsi praktik pencatatan keuangan dan pemasaran digital`;
+  const matchedOutcomes = sectors.flatMap((s) => s.outcome_families);
+  const outcomeFamText = matchedOutcomes.length > 0
+    ? matchedOutcomes.slice(0, 10).map((of) => `- ${of.family_id} [${of.name}]: ${of.definition}`).join('\n')
+    : `- Outcome family belum teridentifikasi`;
 
-  const outputFamText = allOutputFamilies.length > 0
-    ? allOutputFamilies.slice(0, 10).map((opf) => `- ${opf.family_id} [${opf.name}]: ${opf.definition}`).join('\n')
-    : `- OPF-001 [Pelatihan Terselenggara]: Modul dan sesi pelatihan digital/keuangan\n- OPF-002 [Pendampingan Rutin]: Pendampingan usaha intensif bagi peserta`;
+  const matchedOutputs = sectors.flatMap((s) => s.output_families);
+  const outputFamText = matchedOutputs.length > 0
+    ? matchedOutputs.slice(0, 10).map((opf) => `- ${opf.family_id} [${opf.name}]: ${opf.definition}`).join('\n')
+    : `- Output family belum teridentifikasi`;
 
-  const indicatorFamText = allIndicatorFamilies.length > 0
-    ? allIndicatorFamilies.slice(0, 10).map((ind) => `- ${ind.family_id} [${ind.name}]: ${ind.definition}`).join('\n')
-    : `- IND-MSME-REV-001: Pertumbuhan omzet/pendapatan UMKM\n- IND-MSME-DIGTX-003: Tingkat adopsi platform digital/e-commerce`;
+  const matchedIndicators = sectors.flatMap((s) => s.indicator_families);
+  const indicatorFamText = matchedIndicators.length > 0
+    ? matchedIndicators.slice(0, 10).map((ind) => `- ${ind.family_id} [${ind.name}]: ${ind.definition}`).join('\n')
+    : `- Indikator belum teridentifikasi`;
 
   const interventionText = interventions.length > 0
     ? interventions.map((i) => `- ${i.name_id} (${i.id}): Mekanisme Kausal -> ${i.causal_mechanism}`).join('\n')
-    : `- Mentoring & Pendampingan Usaha (ARCH-MENTOR-003): Pendampingan harian/mingguan penerapan pemasaran digital dan literasi keuangan.`;
+    : `- Intervensi belum teridentifikasi`;
 
   const sdgText = sdgs.length > 0
     ? sdgs.map((s) => `- ${s.title}\n  Target: ${s.targets.join('; ')}`).join('\n')
-    : `- SDG 8: Pekerjaan Layak & Pertumbuhan Ekonomi (Target 8.3)\n- SDG 5: Kesetaraan Gender (Target 5.5, 5.a)`;
+    : `- SDG belum teridentifikasi`;
 
   const actorText = actors.length > 0
     ? actors.map((a) => `- ${a.name} (${a.id}): ${a.description}`).join('\n')
-    : `- ${facts.beneficiaryCount} ${facts.beneficiaryDescription} di ${facts.geography}`;
+    : `- Aktor belum teridentifikasi`;
 
   return `--- START GROUNDING MESSAGE ---
 
@@ -392,26 +587,16 @@ Setiap elemen LFA WAJIB merujuk fakta konkret program dan grounding ontologi di 
 
 DILARANG menghasilkan kalimat generik yang bisa ditempel ke program lain.
 
-FAKTA PROGRAM — SUMBER KEBENARAN:
-Judul:
-${facts.proposedTitle}
+FAKTA PROGRAM YANG DIKETAHUI:
+${programFacts.knownFacts.length > 0 ? programFacts.knownFacts.map((f) => `- ${f}`).join('\n') : '- Tidak ada fakta khusus yang diketahui'}
 
-Cerita Program:
-${facts.programStory}
+FAKTA PROGRAM YANG BELUM DIJELASKAN:
+${programFacts.missingFacts.length > 0 ? programFacts.missingFacts.map((mf) => `- ${mf}`).join('\n') : '- Semua fakta utama telah dijelaskan'}
 
-Penerima Manfaat:
-${facts.beneficiaryCount} ${facts.beneficiaryDescription}
+TERMS GROUNDING WAJIB:
+${requiredGroundingTerms.length > 0 ? requiredGroundingTerms.map((term) => `- ${term}`).join('\n') : '- Tidak ada term khusus'}
 
-Lokasi:
-${facts.geography}
-
-Durasi:
-${facts.durationMonths} bulan
-
-Anggaran:
-Rp ${facts.budgetIdr.toLocaleString('id-ID')}
-
-GROUNDING ONTOLOGI — WAJIB DIPAKAI:
+GROUNDING ONTOLOGI:
 Sektor:
 ${sectorText}
 
@@ -434,124 +619,87 @@ Aktor:
 ${actorText}
 
 ATURAN KUALITAS WAJIB:
-
-1. GOAL / IMPACT
-
-Goal harus menggambarkan kondisi jangka panjang untuk:
-"${facts.beneficiaryDescription}" di "${facts.geography}".
-
-Goal harus selaras dengan SDG yang sudah di-resolve.
-
-Dilarang memakai frasa "masyarakat sasaran" kecuali tetap menyebut siapa penerima manfaat secara spesifik.
-
-Contoh buruk:
-"Berkontribusi pada peningkatan kesejahteraan masyarakat sasaran."
-
-Contoh arah yang benar:
-"Berkontribusi pada peningkatan kemandirian ekonomi ${facts.beneficiaryDescription} di ${facts.geography} melalui peningkatan akses pasar digital dan praktik usaha yang lebih berkelanjutan."
-
-2. OUTCOME
-
-Outcome harus berupa perubahan perilaku, praktik, akses, atau kapasitas dari penerima manfaat.
-
-Outcome wajib merujuk:
-
-- ${facts.beneficiaryDescription}
-- ${facts.geography}
-- minimal satu praktik/intervensi spesifik dari programStory (pemasaran digital, literasi keuangan, pendampingan usaha)
-- minimal satu outcome family dari resolvedContext
-
-Dilarang hanya menulis:
-"meningkatkan kapasitas penerima manfaat"
-
-Harus spesifik seperti:
-"${facts.beneficiaryCount} ${facts.beneficiaryDescription} di ${facts.geography} meningkatkan praktik pemasaran digital, pencatatan keuangan sederhana, dan akses ke kanal penjualan online."
-
-3. OUTPUT
-
-Output harus berupa produk/layanan langsung yang dihasilkan program.
-
-Output wajib:
-
-- menyebut angka ${facts.beneficiaryCount} jika relevan
-- diturunkan dari output families
-- konsisten dengan intervensi dan causal mechanism
-- menyebut layanan nyata seperti pelatihan, pendampingan, onboarding marketplace, klinik usaha, modul literasi keuangan, atau mentoring pemasaran digital jika sesuai cerita
-
-4. ACTIVITY
-
-Activity harus berupa pekerjaan nyata yang menghasilkan output.
-
-Activity wajib:
-
-- konsisten dengan intervention causal mechanism
-- punya sequence logis
-- punya timeframe
-- punya responsible party
-- tidak generik
-
-5. INDICATOR / MEAL
-
-Setiap indikator wajib punya:
-
-- unit ukur
-- baseline placeholder
-- target placeholder
-- sumber data / Means of Verification
-- timeframe bila relevan
-
-Dilarang indikator tanpa unit.
-
-Contoh buruk:
-"Peserta meningkat kapasitasnya."
-
-Contoh benar:
-"Persentase ${facts.beneficiaryDescription} peserta yang mampu membuat katalog produk digital; baseline: TBD; target: TBD; sumber data: pre-post test, review katalog digital, dan laporan pendamping."
-
-6. LANGUAGE
-
-Gunakan Bahasa Indonesia.
-
-Gunakan terminologi LFA yang konsisten:
-
-- Goal / Dampak
-- Outcome / Perubahan
-- Output / Hasil Langsung
-- Activity / Kegiatan
-- Indicator / Indikator
-- Means of Verification / Alat Verifikasi
-- Assumption / Asumsi
-
-7. SELF-CHECK BEFORE OUTPUT
-
-Sebelum mengeluarkan JSON, uji setiap kalimat:
-
-"Apakah kalimat ini masih benar jika ditempel ke program lain?"
-
-Jika YA, tulis ulang menjadi lebih spesifik dengan menggunakan:
-
-- ${facts.beneficiaryDescription}
-- ${facts.geography}
-- ${facts.programStory}
-- sector definitions
-- outcome families
-- output families
-- indicator families
-- intervention mechanism
-- SDG target
-
-PERINGATAN FINAL: Draft generik akan DITOLAK. Setiap statement di goal, outcome, dan output WAJIB menyebut secara harfiah minimal salah satu: '100 UMKM perempuan', 'Bogor', 'pemasaran digital', atau 'e-commerce'. Jika sebuah statement tidak menyebut fakta spesifik program ini, tulis ulang sebelum output. Kata 'masyarakat rentan', 'penerima manfaat', 'pemberdayaan berbasis komunitas' tanpa konteks spesifik = DITOLAK.
+- WAJIB gunakan judul program "${programFacts.title || 'Program'}" sebagai judul utama proposal (# ${programFacts.title || 'Program'}). DILARANG MENGGUNAKAN "Program Baru".
+- Jika Anggaran, Durasi, atau Lokasi DIKETAHUI di FAKTA PROGRAM, WAJIB gunakan nilai tersebut (Anggaran: Rp ${programFacts.budgetIdr?.toLocaleString('id-ID') ?? 'diketahui'}, Durasi: ${programFacts.durationMonths ?? 'diketahui'} bulan, Lokasi: ${programFacts.geography ?? 'diketahui'}) di dalam meta, narasi Executive Summary, Problem Statement, dan Budget Narrative.
+- Jika fakta TIDAK TERSEDIA (ada di FAKTA PROGRAM YANG BELUM DIJELASKAN), nyatakan secara eksplisit sebagai belum dijelaskan dalam asumsi/catatan, JANGAN mengarang angka atau lokasi fiktif.
+- Tetap hasilkan LFA yang spesifik berdasarkan cerita program dan grounding ontologi yang tersedia.
+- Wajib menyertakan kata/istilah dari TERMS GROUNDING WAJIB di dalam narasi Goal, Outcome, Output, dan Indikator.
 
 OUTPUT:
-
 Keluarkan HANYA JSON valid sesuai schema yang sudah ada:
-
-- program_skeleton
-- wbs
-- meal
-- sroi
-- risks
+- matrix
 - proposal_markdown
+- program_skeleton
 
 --- END GROUNDING MESSAGE ---`;
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  failures: string[];
+}
+
+export function validateGrounding(
+  matrix: any,
+  programFacts: ProgramFacts,
+  resolvedContext: ResolvedOntologyContext
+): ValidationResult {
+  const failures: string[] = [];
+
+  const goalText = (matrix?.goal?.statement || '').toLowerCase();
+  const outcomesText = (matrix?.outcomes || []).map((o: any) => o.statement || '').join(' ').toLowerCase();
+  const outputsText = (matrix?.outputs || []).map((o: any) => o.statement || '').join(' ').toLowerCase();
+  const indicatorsText = [
+    ...(matrix?.goal?.indicators || []),
+    ...(matrix?.outcomes || []).flatMap((o: any) => o.indicators || []),
+    ...(matrix?.outputs || []).flatMap((o: any) => o.indicators || [])
+  ].join(' ').toLowerCase();
+  const fullLfaText = `${goalText} ${outcomesText} ${outputsText} ${indicatorsText}`;
+
+  if (programFacts.beneficiaryDescription) {
+    const benTerm = programFacts.beneficiaryDescription.toLowerCase();
+    if (!goalText.includes(benTerm) && !outcomesText.includes(benTerm)) {
+      failures.push(`Goal atau Outcome belum merujuk penerima manfaat: "${programFacts.beneficiaryDescription}".`);
+    }
+  }
+
+  if (programFacts.geography) {
+    const geoTerm = programFacts.geography.toLowerCase();
+    if (!goalText.includes(geoTerm) && !outcomesText.includes(geoTerm)) {
+      failures.push(`Goal atau Outcome belum merujuk lokasi program: "${programFacts.geography}".`);
+    }
+  }
+
+  if (programFacts.beneficiaryCount !== null) {
+    const countStr = String(programFacts.beneficiaryCount);
+    if (!fullLfaText.includes(countStr)) {
+      failures.push(`LFA belum menyebutkan angka penerima manfaat: ${countStr}.`);
+    }
+  }
+
+  return {
+    isValid: failures.length === 0,
+    failures
+  };
+}
+
+export function buildDynamicRetryPrompt(
+  failures: string[],
+  programFacts: ProgramFacts,
+  resolvedContext: ResolvedOntologyContext
+): string {
+  const requiredGroundingTerms = extractGroundingTerms(programFacts, resolvedContext);
+
+  return `RETRY REQUEST — GROUNDING PENERBITAN LFA BELUM MEMENUHI KUALITAS:
+
+Rewrite using these required grounding terms derived from current input:
+${requiredGroundingTerms.map((t) => `- ${t}`).join('\n')}
+
+Missing or weak grounding:
+${failures.map((f) => `- ${f}`).join('\n')}
+
+Do not invent any facts listed as missing:
+${programFacts.missingFacts.map((mf) => `- ${mf}`).join('\n')}
+
+Silakan hasilkan ulang JSON LFA lengkap dengan grounding yang tepat.`;
 }

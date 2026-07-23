@@ -19,7 +19,7 @@
 import { authenticate, AuthError } from '../_shared/auth.ts';
 import { chatJson, foundryEmbed } from '../_shared/foundry.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
-import { resolveOntologyContext, buildGroundingPromptMessage } from './ontology-resolver.ts';
+import { resolveOntologyContext, buildGroundingPromptMessage, buildProgramFactsForPrompt, extractGroundingTerms, validateGrounding } from './ontology-resolver.ts';
 
 interface GenerateRequest {
   projectId: string;
@@ -334,10 +334,12 @@ function validateProgramSkeleton(skeleton: any) {
     const pId = purpose.id || 'outcome_1';
     outcomeIds.add(pId);
   }
-  for (const out of outcomes) {
+  for (let i = 0; i < outcomes.length; i++) {
+    const out = outcomes[i];
     if (out && typeof out === 'object' && out.id) {
       if (outcomeIds.has(out.id)) {
-        throw new Error(`Validation Failed: Duplicate Outcome ID found: '${out.id}'`);
+        // Auto-fix duplicate ID if model repeated outcome_1 in outcomes array
+        out.id = `outcome_${outcomeIds.size + 1}`;
       }
       outcomeIds.add(out.id);
     }
@@ -568,19 +570,46 @@ Deno.serve(async (req: Request) => {
 
     const carbonImpactKg = computeCarbonSummary(carbonRows);
 
-    // 3. Call Foundry with the wizard data
+    let systemPrompt = SYSTEM_PROMPT.replaceAll('{{beneficiaries}}', String(beneficiaryCount));
+
+    // STEP 1 & 2: Build dynamic program facts and resolve ontology context
+    const programFacts = buildProgramFactsForPrompt({
+      ...body,
+      project,
+      wizard_data: project.wizard_data,
+      programFacts: body.ontologyContext?.programFacts
+    });
+
+    const resolvedContext = resolveOntologyContext({
+      ...body.ontologyContext,
+      programFacts: {
+        proposedTitle: programFacts.title,
+        programStory: programFacts.story,
+        beneficiaryDescription: programFacts.beneficiaryDescription,
+        beneficiaryCount: programFacts.beneficiaryCount,
+        geography: programFacts.geography,
+        durationMonths: programFacts.durationMonths,
+        budgetIdr: programFacts.budgetIdr,
+        optionalNotes: programFacts.optionalNotes
+      }
+    });
+    console.log("[GW-GROUNDING] resolvedContext", JSON.stringify(resolvedContext).slice(0, 8000));
+
+    const groundingPrompt = buildGroundingPromptMessage(resolvedContext, programFacts);
+
+    // 3. Call Foundry with the wizard data enriched with programFacts
     const userPayload = {
       project: {
-        title: project.title,
-        summary: project.summary,
+        title: programFacts.title || project.title || 'Program Baru',
+        summary: programFacts.story || project.summary || '',
         sector: project.sector,
-        geography: project.geography,
-        duration_months: project.duration_months,
-        budget_idr: project.budget_idr,
+        geography: programFacts.geography || project.geography || '',
+        duration_months: programFacts.durationMonths ?? project.duration_months ?? 0,
+        budget_idr: programFacts.budgetIdr ?? project.budget_idr ?? 0,
         donor_standard: donorStandard,
         target_donor: project.target_donor,
       },
-      beneficiaries: beneficiaryCount,
+      beneficiaries: programFacts.beneficiaryCount ?? beneficiaryCount ?? 0,
       wizard_data: project.wizard_data,
       ...(body.ontologyContext ? { ontology_context: body.ontologyContext } : {}),
       ...(lfaContext ? { lfa_context: lfaContext } : {})
@@ -597,70 +626,43 @@ Deno.serve(async (req: Request) => {
       if (countErr) {
         console.error('Failed to pre-check library documents count:', countErr.message);
       } else if (count && count > 0) {
-        const baseQuery = `${project.title || ''} ${project.sector || ''} ${project.summary || ''}`.trim();
-        if (baseQuery) {
-          const embedding = await foundryEmbed(baseQuery);
-          const { data: chunks, error: rpcErr } = await ctx.supabase.rpc('match_library_chunks', {
-            _org_id: project.organization_id,
-            _query_embedding: embedding,
-            _match_count: 5,
-            _min_similarity: 0.35,
-            _user_id: ctx.userId,
-          });
+        const baseQuery = `${userPayload.project.title || ''} ${project.sector || ''} ${userPayload.project.summary || ''}`.trim();
+        const { hits } = await searchLibraryChunks({
+          supabase: ctx.supabase,
+          orgId: project.organization_id,
+          queryText: baseQuery,
+          limit: 3,
+        });
 
-          if (rpcErr) {
-            console.error('match_library_chunks RPC error in grant-writer-generate:', rpcErr);
-          } else if (chunks && chunks.length > 0) {
-            const chunkContents = (chunks as any[])
-              .map((c: any) => c.content || '')
-              .filter(Boolean)
-              .join('\n');
-
-            if (chunkContents) {
-              ragContext = `\n\n---REFERENSI DARI IMPACT LIBRARY ORGANISASI---\n${chunkContents}\n---END REFERENSI---\n\nGunakan referensi ini sebagai konteks tambahan saat membantu \nuser menulis proposal. Prioritaskan pendekatan, data, dan \nframing yang konsisten dengan dokumen organisasi tersebut.`;
-            }
-          }
+        if (hits && hits.length > 0) {
+          ragContext = hits
+            .map((h, idx) => `[Dokumen ${idx + 1}: ${h.title || 'Tanpa Judul'}]\n${h.content_chunk}`)
+            .join('\n\n');
         }
       }
-    } catch (ragErr) {
-      console.error('Failed to inject RAG context in grant-writer-generate:', (ragErr as Error).message);
+    } catch (e) {
+      console.warn('RAG retrieval bypassed due to error:', e);
     }
 
-    const finalSystemPrompt = SYSTEM_PROMPT + ragContext;
-    let systemPrompt = finalSystemPrompt.replaceAll('{{beneficiaries}}', String(beneficiaryCount));
+    if (ragContext) {
+      systemPrompt += `\n\n=== HIMPUNAN DOKUMEN ORGANISASI (RAG CONTEXT) ===\nGunakan fakta dari dokumen organisasi berikut jika relevan dengan proposal ini:\n${ragContext}\n=== AKHIR RAG CONTEXT ===\n`;
+    }
 
-    if (systemPrompt.includes('{{carbon_impact}}')) {
-      if (carbonImpactKg !== 0) {
-        const absValue = Math.abs(carbonImpactKg).toFixed(1);
-
-        const carbonDirection = carbonImpactKg < 0
-          ? `diproyeksikan dapat mengurangi emisi karbon sebesar ${absValue} kg CO₂`
-          : `diproyeksikan menghasilkan emisi karbon sebesar ${absValue} kg CO₂`;
-
-        const carbonNote = carbonImpactKg < 0
-          ? `Dampak ini setara dengan penyerapan karbon dari ${Math.round(Math.abs(carbonImpactKg) / 5)} pohon per tahun.`
-          : `Program ini berkomitmen untuk meminimalkan jejak karbon melalui pendekatan berbasis bukti.`;
-
-        const carbonText =
-          `Program ini ${carbonDirection}, berdasarkan estimasi saat ini. ${carbonNote} (Estimasi berbasis faktor emisi IPCC 2019 + PLN Indonesia 2023.)`;
-
-        systemPrompt = systemPrompt.replaceAll(
-          '{{carbon_impact}}',
-          carbonText
-        );
+    if (carbonImpactKg !== null) {
+      const formattedImpact = carbonImpactKg.toFixed(2);
+      if (systemPrompt.includes('{{carbon_impact}}')) {
+        systemPrompt = systemPrompt.replaceAll('{{carbon_impact}}', formattedImpact);
       } else {
+        systemPrompt += `\n\nEstimated Carbon Impact Avoidance: ${formattedImpact} kg CO2e over the proposal scope.`;
+      }
+    } else {
+      if (systemPrompt.includes('{{carbon_impact}}')) {
         systemPrompt = systemPrompt
           .replaceAll('- {{carbon_impact}}', '')
           .replaceAll('{{carbon_impact}}', '')
           .replace(/\n\s*\n/g, '\n');
       }
     }
-
-    // STEP 1 & 2: Resolve ontology IDs into human-readable definitions and build grounding prompt
-    const resolvedContext = resolveOntologyContext(body.ontologyContext || {});
-    console.log("[GW-GROUNDING] resolvedContext", JSON.stringify(resolvedContext).slice(0, 8000));
-
-    const groundingPrompt = buildGroundingPromptMessage(resolvedContext);
 
     const { data: result, usage, model } = await chatJson<{
       matrix: LfaMatrix;
@@ -678,18 +680,31 @@ Deno.serve(async (req: Request) => {
       // reasoning before producing visible content. The full LFA matrix +
       // proposal markdown can be ~6-10k visible tokens, so we budget 27500 tokens.
       temperature: 0.4,
-      max_tokens: 12000,
+      max_tokens: 27500,
     });
 
     if (!result?.matrix || !result?.proposal_markdown) {
       throw new Error('Foundry returned incomplete payload');
     }
 
-    // Ensure meta.donorStandard is set
+    // Post-process markdown title if generic placeholder returned
+    if (programFacts.title && (
+      result.proposal_markdown.startsWith('# Program Baru') ||
+      result.proposal_markdown.startsWith('# Proposal Program Baru') ||
+      result.proposal_markdown.startsWith('# [Judul Program]') ||
+      result.proposal_markdown.startsWith('# Proposal')
+    )) {
+      result.proposal_markdown = result.proposal_markdown.replace(/^#\s+[^\n]+/, `# ${programFacts.title}`);
+    }
+
+    // Ensure meta properties use current program facts
     result.matrix.meta = {
       ...result.matrix.meta,
       donorStandard,
-      projectTitle: project.title,
+      projectTitle: programFacts.title || project.title || 'Program Baru',
+      budgetIdr: programFacts.budgetIdr !== null && programFacts.budgetIdr !== undefined ? programFacts.budgetIdr : (project.budget_idr ?? result.matrix.meta?.budgetIdr ?? 0),
+      durationMonths: programFacts.durationMonths !== null && programFacts.durationMonths !== undefined ? programFacts.durationMonths : (project.duration_months ?? result.matrix.meta?.durationMonths ?? 0),
+      geography: programFacts.geography ? { locationName: programFacts.geography } : (result.matrix.meta?.geography ?? { locationName: 'Belum ditentukan' })
     };
 
     // Embed the Canonical Program Skeleton into result.matrix for single-transaction persistence.
