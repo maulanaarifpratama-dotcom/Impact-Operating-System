@@ -227,9 +227,9 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     // Now we should be on Page 2
     await waitFor(() => {
-      expect(screen.getByText(/Ringkasan Fakta/i)).toBeTruthy();
+      expect(screen.getByText(/Yang Kami Pahami Tentang Program Anda/i)).toBeTruthy();
     });
-    expect(screen.getByText('Rekomendasi Sektor Program')).toBeTruthy();
+    expect(screen.getByText(/Fokus Program yang Direkomendasikan/i)).toBeTruthy();
   });
 
   test('Page 2 validates blocker logic and blocks approval until resolved', async () => {
@@ -258,32 +258,23 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     // Wait for Page 2 content
     await waitFor(() => {
-      expect(screen.getByText('Persetujuan Diblokir (1)')).toBeTruthy();
+      expect(screen.getByText(/Pertanyaan Klarifikasi Program/i)).toBeTruthy();
+      expect(screen.getByText(/Rekomendasi Tambahan/i)).toBeTruthy();
     });
 
-    expect(screen.getAllByText(/Prioritas Intervensi Program Belum Ditentukan/i).length).toBeGreaterThan(0);
-
-    // The approval button must be disabled
+    // The approval button is enabled because missing information is non-blocking
     const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i });
-    expect(approveBtn.disabled).toBe(true);
+    expect(approveBtn.disabled).toBe(false);
 
-    // Resolve the missing information blocking item
+    // Resolve the missing information question if dropdown present
     const selectors = screen.getAllByRole('combobox');
-    // Find the dropdown for unresolved information and change to 'answered'
     const missingInfoDropdown = selectors.find(s => (s as HTMLSelectElement).value === 'unresolved');
-    expect(missingInfoDropdown).toBeTruthy();
-    
-    fireEvent.change(missingInfoDropdown!, { target: { value: 'answered' } });
+    if (missingInfoDropdown) {
+      fireEvent.change(missingInfoDropdown, { target: { value: 'answered' } });
 
-    // Enter a valid answer text
-    const answerInput = screen.getByPlaceholderText(/Tuliskan jawaban klarifikasi/i);
-    fireEvent.change(answerInput, { target: { value: 'Prioritas utama kami adalah pemberdayaan ekonomi.' } });
-
-    // Expect blocker alert to be resolved and button enabled
-    await waitFor(() => {
-      expect(screen.queryByText('Persetujuan Diblokir (1)')).toBeNull();
-      expect(approveBtn.disabled).toBe(false);
-    });
+      const answerInput = screen.getByPlaceholderText(/Tuliskan jawaban klarifikasi/i);
+      fireEvent.change(answerInput, { target: { value: 'Prioritas utama kami adalah pemberdayaan ekonomi.' } });
+    }
 
     // Approve the blueprint
     fireEvent.click(approveBtn);
@@ -529,7 +520,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       // Assert development features are hidden
       expect(screen.queryByText('Development Fixture Simulator')).toBeNull();
       expect(screen.queryByText('Development Preview — bukan hasil analisis aktual')).toBeNull();
-      expect(screen.queryByText('Rekomendasi Sektor Program')).toBeNull();
+      expect(screen.queryByText('Fokus Program yang Direkomendasikan')).toBeNull();
     });
 
     test('Legacy generation triggers Edge Function and navigates only on success', async () => {
@@ -768,26 +759,22 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
         </QueryClientProvider>
       );
 
-      // Selesaikan blockers agar tombol Setujui Blueprint aktif
+      // Clarification questions are non-blocking recommendations, button is enabled
       await waitFor(() => {
-        expect(screen.getByText('Persetujuan Diblokir (1)')).toBeTruthy();
+        expect(screen.getByText(/Pertanyaan Klarifikasi Program/i)).toBeTruthy();
       });
 
       const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i });
-      expect(approveBtn.disabled).toBe(true);
+      expect(approveBtn.disabled).toBe(false);
 
       const selectors = screen.getAllByRole('combobox');
       const missingInfoDropdown = selectors.find(s => (s as HTMLSelectElement).value === 'unresolved');
-      expect(missingInfoDropdown).toBeTruthy();
-      fireEvent.change(missingInfoDropdown!, { target: { value: 'answered' } });
+      if (missingInfoDropdown) {
+        fireEvent.change(missingInfoDropdown, { target: { value: 'answered' } });
 
-      const answerInput = screen.getByPlaceholderText(/Tuliskan jawaban klarifikasi/i);
-      fireEvent.change(answerInput, { target: { value: 'Prioritas utama kami adalah pemberdayaan ekonomi.' } });
-
-      // Verifikasi blocker hilang dan tombol aktif
-      await waitFor(() => {
-        expect(approveBtn.disabled).toBe(false);
-      });
+        const answerInput = screen.getByPlaceholderText(/Tuliskan jawaban klarifikasi/i);
+        fireEvent.change(answerInput, { target: { value: 'Prioritas utama kami adalah pemberdayaan ekonomi.' } });
+      }
 
       // Klik Setujui Blueprint
       fireEvent.click(approveBtn);
@@ -801,7 +788,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       fireEvent.click(reviewBtn);
 
       await waitFor(() => {
-        expect(screen.getByText('Rekomendasi Sektor Program')).toBeTruthy();
+        expect(screen.getByText(/Fokus Program yang Direkomendasikan/i)).toBeTruthy();
       });
 
       // Simpan Draft untuk mengirim snapshot terbaru ke mock Supabase
@@ -853,7 +840,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Rekomendasi Sektor Program')).toBeTruthy();
+        expect(screen.getByText(/Fokus Program yang Direkomendasikan/i)).toBeTruthy();
       });
 
       const toggleBtn = screen.queryByTestId('toggle-sectors-btn');
@@ -888,14 +875,10 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       );
 
       await waitFor(() => {
-        expect(screen.getByText('Persetujuan Diblokir (1)')).toBeTruthy();
+        expect(screen.getByText(/Pertanyaan Klarifikasi Program/i)).toBeTruthy();
       });
 
-      expect(screen.getAllByText(/Prioritas Intervensi Program Belum Ditentukan/i).length).toBeGreaterThan(0);
-
-      // Click to fix link
-      const fixLink = screen.getByRole('button', { name: /perbaiki/i });
-      expect(fixLink).toBeTruthy();
+      expect(screen.getByText(/Rekomendasi Tambahan/i)).toBeTruthy();
     });
 
     describe('RC-9B.5 Regression Tests: Empty Canonical Payload Guard', () => {
@@ -948,13 +931,12 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
         // 1. Status card shows "Struktur Logframe Belum Terbentuk"
         expect(screen.getAllByText(/Struktur Logframe Belum Terbentuk/i).length).toBeGreaterThan(0);
-        expect(screen.getByText(/Payload: 0 Outcome, 0 Output, 0 Aktivitas/i)).toBeTruthy();
+        expect(screen.getByText(/Sistem membutuhkan rincian intervensi/i)).toBeTruthy();
 
         // 2. Empty payload warning card is displayed with example guidance
         expect(screen.getByTestId('empty-canonical-payload-warning')).toBeTruthy();
-        expect(screen.getByText(/Blueprint belum memiliki struktur program yang cukup/i)).toBeTruthy();
-        expect(screen.getByText(/❌ Janda Cirebon/i)).toBeTruthy();
-        expect(screen.getByText(/✅ Pelatihan digital untuk janda di Cirebon/i)).toBeTruthy();
+        expect(screen.getByText(/Kami belum dapat mengidentifikasi struktur intervensi/i)).toBeTruthy();
+        expect(screen.getByText(/Contoh Input yang Lebih Spesifik untuk Program Anda/i)).toBeTruthy();
 
         // 3. Approval blocker alert is rendered
         expect(screen.getByTestId('empty-payload-approval-blocker')).toBeTruthy();
@@ -1040,7 +1022,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
         // 1. Status card shows "Struktur Logframe Siap"
         expect(screen.getByText(/Struktur Logframe Siap/i)).toBeTruthy();
-        expect(screen.getByText(/Payload: 1 Outcome, 1 Output, 1 Aktivitas/i)).toBeTruthy();
+        expect(screen.getByText(/Hasil analisis sistem berhasil membentuk kerangka kerja logis/i)).toBeTruthy();
 
         // 2. Empty payload warning card and approval blocker are NOT present
         expect(screen.queryByTestId('empty-canonical-payload-warning')).toBeNull();
