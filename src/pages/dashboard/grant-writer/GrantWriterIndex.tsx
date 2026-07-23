@@ -166,8 +166,6 @@ export default function GrantWriterIndex() {
   const [lfaProjects, setLfaProjects] = useState<any[]>([]);
   const [lfaDocs, setLfaDocs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [createOpen, setCreateOpen] = useState(false);
-  const [title, setTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<StageKey>('all');
@@ -202,17 +200,59 @@ export default function GrantWriterIndex() {
     void load();
   }, []);
 
+  const handleQuickCreate = async (customTitle?: string) => {
+    if (!user || creating) return;
+    setCreating(true);
+    try {
+      const orgId = await ensureDefaultOrg(user.id, profile?.full_name);
+      const lfaProjectId = searchParams.get('lfa_project_id');
+      const projectTitle = customTitle?.trim() || 'Program Baru';
+
+      const { data, error } = await supabase
+        .from('gw_projects')
+        .insert({
+          organization_id: orgId,
+          created_by: user.id,
+          title: projectTitle,
+          status: 'draft',
+          current_step: 1,
+          wizard_data: { _mode: 'quick', isTemporaryTitle: !customTitle, ...(lfaProjectId ? { lfa_project_id: lfaProjectId } : {}) } as never,
+        })
+        .select('id')
+        .single();
+      if (error) throw error;
+
+      if (lfaProjectId) {
+        await supabase
+          .from('lfa_projects')
+          .update({ linked_grant_id: data.id })
+          .eq('id', lfaProjectId);
+      }
+
+      toast({
+        title: 'Program Baru Dibuat',
+        description: 'Membuka Program Blueprint Studio...',
+      });
+      navigate(`/dashboard/grant-writer/quick/${data.id}`);
+    } catch (err) {
+      const error = err as Error;
+      toast({ title: 'Gagal membuat program', description: error.message, variant: 'destructive' });
+    } finally {
+      setCreating(false);
+    }
+  };
+
   useEffect(() => {
     if (deepLinkHandled.current) return;
     const roleParam = searchParams.get('role');
     const modeParam = searchParams.get('mode');
     if (roleParam || modeParam) {
       deepLinkHandled.current = true;
-      setCreateOpen(true);
       const next = new URLSearchParams(searchParams);
       next.delete('role');
       next.delete('mode');
       setSearchParams(next, { replace: true });
+      void handleQuickCreate();
     }
   }, [searchParams, setSearchParams]);
 
@@ -228,12 +268,11 @@ export default function GrantWriterIndex() {
             .maybeSingle();
           if (error) throw error;
           if (data?.name) {
-            setTitle(data.name);
-            setCreateOpen(true);
             toast({
               title: 'LFA Ditemukan',
               description: `Menghubungkan program "${data.name}" ke proposal baru Anda.`,
             });
+            void handleQuickCreate(data.name);
           }
         } catch (e) {
           console.error('Error fetching LFA project:', e);
@@ -242,49 +281,6 @@ export default function GrantWriterIndex() {
       void fetchLfaProjectName();
     }
   }, [searchParams, toast]);
-
-  const handleCreate = async () => {
-    if (!user || !title.trim()) return;
-    setCreating(true);
-    try {
-      const orgId = await ensureDefaultOrg(user.id, profile?.full_name);
-      const lfaProjectId = searchParams.get('lfa_project_id');
-
-      const { data, error } = await supabase
-        .from('gw_projects')
-        .insert({
-          organization_id: orgId,
-          created_by: user.id,
-          title: title.trim(),
-          status: 'draft',
-          current_step: 1,
-          wizard_data: { _mode: 'quick', ...(lfaProjectId ? { lfa_project_id: lfaProjectId } : {}) } as never,
-        })
-        .select('id')
-        .single();
-      if (error) throw error;
-
-      if (lfaProjectId) {
-        await supabase
-          .from('lfa_projects')
-          .update({ linked_grant_id: data.id })
-          .eq('id', lfaProjectId);
-      }
-
-      toast({
-        title: 'Program dibuat',
-        description: 'Membuka Program Blueprint Studio...',
-      });
-      navigate(`/dashboard/grant-writer/quick/${data.id}`);
-    } catch (err) {
-      const error = err as Error;
-      toast({ title: 'Gagal membuat program', description: error.message, variant: 'destructive' });
-    } finally {
-      setCreating(false);
-      setCreateOpen(false);
-      setTitle('');
-    }
-  };
 
   // Compute stage info and counts for all projects
   const decoratedProjects = projects.map((p) => {
@@ -328,10 +324,11 @@ export default function GrantWriterIndex() {
         </div>
         <Button
           size="lg"
-          onClick={() => setCreateOpen(true)}
+          onClick={() => void handleQuickCreate()}
+          disabled={creating}
           className="gap-2 font-semibold shadow-md shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
         >
-          <Plus className="h-5 w-5" /> Program Baru
+          {creating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />} Program Baru
         </Button>
       </div>
 
@@ -553,49 +550,6 @@ export default function GrantWriterIndex() {
         </section>
       )}
 
-      {/* Task 1: Single Streamlined Create Modal */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-h4 font-bold flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Buat Program Baru
-            </DialogTitle>
-            <DialogDescription>
-              Masukkan nama program atau proyek yang ingin Anda susun. Sistem akan membuka Program Blueprint Studio.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="project-title" className="font-semibold">Nama Program / Proyek</Label>
-              <Input
-                id="project-title"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Mis. Pemberdayaan Digital Janda Cirebon"
-                className="text-sm"
-                autoFocus
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && title.trim() && !creating) {
-                    void handleCreate();
-                  }
-                }}
-              />
-            </div>
-          </div>
-
-          <DialogFooter className="gap-2 sm:gap-0">
-            <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
-              Batal
-            </Button>
-            <Button onClick={handleCreate} disabled={!title.trim() || creating} className="gap-2 font-semibold">
-              {creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-              Buat Program
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { fireEvent, render, screen, waitFor, act } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GrantWriterQuickWizard, { GrantWriterQuickWizardSelector } from './GrantWriterQuickWizard';
+import { suggestTitleFromStory } from './GrantWriterQuickWizardProvisional';
 import { PROVISIONAL_FIXTURES, adaptProvisionalResponse } from '@/lib/grant-writer/provisionalAdapter';
 
 const { mockSupabaseFrom, mockSupabaseInvoke, toastMock, navigateMock, writeCalls } = vi.hoisted(() => ({
@@ -149,7 +150,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     });
 
     // Expect inputs populated with DB defaults
-    expect((screen.getByLabelText('Judul Program *') as HTMLInputElement).value).toBe('Pertanian Lestari');
+    expect((screen.getByLabelText(/Judul Program/i) as HTMLInputElement).value).toBe('Pertanian Lestari');
     expect((screen.getByLabelText('Lokasi Program') as HTMLInputElement).value).toBe('Gunungkidul');
     expect((screen.getByLabelText('Durasi Program (Bulan)') as HTMLInputElement).value).toBe('6');
     expect((screen.getByLabelText('Perkiraan Anggaran Program (IDR)') as HTMLInputElement).value).toBe('50000000');
@@ -355,7 +356,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     });
 
     // Enter specific user inputs for "Janda Cirebon"
-    fireEvent.change(screen.getByLabelText('Judul Program *'), { target: { value: 'Pemberdayaan Digital Janda Cirebon' } });
+    fireEvent.change(screen.getByLabelText(/Judul Program/i), { target: { value: 'Pemberdayaan Digital Janda Cirebon' } });
     fireEvent.change(screen.getByLabelText('Lokasi Program'), { target: { value: 'Cirebon' } });
     fireEvent.change(screen.getByLabelText('Kelompok Sasaran Penerima Manfaat *'), { target: { value: 'Janda di Cirebon' } });
     fireEvent.change(screen.getByLabelText('Cerita Program (Program Story) *'), { target: { value: 'Program ini memberdayakan janda di Cirebon melalui pelatihan keterampilan digital.' } });
@@ -399,7 +400,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     });
 
     // Enter user inputs for "Janda Cirebon"
-    fireEvent.change(screen.getByLabelText('Judul Program *'), { target: { value: 'Pemberdayaan Janda Cirebon' } });
+    fireEvent.change(screen.getByLabelText(/Judul Program/i), { target: { value: 'Pemberdayaan Janda Cirebon' } });
     fireEvent.change(screen.getByLabelText('Lokasi Program'), { target: { value: 'Cirebon' } });
     fireEvent.change(screen.getByLabelText('Kelompok Sasaran Penerima Manfaat *'), { target: { value: 'Janda Cirebon' } });
     fireEvent.change(screen.getByLabelText('Cerita Program (Program Story) *'), { target: { value: 'Membantu Janda Cirebon mandiri secara ekonomi.' } });
@@ -443,7 +444,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     });
 
     // Fill in a custom value
-    fireEvent.change(screen.getByLabelText('Judul Program *'), { target: { value: 'Judul Draft Keren' } });
+    fireEvent.change(screen.getByLabelText(/Judul Program/i), { target: { value: 'Judul Draft Keren' } });
 
     // Click Save Draft button
     const saveBtn = screen.getByRole('button', { name: /Simpan Draft/i });
@@ -1049,6 +1050,38 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
         const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i }) as HTMLButtonElement;
         expect(approveBtn.disabled).toBe(false);
       });
+    });
+  });
+
+  describe('GW-UX-02B — ZERO-FRICTION PROGRAM CREATION', () => {
+    test('suggestTitleFromStory generates professional title from beneficiary and location', () => {
+      const title1 = suggestTitleFromStory('Pelatihan digital untuk janda pesisir Cirebon', '50 Ibu Janda Pesisir', 'Cirebon');
+      expect(title1).toBe('Pemberdayaan 50 Ibu Janda Pesisir di Cirebon');
+
+      const title2 = suggestTitleFromStory('Pemberdayaan petani beras organik tanpa lokasi spesifik', 'Petani Beras Organik');
+      expect(title2).toBe('Pemberdayaan Petani Beras Organik');
+
+      const title3 = suggestTitleFromStory('Pelatihan literasi keuangan masyarakat desa', '');
+      expect(title3).toBe('Pelatihan literasi keuangan masyarakat desa');
+    });
+
+    test('Page 1 renders optional title input and autofocuses program story textarea', async () => {
+      installSupabaseScenario({ title: 'Program Baru' });
+      const queryClient = createTestQueryClient();
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <GrantWriterQuickWizardSelector isDevelopment={true} />
+        </QueryClientProvider>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByLabelText(/Judul Program \(Opsional\)/i)).toBeTruthy();
+        expect(screen.getByLabelText(/Cerita Program/i)).toBeTruthy();
+      });
+
+      const storyTextarea = screen.getByLabelText(/Cerita Program/i) as HTMLTextAreaElement;
+      expect(storyTextarea).toBe(document.activeElement);
     });
   });
 });

@@ -117,7 +117,40 @@ describe('GW-UX-02A — GrantWriterIndex Home Simplification Suite', () => {
     });
   });
 
-  it('TASK 1 — clicking Program Baru opens streamlined creation modal without mode fork', async () => {
+  it('GW-UX-02B — clicking Program Baru creates project directly without intermediate title modal', async () => {
+    const mockInsert = vi.fn().mockReturnValue({
+      select: vi.fn().mockReturnValue({
+        single: vi.fn().mockResolvedValue({
+          data: { id: 'new-proj-123' },
+          error: null,
+        }),
+      }),
+    });
+
+    (supabase.from as any).mockImplementation((table: string) => {
+      if (table === 'gw_projects') {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: [],
+              error: null,
+            }),
+          }),
+          insert: mockInsert,
+        };
+      }
+      if (table === 'gw_lfa_documents') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        };
+      }
+      return {
+        select: vi.fn().mockResolvedValue({ data: [], error: null }),
+      };
+    });
+
     render(
       <BrowserRouter>
         <GrantWriterIndex />
@@ -131,12 +164,17 @@ describe('GW-UX-02A — GrantWriterIndex Home Simplification Suite', () => {
     const createBtn = screen.getByRole('button', { name: /Program Baru/i });
     fireEvent.click(createBtn);
 
-    expect(screen.getByText('Buat Program Baru')).toBeInTheDocument();
-    expect(screen.getByLabelText(/Nama Program \/ Proyek/i)).toBeInTheDocument();
+    await waitFor(() => {
+      expect(mockInsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: 'Program Baru',
+          status: 'draft',
+        })
+      );
+    });
 
-    // Verify mode choice cards (Mulai mode Quick, Mulai mode LFA Lengkap) are NOT in modal
-    expect(screen.queryByText('Mulai mode Quick')).not.toBeInTheDocument();
-    expect(screen.queryByText('Mulai mode LFA Lengkap')).not.toBeInTheDocument();
+    // Verify modal is NOT shown
+    expect(screen.queryByText('Buat Program Baru')).not.toBeInTheDocument();
   });
 
   it('TASK 5 — renders pipeline summary bar with stage counts', async () => {

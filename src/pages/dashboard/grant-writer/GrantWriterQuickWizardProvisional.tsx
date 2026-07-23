@@ -124,6 +124,29 @@ export function formatBeneficiaryWithLocation(beneficiary?: string, location?: s
   return `${rawBen} di ${cleanLoc}`;
 }
 
+/**
+ * Suggest a professional program title from program story and target beneficiary
+ */
+export function suggestTitleFromStory(story: string, beneficiary?: string, location?: string): string {
+  const cleanLoc = cleanLocationString(location);
+  const locStr = cleanLoc && cleanLoc !== 'Lokasi Belum Ditentukan' && cleanLoc.toLowerCase() !== 'indonesia' ? ` di ${cleanLoc}` : '';
+  
+  if (beneficiary && beneficiary.trim().length > 3) {
+    const benStr = beneficiary.trim();
+    return `Pemberdayaan ${benStr}${locStr}`;
+  }
+
+  const s = (story || '').trim();
+  if (s.length > 5) {
+    const firstSentence = s.split(/[.\n]/)[0].trim();
+    if (firstSentence.length >= 6 && firstSentence.length <= 60) {
+      return firstSentence.charAt(0).toUpperCase() + firstSentence.slice(1);
+    }
+  }
+
+  return 'Program Pemberdayaan Masyarakat';
+}
+
 export function detectEntityDrift(
   facts: CanonicalFacts,
   reviewTexts: string[]
@@ -690,6 +713,20 @@ export default function GrantWriterQuickWizardProvisional() {
   // Timer Ref to prevent memory leaks on unmount
   const processingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Ref for Program Story textarea autofocus
+  const programStoryRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (currentFlowPage === 'page1') {
+      const timer = setTimeout(() => {
+        if (programStoryRef.current) {
+          programStoryRef.current.focus();
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [currentFlowPage]);
+
   // Clean up timers on unmount
   useEffect(() => {
     return () => {
@@ -859,15 +896,13 @@ export default function GrantWriterQuickWizardProvisional() {
   const handleTinjauBlueprint = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Strict Validation
-    if (!proposedTitle.trim()) {
-      toast({
-        title: 'Judul Program Wajib Diisi',
-        description: 'Silakan isi judul program sebelum melanjutkan.',
-        variant: 'destructive'
-      });
-      return;
+    // Auto-fill temporary title if blank
+    let finalTitle = proposedTitle.trim();
+    if (!finalTitle) {
+      finalTitle = 'Program Baru';
+      setProposedTitle(finalTitle);
     }
+
     if (!beneficiaryDescription.trim()) {
       toast({
         title: 'Deskripsi Penerima Manfaat Wajib Diisi',
@@ -1378,26 +1413,47 @@ export default function GrantWriterQuickWizardProvisional() {
               <CardTitle className="text-lg font-bold text-slate-800">Detail Rencana Program</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Judul Program */}
+              {/* Judul Program (Optional, Non-blocking) */}
               <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="program-title" className="font-bold text-slate-900 text-sm">Judul Program *</Label>
-                  <span className="text-[11px] text-slate-500 font-normal">Diisi otomatis dari nama project, dapat Anda ubah kapan saja</span>
+                  <Label htmlFor="program-title" className="font-bold text-slate-900 text-sm">Judul Program (Opsional)</Label>
+                  <span className="text-[11px] text-slate-500 font-normal">Dapat Anda isi nanti atau gunakan usulan AI</span>
                 </div>
-                <Input
-                  id="program-title"
-                  placeholder="cth. Pengembangan Livelihood Petani Beras Organik"
-                  value={proposedTitle}
-                  onChange={(e) => {
-                    setProposedTitle(e.target.value);
-                    setReviewIsStale(true);
-                  }}
-                  required
-                  className="bg-white"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="program-title"
+                    placeholder="cth. Pemberdayaan Digital Janda Cirebon (Bisa dikosongkan dulu)"
+                    value={proposedTitle}
+                    onChange={(e) => {
+                      setProposedTitle(e.target.value);
+                      setReviewIsStale(true);
+                    }}
+                    className="bg-white flex-1"
+                  />
+                  {(programStory.trim().length > 5 || beneficiaryDescription.trim().length > 3) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const suggested = suggestTitleFromStory(programStory, beneficiaryDescription, geography);
+                        setProposedTitle(suggested);
+                        setReviewIsStale(true);
+                        toast({
+                          title: '✨ Usulan Judul Diterapkan',
+                          description: `Judul diatur ke: "${suggested}"`,
+                        });
+                      }}
+                      className="shrink-0 gap-1.5 text-xs text-indigo-700 border-indigo-200 bg-indigo-50/50 hover:bg-indigo-100"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                      Usulkan Judul
+                    </Button>
+                  )}
+                </div>
               </div>
 
-              {/* SECTION A: CERITA PROGRAM (STORY-FIRST) */}
+              {/* SECTION A: CERITA PROGRAM (STORY-FIRST & AUTOFOCUSED) */}
               <div className="rounded-lg border-2 border-indigo-100 bg-indigo-50/20 p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <Label htmlFor="program-story" className="font-bold text-indigo-950 text-base flex items-center gap-2">
@@ -1411,6 +1467,8 @@ export default function GrantWriterQuickWizardProvisional() {
                 </p>
                 <Textarea
                   id="program-story"
+                  ref={programStoryRef}
+                  autoFocus
                   rows={7}
                   placeholder="Jelaskan secara bebas namun jelas:
 1. Masalah utama apa yang ingin diselesaikan?
