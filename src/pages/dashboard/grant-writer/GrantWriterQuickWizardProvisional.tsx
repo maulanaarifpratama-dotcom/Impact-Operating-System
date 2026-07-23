@@ -13,7 +13,8 @@ import {
   CheckCircle2,
   AlertOctagon,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  Lock
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -26,15 +27,345 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 import {
-  adaptProvisionalResponse,
-  PROVISIONAL_FIXTURES,
   ProvisionalDomainResponse,
   ApprovedPage2Snapshot,
-  ResolutionHistoryEntry
+  ResolutionHistoryEntry,
+  MappingRecommendation,
+  SDGRecommendation,
+  ActorRoleRecommendation,
+  MissingInformationItem,
+  AmbiguityItem
 } from '@/lib/grant-writer/provisionalAdapter';
+import { createPage2Payload } from '@/lib/grant-writer/deterministic';
 import { assembleCanonicalProposalV2 } from '@/lib/grant-writer/deterministic/assemble-canonical-proposal-v2';
 import type { Page1Input, CanonicalProposalPayloadV2 } from '@/lib/grant-writer/deterministic/types';
 import { mapCanonicalProposalToRawEntries } from '@/lib/lfa/readAdapter';
+
+export interface CanonicalFacts {
+  proposedTitle: string;
+  beneficiaryDescription: string;
+  geography: string;
+  primaryTargetActor?: string;
+  primaryLocation?: string;
+}
+
+/**
+ * Clean location string by stripping leading "di " or "Di " prefixes
+ */
+export function cleanLocationString(location?: string): string {
+  if (!location) return '';
+  let loc = location.trim();
+  loc = loc.replace(/^di\s+/i, '').trim();
+  return loc;
+}
+
+/**
+ * Extract primary target actor by removing location occurrences from beneficiary description
+ */
+export function extractPrimaryTargetActor(beneficiaryDescription?: string, geography?: string): string {
+  if (!beneficiaryDescription) return '';
+  let actor = beneficiaryDescription.trim();
+  const cleanLoc = cleanLocationString(geography);
+
+  if (cleanLoc && cleanLoc.length > 1) {
+    const escLoc = cleanLoc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    actor = actor.replace(new RegExp(`\\bdi\\s+${escLoc}\\b`, 'gi'), '');
+    actor = actor.replace(new RegExp(`\\b${escLoc}\\b`, 'gi'), '');
+    actor = actor.replace(/\s+/g, ' ').trim();
+  }
+
+  return actor || beneficiaryDescription.trim();
+}
+
+/**
+ * Prevent duplicate location phrases in any text string.
+ * Ensures "Janda di Cirebon di Cirebon", "Cirebon di Cirebon", "di Cirebon di Cirebon" do not occur.
+ */
+export function preventDuplicateLocation(text: string, location?: string): string {
+  if (!text) return '';
+  let result = text;
+
+  const cleanLoc = cleanLocationString(location);
+
+  if (cleanLoc && cleanLoc.length > 1) {
+    const escLoc = cleanLoc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    result = result.replace(new RegExp(`\\b(${escLoc})\\s+di\\s+${escLoc}\\b`, 'gi'), '$1');
+    result = result.replace(new RegExp(`\\bdi\\s+${escLoc}\\s+di\\s+${escLoc}\\b`, 'gi'), `di ${cleanLoc}`);
+    result = result.replace(new RegExp(`\\bdi\\s+di\\s+${escLoc}\\b`, 'gi'), `di ${cleanLoc}`);
+    result = result.replace(new RegExp(`\\b(${escLoc})\\s+${escLoc}\\b`, 'gi'), '$1');
+  }
+
+  result = result.replace(/\b(di\s+[A-Za-z0-9-]+)\s+di\s+([A-Za-z0-9-]+)\b/gi, (match, p1, p2) => {
+    if (p1.toLowerCase().endsWith(p2.toLowerCase())) {
+      return p1;
+    }
+    return match;
+  });
+
+  return result.replace(/\s+/g, ' ').trim();
+}
+
+/**
+ * Combine beneficiary description and location cleanly without duplicate location rendering
+ */
+export function formatBeneficiaryWithLocation(beneficiary?: string, location?: string): string {
+  const cleanLoc = cleanLocationString(location);
+  const rawBen = beneficiary ? beneficiary.trim() : 'penerima manfaat';
+
+  if (!cleanLoc || cleanLoc.toLowerCase() === 'indonesia' || cleanLoc === 'Lokasi Belum Ditentukan' || cleanLoc === 'unknown') {
+    return rawBen;
+  }
+
+  if (rawBen.toLowerCase().includes(cleanLoc.toLowerCase())) {
+    return rawBen;
+  }
+
+  return `${rawBen} di ${cleanLoc}`;
+}
+
+export function detectEntityDrift(
+  facts: CanonicalFacts,
+  reviewTexts: string[]
+): { hasDrift: boolean; message?: string } {
+  const combinedText = reviewTexts.join(' ').toLowerCase();
+  const missingElements: string[] = [];
+
+  if (facts.primaryTargetActor && facts.primaryTargetActor.length > 2) {
+    const actor = facts.primaryTargetActor.toLowerCase();
+    if (!combinedText.includes(actor)) {
+      missingElements.push(`Sasaran Utama ("${facts.primaryTargetActor}")`);
+    }
+  }
+
+  if (facts.primaryLocation && facts.primaryLocation.length > 2 && facts.primaryLocation !== 'Belum diketahui') {
+    const loc = facts.primaryLocation.toLowerCase();
+    if (!combinedText.includes(loc)) {
+      missingElements.push(`Lokasi ("${facts.primaryLocation}")`);
+    }
+  }
+
+  if (missingElements.length > 0) {
+    return {
+      hasDrift: true,
+      message: `Elemen fakta Page 1 ${missingElements.join(' dan ')} belum terwakili secara eksplisit dalam konten review Page 2. (Peringatan drift entitas — tidak memblokir persetujuan).`,
+    };
+  }
+
+  return { hasDrift: false };
+}
+
+function buildLiveDomainResponse(
+  input: Page1Input,
+  canonical: CanonicalProposalPayloadV2
+): ProvisionalDomainResponse {
+  const detPayload = createPage2Payload(input, {
+    engineVersion: 'det-engine-v2.0',
+    mode: 'production',
+  });
+
+  const rawLoc = input.location || input.geography || 'lokasi program';
+  const cleanLoc = cleanLocationString(rawLoc) || 'lokasi program';
+  const benWithLoc = formatBeneficiaryWithLocation(input.beneficiaryDescription, cleanLoc);
+  const primaryActor = extractPrimaryTargetActor(input.beneficiaryDescription, cleanLoc) || 'Penerima Manfaat Utama';
+
+  const sectors: MappingRecommendation[] = detPayload.sectors.map(s => ({
+    id: s.id,
+    label: s.label || s.id,
+    level: s.level,
+    confidence: s.confidenceBand || 'high',
+    confidenceScore: s.confidenceScore || 0.85,
+    explanation: preventDuplicateLocation(s.explanation || `Rekomendasi sektor berdasarkan analisis input program "${input.programTitle}".`, cleanLoc),
+    evidence: s.evidenceSpans?.[0] ? {
+      sourceField: s.evidenceSpans[0].sourceField,
+      text: s.evidenceSpans[0].matchedText,
+      startOffset: s.evidenceSpans[0].startOffset,
+      endOffset: s.evidenceSpans[0].endOffset,
+    } : {
+      sourceField: 'programTitle',
+      text: input.programTitle || input.beneficiaryDescription,
+    }
+  }));
+
+  const interventions: MappingRecommendation[] = detPayload.interventions.map(i => ({
+    id: i.id,
+    label: i.label || i.id,
+    level: i.level,
+    confidence: i.confidenceBand || 'high',
+    confidenceScore: i.confidenceScore || 0.8,
+    explanation: preventDuplicateLocation(i.explanation || `Arketipe intervensi sesuai fokus "${input.programTitle}".`, cleanLoc)
+  }));
+
+  const sdgNameMap: Record<number, string> = {
+    1: 'Tanpa Kemiskinan',
+    2: 'Tanpa Kelaparan',
+    3: 'Kehidupan Sehat & Sejahtera',
+    4: 'Pendidikan Berkualitas',
+    5: 'Kesetaraan Gender',
+    6: 'Air Bersih & Sanitasi Layak',
+    7: 'Energi Bersih & Terjangkau',
+    8: 'Pekerjaan Layak & Pertumbuhan Ekonomi',
+    9: 'Industri, Inovasi & Infrastruktur',
+    10: 'Berkurangnya Kesenjangan',
+    11: 'Kota & Pemukiman Berkelanjutan',
+    12: 'Konsumsi & Produksi Bertanggung Jawab',
+    13: 'Penanganan Perubahan Iklim',
+    14: 'Ekosistem Lautan',
+    15: 'Ekosistem Daratan',
+    16: 'Perdamaian, Keadilan & Kelembagaan Tangguh',
+    17: 'Kemitraan untuk Mencapai Tujuan',
+  };
+
+  const sdgs: SDGRecommendation[] = detPayload.sdgs.map(s => {
+    const num = Number(s.id.replace('SDG_', ''));
+    return {
+      num,
+      label: sdgNameMap[num] || `SDG ${num}`,
+      level: s.level,
+      confidence: s.confidenceBand || 'medium',
+      confidenceScore: s.confidenceScore || 0.75,
+      explanation: preventDuplicateLocation(s.explanation || `Penyelarasan SDG ${num} untuk target program di ${cleanLoc}.`, cleanLoc)
+    };
+  });
+
+  const actorRoles: ActorRoleRecommendation[] = [
+    {
+      id: 'ACT-BENEFICIARY-01',
+      actorName: primaryActor,
+      role: 'target_beneficiary',
+      level: 'primary',
+      confidence: 'high',
+      confidenceScore: 0.9,
+      explanation: preventDuplicateLocation(`Masyarakat sasaran utama program di ${cleanLoc}.`, cleanLoc)
+    },
+    {
+      id: 'ACT-IMPLEMENTER-01',
+      actorName: `Fasilitator & Pendamping (${cleanLoc})`,
+      role: 'implementing_partner',
+      level: 'secondary',
+      confidence: 'medium',
+      confidenceScore: 0.8,
+      explanation: 'Pihak pengelola dan pendamping aktivitas harian program.'
+    }
+  ];
+
+  const beneficiaryStr = input.beneficiaryDescription ? input.beneficiaryDescription.trim() : 'penerima manfaat';
+  const countStr = input.beneficiaryCount ? `${input.beneficiaryCount} ` : '';
+
+  const outcomeText = canonical.outcomes.map(o => o.outcome_name).join('; ');
+  const outputText = canonical.outcomes.flatMap(o => o.outputs).map(op => op.output_name).join('; ');
+
+  const blueprintItems = [
+    {
+      id: 'SLOT-PROBLEM-01',
+      section: 'Problem Summary' as const,
+      text: preventDuplicateLocation(
+        input.programStory
+          ? input.programStory
+          : `Terdapat tantangan dan kebutuhan pemberdayaan terfokus bagi ${benWithLoc}.`,
+        cleanLoc
+      ),
+      status: 'from_source' as const,
+      explanation: 'Disusun langsung dari informasi yang dimasukkan pengusul.'
+    },
+    {
+      id: 'SLOT-IMPACT-01',
+      section: 'Impact Direction' as const,
+      text: preventDuplicateLocation(
+        canonical.outcomes[0]?.description
+          || `Meningkatkan kesejahteraan, kemandirian, dan kapasitas ${benWithLoc} secara berkelanjutan.`,
+        cleanLoc
+      ),
+      status: 'inferred' as const,
+      explanation: 'Arah dampak jangka panjang yang diproyeksikan sistem.'
+    },
+    {
+      id: 'SLOT-OUTCOME-01',
+      section: 'Expected Changes' as const,
+      text: preventDuplicateLocation(
+        outcomeText
+          || `Terwujudnya peningkatan kemampuan dan hasil nyata bagi ${countStr}${benWithLoc}.`,
+        cleanLoc
+      ),
+      status: 'inferred' as const,
+      explanation: 'Hasil perubahan (outcome) utama dari intervensi program.'
+    },
+    {
+      id: 'SLOT-OUTPUT-01',
+      section: 'Direct Results' as const,
+      text: preventDuplicateLocation(
+        outputText
+          || `Terlaksananya rangkaian pelatihan, pendampingan, dan penyediaan sarana pendukung bagi ${beneficiaryStr}.`,
+        cleanLoc
+      ),
+      status: 'inferred' as const,
+      explanation: 'Capaian langsung (output) yang dihasilkan kegiatan.'
+    },
+    {
+      id: 'SLOT-PARTNER-01',
+      section: 'Suggested Partners' as const,
+      text: preventDuplicateLocation(
+        input.donorOrCallOptional
+          ? `Mitra Pendana: ${input.donorOrCallOptional}; Dinas Terkait & Komunitas Lokal di ${cleanLoc}`
+          : `Dinas Terkait, Komunitas Lokal, dan Fasilitator Pendamping di ${cleanLoc}`,
+        cleanLoc
+      ),
+      status: 'inferred' as const,
+      explanation: 'Usulan kemitraan strategis untuk kelancaran program.'
+    },
+    {
+      id: 'SLOT-CROSS-01',
+      section: 'Cross-Cutting Relevance' as const,
+      text: preventDuplicateLocation(
+        `Pengarusutamaan kesetaraan gender, inklusi sosial, dan keberlanjutan pemanfaatan fasilitas di ${cleanLoc}.`,
+        cleanLoc
+      ),
+      status: 'inferred' as const,
+      explanation: 'Prinsip lintas sektor yang relevan dengan usulan.'
+    }
+  ];
+
+  const missingInformation: MissingInformationItem[] = detPayload.missingInformation?.map(m => ({
+    id: m.id,
+    question: m.question,
+    priority: m.priority,
+    resolutionState: m.state === 'unresolved' ? 'unresolved' : 'resolved_accepted',
+    blocking: m.blocking,
+    requiredForApproval: m.requiredForApproval,
+  })) || [];
+
+  const ambiguities: AmbiguityItem[] = detPayload.ambiguities?.map(a => ({
+    id: a.id,
+    field: a.field,
+    description: `Klasifikasi bidang ${a.field} terdeteksi memiliki beberapa kandidat potensial.`,
+    candidates: a.candidates,
+    requiredForApproval: a.requiredForApproval
+  })) || [];
+
+  const warnings = detPayload.warnings?.map(w => ({
+    id: w.id,
+    code: w.code,
+    severity: w.severity as 'blocking' | 'important' | 'info',
+    message: w.message
+  })) || [];
+
+  return {
+    contractVersion: '1.2',
+    contractStatus: 'provisional_against_v1_2',
+    engineVersion: 'det-engine-v2.0',
+    registryVersions: { sector: '1.0', actor: '1.0' },
+    createdAt: new Date().toISOString(),
+    sectors,
+    interventions,
+    sdgs,
+    actorRoles,
+    ambiguities,
+    missingInformation,
+    warnings,
+    blueprint: {
+      items: blueprintItems
+    }
+  };
+}
 
 // Visual colors for SDGs as per standards
 const SDG_COLORS: Record<number, string> = {
@@ -93,7 +424,7 @@ export default function GrantWriterQuickWizardProvisional() {
 
   // Local UI State
   const [currentFlowPage, setCurrentFlowPage] = useState<'page1' | 'processing' | 'page2' | 'approved'>('page1');
-  const [selectedFixtureId, setSelectedFixtureId] = useState<string>('FIX-DEV-HC-1');
+  const [selectedFixtureId, setSelectedFixtureId] = useState<string>('live-engine');
   const [isSaving, setIsSaving] = useState(false);
   const [approvedSnapshot, setApprovedSnapshot] = useState<ApprovedPage2Snapshot | null>(null);
   const [canonicalPayload, setCanonicalPayload] = useState<CanonicalProposalPayloadV2 | null>(null);
@@ -143,6 +474,75 @@ export default function GrantWriterQuickWizardProvisional() {
 
   // Check if inputs have been modified since review started (review is stale)
   const [reviewIsStale, setReviewIsStale] = useState(false);
+
+  // Canonical facts computed from Page 1 fields (UX-FACT-01)
+  const canonicalFacts = useMemo<CanonicalFacts>(() => {
+    const title = proposedTitle.trim();
+    const rawBeneficiary = beneficiaryDescription.trim();
+    const rawGeography = geographyUnknown ? '' : geography.trim();
+    const cleanLoc = cleanLocationString(rawGeography);
+    const primaryActor = extractPrimaryTargetActor(rawBeneficiary, cleanLoc);
+
+    return {
+      proposedTitle: title,
+      beneficiaryDescription: rawBeneficiary,
+      geography: rawGeography,
+      primaryTargetActor: primaryActor,
+      primaryLocation: cleanLoc || '—',
+    };
+  }, [proposedTitle, beneficiaryDescription, geography, geographyUnknown]);
+
+  const reviewContentTexts = useMemo(() => {
+    if (!domainResponse) return [];
+    const texts: string[] = [];
+
+    domainResponse.blueprint.items.forEach(item => {
+      const txt = blueprintEdits[item.id] !== undefined ? blueprintEdits[item.id] : item.text;
+      texts.push(txt);
+    });
+
+    domainResponse.actorRoles.forEach(actor => {
+      texts.push(actor.actorName);
+      texts.push(actor.explanation);
+    });
+
+    domainResponse.sectors.forEach(sec => {
+      texts.push(sec.label);
+      texts.push(sec.explanation);
+    });
+
+    domainResponse.interventions.forEach(act => {
+      texts.push(act.label);
+      texts.push(act.explanation);
+    });
+
+    domainResponse.sdgs.forEach(sdg => {
+      texts.push(sdg.label);
+      texts.push(sdg.explanation);
+    });
+
+    if (canonicalPayload) {
+      canonicalPayload.outcomes.forEach(oc => {
+        texts.push(oc.outcome_name);
+        texts.push(oc.description);
+        oc.outputs.forEach(op => {
+          texts.push(op.output_name);
+          texts.push(op.description);
+          op.activities.forEach(act => {
+            texts.push(act.activity_name);
+            texts.push(act.description);
+          });
+        });
+      });
+    }
+
+    return texts;
+  }, [domainResponse, blueprintEdits, canonicalPayload]);
+
+  const driftWarning = useMemo(() => {
+    if (!domainResponse || currentFlowPage !== 'page2') return null;
+    return detectEntityDrift(canonicalFacts, reviewContentTexts);
+  }, [domainResponse, currentFlowPage, canonicalFacts, reviewContentTexts]);
 
   // Timer Ref to prevent memory leaks on unmount
   const processingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -308,8 +708,7 @@ export default function GrantWriterQuickWizardProvisional() {
     }
   };
 
-  // Setup scenario selections mapping
-  const fixtureMap: Record<string, ProvisionalDomainResponse> = PROVISIONAL_FIXTURES;
+
 
   // Handle Form Submission Page 1 -> Processing State
   const handleTinjauBlueprint = (e: React.FormEvent) => {
@@ -394,17 +793,15 @@ export default function GrantWriterQuickWizardProvisional() {
           setCanonicalPayload(assemblerResult.proposal);
           setCanonicalMetrics(assemblerResult.metrics);
 
-          // Also load adapted response for UI compatibility
-          const rawFixture = fixtureMap[selectedFixtureId];
-          const adapted = adaptProvisionalResponse(rawFixture);
-          
-          setDomainResponse(adapted);
+          // Build live domain response from input & canonical assembler result
+          const liveDomainResponse = buildLiveDomainResponse(page1Input, assemblerResult.proposal);
+          setDomainResponse(liveDomainResponse);
           
           // Pre-populate recommendations choices
-          setAcceptedSectors(adapted.sectors.filter(s => s.level === 'primary' || s.level === 'secondary').map(s => s.id));
-          setAcceptedInterventions(adapted.interventions.filter(i => i.level === 'primary' || i.level === 'secondary').map(i => i.id));
-          setAcceptedSdgs(adapted.sdgs.filter(s => s.level === 'primary' || s.level === 'secondary').map(s => s.num));
-          setAcceptedActorRoles(adapted.actorRoles.filter(a => a.level === 'primary' || a.level === 'secondary').map(a => a.id));
+          setAcceptedSectors(liveDomainResponse.sectors.filter(s => s.level === 'primary' || s.level === 'secondary').map(s => s.id));
+          setAcceptedInterventions(liveDomainResponse.interventions.filter(i => i.level === 'primary' || i.level === 'secondary').map(i => i.id));
+          setAcceptedSdgs(liveDomainResponse.sdgs.filter(s => s.level === 'primary' || s.level === 'secondary').map(s => s.num));
+          setAcceptedActorRoles(liveDomainResponse.actorRoles.filter(a => a.level === 'primary' || a.level === 'secondary').map(a => a.id));
           
           // Clear previous edits
           setBlueprintEdits({});
@@ -810,48 +1207,19 @@ export default function GrantWriterQuickWizardProvisional() {
               </CardContent>
             </Card>
 
-            {/* Development Fixture Selector (Only available in DEV mode) */}
-            {isDev ? (
-              <Card className="border-indigo-100 bg-indigo-50/10">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-bold uppercase tracking-wider text-indigo-700">Development Fixture Simulator</CardTitle>
-                    <Badge variant="secondary" className="text-[10px] bg-indigo-100 text-indigo-800">Dev Only</Badge>
+            <Card className="border-indigo-100 bg-indigo-50/20">
+              <CardContent className="pt-6 space-y-3">
+                <div className="flex items-start gap-3">
+                  <Sparkles className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">Deterministic Context Engine (Live Active)</h4>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                      Hasil peninjauan pada Halaman 2 disusun secara penuh dan dinamis dari masukan kontekstual Anda menggunakan Deterministic Engine v2.0 tanpa dependensi data fiktif.
+                    </p>
                   </div>
-                  <CardDescription className="text-xs text-indigo-600 font-semibold">
-                    Development Preview — bukan hasil analisis aktual
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <Label htmlFor="selected-fixture" className="text-xs text-slate-500 font-semibold">Pilih Skenario Hasil Engine</Label>
-                  <select
-                    id="selected-fixture"
-                    value={selectedFixtureId}
-                    onChange={(e) => setSelectedFixtureId(e.target.value)}
-                    className="mt-1.5 w-full rounded-md border border-slate-300 bg-white p-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                  >
-                    <option value="FIX-DEV-HC-1">High Confidence Scenario (Pertanian Organik)</option>
-                    <option value="FIX-DEV-SA-2">Sector Ambiguity Scenario (UMKM vs Koperasi Pertanian)</option>
-                    <option value="FIX-DEV-AR-3">Actor Role Distinction (Siswa vs Guru SD)</option>
-                    <option value="FIX-DEV-SB-4">Scope Too Broad (SDG Stuffing & Blocking Warning)</option>
-                  </select>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="border-indigo-100 bg-indigo-50/20">
-                <CardContent className="pt-6 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <Sparkles className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm">Deterministic Engine Status</h4>
-                      <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                        Deterministic Context Mapping Engine v1.2 saat ini sedang berada dalam masa kualifikasi (Mechanical Acceptance Audit) dan belum diaktifkan di production. Untuk kelancaran penyusunan proposal, silakan gunakan OECD-DAC Standard Wizard terlebih dahulu.
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Program Information Inputs */}
@@ -1158,6 +1526,52 @@ export default function GrantWriterQuickWizardProvisional() {
       {/* PAGE 2: REVIEW BOARD AND DETERMINISTIC RECOMMENDATIONS */}
       {currentFlowPage === 'page2' && domainResponse && (
         <div className="space-y-6">
+          {/* Fact Summary Banner (Canonical Fact Lock - UX-FACT-01) */}
+          <Card className="border-indigo-100 bg-gradient-to-r from-indigo-50/80 via-purple-50/50 to-slate-50 p-4 shadow-sm" data-testid="canonical-fact-banner">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-2">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-600 text-white shadow-sm">
+                  <Lock className="h-5 w-5" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-bold text-slate-900">Fact Summary Banner</h2>
+                    <Badge variant="outline" className="border-indigo-300 text-indigo-700 bg-indigo-50 text-[10px]">Canonical Fact Lock</Badge>
+                  </div>
+                  <p className="text-xs text-slate-500">Ringkasan entitas terkunci dari Page 1 untuk mencegah drift entitas</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs md:w-2/3">
+                <div className="rounded-md border border-slate-200/80 bg-white/90 p-2.5 shadow-2xs">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Lokasi</span>
+                  <span className="font-bold text-slate-800 truncate block mt-0.5" data-testid="fact-lokasi">{canonicalFacts.primaryLocation || '—'}</span>
+                </div>
+                <div className="rounded-md border border-slate-200/80 bg-white/90 p-2.5 shadow-2xs">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Sasaran Utama</span>
+                  <span className="font-bold text-slate-800 truncate block mt-0.5" data-testid="fact-sasaran">{canonicalFacts.primaryTargetActor || '—'}</span>
+                </div>
+                <div className="rounded-md border border-slate-200/80 bg-white/90 p-2.5 shadow-2xs">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Program</span>
+                  <span className="font-bold text-slate-800 truncate block mt-0.5" data-testid="fact-program">{canonicalFacts.proposedTitle || '—'}</span>
+                </div>
+              </div>
+            </div>
+          </Card>
+
+          {/* Non-blocking Drift Warning */}
+          {driftWarning?.hasDrift && (
+            <Alert variant="warning" className="border-amber-300 bg-amber-50/70 text-amber-900 shadow-2xs" data-testid="entity-drift-warning">
+              <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <AlertTitle className="font-bold text-amber-900 text-xs">Peringatan Drift Entitas (Non-Blocking)</AlertTitle>
+                <AlertDescription className="text-amber-800 mt-0.5 leading-relaxed">
+                  {driftWarning.message}
+                </AlertDescription>
+              </div>
+            </Alert>
+          )}
+
           {/* Stale Warning Header */}
           {reviewIsStale && (
             <Alert variant="warning" className="border-orange-300 bg-orange-50/50">

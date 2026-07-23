@@ -310,6 +310,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     // Populate required inputs
     fireEvent.change(screen.getByLabelText('Kelompok Sasaran Penerima Manfaat *'), { target: { value: 'Petani miskin Desa Gunungkidul' } });
+    fireEvent.change(screen.getByLabelText('Target Jumlah Penerima (Orang)'), { target: { value: '100' } });
     fireEvent.change(screen.getByLabelText('Cerita Program (Program Story) *'), { target: { value: 'Program pemberdayaan pertanian ramah lingkungan untuk meningkatkan pendapatan petani miskin.' } });
 
     // Submit Page 1
@@ -335,6 +336,93 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     await waitFor(() => {
       expect(navigateMock).toHaveBeenCalledWith('/dashboard/lfa-builder/gw-project-1');
     });
+  });
+
+  test('RC-9B.4 — Page 2 Review renders live deterministic output from user inputs and excludes fixture content', async () => {
+    installSupabaseScenario();
+    const queryClient = createTestQueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <GrantWriterQuickWizardSelector isDevelopment={true} />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Yayasan Tani Hijau')).toBeTruthy();
+    });
+
+    // Enter specific user inputs for "Janda Cirebon"
+    fireEvent.change(screen.getByLabelText('Judul Program *'), { target: { value: 'Pemberdayaan Digital Janda Cirebon' } });
+    fireEvent.change(screen.getByLabelText('Lokasi Program'), { target: { value: 'Cirebon' } });
+    fireEvent.change(screen.getByLabelText('Kelompok Sasaran Penerima Manfaat *'), { target: { value: 'Janda di Cirebon' } });
+    fireEvent.change(screen.getByLabelText('Cerita Program (Program Story) *'), { target: { value: 'Program ini memberdayakan janda di Cirebon melalui pelatihan keterampilan digital.' } });
+
+    // Fast-forward fake timers for transition
+    vi.useFakeTimers();
+    fireEvent.submit(screen.getByText(/Tinjau Program Blueprint/i).closest('form')!);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    vi.useRealTimers();
+
+    // Verify Page 2 Review renders user context
+    await waitFor(() => {
+      expect(screen.getAllByText(/Pemberdayaan Digital Janda Cirebon/i).length).toBeGreaterThan(0);
+    });
+
+    // Check that Page 2 contains "Janda di Cirebon" and "Cirebon"
+    expect(screen.getAllByText(/Cirebon/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Janda/i).length).toBeGreaterThan(0);
+
+    // Assert Page 2 does NOT contain hardcoded fixture content
+    expect(screen.queryByText(/Sukamaju/i)).toBeNull();
+    expect(screen.queryByText(/Sleman/i)).toBeNull();
+    expect(screen.queryByText(/Pupuk organik/i)).toBeNull();
+  });
+
+  test('UX-FACT-01 — Fact Summary Banner displays canonical facts and prevents duplicate location rendering', async () => {
+    installSupabaseScenario();
+    const queryClient = createTestQueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <GrantWriterQuickWizardSelector isDevelopment={true} />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Yayasan Tani Hijau')).toBeTruthy();
+    });
+
+    // Enter user inputs for "Janda Cirebon"
+    fireEvent.change(screen.getByLabelText('Judul Program *'), { target: { value: 'Pemberdayaan Janda Cirebon' } });
+    fireEvent.change(screen.getByLabelText('Lokasi Program'), { target: { value: 'Cirebon' } });
+    fireEvent.change(screen.getByLabelText('Kelompok Sasaran Penerima Manfaat *'), { target: { value: 'Janda Cirebon' } });
+    fireEvent.change(screen.getByLabelText('Cerita Program (Program Story) *'), { target: { value: 'Membantu Janda Cirebon mandiri secara ekonomi.' } });
+
+    vi.useFakeTimers();
+    fireEvent.submit(screen.getByText(/Tinjau Program Blueprint/i).closest('form')!);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    vi.useRealTimers();
+
+    // Verify Fact Summary Banner renders with expected fields
+    await waitFor(() => {
+      expect(screen.getByTestId('canonical-fact-banner')).toBeTruthy();
+    });
+
+    expect(screen.getByTestId('fact-lokasi').textContent).toBe('Cirebon');
+    expect(screen.getByTestId('fact-sasaran').textContent).toBe('Janda');
+    expect(screen.getByTestId('fact-program').textContent).toBe('Pemberdayaan Janda Cirebon');
+
+    // Verify duplicate location rendering ("Janda di Cirebon di Cirebon" or "Cirebon di Cirebon") DOES NOT exist
+    const fullBodyText = document.body.textContent || '';
+    expect(fullBodyText).not.toContain('Cirebon di Cirebon');
+    expect(fullBodyText).not.toContain('Janda di Cirebon di Cirebon');
   });
 
   test('Saving drafts persists complete state to Supabase gw_projects table', async () => {
@@ -593,7 +681,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       await waitFor(() => {
         expect(screen.getByText('Yayasan Tani Hijau')).toBeTruthy();
       });
-      expect(screen.getByText('Development Fixture Simulator')).toBeTruthy();
+      expect(screen.getByText('Deterministic Context Engine (Live Active)')).toBeTruthy();
     });
 
     test('Selector with isDevelopment: false renders legacy component', async () => {
@@ -610,7 +698,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       await waitFor(() => {
         expect(screen.getAllByText('Info Organisasi', { exact: false }).length).toBeGreaterThan(0);
       });
-      expect(screen.queryByText('Development Fixture Simulator')).toBeNull();
+      expect(screen.queryByText('Deterministic Context Engine (Live Active)')).toBeNull();
     });
 
     test('Default export renders 27.5k Brain canonical quick wizard in production and development', async () => {
