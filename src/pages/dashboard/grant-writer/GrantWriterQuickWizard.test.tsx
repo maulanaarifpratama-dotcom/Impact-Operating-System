@@ -613,7 +613,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       expect(screen.queryByText('Development Fixture Simulator')).toBeNull();
     });
 
-    test('Default export remains compatible and mounts correctly', async () => {
+    test('Default export renders 27.5k Brain canonical quick wizard in production and development', async () => {
       installSupabaseScenario();
       const queryClient = createTestQueryClient();
 
@@ -623,9 +623,10 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
         </QueryClientProvider>
       );
 
-      // Verify that default export mounts and does not throw
+      // Verify that default export mounts 27.5k Brain Canonical Quick Wizard
       await waitFor(() => {
-        expect(screen.getByText('Yayasan Tani Hijau')).toBeTruthy();
+        expect(screen.getByText('Deterministic Engine v1.2')).toBeTruthy();
+        expect(screen.getByText('Formulasi Program Blueprint, SDG alignment, dan Validasi Logframe deterministik')).toBeTruthy();
       });
     });
 

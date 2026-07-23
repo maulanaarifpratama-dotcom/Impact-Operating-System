@@ -2,19 +2,19 @@ import GrantWriterQuickWizardLegacy from './GrantWriterQuickWizardLegacy';
 import GrantWriterQuickWizardProvisional from './GrantWriterQuickWizardProvisional';
 
 export function GrantWriterQuickWizardSelector({
-  isDevelopment,
+  isDevelopment = true,
+  useLegacy = false,
 }: {
-  isDevelopment: boolean;
+  isDevelopment?: boolean;
+  useLegacy?: boolean;
 }) {
-  return isDevelopment
-    ? <GrantWriterQuickWizardProvisional />
-    : <GrantWriterQuickWizardLegacy />;
+  if (useLegacy || isDevelopment === false) {
+    return <GrantWriterQuickWizardLegacy />;
+  }
+  return <GrantWriterQuickWizardProvisional />;
 }
 
 export default function GrantWriterQuickWizard() {
-  return (
-    <GrantWriterQuickWizardSelector
-      isDevelopment={import.meta.env.DEV}
-    />
-  );
+  // RC-9B.2 Cutover: Render 27.5k Brain Canonical Quick Proposal in all environments (prod + dev)
+  return <GrantWriterQuickWizardProvisional />;
 }
