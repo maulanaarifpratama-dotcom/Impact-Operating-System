@@ -19,6 +19,7 @@
 import { authenticate, AuthError } from '../_shared/auth.ts';
 import { chatJson, foundryEmbed } from '../_shared/foundry.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
+import { resolveOntologyContext, buildGroundingPromptMessage } from './ontology-resolver.ts';
 
 interface GenerateRequest {
   projectId: string;
@@ -581,6 +582,7 @@ Deno.serve(async (req: Request) => {
       },
       beneficiaries: beneficiaryCount,
       wizard_data: project.wizard_data,
+      ...(body.ontologyContext ? { ontology_context: body.ontologyContext } : {}),
       ...(lfaContext ? { lfa_context: lfaContext } : {})
     };
 
@@ -654,6 +656,12 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // STEP 1 & 2: Resolve ontology IDs into human-readable definitions and build grounding prompt
+    const resolvedContext = resolveOntologyContext(body.ontologyContext || {});
+    console.log("[GW-GROUNDING] resolvedContext", JSON.stringify(resolvedContext).slice(0, 8000));
+
+    const groundingPrompt = buildGroundingPromptMessage(resolvedContext);
+
     const { data: result, usage, model } = await chatJson<{
       matrix: LfaMatrix;
       proposal_markdown: string;
@@ -663,15 +671,14 @@ Deno.serve(async (req: Request) => {
         { role: 'system', content: systemPrompt },
         {
           role: 'user',
-          content: `Generate the LFA matrix and donor-ready proposal for this project.\\n\\n${JSON.stringify(userPayload, null, 2)}`,
+          content: `${groundingPrompt}\n\nWizard Data Payload:\n${JSON.stringify(userPayload, null, 2)}`,
         },
       ],
       // gpt-5.5 / o-series reasoning deployments consume tokens for hidden
       // reasoning before producing visible content. The full LFA matrix +
-      // proposal markdown can be ~6-10k visible tokens, so we budget more
-      // headroom here. Other features keep the smaller default.
+      // proposal markdown can be ~6-10k visible tokens, so we budget 27500 tokens.
       temperature: 0.4,
-      max_tokens: 15000,
+      max_tokens: 27500,
     });
 
     if (!result?.matrix || !result?.proposal_markdown) {
