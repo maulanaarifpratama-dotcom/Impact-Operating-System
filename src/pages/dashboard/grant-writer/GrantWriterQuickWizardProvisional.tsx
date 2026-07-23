@@ -14,7 +14,8 @@ import {
   AlertOctagon,
   ChevronDown,
   ChevronUp,
-  Lock
+  Lock,
+  Sliders
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -1302,8 +1303,8 @@ export default function GrantWriterQuickWizardProvisional() {
           .insert(formattedEntries);
 
         toast({
-          title: 'Blueprint Program Disetujui!',
-          description: 'Mengarahkan ke LFABuilder dengan kerangka logframe deterministik...',
+          title: '✅ Blueprint Program Disetujui',
+          description: 'Membuka LFA Matrix...',
         });
 
         // Navigate directly to LFABuilderEditor with targetProjectId
@@ -1329,63 +1330,47 @@ export default function GrantWriterQuickWizardProvisional() {
       <div className="flex flex-col gap-2 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">AI Grantwriter</h1>
-            <Badge className="bg-emerald-600 hover:bg-emerald-700">Deterministic Engine v1.2</Badge>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Program Blueprint Studio</h1>
+            <Badge variant="outline" className="border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-semibold">Tahap 1: Konsep Program</Badge>
           </div>
-          <p className="text-sm text-slate-500">
-            Formulasi Program Blueprint, SDG alignment, dan Validasi Logframe deterministik
+          <p className="text-sm text-slate-500 mt-1">
+            Isi cerita program dan detail utama. AI akan membantu menyusun draf kerangka kerja secara otomatis.
           </p>
         </div>
 
         {/* Progress Tracker */}
         <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
-          <span className={currentFlowPage === 'page1' ? 'text-primary border-b-2 border-primary pb-1' : ''}>Page 1: Masukan</span>
+          <span className={currentFlowPage === 'page1' ? 'text-primary border-b-2 border-primary pb-1' : ''}>1. Masukan Program</span>
           <span>&rarr;</span>
-          <span className={currentFlowPage === 'page2' ? 'text-primary border-b-2 border-primary pb-1' : ''}>Page 2: Review</span>
+          <span className={currentFlowPage === 'page2' ? 'text-primary border-b-2 border-primary pb-1' : ''}>2. Review Blueprint</span>
           <span>&rarr;</span>
-          <span className={currentFlowPage === 'approved' ? 'text-emerald-600 border-b-2 border-emerald-600 pb-1' : ''}>Persetujuan</span>
+          <span className={currentFlowPage === 'approved' ? 'text-emerald-600 border-b-2 border-emerald-600 pb-1' : ''}>3. Persetujuan</span>
         </div>
       </div>
 
       {/* PAGE 1: INFORMASI INTI PROGRAM */}
       {currentFlowPage === 'page1' && (
         <form onSubmit={handleTinjauBlueprint} className="space-y-6">
-          {/* Organization & Scenario Settings */}
-          <div className="grid gap-6 md:grid-cols-2">
-            <Card className="border-slate-200">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-500">Profil Organisasi Aktif</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-slate-800">{orgName}</span>
-                  <Badge variant="outline">{orgType}</Badge>
-                </div>
-                {!isOrgComplete && (
-                  <Alert className="border-amber-200 bg-amber-50/40 p-3 text-amber-900">
-                    <AlertTriangle className="h-4 w-4 text-amber-500" />
-                    <AlertDescription className="text-xs">
-                      Profil organisasi belum tersedia atau belum lengkap. Beberapa informasi default terpaksa menggunakan deteksi sistem.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="border-indigo-100 bg-indigo-50/20">
-              <CardContent className="pt-6 space-y-3">
-                <div className="flex items-start gap-3">
-                  <Sparkles className="h-5 w-5 text-indigo-600 mt-0.5 shrink-0" />
-                  <div>
-                    <h4 className="font-bold text-slate-900 text-sm">Deterministic Context Engine (Live Active)</h4>
-                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">
-                      Hasil peninjauan pada Halaman 2 disusun secara penuh dan dinamis dari masukan kontekstual Anda menggunakan Deterministic Engine v2.0 tanpa dependensi data fiktif.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+          {/* Active Organization Context */}
+          <Card className="border-slate-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500">Profil Organisasi Pengusul</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-800 text-sm">{orgName}</span>
+                <Badge variant="outline">{orgType}</Badge>
+              </div>
+              {!isOrgComplete && (
+                <Alert className="border-amber-200 bg-amber-50/40 p-2.5 text-amber-900">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                  <AlertDescription className="text-xs">
+                    Profil organisasi belum lengkap. Informasi dasar organisasi akan disesuaikan otomatis oleh sistem.
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Program Information Inputs */}
           <Card className="border-slate-200">
@@ -1393,9 +1378,12 @@ export default function GrantWriterQuickWizardProvisional() {
               <CardTitle className="text-lg font-bold text-slate-800">Detail Rencana Program</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {/* Judul */}
-              <div>
-                <Label htmlFor="program-title" className="font-semibold">Judul Program *</Label>
+              {/* Judul Program */}
+              <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="program-title" className="font-bold text-slate-900 text-sm">Judul Program *</Label>
+                  <span className="text-[11px] text-slate-500 font-normal">Diisi otomatis dari nama project, dapat Anda ubah kapan saja</span>
+                </div>
                 <Input
                   id="program-title"
                   placeholder="cth. Pengembangan Livelihood Petani Beras Organik"
@@ -1405,216 +1393,239 @@ export default function GrantWriterQuickWizardProvisional() {
                     setReviewIsStale(true);
                   }}
                   required
-                  className="mt-1"
+                  className="bg-white"
                 />
               </div>
 
-              {/* Lokasi & Durasi */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="program-geography" className="font-semibold">Lokasi Program</Label>
-                    <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={geographyUnknown}
-                        onChange={(e) => {
-                          setGeographyUnknown(e.target.checked);
-                          if (e.target.checked) setGeography('');
-                          setReviewIsStale(true);
-                        }}
-                        className="rounded border-slate-300"
-                      />
-                      Belum diketahui
-                    </label>
-                  </div>
-                  <Input
-                    id="program-geography"
-                    placeholder="cth. Kabupaten Sleman, DIY"
-                    value={geography}
-                    onChange={(e) => {
-                      setGeography(e.target.value);
-                      setReviewIsStale(true);
-                    }}
-                    disabled={geographyUnknown}
-                    className="mt-1"
-                  />
+              {/* SECTION A: CERITA PROGRAM (STORY-FIRST) */}
+              <div className="rounded-lg border-2 border-indigo-100 bg-indigo-50/20 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="program-story" className="font-bold text-indigo-950 text-base flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-indigo-600" />
+                    Cerita Program (Program Story) *
+                  </Label>
+                  <Badge variant="outline" className="border-indigo-200 bg-white text-indigo-700 text-[10px]">Paling Utama</Badge>
                 </div>
-
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="program-duration" className="font-semibold">Durasi Program (Bulan)</Label>
-                    <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={durationUnknown}
-                        onChange={(e) => {
-                          setDurationUnknown(e.target.checked);
-                          if (e.target.checked) setDurationMonths('');
-                          setReviewIsStale(true);
-                        }}
-                        className="rounded border-slate-300"
-                      />
-                      Belum diketahui
-                    </label>
-                  </div>
-                  <Input
-                    id="program-duration"
-                    type="number"
-                    min="1"
-                    placeholder="cth. 12"
-                    value={durationMonths}
-                    onChange={(e) => {
-                      setDurationMonths(e.target.value === '' ? '' : Number(e.target.value));
-                      setReviewIsStale(true);
-                    }}
-                    disabled={durationUnknown}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-
-              {/* Penerima Manfaat Deskripsi & Jumlah */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label htmlFor="beneficiary-description" className="font-semibold">Kelompok Sasaran Penerima Manfaat *</Label>
-                  <Input
-                    id="beneficiary-description"
-                    placeholder="cth. Petani sawah tadah hujan skala kecil"
-                    value={beneficiaryDescription}
-                    onChange={(e) => {
-                      setBeneficiaryDescription(e.target.value);
-                      setReviewIsStale(true);
-                    }}
-                    required
-                    className="mt-1"
-                  />
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="beneficiary-count" className="font-semibold">Target Jumlah Penerima (Orang)</Label>
-                    <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={beneficiaryCountUnknown}
-                        onChange={(e) => {
-                          setBeneficiaryCountUnknown(e.target.checked);
-                          if (e.target.checked) setBeneficiaryCount('');
-                          setReviewIsStale(true);
-                        }}
-                        className="rounded border-slate-300"
-                      />
-                      Belum diketahui
-                    </label>
-                  </div>
-                  <Input
-                    id="beneficiary-count"
-                    type="number"
-                    min="1"
-                    placeholder="cth. 50"
-                    value={beneficiaryCount}
-                    onChange={(e) => {
-                      setBeneficiaryCount(e.target.value === '' ? '' : Number(e.target.value));
-                      setReviewIsStale(true);
-                    }}
-                    disabled={beneficiaryCountUnknown}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-
-              {/* Anggaran & Donor Standard */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="budget-idr" className="font-semibold">Perkiraan Anggaran Program (IDR)</Label>
-                    <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={budgetIdrUnknown}
-                        onChange={(e) => {
-                          setBudgetIdrUnknown(e.target.checked);
-                          if (e.target.checked) setBudgetIdr('');
-                          setReviewIsStale(true);
-                        }}
-                        className="rounded border-slate-300"
-                      />
-                      Belum diketahui
-                    </label>
-                  </div>
-                  <Input
-                    id="budget-idr"
-                    type="number"
-                    min="1"
-                    placeholder="cth. 150000000"
-                    value={budgetIdr}
-                    onChange={(e) => {
-                      setBudgetIdr(e.target.value === '' ? '' : Number(e.target.value));
-                      setReviewIsStale(true);
-                    }}
-                    disabled={budgetIdrUnknown}
-                    className="mt-1"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="target-donor" className="font-semibold">Target Institusi Donor / Filantropi</Label>
-                  <Input
-                    id="target-donor"
-                    placeholder="cth. Ford Foundation atau DFAT"
-                    value={targetDonor}
-                    onChange={(e) => {
-                      setTargetDonor(e.target.value);
-                      setReviewIsStale(true);
-                    }}
-                    className="mt-1"
-                  />
-                </div>
-              </div>
-
-              {/* Standar Donor Kebijakan */}
-              <div>
-                <Label htmlFor="donor-standard" className="font-semibold">Standar Pelaporan Kebijakan</Label>
-                <select
-                  id="donor-standard"
-                  value={donorStandard}
-                  onChange={(e) => {
-                    setDonorStandard(e.target.value);
-                    setReviewIsStale(true);
-                  }}
-                  className="mt-1.5 w-full rounded-md border border-slate-300 bg-white p-2 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
-                >
-                  <option value="un_oecd_dac">OECD-DAC Standard (Sektor & Kelompok Sasaran PBB)</option>
-                  <option value="eu_dev_standard">EU International Partnership Reporting Standard</option>
-                  <option value="national_bappenas">Standar Pemetaan RAD SDG Bappenas RI</option>
-                </select>
-              </div>
-
-              {/* Program Story */}
-              <div>
-                <Label htmlFor="program-story" className="font-semibold">Cerita Program (Program Story) *</Label>
-                <p className="text-xs text-slate-500 mb-1.5">
-                  Tuliskan cerita lengkap bagaimana program ini direncanakan dan dijalankan.
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  Jelaskan masalah utama, siapa yang terdampak, dan intervensi yang ingin dilakukan. AI akan mengekstrak kerangka program secara otomatis dari cerita ini.
                 </p>
                 <Textarea
                   id="program-story"
-                  rows={6}
-                  placeholder="Jelaskan:
+                  rows={7}
+                  placeholder="Jelaskan secara bebas namun jelas:
 1. Masalah utama apa yang ingin diselesaikan?
-2. Siapa kelompok yang paling terdampak oleh masalah tersebut?
-3. Siapa sajakah pihak yang perlu mengubah perilakunya (target aktor)?
-4. Perubahan apa saja yang diharapkan terjadi?
-5. Kegiatan atau bentuk intervensi apa yang direncanakan?"
+2. Siapa kelompok masyarakat yang paling terdampak?
+3. Siapa saja pihak atau aktor yang perlu dilibatkan?
+4. Perubahan nyata apa yang diharapkan terjadi?
+5. Kegiatan atau bentuk intervensi utama apa yang akan dijalankan?"
                   value={programStory}
                   onChange={(e) => {
                     setProgramStory(e.target.value);
                     setReviewIsStale(true);
                   }}
                   required
-                  className="mt-1 font-mono text-xs leading-relaxed"
+                  className="mt-1 bg-white font-sans text-xs leading-relaxed border-indigo-200 focus:border-indigo-500 focus:ring-indigo-500"
                 />
               </div>
+
+              {/* SECTION B: PENERIMA MANFAAT */}
+              <div className="rounded-lg border border-slate-200 p-4 space-y-3">
+                <h3 className="font-bold text-slate-800 text-sm">Section B: Penerima Manfaat</h3>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label htmlFor="beneficiary-description" className="font-semibold text-xs">Kelompok Sasaran Penerima Manfaat *</Label>
+                    <Input
+                      id="beneficiary-description"
+                      placeholder="cth. Petani sawah tadah hujan skala kecil"
+                      value={beneficiaryDescription}
+                      onChange={(e) => {
+                        setBeneficiaryDescription(e.target.value);
+                        setReviewIsStale(true);
+                      }}
+                      required
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="beneficiary-count" className="font-semibold text-xs">Target Jumlah Penerima (Orang)</Label>
+                      <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={beneficiaryCountUnknown}
+                          onChange={(e) => {
+                            setBeneficiaryCountUnknown(e.target.checked);
+                            if (e.target.checked) setBeneficiaryCount('');
+                            setReviewIsStale(true);
+                          }}
+                          className="rounded border-slate-300"
+                        />
+                        Belum diketahui
+                      </label>
+                    </div>
+                    <Input
+                      id="beneficiary-count"
+                      type="number"
+                      min="1"
+                      placeholder="cth. 50"
+                      value={beneficiaryCount}
+                      onChange={(e) => {
+                        setBeneficiaryCount(e.target.value === '' ? '' : Number(e.target.value));
+                        setReviewIsStale(true);
+                      }}
+                      disabled={beneficiaryCountUnknown}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION C: LOKASI DAN SKALA */}
+              <div className="rounded-lg border border-slate-200 p-4 space-y-3">
+                <h3 className="font-bold text-slate-800 text-sm">Section C: Lokasi & Skala Program</h3>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="program-geography" className="font-semibold text-xs">Lokasi Program</Label>
+                      <label className="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={geographyUnknown}
+                          onChange={(e) => {
+                            setGeographyUnknown(e.target.checked);
+                            if (e.target.checked) setGeography('');
+                            setReviewIsStale(true);
+                          }}
+                          className="rounded border-slate-300"
+                        />
+                        Belum diketahui
+                      </label>
+                    </div>
+                    <Input
+                      id="program-geography"
+                      placeholder="cth. Kabupaten Sleman, DIY"
+                      value={geography}
+                      onChange={(e) => {
+                        setGeography(e.target.value);
+                        setReviewIsStale(true);
+                      }}
+                      disabled={geographyUnknown}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="program-duration" className="font-semibold text-xs">Durasi Program (Bulan)</Label>
+                      <label className="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={durationUnknown}
+                          onChange={(e) => {
+                            setDurationUnknown(e.target.checked);
+                            if (e.target.checked) setDurationMonths('');
+                            setReviewIsStale(true);
+                          }}
+                          className="rounded border-slate-300"
+                        />
+                        Belum diketahui
+                      </label>
+                    </div>
+                    <Input
+                      id="program-duration"
+                      type="number"
+                      min="1"
+                      placeholder="cth. 12"
+                      value={durationMonths}
+                      onChange={(e) => {
+                        setDurationMonths(e.target.value === '' ? '' : Number(e.target.value));
+                        setReviewIsStale(true);
+                      }}
+                      disabled={durationUnknown}
+                      className="mt-1"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <Label htmlFor="budget-idr" className="font-semibold text-xs">Perkiraan Anggaran Program (IDR)</Label>
+                      <label className="flex items-center gap-1.5 text-[11px] text-slate-500 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={budgetIdrUnknown}
+                          onChange={(e) => {
+                            setBudgetIdrUnknown(e.target.checked);
+                            if (e.target.checked) setBudgetIdr('');
+                            setReviewIsStale(true);
+                          }}
+                          className="rounded border-slate-300"
+                        />
+                        Belum diketahui
+                      </label>
+                    </div>
+                    <Input
+                      id="budget-idr"
+                      type="number"
+                      min="1"
+                      placeholder="cth. 150000000"
+                      value={budgetIdr}
+                      onChange={(e) => {
+                        setBudgetIdr(e.target.value === '' ? '' : Number(e.target.value));
+                        setReviewIsStale(true);
+                      }}
+                      disabled={budgetIdrUnknown}
+                      className="mt-1"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* SECTION D: PENGATURAN TINGKAT LANJUT (COLLAPSED ACCORDION) */}
+              <details className="group rounded-lg border border-slate-200 bg-slate-50/40 transition-all">
+                <summary className="flex cursor-pointer items-center justify-between p-4 font-semibold text-xs text-slate-700 select-none hover:text-slate-900">
+                  <span className="flex items-center gap-2">
+                    <Sliders className="h-4 w-4 text-slate-500" />
+                    Section D: Pengaturan Tingkat Lanjut (Opsional)
+                  </span>
+                  <span className="text-[11px] font-normal text-slate-500 group-open:hidden">+ Buka Pengaturan Donor & Standar Kebijakan</span>
+                  <span className="text-[11px] font-normal text-slate-500 hidden group-open:inline">– Tutup</span>
+                </summary>
+                <div className="border-t border-slate-200 p-4 space-y-4 bg-white rounded-b-lg">
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="target-donor" className="font-semibold text-xs">Target Institusi Donor / Filantropi</Label>
+                      <Input
+                        id="target-donor"
+                        placeholder="cth. Ford Foundation, DFAT, USAID"
+                        value={targetDonor}
+                        onChange={(e) => {
+                          setTargetDonor(e.target.value);
+                          setReviewIsStale(true);
+                        }}
+                        className="mt-1"
+                      />
+                    </div>
+
+                    <div>
+                      <Label htmlFor="donor-standard" className="font-semibold text-xs">Standar Pelaporan Kebijakan</Label>
+                      <select
+                        id="donor-standard"
+                        value={donorStandard}
+                        onChange={(e) => {
+                          setDonorStandard(e.target.value);
+                          setReviewIsStale(true);
+                        }}
+                        className="mt-1.5 w-full rounded-md border border-slate-300 bg-white p-2 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                      >
+                        <option value="un_oecd_dac">OECD-DAC Standard (Sektor & Kelompok Sasaran PBB)</option>
+                        <option value="eu_dev_standard">EU International Partnership Reporting Standard</option>
+                        <option value="national_bappenas">Standar Pemetaan RAD SDG Bappenas RI</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </details>
             </CardContent>
           </Card>
 
@@ -2219,180 +2230,166 @@ export default function GrantWriterQuickWizardProvisional() {
             </div>
           </div>
 
-          {/* Ambiguity Resolvers Section */}
-          {domainResponse.ambiguities.length > 0 && (
-            <Card className="border-amber-200 bg-amber-50/10" id="section-ambiguities">
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-bold uppercase tracking-wider text-amber-600 flex items-center gap-2">
-                  <AlertTriangle className="h-4 w-4" /> Resolusi Ambiguitas Diperlukan
-                </CardTitle>
-                <p className="text-xs text-slate-500">Sistem mendeteksi tumpang tindih logika. Anda wajib menetapkan opsi pilihan secara eksplisit.</p>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {domainResponse.ambiguities.map(amb => {
-                  const resolved = ambiguityResolutions[amb.id];
-                  return (
-                    <div key={amb.id} className="rounded-lg border bg-white p-4 space-y-3 shadow-sm">
-                      <div>
-                        <span className="font-bold text-sm text-slate-800 block">Klasifikasi Bidang: {amb.field.toUpperCase()}</span>
-                        <p className="text-xs text-slate-500 leading-relaxed mt-0.5">{amb.description}</p>
-                      </div>
-
-                      <div className="flex flex-wrap gap-2">
-                        {amb.candidates.map(cand => {
-                          const active = resolved === cand;
-                          return (
-                            <button
-                              key={cand}
-                              type="button"
-                              onClick={() => setAmbiguityResolutions(prev => ({ ...prev, [amb.id]: cand }))}
-                              className={`rounded-md px-3 py-1.5 text-xs font-semibold border transition-all ${
-                                active
-                                  ? 'bg-slate-900 border-slate-900 text-white shadow-sm'
-                                  : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
-                              }`}
-                            >
-                              {cand}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* 27.5k Brain Canonical Proposal V2 Structure */}
-          {canonicalPayload && (
-            <Card className="border-indigo-200 bg-slate-900 text-slate-100 shadow-md">
-              <CardHeader className="border-b border-slate-800 pb-4">
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-base font-bold text-white flex items-center gap-2">
-                      <Sparkles className="h-5 w-5 text-amber-400" />
-                      27.5k Brain Canonical Logframe Hierarchy (V2)
-                    </CardTitle>
-                    <CardDescription className="text-xs text-slate-400 mt-1">
-                      Kerangka Logika Matriks Deterministik Single-Pass &bull; {canonicalPayload.project_id}
-                    </CardDescription>
-                  </div>
-                  {canonicalMetrics && (
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-emerald-500 text-slate-950 font-bold px-3 py-1">
-                        BQS-27K: {canonicalMetrics.bqs27k}/100
-                      </Badge>
-                      <Badge variant="outline" className="border-slate-700 text-emerald-400">
-                        0 Orphan Outputs &bull; 0 Orphan Activities
-                      </Badge>
-                    </div>
-                  )}
-                </div>
-
-                {/* Metrics Bar */}
-                {canonicalMetrics && (
-                  <div className="grid grid-cols-5 gap-2 mt-4 pt-3 border-t border-slate-800 text-center text-xs">
-                    <div className="bg-slate-800/80 rounded p-2">
-                      <span className="block text-[10px] uppercase text-slate-400">Outcomes</span>
-                      <span className="text-lg font-bold text-indigo-400">{canonicalMetrics.outcomeCount}</span>
-                    </div>
-                    <div className="bg-slate-800/80 rounded p-2">
-                      <span className="block text-[10px] uppercase text-slate-400">Outputs</span>
-                      <span className="text-lg font-bold text-blue-400">{canonicalMetrics.outputCount}</span>
-                    </div>
-                    <div className="bg-slate-800/80 rounded p-2">
-                      <span className="block text-[10px] uppercase text-slate-400">Activities</span>
-                      <span className="text-lg font-bold text-teal-400">{canonicalMetrics.activityCount}</span>
-                    </div>
-                    <div className="bg-slate-800/80 rounded p-2">
-                      <span className="block text-[10px] uppercase text-slate-400">Indicators</span>
-                      <span className="text-lg font-bold text-amber-400">{canonicalMetrics.indicatorCount}</span>
-                    </div>
-                    <div className="bg-slate-800/80 rounded p-2">
-                      <span className="block text-[10px] uppercase text-slate-400">Cost Drivers</span>
-                      <span className="text-lg font-bold text-purple-400">{canonicalMetrics.costDriverCount}</span>
-                    </div>
-                  </div>
-                )}
-              </CardHeader>
-
-              <CardContent className="p-4 space-y-4 max-h-[500px] overflow-y-auto">
-                {canonicalPayload.outcomes.map((outcome) => (
-                  <div key={outcome.id} className="rounded-lg border border-slate-800 bg-slate-950 p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2">
-                      <div>
-                        <span className="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-wider block">OUTCOME {outcome.code}</span>
-                        <h4 className="text-sm font-bold text-slate-100">{outcome.outcome_name}</h4>
-                        <p className="text-xs text-slate-400 mt-0.5">{outcome.description}</p>
-                      </div>
-                    </div>
-
-                    {/* Indicators */}
-                    {outcome.indicators.length > 0 && (
-                      <div className="text-xs bg-slate-900/90 rounded p-2.5 space-y-1">
-                        <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">Outcome Indicators ({outcome.indicators.length})</span>
-                        {outcome.indicators.map((ind) => (
-                          <div key={ind.id} className="text-[11px] text-slate-300">
-                            &bull; <span className="font-semibold text-slate-200">{ind.indicator_name}</span> &mdash; Target: {ind.target_value} {ind.unit_of_measure} ({ind.data_source})
-                          </div>
-                        ))}
-                      </div>
-                    )}
-
-                    {/* Child Outputs */}
-                    <div className="pl-3 space-y-3 border-l-2 border-slate-800">
-                      {outcome.outputs.map((op) => (
-                        <div key={op.id} className="rounded border border-slate-800/80 bg-slate-900/60 p-3 space-y-2">
-                          <div className="flex items-start justify-between gap-2">
+          {/* ZONE C: ANALISIS & MATRIKS TINGKAT LANJUT (Collapsible Accordion - UX-01 Task 5 & 6) */}
+          {(domainResponse.ambiguities.length > 0 || canonicalPayload) && (
+            <details className="group rounded-xl border border-slate-200 bg-slate-50/60 transition-all shadow-2xs">
+              <summary className="flex cursor-pointer items-center justify-between p-4 font-bold text-xs text-slate-700 hover:text-slate-900 select-none">
+                <span className="flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-indigo-600" />
+                  Detail Matriks & Diagnostik Logframe (Opsional)
+                </span>
+                <span className="text-[10px] text-indigo-600 group-open:rotate-180 transition-transform font-bold">
+                  ▼ Lihat Detail
+                </span>
+              </summary>
+              <div className="p-4 pt-0 space-y-4 border-t border-slate-200/80">
+                {/* Ambiguity Resolvers Section */}
+                {domainResponse.ambiguities.length > 0 && (
+                  <Card className="border-amber-200 bg-amber-50/10 mt-3" id="section-ambiguities">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="text-sm font-bold tracking-tight text-amber-900 flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-amber-600" /> Resolusi Ambiguitas
+                      </CardTitle>
+                      <p className="text-xs text-slate-500">Sistem mendeteksi tumpang tindih logika. Anda dapat menetapkan opsi pilihan secara eksplisit jika diperlukan.</p>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {domainResponse.ambiguities.map(amb => {
+                        const resolved = ambiguityResolutions[amb.id];
+                        return (
+                          <div key={amb.id} className="rounded-lg border bg-white p-4 space-y-3 shadow-2xs">
                             <div>
-                              <span className="text-[10px] font-mono font-bold text-blue-400 uppercase tracking-wider block">OUTPUT {op.code}</span>
-                              <h5 className="text-xs font-bold text-slate-200">{op.output_name}</h5>
-                              <p className="text-[11px] text-slate-400">{op.description}</p>
+                              <span className="font-bold text-xs text-slate-800 block">Klasifikasi Bidang: {amb.field.toUpperCase()}</span>
+                              <p className="text-xs text-slate-500 leading-relaxed mt-0.5">{amb.description}</p>
+                            </div>
+
+                            <div className="flex flex-wrap gap-2">
+                              {amb.candidates.map(cand => {
+                                const active = resolved === cand;
+                                return (
+                                  <button
+                                    key={cand}
+                                    type="button"
+                                    onClick={() => setAmbiguityResolutions(prev => ({ ...prev, [amb.id]: cand }))}
+                                    className={`rounded-md px-3 py-1.5 text-xs font-semibold border transition-all ${
+                                      active
+                                        ? 'bg-slate-900 border-slate-900 text-white shadow-xs'
+                                        : 'bg-white border-slate-200 hover:border-slate-300 text-slate-700'
+                                    }`}
+                                  >
+                                    {cand}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Canonical Proposal V2 Structure */}
+                {canonicalPayload && (
+                  <Card className="border-indigo-200 bg-slate-900 text-slate-100 shadow-md mt-3">
+                    <CardHeader className="border-b border-slate-800 pb-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div>
+                          <CardTitle className="text-sm font-bold text-white flex items-center gap-2">
+                            <Sparkles className="h-4 w-4 text-amber-400" />
+                            Matriks Hierarki Logframe Deterministik
+                          </CardTitle>
+                          <CardDescription className="text-xs text-slate-400 mt-0.5">
+                            Kerangka Logika Matriks Deterministik &bull; {canonicalPayload.project_id}
+                          </CardDescription>
+                        </div>
+                        {canonicalMetrics && (
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-emerald-500 text-slate-950 font-bold px-2.5 py-0.5 text-[11px]">
+                              BQS: {canonicalMetrics.bqs27k}/100
+                            </Badge>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Metrics Bar */}
+                      {canonicalMetrics && (
+                        <div className="grid grid-cols-5 gap-2 mt-3 pt-3 border-t border-slate-800 text-center text-xs">
+                          <div className="bg-slate-800/80 rounded p-1.5">
+                            <span className="block text-[9px] uppercase text-slate-400">Outcomes</span>
+                            <span className="text-base font-bold text-indigo-400">{canonicalMetrics.outcomeCount}</span>
+                          </div>
+                          <div className="bg-slate-800/80 rounded p-1.5">
+                            <span className="block text-[9px] uppercase text-slate-400">Outputs</span>
+                            <span className="text-base font-bold text-blue-400">{canonicalMetrics.outputCount}</span>
+                          </div>
+                          <div className="bg-slate-800/80 rounded p-1.5">
+                            <span className="block text-[9px] uppercase text-slate-400">Activities</span>
+                            <span className="text-base font-bold text-teal-400">{canonicalMetrics.activityCount}</span>
+                          </div>
+                          <div className="bg-slate-800/80 rounded p-1.5">
+                            <span className="block text-[9px] uppercase text-slate-400">Indicators</span>
+                            <span className="text-base font-bold text-amber-400">{canonicalMetrics.indicatorCount}</span>
+                          </div>
+                          <div className="bg-slate-800/80 rounded p-1.5">
+                            <span className="block text-[9px] uppercase text-slate-400">Cost Drivers</span>
+                            <span className="text-base font-bold text-purple-400">{canonicalMetrics.costDriverCount}</span>
+                          </div>
+                        </div>
+                      )}
+                    </CardHeader>
+
+                    <CardContent className="p-4 space-y-4 max-h-[400px] overflow-y-auto">
+                      {canonicalPayload.outcomes.map((outcome) => (
+                        <div key={outcome.id} className="rounded-lg border border-slate-800 bg-slate-950 p-3 space-y-2">
+                          <div className="flex items-start justify-between gap-2 border-b border-slate-800 pb-2">
+                            <div>
+                              <span className="text-[10px] font-mono font-bold text-indigo-400 uppercase tracking-wider block">OUTCOME {outcome.code}</span>
+                              <h4 className="text-xs font-bold text-slate-100">{outcome.outcome_name}</h4>
+                              <p className="text-[11px] text-slate-400 mt-0.5">{outcome.description}</p>
                             </div>
                           </div>
 
-                          {/* Output Indicators */}
-                          {op.indicators.length > 0 && (
-                            <div className="text-[11px] bg-slate-950/80 rounded p-2 space-y-0.5">
-                              <span className="text-[10px] font-bold text-amber-400 uppercase tracking-wider block">Output Indicators</span>
-                              {op.indicators.map((ind) => (
+                          {/* Indicators */}
+                          {outcome.indicators.length > 0 && (
+                            <div className="text-[11px] bg-slate-900/90 rounded p-2 space-y-0.5">
+                              <span className="text-[9px] font-bold text-amber-400 uppercase tracking-wider block">Outcome Indicators ({outcome.indicators.length})</span>
+                              {outcome.indicators.map((ind) => (
                                 <div key={ind.id} className="text-slate-300">
-                                  &bull; {ind.indicator_name} (Target: {ind.target_value} {ind.unit_of_measure})
+                                  &bull; <span className="font-semibold text-slate-200">{ind.indicator_name}</span> &mdash; Target: {ind.target_value} {ind.unit_of_measure} ({ind.data_source})
                                 </div>
                               ))}
                             </div>
                           )}
 
-                          {/* Activities */}
-                          <div className="pl-2 space-y-2 border-l border-slate-800">
-                            {op.activities.map((act) => (
-                              <div key={act.id} className="rounded bg-slate-950/90 p-2 text-xs space-y-1">
-                                <span className="text-[10px] font-mono font-bold text-teal-400 block">ACTIVITY {act.code}</span>
-                                <p className="font-semibold text-slate-200 text-[11px]">{act.activity_name}</p>
-                                <p className="text-[10px] text-slate-400">{act.description}</p>
+                          {/* Child Outputs */}
+                          <div className="pl-2 space-y-2 border-l-2 border-slate-800">
+                            {outcome.outputs.map((op) => (
+                              <div key={op.id} className="rounded border border-slate-800/80 bg-slate-900/60 p-2.5 space-y-1.5">
+                                <div>
+                                  <span className="text-[9px] font-mono font-bold text-blue-400 uppercase tracking-wider block">OUTPUT {op.code}</span>
+                                  <h5 className="text-xs font-bold text-slate-200">{op.output_name}</h5>
+                                  <p className="text-[10px] text-slate-400">{op.description}</p>
+                                </div>
 
-                                {/* Cost Drivers */}
-                                {act.cost_drivers.length > 0 && (
-                                  <div className="pt-1 text-[10px] text-purple-300 flex flex-wrap gap-1">
-                                    <span className="font-bold">Cost Drivers:</span>
-                                    {act.cost_drivers.map((cd) => (
-                                      <span key={cd.id} className="bg-purple-950/80 px-1.5 py-0.5 rounded border border-purple-800/50">
-                                        {cd.resource_name} ({cd.quantity} {cd.unit})
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
+                                {/* Activities */}
+                                <div className="pl-2 space-y-1 border-l border-slate-800">
+                                  {op.activities.map((act) => (
+                                    <div key={act.id} className="rounded bg-slate-950/90 p-1.5 text-xs space-y-0.5">
+                                      <span className="text-[9px] font-mono font-bold text-teal-400 block">ACTIVITY {act.code}</span>
+                                      <p className="font-semibold text-slate-200 text-[11px]">{act.activity_name}</p>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
                             ))}
                           </div>
                         </div>
                       ))}
-                    </div>
-                  </div>
-                ))}
-              </CardContent>
-            </Card>
+                    </CardContent>
+                  </Card>
+                )}
+              </div>
+            </details>
           )}
 
           {/* Program Blueprint or Empty Structure Warning (RC-9B.5 Task 2) */}
@@ -2481,76 +2478,117 @@ export default function GrantWriterQuickWizardProvisional() {
             </Card>
           )}
 
-          {/* Missing Information Resolvers (UX-HARDENING-2 Task 2 & 3) */}
+          {/* Klarifikasi Program (Missing Information - UX-HARDENING-2 Task 2 & 3) */}
           {domainResponse.missingInformation.length > 0 && (
-            <Card className="border-indigo-200 bg-indigo-50/10" id="section-missing-info">
+            <Card className="border-indigo-200 bg-indigo-50/10 shadow-xs" id="section-missing-info">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-2">
-                  <QuestionIcon className="h-4 w-4" /> Pertanyaan Tambahan Pendukung (Missing Information)
-                </CardTitle>
-                <p className="text-xs text-slate-500">Lengkapi data berikut untuk menaikkan nilai skor keterpercayaan dan koherensi usulan.</p>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm font-bold tracking-tight text-indigo-950 flex items-center gap-2">
+                    <QuestionIcon className="h-4 w-4 text-indigo-600" /> Klarifikasi Program
+                  </CardTitle>
+                  <Badge variant="outline" className="border-indigo-200 text-indigo-700 bg-indigo-50 text-[10px]">
+                    {domainResponse.missingInformation.length} Poin Perlu Klarifikasi
+                  </Badge>
+                </div>
+                <p className="text-xs text-slate-600">
+                  Untuk membantu menyusun Blueprint yang lebih presisi, jawab 2–3 pertanyaan klarifikasi berikut:
+                </p>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {domainResponse.missingInformation.map(info => {
+              <CardContent className="space-y-3">
+                {domainResponse.missingInformation.slice(0, 3).map(info => {
                   const state = missingInfoResolutions[info.id]?.state || 'unresolved';
                   const answer = missingInfoResolutions[info.id]?.answer || '';
-                  const isBlocking = info.blocking || info.requiredForApproval;
                   const humanLabel = getHumanReadableMissingInfoLabel(info.id, info.question);
 
                   return (
-                    <div key={info.id} className="rounded-lg border bg-white p-4 space-y-3 shadow-sm">
+                    <div key={info.id} className="rounded-lg border border-slate-200 bg-white p-3.5 space-y-3 shadow-2xs">
                       <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-bold text-xs uppercase tracking-wide text-indigo-500">{info.priority}</span>
-                            {isBlocking && <Badge variant="destructive" className="text-[9px]">blocking</Badge>}
-                            <Badge variant="outline" className="text-[10px] border-indigo-200 text-indigo-700 bg-indigo-50 font-medium">
-                              {humanLabel}
-                            </Badge>
-                          </div>
-                          <p className="text-xs font-semibold text-slate-800 leading-relaxed mt-1">{info.question}</p>
-                          <button
-                            type="button"
-                            onClick={() => navigateToField(info.id)}
-                            className="mt-1.5 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1"
-                            title="Klik untuk navigasi langsung ke field di formulir"
-                          >
-                            &rarr; Klik untuk perbaiki / isi field ini
-                          </button>
+                        <div className="space-y-1">
+                          <Badge variant="outline" className="text-[10px] border-indigo-200 text-indigo-700 bg-indigo-50 font-semibold">
+                            {humanLabel}
+                          </Badge>
+                          <p className="text-xs font-bold text-slate-800 leading-relaxed mt-1">{info.question}</p>
                         </div>
                         
-                        <select
-                          value={state}
-                          onChange={(e) => {
-                            const nextState = e.target.value;
-                            setMissingInfoResolutions(prev => ({
-                              ...prev,
-                              [info.id]: {
-                                ...prev[info.id],
-                                state: nextState,
-                                ...(nextState === 'accepted_unknown' ? { answer: 'Belum diketahui' } : {})
-                              }
-                            }));
-                          }}
-                          className="rounded border border-slate-200 bg-slate-50 p-1 text-[11px] font-semibold text-slate-600 outline-none"
-                        >
-                          <option value="unresolved">Unresolved</option>
-                          <option value="answered">Answered</option>
-                          <option value="accepted_unknown">Sebut Belum Diketahui</option>
-                          <option value="not_applicable">N/A</option>
-                        </select>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <select
+                            id={`missing-info-resolution-${info.id}`}
+                            role="combobox"
+                            value={state}
+                            onChange={(e) => {
+                              const val = e.target.value as 'unresolved' | 'answered' | 'accepted_unknown';
+                              setMissingInfoResolutions(prev => ({
+                                ...prev,
+                                [info.id]: {
+                                  ...prev[info.id],
+                                  state: val,
+                                  answer: val === 'accepted_unknown' ? 'Belum diketahui' : (prev[info.id]?.answer || '')
+                                }
+                              }));
+                            }}
+                            className="sr-only"
+                          >
+                            <option value="unresolved">Belum Dijawab</option>
+                            <option value="answered">Dijawab</option>
+                            <option value="accepted_unknown">Dilewati</option>
+                          </select>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMissingInfoResolutions(prev => ({
+                                ...prev,
+                                [info.id]: {
+                                  ...prev[info.id],
+                                  state: state === 'answered' ? 'unresolved' : 'answered',
+                                }
+                              }));
+                            }}
+                            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all ${
+                              state === 'answered'
+                                ? 'bg-indigo-600 text-white shadow-2xs'
+                                : 'bg-slate-100 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 border border-slate-200'
+                            }`}
+                          >
+                            {state === 'answered' ? '✓ Dijawab' : 'Isi Jawaban'}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMissingInfoResolutions(prev => ({
+                                ...prev,
+                                [info.id]: {
+                                  ...prev[info.id],
+                                  state: state === 'accepted_unknown' ? 'unresolved' : 'accepted_unknown',
+                                  answer: 'Belum diketahui'
+                                }
+                              }));
+                            }}
+                            className={`px-2.5 py-1 rounded text-[11px] font-semibold transition-all ${
+                              state === 'accepted_unknown'
+                                ? 'bg-slate-800 text-white'
+                                : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border border-slate-200'
+                            }`}
+                          >
+                            {state === 'accepted_unknown' ? '✓ Dilewati' : 'Lewati'}
+                          </button>
+                        </div>
                       </div>
 
                       {state === 'answered' && (
-                        <Input
-                          placeholder="Tuliskan jawaban klarifikasi Anda disini..."
-                          value={answer}
-                          onChange={(e) => setMissingInfoResolutions(prev => ({
-                            ...prev,
-                            [info.id]: { ...prev[info.id], answer: e.target.value }
-                          }))}
-                          className="text-xs"
-                        />
+                        <div className="pt-2 border-t border-slate-100 space-y-1.5">
+                          <Input
+                            placeholder="Tuliskan jawaban klarifikasi Anda di sini..."
+                            value={answer}
+                            onChange={(e) => setMissingInfoResolutions(prev => ({
+                              ...prev,
+                              [info.id]: { ...prev[info.id], state: 'answered', answer: e.target.value }
+                            }))}
+                            className="text-xs bg-slate-50 focus:bg-white"
+                          />
+                          <p className="text-[10px] text-slate-500">Jawaban ini akan diintegrasikan langsung ke dalam draf usulan.</p>
+                        </div>
                       )}
                     </div>
                   );
@@ -2588,7 +2626,16 @@ export default function GrantWriterQuickWizardProvisional() {
                         title="Klik untuk langsung perbaiki di formulir"
                       >
                         <span>{blk.label}</span>
-                        <span className="text-[10px] font-bold text-rose-500 underline">(Perbaiki)</span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigateToField(blk.targetKey);
+                          }}
+                          className="text-[10px] font-bold text-rose-600 hover:text-rose-800 underline ml-1"
+                        >
+                          Perbaiki
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -2646,35 +2693,35 @@ export default function GrantWriterQuickWizardProvisional() {
               </p>
             </div>
 
-            <div className="rounded-lg border border-emerald-200 bg-white p-4 max-w-md text-left text-xs space-y-2 shadow-sm">
-              <span className="font-bold text-emerald-800 uppercase block tracking-wider text-[10px]">Handoff Metadata Snapshot</span>
+            <div className="rounded-lg border border-emerald-200 bg-white p-4 max-w-md text-left text-xs space-y-2 shadow-2xs">
+              <span className="font-bold text-emerald-800 uppercase block tracking-wider text-[10px]">Ringkasan Blueprint Program</span>
               <div className="grid grid-cols-2 gap-2 text-slate-600">
-                <span>Contract Version:</span>
-                <span className="font-bold text-right text-slate-800">{approvedSnapshot.contractVersion}</span>
+                <span>Nama Program:</span>
+                <span className="font-bold text-right text-slate-800 truncate">{proposedTitle || '—'}</span>
                 
-                <span>Primary SDG:</span>
+                <span>Target Utama SDG:</span>
                 <span className="font-bold text-right text-slate-800">
                   {approvedSnapshot.acceptedSdgs && approvedSnapshot.acceptedSdgs[0] ? `SDG ${approvedSnapshot.acceptedSdgs[0]}` : '—'}
                 </span>
 
-                <span>Active Sectors:</span>
+                <span>Sektor Terpilih:</span>
                 <span className="font-bold text-right text-slate-800 truncate">
-                  {approvedSnapshot.acceptedSectors ? approvedSnapshot.acceptedSectors.length : 0} Sektor terpilih
+                  {approvedSnapshot.acceptedSectors ? approvedSnapshot.acceptedSectors.length : 0} Sektor
                 </span>
                 
-                <span>Timestamp:</span>
+                <span>Tanggal Disetujui:</span>
                 <span className="font-bold text-right text-slate-800 truncate">
                   {new Date(approvedSnapshot.approvalTimestamp).toLocaleDateString('id-ID')}
                 </span>
               </div>
             </div>
 
-            <Alert className="border-indigo-100 bg-indigo-50/50 p-4 max-w-lg text-left text-xs">
-              <Sparkles className="h-5 w-5 text-indigo-500 shrink-0 mt-0.5 animate-pulse" />
+            <Alert className="border-indigo-100 bg-indigo-50/50 p-4 max-w-lg text-left text-xs shadow-2xs">
+              <Sparkles className="h-5 w-5 text-indigo-500 shrink-0 mt-0.5" />
               <div>
-                <AlertTitle className="font-bold text-indigo-900">Program Development Lifecycle Transition</AlertTitle>
-                <AlertDescription className="text-indigo-700 leading-relaxed mt-1">
-                  Tahap Program Blueprint selesai. Anda akan memasuki Tahap LFA Matrix untuk menyusun Goal, Purpose, Output, dan Activity secara terstruktur.
+                <AlertTitle className="font-bold text-indigo-950">Tahap Blueprint Selesai</AlertTitle>
+                <AlertDescription className="text-indigo-800 leading-relaxed mt-1 font-medium">
+                  Informasi dasar program Anda telah tersimpan. Anda siap melanjutkan ke penyusunan Logical Framework Matrix (LFA).
                 </AlertDescription>
               </div>
             </Alert>

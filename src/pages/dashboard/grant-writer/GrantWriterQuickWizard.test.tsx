@@ -175,9 +175,12 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     expect(durationInput.value).toBe('');
     expect(durationInput.disabled).toBe(true);
     
-    // Toggle the "Belum diketahui" checkbox (checkboxes[1]) to enable it back
-    const checkboxes = screen.getAllByRole('checkbox');
-    fireEvent.click(checkboxes[1]);
+    // Toggle the checked "Belum diketahui" checkbox to re-enable duration input
+    const unknownCheckboxes = screen.getAllByLabelText('Belum diketahui');
+    const checkedCheckbox = unknownCheckboxes.find(cb => (cb as HTMLInputElement).checked);
+    if (checkedCheckbox) {
+      fireEvent.click(checkedCheckbox);
+    }
     expect(durationInput.disabled).toBe(false);
   });
 
@@ -324,7 +327,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     // Verify Page 2 renders the 27.5k Brain Canonical Logframe Hierarchy
     await waitFor(() => {
-      expect(screen.getByText('27.5k Brain Canonical Logframe Hierarchy (V2)')).toBeTruthy();
+      expect(screen.getByText('Program Blueprint (Logframe Foundations)')).toBeTruthy();
     });
 
     // Click Setujui Blueprint & Lanjutkan
@@ -680,7 +683,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       await waitFor(() => {
         expect(screen.getByText('Yayasan Tani Hijau')).toBeTruthy();
       });
-      expect(screen.getByText('Deterministic Context Engine (Live Active)')).toBeTruthy();
+      expect(screen.getByText('Program Blueprint Studio')).toBeTruthy();
     });
 
     test('Selector with isDevelopment: false renders legacy component', async () => {
@@ -712,8 +715,8 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
       // Verify that default export mounts 27.5k Brain Canonical Quick Wizard
       await waitFor(() => {
-        expect(screen.getByText('Deterministic Engine v1.2')).toBeTruthy();
-        expect(screen.getByText('Formulasi Program Blueprint, SDG alignment, dan Validasi Logframe deterministik')).toBeTruthy();
+        expect(screen.getByText('Program Blueprint Studio')).toBeTruthy();
+        expect(screen.getByText(/Isi cerita program dan detail utama/i)).toBeTruthy();
       });
     });
 
