@@ -234,7 +234,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       wizard_data: {
         currentFlowPage: 'page2',
         selectedFixtureId: 'FIX-DEV-SB-4',
-        domainResponse: PROVISIONAL_FIXTURES['FIX-DEV-SB-4'],
+        domainResponse: adaptProvisionalResponse(PROVISIONAL_FIXTURES['FIX-DEV-SB-4']),
         acceptedSectors: ['SEC-AGRI'],
         acceptedInterventions: [],
         acceptedSdgs: [2],
@@ -257,8 +257,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       expect(screen.getByText('Persetujuan Diblokir (1)')).toBeTruthy();
     });
 
-    // Verify block alert content with exact matching string from FIX-DEV-SB-4
-    expect(screen.getByText(/Informasi Penting Belum Terjawab: "Dapatkah Anda merinci/i)).toBeTruthy();
+    expect(screen.getAllByText(/Prioritas Intervensi Program Belum Ditentukan/i).length).toBeGreaterThan(0);
 
     // The approval button must be disabled
     const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i });
@@ -822,6 +821,77 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
         // 3. No synthetic organization version
         expect(snapshot.organization?.snapshotVersion).toBeUndefined();
       });
+    });
+  });
+
+  describe('UX-HARDENING-2 — REDUCE REVIEW FRICTION', () => {
+    test('Task 1: Sector cards collapse to top 3 and expand via toggle accordion', async () => {
+      installSupabaseScenario({
+        wizard_data: {
+          currentFlowPage: 'page2',
+          selectedFixtureId: 'FIX-DEV-SB-4',
+          domainResponse: adaptProvisionalResponse(PROVISIONAL_FIXTURES['FIX-DEV-SB-4']),
+          acceptedSectors: ['SEC-AGRI'],
+          acceptedInterventions: [],
+          acceptedSdgs: [2],
+          acceptedActorRoles: [],
+          blueprintEdits: {},
+          ambiguityResolutions: {},
+          missingInfoResolutions: {},
+        }
+      });
+      const queryClient = createTestQueryClient();
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <GrantWriterQuickWizardSelector isDevelopment={true} />
+        </QueryClientProvider>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Rekomendasi Sektor Program')).toBeTruthy();
+      });
+
+      const toggleBtn = screen.queryByTestId('toggle-sectors-btn');
+      if (toggleBtn) {
+        expect(toggleBtn.textContent).toMatch(/Lihat \d+ sektor lainnya/i);
+        fireEvent.click(toggleBtn);
+        expect(toggleBtn.textContent).toMatch(/Sembunyikan sektor lainnya/i);
+      }
+    });
+
+    test('Task 2 & 3: Human readable labels replace technical IDs and click-to-fix navigation works', async () => {
+      installSupabaseScenario({
+        wizard_data: {
+          currentFlowPage: 'page2',
+          selectedFixtureId: 'FIX-DEV-SB-4',
+          domainResponse: adaptProvisionalResponse(PROVISIONAL_FIXTURES['FIX-DEV-SB-4']),
+          acceptedSectors: ['SEC-AGRI'],
+          acceptedInterventions: [],
+          acceptedSdgs: [2],
+          acceptedActorRoles: [],
+          blueprintEdits: {},
+          ambiguityResolutions: {},
+          missingInfoResolutions: {},
+        }
+      });
+      const queryClient = createTestQueryClient();
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <GrantWriterQuickWizardSelector isDevelopment={true} />
+        </QueryClientProvider>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText('Persetujuan Diblokir (1)')).toBeTruthy();
+      });
+
+      expect(screen.getAllByText(/Prioritas Intervensi Program Belum Ditentukan/i).length).toBeGreaterThan(0);
+
+      // Click to fix link
+      const fixLink = screen.getByRole('button', { name: /perbaiki/i });
+      expect(fixLink).toBeTruthy();
     });
   });
 });

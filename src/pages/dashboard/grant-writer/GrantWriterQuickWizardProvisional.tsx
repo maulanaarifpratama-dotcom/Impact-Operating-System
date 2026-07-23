@@ -154,6 +154,46 @@ export function detectEntityDrift(
   return { hasDrift: false };
 }
 
+/**
+ * Convert technical missing info IDs and questions into friendly human-readable labels (UX-HARDENING-2 Task 3)
+ */
+export function getHumanReadableMissingInfoLabel(id: string, question: string): string {
+  const lowerQ = (question || '').toLowerCase();
+  const lowerId = (id || '').toLowerCase();
+
+  if (lowerId.includes('001') || lowerId.includes('beneficiary') || lowerQ.includes('penerima') || lowerQ.includes('sasaran') || lowerQ.includes('jumlah')) {
+    return '⚠ Sasaran Program / Jumlah Penerima Manfaat Belum Lengkap';
+  }
+  if (lowerId.includes('sb') || lowerQ.includes('intervensi') || lowerQ.includes('prioritas') || lowerQ.includes('scope')) {
+    return '⚠ Prioritas Intervensi Program Belum Ditentukan';
+  }
+  if (lowerId.includes('002') || lowerId.includes('location') || lowerQ.includes('lokasi') || lowerQ.includes('wilayah')) {
+    return '⚠ Lokasi Program Belum Ditentukan';
+  }
+  if (lowerId.includes('003') || lowerId.includes('duration') || lowerQ.includes('durasi') || lowerQ.includes('bulan')) {
+    return '⚠ Durasi Pelaksanaan Program Belum Diisi';
+  }
+  if (lowerId.includes('004') || lowerId.includes('budget') || lowerQ.includes('anggaran') || lowerQ.includes('biaya')) {
+    return '⚠ Perkiraan Anggaran Program Belum Diisi';
+  }
+  if (lowerId.includes('006') || lowerId.includes('actor') || lowerQ.includes('aktor')) {
+    return '⚠ Peran Aktor Utama / Mitra Belum Ditetapkan';
+  }
+  if (lowerId.includes('007') || lowerId.includes('story') || lowerQ.includes('masalah') || lowerQ.includes('cerita')) {
+    return '⚠ Cerita & Masalah Utama Program Belum Dijelaskan';
+  }
+  if (lowerId.includes('010') || lowerId.includes('donor') || lowerQ.includes('donor') || lowerQ.includes('pendana')) {
+    return '⚠ Target Donor / Mitra Pendana Belum Dipilih';
+  }
+
+  if (question && question.trim().length > 0) {
+    const cleanQuestion = question.length > 70 ? question.substring(0, 70) + '...' : question;
+    return `⚠ Informasi Belum Lengkap: ${cleanQuestion}`;
+  }
+
+  return `⚠ Informasi Belum Lengkap (${id})`;
+}
+
 function buildLiveDomainResponse(
   input: Page1Input,
   canonical: CanonicalProposalPayloadV2
@@ -544,6 +584,58 @@ export default function GrantWriterQuickWizardProvisional() {
     return detectEntityDrift(canonicalFacts, reviewContentTexts);
   }, [domainResponse, currentFlowPage, canonicalFacts, reviewContentTexts]);
 
+  // UX-HARDENING-2 State & Navigation Helpers
+  const [showAllSectors, setShowAllSectors] = useState(false);
+
+  const navigateToField = (targetKey: string) => {
+    const page1Map: Record<string, string> = {
+      location: 'program-geography',
+      geography: 'program-geography',
+      'MISS-002': 'program-geography',
+      beneficiary: 'beneficiary-description',
+      'MISS-001': 'beneficiary-description',
+      'MISS-006': 'beneficiary-description',
+      duration: 'program-duration',
+      'MISS-003': 'program-duration',
+      budget: 'budget-idr',
+      'MISS-004': 'budget-idr',
+      donor: 'target-donor',
+      'MISS-010': 'target-donor',
+      story: 'program-story',
+      'MISS-007': 'program-story',
+      title: 'program-title',
+      'proposed-title': 'program-title',
+    };
+
+    const targetElementId = page1Map[targetKey];
+
+    if (targetElementId) {
+      if (currentFlowPage !== 'page1') {
+        setCurrentFlowPage('page1');
+      }
+      setTimeout(() => {
+        const el = document.getElementById(targetElementId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.focus();
+        }
+      }, 120);
+    } else {
+      const page2Map: Record<string, string> = {
+        sector: 'section-sectors',
+        ambiguity: 'section-ambiguities',
+        actor_roles: 'section-actor-roles',
+        missing_info: 'section-missing-info',
+        blueprint: 'section-blueprint',
+      };
+      const sectionId = page2Map[targetKey] || (targetKey.startsWith('MISS-') ? 'section-missing-info' : 'section-ambiguities');
+      const el = document.getElementById(sectionId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+  };
+
   // Timer Ref to prevent memory leaks on unmount
   const processingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -831,17 +923,27 @@ export default function GrantWriterQuickWizardProvisional() {
     setWhyRecommendedOpen(prev => ({ ...prev, [id]: !prev[id] }));
   };
 
-  // Check if there are any active blocking warnings/unresolved blocking info items
-  const activeBlockers = useMemo(() => {
+  // Check if there are any active blocking warnings/unresolved blocking info items (UX-HARDENING-2 Task 3)
+  interface ActiveBlockerItem {
+    id: string;
+    label: string;
+    targetKey: string;
+  }
+
+  const activeBlockers = useMemo<ActiveBlockerItem[]>(() => {
     if (!domainResponse) return [];
-    const blockers: string[] = [];
+    const blockers: ActiveBlockerItem[] = [];
 
     // 1. Missing information that is blocking and unresolved
     domainResponse.missingInformation.forEach(info => {
       if (info.blocking || info.requiredForApproval) {
         const resolution = missingInfoResolutions[info.id];
         if (!resolution || resolution.state === 'unresolved') {
-          blockers.push(`Informasi Penting Belum Terjawab: "${info.question}"`);
+          blockers.push({
+            id: info.id,
+            label: getHumanReadableMissingInfoLabel(info.id, info.question),
+            targetKey: info.id,
+          });
         }
       }
     });
@@ -851,12 +953,14 @@ export default function GrantWriterQuickWizardProvisional() {
       if (amb.requiredForApproval) {
         const resolution = ambiguityResolutions[amb.id];
         if (!resolution) {
-          blockers.push(`Ambiguitas Sektor Terdeteksi: Pilihlah salah satu opsi untuk "${amb.field}"`);
+          blockers.push({
+            id: amb.id,
+            label: `⚠ Ambiguitas Sektor Terdeteksi: Pilihlah salah satu opsi untuk "${amb.field}"`,
+            targetKey: 'ambiguity',
+          });
         }
       }
     });
-
-    // 3. Strict blocking warnings without explicit user resolution paths are shown as warnings but DO NOT block approval
 
     return blockers;
   }, [domainResponse, missingInfoResolutions, ambiguityResolutions]);
@@ -1671,68 +1775,92 @@ export default function GrantWriterQuickWizardProvisional() {
           <div className="grid gap-6 md:grid-cols-2">
             {/* Left: Sectors & Interventions */}
             <div className="space-y-6">
-              {/* Sector Recommendations */}
-              <Card className="border-slate-200">
+              {/* Sector Recommendations (UX-HARDENING-2 Task 1: Collapse rejected sector cards) */}
+              <Card className="border-slate-200" id="section-sectors">
                 <CardHeader className="pb-3">
                   <CardTitle className="text-sm font-bold uppercase tracking-wider text-slate-500">Rekomendasi Sektor Program</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {domainResponse.sectors.map(sec => {
-                    const isAccepted = acceptedSectors.includes(sec.id);
+                  {(() => {
+                    const topSectors = domainResponse.sectors.slice(0, 3);
+                    const remainingSectors = domainResponse.sectors.slice(3);
+                    const visibleSectors = showAllSectors ? domainResponse.sectors : topSectors;
+
                     return (
-                      <div key={sec.id} className="rounded-lg border p-3.5 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="font-bold text-slate-800">{sec.label}</span>
-                            <Badge variant={sec.level === 'primary' ? 'default' : sec.level === 'secondary' ? 'secondary' : 'warning'}>
-                              {sec.level}
-                            </Badge>
-                          </div>
-                          
-                          {/* User Override Decisions */}
-                          <div className="flex gap-1">
+                      <>
+                        {visibleSectors.map(sec => {
+                          const isAccepted = acceptedSectors.includes(sec.id);
+                          return (
+                            <div key={sec.id} className="rounded-lg border p-3.5 space-y-2 bg-white shadow-2xs">
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-bold text-slate-800 text-sm">{sec.label}</span>
+                                  <Badge variant={sec.level === 'primary' ? 'default' : sec.level === 'secondary' ? 'secondary' : 'warning'}>
+                                    {sec.level}
+                                  </Badge>
+                                </div>
+                                
+                                <div className="flex gap-1">
+                                  <Button
+                                    type="button"
+                                    size="xs"
+                                    variant={isAccepted ? 'default' : 'outline'}
+                                    onClick={() => {
+                                      if (isAccepted) {
+                                        setAcceptedSectors(prev => prev.filter(id => id !== sec.id));
+                                      } else {
+                                        setAcceptedSectors(prev => [...prev, sec.id]);
+                                      }
+                                    }}
+                                    className="text-xs"
+                                  >
+                                    {isAccepted ? 'Diterima' : 'Terima'}
+                                  </Button>
+                                </div>
+                              </div>
+
+                              <p className="text-xs text-slate-500">{sec.explanation}</p>
+                              
+                              <div className="pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleWhyRecommended(sec.id)}
+                                  className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:underline"
+                                >
+                                  <span>Mengapa ini direkomendasikan?</span>
+                                  {whyRecommendedOpen[sec.id] ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                                </button>
+                                
+                                {whyRecommendedOpen[sec.id] && (
+                                  <div className="mt-2 rounded bg-slate-50 p-2.5 text-[11px] text-slate-600 space-y-1 border">
+                                    <span className="font-semibold block uppercase text-[9px] text-slate-400">Bukti Temuan (Evidence Span)</span>
+                                    <blockquote className="italic border-l-2 pl-2 border-slate-300">"{sec.evidence?.text}"</blockquote>
+                                    <span className="block mt-1 font-semibold text-slate-500">Tingkat Keyakinan: {sec.confidence === 'high' ? 'Keyakinan tinggi' : sec.confidence === 'medium' ? 'Perkiraan' : 'Perlu dikonfirmasi'}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {remainingSectors.length > 0 && (
+                          <div className="pt-2 text-center">
                             <Button
                               type="button"
-                              size="xs"
-                              variant={isAccepted ? 'default' : 'outline'}
-                              onClick={() => {
-                                if (isAccepted) {
-                                  setAcceptedSectors(prev => prev.filter(id => id !== sec.id));
-                                } else {
-                                  setAcceptedSectors(prev => [...prev, sec.id]);
-                                }
-                              }}
-                              className="text-xs"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => setShowAllSectors(prev => !prev)}
+                              className="text-xs font-semibold text-indigo-600 border-indigo-200 hover:bg-indigo-50 w-full flex items-center justify-center gap-1.5"
+                              data-testid="toggle-sectors-btn"
                             >
-                              {isAccepted ? 'Diterima' : 'Terima'}
+                              <span>{showAllSectors ? 'Sembunyikan sektor lainnya' : `Lihat ${remainingSectors.length} sektor lainnya`}</span>
+                              {showAllSectors ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                             </Button>
                           </div>
-                        </div>
-
-                        <p className="text-xs text-slate-500">{sec.explanation}</p>
-                        
-                        {/* Why recommended disclose */}
-                        <div className="pt-1">
-                          <button
-                            type="button"
-                            onClick={() => toggleWhyRecommended(sec.id)}
-                            className="flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:underline"
-                          >
-                            <span>Mengapa ini direkomendasikan?</span>
-                            {whyRecommendedOpen[sec.id] ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
-                          </button>
-                          
-                          {whyRecommendedOpen[sec.id] && (
-                            <div className="mt-2 rounded bg-slate-50 p-2.5 text-[11px] text-slate-600 space-y-1 border">
-                              <span className="font-semibold block uppercase text-[9px] text-slate-400">Bukti Temuan (Evidence Span)</span>
-                              <blockquote className="italic border-l-2 pl-2 border-slate-300">"{sec.evidence?.text}"</blockquote>
-                              <span className="block mt-1 font-semibold text-slate-500">Tingkat Keyakinan: {sec.confidence === 'high' ? 'Keyakinan tinggi' : sec.confidence === 'medium' ? 'Perkiraan' : 'Perlu dikonfirmasi'}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
+                        )}
+                      </>
                     );
-                  })}
+                  })()}
                 </CardContent>
               </Card>
 
@@ -1894,7 +2022,7 @@ export default function GrantWriterQuickWizardProvisional() {
 
           {/* Ambiguity Resolvers Section */}
           {domainResponse.ambiguities.length > 0 && (
-            <Card className="border-amber-200 bg-amber-50/10">
+            <Card className="border-amber-200 bg-amber-50/10" id="section-ambiguities">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-bold uppercase tracking-wider text-amber-600 flex items-center gap-2">
                   <AlertTriangle className="h-4 w-4" /> Resolusi Ambiguitas Diperlukan
@@ -2124,9 +2252,9 @@ export default function GrantWriterQuickWizardProvisional() {
             </CardContent>
           </Card>
 
-          {/* Missing Information Resolvers */}
+          {/* Missing Information Resolvers (UX-HARDENING-2 Task 2 & 3) */}
           {domainResponse.missingInformation.length > 0 && (
-            <Card className="border-indigo-200 bg-indigo-50/10">
+            <Card className="border-indigo-200 bg-indigo-50/10" id="section-missing-info">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-bold uppercase tracking-wider text-indigo-600 flex items-center gap-2">
                   <QuestionIcon className="h-4 w-4" /> Pertanyaan Tambahan Pendukung (Missing Information)
@@ -2138,16 +2266,28 @@ export default function GrantWriterQuickWizardProvisional() {
                   const state = missingInfoResolutions[info.id]?.state || 'unresolved';
                   const answer = missingInfoResolutions[info.id]?.answer || '';
                   const isBlocking = info.blocking || info.requiredForApproval;
+                  const humanLabel = getHumanReadableMissingInfoLabel(info.id, info.question);
 
                   return (
                     <div key={info.id} className="rounded-lg border bg-white p-4 space-y-3 shadow-sm">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-bold text-xs uppercase tracking-wide text-indigo-500">{info.priority}</span>
                             {isBlocking && <Badge variant="destructive" className="text-[9px]">blocking</Badge>}
+                            <Badge variant="outline" className="text-[10px] border-indigo-200 text-indigo-700 bg-indigo-50 font-medium">
+                              {humanLabel}
+                            </Badge>
                           </div>
                           <p className="text-xs font-semibold text-slate-800 leading-relaxed mt-1">{info.question}</p>
+                          <button
+                            type="button"
+                            onClick={() => navigateToField(info.id)}
+                            className="mt-1.5 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 hover:underline flex items-center gap-1"
+                            title="Klik untuk navigasi langsung ke field di formulir"
+                          >
+                            &rarr; Klik untuk perbaiki / isi field ini
+                          </button>
                         </div>
                         
                         <select
@@ -2192,15 +2332,25 @@ export default function GrantWriterQuickWizardProvisional() {
 
           {/* Action CTAs Page 2 (Validation, Draft, Approval) */}
           <div className="border-t pt-5 space-y-4">
-            {/* Blocker alert if exists */}
+            {/* Blocker alert if exists (UX-HARDENING-2 Task 2 & 3: Human readable blocker labels & click to fix) */}
             {activeBlockers.length > 0 && (
               <Alert variant="destructive" className="border-rose-300 bg-rose-50/50">
                 <AlertOctagon className="h-5 w-5 text-rose-600 shrink-0" />
                 <AlertTitle className="font-bold text-rose-800">Persetujuan Diblokir ({activeBlockers.length})</AlertTitle>
                 <AlertDescription className="text-xs space-y-1">
                   <p className="font-medium text-rose-700">Selesaikan isu kritis berikut sebelum melanjutkan penyetujuan blueprint:</p>
-                  <ul className="list-disc pl-4 space-y-0.5 text-rose-600">
-                    {activeBlockers.map((blk, i) => <li key={i}>{blk}</li>)}
+                  <ul className="list-disc pl-4 space-y-1 text-rose-600">
+                    {activeBlockers.map((blk) => (
+                      <li
+                        key={blk.id}
+                        onClick={() => navigateToField(blk.targetKey)}
+                        className="cursor-pointer hover:underline font-medium hover:text-rose-800 transition-colors flex items-center gap-1.5"
+                        title="Klik untuk langsung perbaiki di formulir"
+                      >
+                        <span>{blk.label}</span>
+                        <span className="text-[10px] font-bold text-rose-500 underline">(Perbaiki)</span>
+                      </li>
+                    ))}
                   </ul>
                 </AlertDescription>
               </Alert>
