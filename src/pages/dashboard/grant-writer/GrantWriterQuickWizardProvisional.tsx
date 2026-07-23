@@ -1105,7 +1105,7 @@ export default function GrantWriterQuickWizardProvisional() {
               <Button 
                 type="submit" 
                 className="bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs h-9"
-                disabled={!isDev}
+                disabled={!proposedTitle.trim() || !beneficiaryDescription.trim() || !programStory.trim()}
               >
                 <Sparkles className="mr-2 h-4 w-4" /> Tinjau Program Blueprint
               </Button>

@@ -630,6 +630,29 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       });
     });
 
+    test('RC-9B.3 — CTA button is enabled when Page 1 required fields are populated regardless of DEV mode', async () => {
+      installSupabaseScenario({
+        wizard_data: {
+          proposedTitle: 'Program Pertanian Organik',
+          beneficiaryDescription: 'Petani Lokal',
+          programStory: 'Cerita Intervensi Pertanian',
+        }
+      });
+      const queryClient = createTestQueryClient();
+
+      render(
+        <QueryClientProvider client={queryClient}>
+          <GrantWriterQuickWizard />
+        </QueryClientProvider>
+      );
+
+      await waitFor(() => {
+        const ctaBtn = screen.getByRole('button', { name: /Tinjau Program Blueprint/i });
+        expect(ctaBtn).not.toBeNull();
+        expect((ctaBtn as HTMLButtonElement).disabled).toBe(false);
+      });
+    });
+
     test('safety: Approved snapshot carries rawCanonicalPayload, undefined snapshotVersion, and undefined geographyLevel', async () => {
       // Load pre-existing v1.2 Scope Too Broad (FIX-DEV-SB-4)
       installSupabaseScenario({
