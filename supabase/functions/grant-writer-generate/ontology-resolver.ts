@@ -540,6 +540,8 @@ Jika YA, tulis ulang menjadi lebih spesifik dengan menggunakan:
 - intervention mechanism
 - SDG target
 
+PERINGATAN FINAL: Draft generik akan DITOLAK. Setiap statement di goal, outcome, dan output WAJIB menyebut secara harfiah minimal salah satu: '100 UMKM perempuan', 'Bogor', 'pemasaran digital', atau 'e-commerce'. Jika sebuah statement tidak menyebut fakta spesifik program ini, tulis ulang sebelum output. Kata 'masyarakat rentan', 'penerima manfaat', 'pemberdayaan berbasis komunitas' tanpa konteks spesifik = DITOLAK.
+
 OUTPUT:
 
 Keluarkan HANYA JSON valid sesuai schema yang sudah ada:

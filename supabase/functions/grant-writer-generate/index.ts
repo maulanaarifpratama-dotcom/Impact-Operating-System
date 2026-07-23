@@ -671,7 +671,7 @@ Deno.serve(async (req: Request) => {
         { role: 'system', content: systemPrompt },
         {
           role: 'user',
-          content: `${groundingPrompt}\n\nWizard Data Payload:\n${JSON.stringify(userPayload, null, 2)}`,
+          content: `Wizard Data Payload:\n${JSON.stringify(userPayload, null, 2)}\n\n${groundingPrompt}`,
         },
       ],
       // gpt-5.5 / o-series reasoning deployments consume tokens for hidden
