@@ -28,6 +28,14 @@ interface GenerateRequest {
   donorStandard?: 'un_oecd_dac' | 'world_bank' | 'usaid' | 'eu' | 'generic';
   /** Optional beneficiaryCount passed from frontend */
   beneficiaryCount?: number;
+  /** Mapped Ontology Context (Sectors, SDGs, Actor Roles) to Feed Azure AI Foundry */
+  ontologyContext?: {
+    acceptedSectors?: string[];
+    acceptedInterventions?: string[];
+    acceptedSdgs?: number[];
+    acceptedActorRoles?: string[];
+    programFacts?: Record<string, unknown>;
+  };
 }
 
 interface LfaMatrix {
@@ -731,6 +739,111 @@ Deno.serve(async (req: Request) => {
         throw new Error(`Duplicate current LFA conflict for project: ${dErr.message}`);
       }
       throw new Error(`Failed to save new LFA document: ${dErr.message}`);
+    }
+
+    // 5.5. Materialize AI-generated matrix into lfa_projects & lfa_entries
+    try {
+      await ctx.supabase
+        .from('lfa_projects')
+        .upsert({
+          id: targetLfaProjectId,
+          org_id: project.organization_id || 'ORG-27K-001',
+          name: project.title || 'Grant Proposal',
+          location: project.geography || 'Indonesia',
+          duration_months: project.duration_months || 12,
+          beneficiary_count: beneficiaryCount || 0,
+          beneficiary_description: project.summary || '',
+          status: 'ACTIVE',
+          linked_grant_id: body.projectId,
+          updated_at: new Date().toISOString()
+        });
+
+      await ctx.supabase.from('lfa_entries').delete().eq('project_id', targetLfaProjectId);
+
+      const lfaEntriesToInsert: Array<any> = [];
+      let seq = 1;
+
+      // Goal
+      if (result.matrix.goal) {
+        lfaEntriesToInsert.push({
+          id: `goal-${targetLfaProjectId}`,
+          project_id: targetLfaProjectId,
+          org_id: project.organization_id || 'ORG-27K-001',
+          level: 1,
+          sequence: seq++,
+          parent_id: null,
+          description: result.matrix.goal.statement,
+          indicator: Array.isArray(result.matrix.goal.indicators) ? result.matrix.goal.indicators.join('; ') : String(result.matrix.goal.indicators || ''),
+          assumption: Array.isArray(result.matrix.goal.assumptions) ? result.matrix.goal.assumptions.join('; ') : String(result.matrix.goal.assumptions || '')
+        });
+      }
+
+      // Outcomes
+      const outcomeIdMap = new Map<number, string>();
+      if (Array.isArray(result.matrix.outcomes)) {
+        result.matrix.outcomes.forEach((oc, idx) => {
+          const ocId = `outcome-${targetLfaProjectId}-${idx + 1}`;
+          outcomeIdMap.set(idx, ocId);
+          lfaEntriesToInsert.push({
+            id: ocId,
+            project_id: targetLfaProjectId,
+            org_id: project.organization_id || 'ORG-27K-001',
+            level: 2,
+            sequence: seq++,
+            parent_id: `goal-${targetLfaProjectId}`,
+            description: oc.statement,
+            indicator: Array.isArray(oc.indicators) ? oc.indicators.join('; ') : String(oc.indicators || ''),
+            means_of_verification: Array.isArray(oc.means_of_verification) ? oc.means_of_verification.join('; ') : String(oc.means_of_verification || ''),
+            assumption: Array.isArray(oc.assumptions) ? oc.assumptions.join('; ') : String(oc.assumptions || '')
+          });
+        });
+      }
+
+      // Outputs
+      const outputIdMap = new Map<number, string>();
+      if (Array.isArray(result.matrix.outputs)) {
+        result.matrix.outputs.forEach((op, idx) => {
+          const opId = `output-${targetLfaProjectId}-${idx + 1}`;
+          outputIdMap.set(idx, opId);
+          const parentOutcomeId = outcomeIdMap.get(op.outcome_index ?? 0) || `outcome-${targetLfaProjectId}-1`;
+          lfaEntriesToInsert.push({
+            id: opId,
+            project_id: targetLfaProjectId,
+            org_id: project.organization_id || 'ORG-27K-001',
+            level: 3,
+            sequence: seq++,
+            parent_id: parentOutcomeId,
+            description: op.statement,
+            indicator: Array.isArray(op.indicators) ? op.indicators.join('; ') : String(op.indicators || ''),
+            means_of_verification: Array.isArray(op.means_of_verification) ? op.means_of_verification.join('; ') : String(op.means_of_verification || ''),
+            assumption: Array.isArray(op.assumptions) ? op.assumptions.join('; ') : String(op.assumptions || '')
+          });
+        });
+      }
+
+      // Activities
+      if (Array.isArray(result.matrix.activities)) {
+        result.matrix.activities.forEach((act, idx) => {
+          const actId = `act-${targetLfaProjectId}-${idx + 1}`;
+          const parentOutputId = outputIdMap.get(act.output_index ?? 0) || `output-${targetLfaProjectId}-1`;
+          lfaEntriesToInsert.push({
+            id: actId,
+            project_id: targetLfaProjectId,
+            org_id: project.organization_id || 'ORG-27K-001',
+            level: 4,
+            sequence: seq++,
+            parent_id: parentOutputId,
+            description: act.statement,
+            responsible_party: act.responsible || 'Project Team'
+          });
+        });
+      }
+
+      if (lfaEntriesToInsert.length > 0) {
+        await ctx.supabase.from('lfa_entries').insert(lfaEntriesToInsert);
+      }
+    } catch (matErr) {
+      console.warn('LFA entry materialization warning:', (matErr as Error).message);
     }
 
     // 6. Mark project completed

@@ -2,18 +2,12 @@
  * Canonical Pipeline Assembler (27.5k Brain Engine Specification)
  * Module: assemble-canonical-proposal-v2.ts
  *
- * Responsibilities:
- * - Executes all 5 layers of the 27.5k Brain sequentially in a single pass:
- *   Step 1: collectCandidates(input)
- *   Step 2: expandOutcomes(input, candidates)
- *   Step 3: expandOutputs(input, outcomes, candidates)
- *   Step 4: decomposeActivities(input, outputs, candidates)
- *   Step 5: scaffoldOutcomeIndicators(input, outcome)
- *   Step 6: scaffoldOutputIndicators(input, output)
- *   Step 7: extractCostDrivers(input, activity)
- *   Step 8: evaluateBQS27K(proposalPayload)
- * - Performs internal validation for unique IDs, parent references, and orphan nodes.
- * - Guarantees zero reasoning during transport or materialization.
+ * CORE ARCHITECTURE PRINCIPLE (GW-P1 WAR ROOM):
+ * - The 27.5k Brain Engine is the ONTOLOGY INTELLIGENCE & CONTEXT ASSEMBLY LAYER.
+ * - Its primary purpose is to BUILD THE CANONICAL CONTEXT OBJECT to FEED GPT-5.5.
+ * - The 27.5k Brain DOES NOT REPLACE GPT-5.5 REASONING.
+ * - GPT-5.5 is the mandatory reasoning engine that generates Goal, Outcomes, Outputs, Activities, and Indicators.
+ * - The deterministic engine extracts ontology candidates, audits structural hierarchy, and evaluates BQS scores.
  */
 
 import type {

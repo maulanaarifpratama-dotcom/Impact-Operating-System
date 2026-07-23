@@ -1438,29 +1438,57 @@ export default function GrantWriterQuickWizardProvisional() {
           });
 
         // Stage transition delay for visual clarity
-        await new Promise((r) => setTimeout(r, 600));
+        await new Promise((r) => setTimeout(r, 400));
         setMaterializationStage('writing_entries');
 
-        // 2. Clean old entries and insert canonical entries
-        await supabase.from('lfa_entries').delete().eq('project_id', targetProjectId);
+        // Restore Azure AI Foundry Reasoning Call (Ontology -> AI Reasoning -> Materialization)
+        try {
+          await supabase.functions.invoke('grant-writer-generate', {
+            body: {
+              projectId: targetProjectId,
+              lfa_project_id: targetProjectId,
+              org_id: canonicalPayload.organization_id || 'ORG-27K-001',
+              ontologyContext: {
+                acceptedSectors,
+                acceptedInterventions,
+                acceptedSdgs,
+                acceptedActorRoles,
+                programFacts: snapshot.programFacts
+              },
+              beneficiaryCount: canonicalPayload.metadata.beneficiary_count
+            }
+          });
+        } catch (aiErr) {
+          console.warn('⚠️ Azure AI Reasoning call skipped or fallback applied:', aiErr);
+        }
 
-        const formattedEntries = rawEntries.map(entry => ({
-          id: entry.id,
-          project_id: targetProjectId,
-          org_id: canonicalPayload.organization_id || 'ORG-27K-001',
-          level: entry.level,
-          sequence: entry.sequence,
-          parent_id: entry.parent_id,
-          description: entry.description,
-          indicator: entry.indicator,
-          means_of_verification: entry.means_of_verification,
-          assumption: entry.assumption,
-          responsible_party: entry.responsible_party
-        }));
-
-        await supabase
+        // 2. Query materialized entries from PostgreSQL (populated by GPT-5.5 Reasoning Edge Function)
+        const { data: dbEntries } = await supabase
           .from('lfa_entries')
-          .insert(formattedEntries);
+          .select('*')
+          .eq('project_id', targetProjectId)
+          .order('sequence', { ascending: true });
+
+        // Fallback to deterministic entries ONLY if DB entries do not exist
+        if (!dbEntries || dbEntries.length === 0) {
+          const formattedEntries = rawEntries.map(entry => ({
+            id: entry.id,
+            project_id: targetProjectId,
+            org_id: canonicalPayload.organization_id || 'ORG-27K-001',
+            level: entry.level,
+            sequence: entry.sequence,
+            parent_id: entry.parent_id,
+            description: entry.description,
+            indicator: entry.indicator,
+            means_of_verification: entry.means_of_verification,
+            assumption: entry.assumption,
+            responsible_party: entry.responsible_party
+          }));
+
+          await supabase
+            .from('lfa_entries')
+            .insert(formattedEntries);
+        }
 
         await new Promise((r) => setTimeout(r, 600));
         setMaterializationStage('preparing_workspace');
