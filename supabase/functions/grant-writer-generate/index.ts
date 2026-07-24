@@ -81,7 +81,7 @@ When given a wizard data payload, you MUST return JSON with this exact shape:
 
 {
   "matrix": {
-    "meta": { "donorStandard": "...", "projectTitle": "...", "targetDonor": "...", "durationMonths": 0, "budgetIdr": 0 },
+    "meta": { "donorStandard": "...", "projectTitle": "...", "targetDonor": "...", "durationMonths": null, "budgetIdr": null },
     "goal": { "statement": "...", "indicators": ["..."], "assumptions": ["..."] },
     "outcomes": [{ "statement": "...", "indicators": ["..."], "means_of_verification": ["..."], "assumptions": ["..."] }],
     "outputs":  [{ "outcome_index": 0, "statement": "...", "indicators": ["..."], "means_of_verification": ["..."], "assumptions": ["..."] }],
@@ -95,8 +95,8 @@ When given a wizard data payload, you MUST return JSON with this exact shape:
       "projectTitle": "...",
       "sector": "...",
       "geography": { "locationName": "...", "province": "...", "district": "..." },
-      "durationMonths": 12,
-      "budgetIdr": 1200000000,
+      "durationMonths": null,
+      "budgetIdr": null,
       "targetDonor": "...",
       "donorStandard": "...",
       "language": "id",
@@ -104,8 +104,8 @@ When given a wizard data payload, you MUST return JSON with this exact shape:
       "promptVersion": "2.0"
     },
     "beneficiaries": {
-      "directHeadcount": 0,
-      "indirectHeadcount": 0,
+      "directHeadcount": null,
+      "indirectHeadcount": null,
       "primaryGroup": "...",
       "ageRange": "...",
       "geography": "...",
@@ -271,7 +271,7 @@ Rules:
 - The proposal_markdown must include: Executive Summary, Problem Statement, Theory of Change, Objectives, Methodology, Results Framework (LFA table), Risk Management, Budget Narrative, Sustainability, Monitoring & Evaluation.
 - Do not invent specific numbers that were not provided. Use ranges and qualitative framing when data is missing, and explicitly mark assumptions.
 - Current programFacts and resolved ontology context override any generic prior lfa_context wording. Do not preserve generic statements from previous drafts.
-- Jumlah penerima manfaat terverifikasi: {{beneficiaries}} orang. Anda wajib menyebutkan angka {{beneficiaries}} penerima manfaat terverifikasi secara eksplisit di dalam narasi proposal (misalnya pada bagian Executive Summary atau Problem Statement) sebagai data aktual. Namun, jika angka ini adalah 0, jangan merekayasa atau memalsukan angka, melainkan sebutkan bahwa saat ini terdapat 0 penerima manfaat terverifikasi di dalam sistem. Tetap patuhi batasan dan jangan menimpa angka target pengguna lainnya.
+- Jumlah penerima manfaat terverifikasi: {{beneficiaries}}. Jika angka ini adalah 'belum ditentukan (null)' atau 0, jangan merekayasa atau memalsukan angka, melainkan sebutkan bahwa data penerima manfaat terverifikasi belum ditentukan/tercatat di dalam sistem. Tetap patuhi batasan dan jangan menimpa angka target pengguna lainnya.
 - {{carbon_impact}}
 - Output ONLY valid JSON. No markdown fences around the JSON.
 - Relationships and IDs in program_skeleton MUST be fully valid:
@@ -540,8 +540,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // Retrieve beneficiary count (with fallback headcount query)
-    let beneficiaryCount = body.beneficiaryCount;
-    if (beneficiaryCount === undefined) {
+    let beneficiaryCount: number | null = body.beneficiaryCount ?? null;
+    if (beneficiaryCount === null || beneficiaryCount === undefined) {
       // Direct query from database as a redundant fallback
       const targetLfaProjectId = lfaProjectId || body.projectId;
       const { count, error: bErr } = await ctx.supabase
@@ -549,11 +549,10 @@ Deno.serve(async (req: Request) => {
         .select('*', { count: 'exact', head: true })
         .eq('lfa_project_id', targetLfaProjectId);
 
-      if (bErr) {
-        console.warn('Fallback beneficiary query error:', bErr.message);
-        beneficiaryCount = 0;
+      if (!bErr && count !== null && count > 0) {
+        beneficiaryCount = count;
       } else {
-        beneficiaryCount = count || 0;
+        beneficiaryCount = null;
       }
     }
 
@@ -570,7 +569,8 @@ Deno.serve(async (req: Request) => {
 
     const carbonImpactKg = computeCarbonSummary(carbonRows);
 
-    let systemPrompt = SYSTEM_PROMPT.replaceAll('{{beneficiaries}}', String(beneficiaryCount));
+    const beneficiaryStr = beneficiaryCount !== null ? `${beneficiaryCount} orang` : 'belum ditentukan (null)';
+    let systemPrompt = SYSTEM_PROMPT.replaceAll('{{beneficiaries}}', beneficiaryStr);
 
     // STEP 1 & 2: Build dynamic program facts and resolve ontology context
     const programFacts = buildProgramFactsForPrompt({
@@ -744,14 +744,33 @@ Deno.serve(async (req: Request) => {
     }
 
     // Ensure meta properties use current program facts
+    const finalBudgetIdr = programFacts.budgetIdr !== null && programFacts.budgetIdr !== undefined
+      ? programFacts.budgetIdr
+      : (project.budget_idr ?? (typeof result.matrix.meta?.budgetIdr === 'number' && result.matrix.meta.budgetIdr > 0 ? result.matrix.meta.budgetIdr : null));
+
+    const finalDurationMonths = programFacts.durationMonths !== null && programFacts.durationMonths !== undefined
+      ? programFacts.durationMonths
+      : (project.duration_months ?? (typeof result.matrix.meta?.durationMonths === 'number' && result.matrix.meta.durationMonths > 0 ? result.matrix.meta.durationMonths : null));
+
     result.matrix.meta = {
       ...result.matrix.meta,
       donorStandard,
       projectTitle: programFacts.title || project.title || 'Program Baru',
-      budgetIdr: programFacts.budgetIdr !== null && programFacts.budgetIdr !== undefined ? programFacts.budgetIdr : (project.budget_idr ?? result.matrix.meta?.budgetIdr ?? 0),
-      durationMonths: programFacts.durationMonths !== null && programFacts.durationMonths !== undefined ? programFacts.durationMonths : (project.duration_months ?? result.matrix.meta?.durationMonths ?? 0),
+      budgetIdr: finalBudgetIdr,
+      durationMonths: finalDurationMonths,
       geography: programFacts.geography ? { locationName: programFacts.geography } : (result.matrix.meta?.geography ?? { locationName: 'Belum ditentukan' })
     };
+
+    if (result.program_skeleton) {
+      if (!result.program_skeleton.meta) result.program_skeleton.meta = {};
+      result.program_skeleton.meta.budgetIdr = finalBudgetIdr;
+      result.program_skeleton.meta.durationMonths = finalDurationMonths;
+
+      if (programFacts.beneficiaryCount === null && result.program_skeleton.beneficiaries) {
+        result.program_skeleton.beneficiaries.directHeadcount = null;
+        result.program_skeleton.beneficiaries.indirectHeadcount = null;
+      }
+    }
 
     // Embed the Canonical Program Skeleton into result.matrix for single-transaction persistence.
     if (result.program_skeleton) {

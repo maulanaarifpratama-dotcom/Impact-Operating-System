@@ -638,7 +638,7 @@ export default function GrantWriterQuickWizardProvisional() {
     // 1. Check canonicalPayload outcomes
     if (canonicalPayload?.outcomes && canonicalPayload.outcomes.length > 0) {
       const titles = canonicalPayload.outcomes
-        .map(o => (o.title || (o as any).statement || (o as any).description || '').trim())
+        .map(o => (o.outcome_name || (o as any).title || (o as any).statement || (o as any).description || '').trim())
         .filter(Boolean)
         .filter(t => t.toLowerCase() !== titleClean);
       if (titles.length > 0) return titles;

@@ -120,8 +120,25 @@ export function expandOutcomes(
   let guardrailMessage = 'Outcome expansion valid (1-3 outcomes).';
 
   if (topOutcomeEntries.length === 0) {
-    guardrailStatus = 'FAIL';
-    guardrailMessage = 'FAIL: 0 outcomes detected for proposal story.';
+    guardrailStatus = 'WARNING';
+    guardrailMessage = 'WARNING: 0 specific keyword candidates matched. Synthesizing baseline outcome from program context.';
+
+    const fallbackTitle = _input.programTitle || _input.program_title || 'Pemberdayaan Masyarakat';
+    const fallbackOutcome: CanonicalOutcomeV2 = {
+      id: 'OC-1',
+      code: 'OF-001',
+      outcome_name: `Pemberdayaan dan Peningkatan Kapasitas (${fallbackTitle})`,
+      description: `Meningkatkan pengetahuan, keterampilan, dan kemandirian peserta melalui intervensi program ${fallbackTitle}.`,
+      impact_category: 'education',
+      indicators: [],
+      outputs: []
+    };
+
+    return {
+      outcomes: [fallbackOutcome],
+      guardrailStatus,
+      guardrailMessage
+    };
   } else if (topOutcomeEntries.length === 1) {
     guardrailStatus = 'WARNING';
     guardrailMessage = 'WARNING: Only 1 outcome detected; consider expanding story context.';

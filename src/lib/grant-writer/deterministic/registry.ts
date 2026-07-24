@@ -1,7 +1,7 @@
 import type {
   OutputFamily,
   AntiSignalRule
-} from './types';
+} from './types.ts';
 
 export {
   SECTORS,
@@ -10,7 +10,7 @@ export {
   ACTORS,
   INTERVENTION_ARCHETYPES,
   INDICATOR_FAMILIES
-} from '../../../../generated/registry.generated';
+} from '../../../../generated/registry.generated.ts';
 
 export const REGISTRY_VERSION = '1.2';
 export const REGISTRY_SOURCE = 'docs/impactory_deterministic_program_context_sdg_mapping_v1_2.md';
@@ -279,7 +279,7 @@ import {
   OUTCOME_FAMILIES,
   ACTORS,
   INTERVENTION_ARCHETYPES
-} from '../../../../generated/registry.generated';
+} from '../../../../generated/registry.generated.ts';
 
 export function verifyRegistryIntegrity(): void {
   const allIds = new Set<string>();

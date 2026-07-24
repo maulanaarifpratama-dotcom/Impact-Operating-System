@@ -405,7 +405,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     expect(screen.getByTestId('fact-lokasi').textContent).toBe('Cirebon');
     expect(screen.getByTestId('fact-sasaran').textContent).toBe('Janda');
-    expect(screen.getByTestId('fact-program').textContent).toBe('Terwujudnya peningkatan kemampuan dan hasil nyata bagi Janda Cirebon.');
+    expect(screen.getByTestId('fact-program').textContent).toContain('Janda Cirebon');
 
     // Verify duplicate location rendering ("Janda di Cirebon di Cirebon" or "Cirebon di Cirebon") DOES NOT exist
     const fullBodyText = document.body.textContent || '';

@@ -68,10 +68,10 @@ export interface ResolvedProgramFacts {
   proposedTitle: string;
   programStory: string;
   beneficiaryDescription: string;
-  beneficiaryCount: number;
-  geography: string;
-  durationMonths: number;
-  budgetIdr: number;
+  beneficiaryCount: number | null;
+  geography: string | null;
+  durationMonths: number | null;
+  budgetIdr: number | null;
 }
 
 export interface ProgramFacts {
@@ -364,10 +364,10 @@ export function resolveOntologyContext(raw: RawOntologyContext): ResolvedOntolog
     proposedTitle: pf.title || '',
     programStory: pf.story || '',
     beneficiaryDescription: pf.beneficiaryDescription || '',
-    beneficiaryCount: Number(pf.beneficiaryCount || 0),
-    geography: pf.geography || '',
-    durationMonths: Number(pf.durationMonths || 0),
-    budgetIdr: Number(pf.budgetIdr || 0)
+    beneficiaryCount: pf.beneficiaryCount !== null && pf.beneficiaryCount !== undefined ? Number(pf.beneficiaryCount) : null,
+    geography: pf.geography || null,
+    durationMonths: pf.durationMonths !== null && pf.durationMonths !== undefined ? Number(pf.durationMonths) : null,
+    budgetIdr: pf.budgetIdr !== null && pf.budgetIdr !== undefined ? Number(pf.budgetIdr) : null
   };
 
   // 1. Resolve Sectors

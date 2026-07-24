@@ -97,8 +97,8 @@ test.describe('Real Azure OpenAI P0-B Generation & Downstream Materialization', 
     await page.goto(`${baseUrl}/dashboard/grant-writer`);
     await page.waitForURL(/.*grant-writer$/, { timeout: 20000 });
 
-    // Click "Mulai mode Quick" to open Create Project dialog
-    const mulaiQuickBtn = page.locator('button:has-text("Mulai mode Quick")').first();
+    // Click "Program Baru" to open Create Project dialog
+    const mulaiQuickBtn = page.locator('button:has-text("Program Baru")').first();
     await expect(mulaiQuickBtn).toBeVisible({ timeout: 20000 });
     await mulaiQuickBtn.click();
 
