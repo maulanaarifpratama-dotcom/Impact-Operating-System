@@ -31,6 +31,7 @@ import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useAuth } from '@/providers/AuthProvider';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
@@ -366,8 +367,15 @@ export default function LFABuilderEditor() {
   };
 
   // Delete Entry
-  const handleDeleteEntry = async (id: string, level: 'output' | 'activity') => {
-    if (!confirm(`Hapus ${level === 'output' ? 'Hasil' : 'Kegiatan'} ini? Semua sub-kegiatan di dalamnya juga akan terhapus.`)) return;
+  const [deleteEntryTarget, setDeleteEntryTarget] = useState<{ id: string; level: 'output' | 'activity' } | null>(null);
+
+  const requestDeleteEntry = (id: string, level: 'output' | 'activity') => {
+    setDeleteEntryTarget({ id, level });
+  };
+
+  const executeDeleteEntry = async () => {
+    if (!deleteEntryTarget) return;
+    const { id, level } = deleteEntryTarget;
     setSaving(true);
     try {
       const { error } = await supabase
@@ -378,8 +386,8 @@ export default function LFABuilderEditor() {
       if (error) throw error;
 
       if (level === 'output') {
-        setOutputs((prev) => prev.filter((o) => o.id !== id));
-        // Remove cascading activities in local state
+        const remainingOutputs = outputs.filter((o) => o.id !== id);
+        setOutputs(remainingOutputs);
         setActivities((prev) => prev.filter((a) => a.parent_id !== id));
       } else {
         setActivities((prev) => prev.filter((a) => a.id !== id));
@@ -387,18 +395,19 @@ export default function LFABuilderEditor() {
 
       setLastSaved(new Date());
       toast({
-        title: 'Item Dihapus',
-        description: 'Database berhasil diperbarui.',
+        title: 'Komponen Dihapus',
+        description: `${level === 'output' ? 'Hasil' : 'Kegiatan'} telah dihapus.`,
       });
     } catch (err) {
       const error = err as Error;
       toast({
-        title: 'Gagal menghapus item',
+        title: 'Gagal menghapus',
         description: error.message,
         variant: 'destructive',
       });
     } finally {
       setSaving(false);
+      setDeleteEntryTarget(null);
     }
   };
 
@@ -662,15 +671,21 @@ export default function LFABuilderEditor() {
     return warnings;
   };
 
-  const handleExportToGrantwriter = async () => {
+  const [showExportWarningDialog, setShowExportWarningDialog] = useState(false);
+
+  const handleExportToGrantwriter = () => {
     if (!project) return;
     const completeness = calculateCompleteness();
     if (completeness < 60) {
-      if (!confirm(`Tingkat kelengkapan LFA Anda baru ${completeness}%. Kami merekomendasikan kelengkapan di atas 60% sebelum mengekspor agar proposal AI lebih coherent. Lanjutkan?`)) {
-        return;
-      }
+      setShowExportWarningDialog(true);
+      return;
     }
 
+    proceedExportToGrantwriter();
+  };
+
+  const proceedExportToGrantwriter = () => {
+    if (!project) return;
     navigate(`/dashboard/grant-writer?lfa_project_id=${project.id}`);
   };
 
@@ -1223,7 +1238,7 @@ export default function LFABuilderEditor() {
                             variant="ghost"
                             size="icon"
                             className="h-7 w-7 text-red-500 hover:text-red-600 hover:bg-red-50"
-                            onClick={() => void handleDeleteEntry(out.id, 'output')}
+                            onClick={() => requestDeleteEntry(out.id, 'output')}
                             title="Hapus Hasil"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1379,7 +1394,7 @@ export default function LFABuilderEditor() {
                                           variant="ghost"
                                           size="icon"
                                           className="h-6 w-6 text-muted-foreground hover:text-red-500"
-                                          onClick={() => void handleDeleteEntry(act.id, 'activity')}
+                                          onClick={() => requestDeleteEntry(act.id, 'activity')}
                                         >
                                           <Trash2 className="h-3 w-3" />
                                         </Button>
@@ -1752,6 +1767,33 @@ export default function LFABuilderEditor() {
           </Card>
         </div>
       )}
+
+      {/* Delete Entry Confirm Dialog */}
+      <ConfirmDialog
+        open={!!deleteEntryTarget}
+        onOpenChange={(open) => { if (!open) setDeleteEntryTarget(null); }}
+        title={`Hapus ${deleteEntryTarget?.level === 'output' ? 'Hasil (Output)' : 'Kegiatan (Activity)'}?`}
+        description={`Apakah Anda yakin ingin menghapus ${deleteEntryTarget?.level === 'output' ? 'Hasil' : 'Kegiatan'} ini? Semua sub-kegiatan atau data di dalamnya juga akan terhapus.`}
+        confirmText="Ya, Hapus"
+        cancelText="Batal"
+        variant="destructive"
+        icon="trash"
+        loading={saving}
+        onConfirm={executeDeleteEntry}
+      />
+
+      {/* Export Warning Confirm Dialog */}
+      <ConfirmDialog
+        open={showExportWarningDialog}
+        onOpenChange={setShowExportWarningDialog}
+        title="Rekomendasi Kelengkapan LFA"
+        description={`Tingkat kelengkapan LFA Anda baru ${calculateCompleteness()}%. Kami merekomendasikan kelengkapan di atas 60% sebelum mengekspor agar proposal AI lebih coherent. Apakah Anda tetap ingin melanjutkan?`}
+        confirmText="Lanjutkan Ekspor"
+        cancelText="Kembali Mengisi"
+        variant="default"
+        icon="warning"
+        onConfirm={proceedExportToGrantwriter}
+      />
     </div>
   );
 }

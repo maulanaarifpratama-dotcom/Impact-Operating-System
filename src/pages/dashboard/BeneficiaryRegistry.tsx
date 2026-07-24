@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import {
   Table,
   TableBody,
@@ -318,8 +319,11 @@ export default function BeneficiaryRegistry() {
   };
 
   // Handle Delete
-  const handleDelete = async (id: string) => {
-    if (!window.confirm('Apakah Anda yakin ingin menghapus data penerima manfaat ini?')) return;
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
+  const executeDelete = async () => {
+    if (!deleteTargetId) return;
+    const id = deleteTargetId;
     try {
       const { error } = await supabase.from('beneficiaries').delete().eq('id', id);
       if (error) {
@@ -338,11 +342,13 @@ export default function BeneficiaryRegistry() {
         }
         throw error;
       }
-      toast.success('Penerima manfaat berhasil dihapus!');
+      toast.success('Data penerima manfaat berhasil dihapus.');
       refetchBeneficiaries();
     } catch (err: any) {
       if (import.meta.env.DEV) console.error('[Beneficiary] Delete error:', err);
       toast.error('Gagal menghapus data: ' + err.message);
+    } finally {
+      setDeleteTargetId(null);
     }
   };
 
@@ -937,7 +943,7 @@ export default function BeneficiaryRegistry() {
                               <Edit2 className="h-3.5 w-3.5" />
                             </Button>
                             <Button
-                              onClick={() => handleDelete(b.id)}
+                              onClick={() => setDeleteTargetId(b.id)}
                               variant="ghost"
                               size="icon"
                               className="h-7 w-7 text-rose-600 hover:text-rose-700 hover:bg-rose-50"
@@ -1264,6 +1270,18 @@ export default function BeneficiaryRegistry() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTargetId}
+        onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}
+        title="Hapus Penerima Manfaat?"
+        description="Apakah Anda yakin ingin menghapus data penerima manfaat ini? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Ya, Hapus Data"
+        cancelText="Batal"
+        variant="destructive"
+        icon="trash"
+        onConfirm={executeDelete}
+      />
     </div>
   );
 }

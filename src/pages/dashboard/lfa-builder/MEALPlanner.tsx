@@ -19,6 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 interface MEALPlannerProps {
   projectId: string;
@@ -195,13 +196,15 @@ export default function MEALPlanner({
     }
   }, [projectId, fetchTrackingEntries]);
 
-  const handleDeleteEntry = async (entryId: string) => {
-    if (!confirm('Apakah Anda yakin ingin menghapus catatan capaian ini?')) return;
+  const [deleteTrackingId, setDeleteTrackingId] = useState<string | null>(null);
+
+  const executeDeleteTrackingEntry = async () => {
+    if (!deleteTrackingId) return;
     try {
       const { error } = await supabase
         .from('lfa_meal_tracking_entries')
         .delete()
-        .eq('id', entryId);
+        .eq('id', deleteTrackingId);
       if (error) throw error;
       toast({
         title: 'Berhasil',
@@ -209,12 +212,13 @@ export default function MEALPlanner({
       });
       await fetchTrackingEntries();
     } catch (err: any) {
-      console.error('Error deleting entry:', err);
       toast({
-        title: 'Gagal Menghapus',
+        title: 'Gagal menghapus',
         description: err.message,
         variant: 'destructive',
       });
+    } finally {
+      setDeleteTrackingId(null);
     }
   };
 
@@ -592,9 +596,11 @@ export default function MEALPlanner({
     }
   };
 
-  // Delete Meal Item
-  const handleDeleteMealItem = async (id: string) => {
-    if (!confirm('Hapus baris indikator MEAL ini? Tindakan ini tidak dapat dibatalkan.')) return;
+  const [deleteMealItemId, setDeleteMealItemId] = useState<string | null>(null);
+
+  const executeDeleteMealItem = async () => {
+    if (!deleteMealItemId) return;
+    const id = deleteMealItemId;
     setSaving(true);
     try {
       const { error } = await supabase.from('lfa_meal_items').delete().eq('id', id);
@@ -605,6 +611,7 @@ export default function MEALPlanner({
       toast({ title: 'Gagal menghapus baris', description: err.message, variant: 'destructive' });
     } finally {
       setSaving(false);
+      setDeleteMealItemId(null);
     }
   };
 
@@ -1653,7 +1660,7 @@ export default function MEALPlanner({
                     {/* Actions */}
                     <td className="p-3.5 text-center">
                       <Button
-                        onClick={() => void handleDeleteMealItem(item.id)}
+                        onClick={() => setDeleteMealItemId(item.id)}
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 text-slate-300 hover:text-red-500 rounded hover:bg-red-50"
@@ -2547,7 +2554,7 @@ export default function MEALPlanner({
                       .map((entry) => (
                         <div key={entry.id} className="p-3.5 bg-white dark:bg-slate-950 rounded-lg border border-slate-200/60 dark:border-slate-800/80 shadow-sm relative group/item">
                           <Button
-                            onClick={() => void handleDeleteEntry(entry.id)}
+                            onClick={() => setDeleteTrackingId(entry.id)}
                             variant="ghost"
                             size="icon"
                             className="h-6 w-6 text-slate-300 hover:text-red-500 absolute top-2 right-2 opacity-0 group-hover/item:opacity-100 transition-all rounded"
@@ -2616,6 +2623,33 @@ export default function MEALPlanner({
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Delete MEAL Item Confirm Dialog */}
+      <ConfirmDialog
+        open={!!deleteMealItemId}
+        onOpenChange={(open) => { if (!open) setDeleteMealItemId(null); }}
+        title="Hapus Baris Indikator MEAL?"
+        description="Apakah Anda yakin ingin menghapus baris indikator MEAL ini? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Ya, Hapus Indikator"
+        cancelText="Batal"
+        variant="destructive"
+        icon="trash"
+        loading={saving}
+        onConfirm={executeDeleteMealItem}
+      />
+
+      {/* Delete Tracking Entry Confirm Dialog */}
+      <ConfirmDialog
+        open={!!deleteTrackingId}
+        onOpenChange={(open) => { if (!open) setDeleteTrackingId(null); }}
+        title="Hapus Catatan Capaian?"
+        description="Apakah Anda yakin ingin menghapus catatan capaian ini? Data progress terpilih akan dihapus."
+        confirmText="Ya, Hapus Catatan"
+        cancelText="Batal"
+        variant="destructive"
+        icon="trash"
+        onConfirm={executeDeleteTrackingEntry}
+      />
     </div>
   );
 }

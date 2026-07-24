@@ -38,6 +38,7 @@ import {
 } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useAuth } from '@/providers/AuthProvider';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
 import { LfaProject, LfaEntry, AiActivity } from './types';
@@ -320,10 +321,17 @@ export default function LFABuilderIndex() {
     }
   };
 
-  const handleDelete = async (id: string, e: React.MouseEvent) => {
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+
+  const handleDeleteClick = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    if (!confirm('Apakah Anda yakin ingin menghapus LFA program ini? Tindakan ini tidak dapat dibatalkan.')) return;
+    setDeleteTargetId(id);
+  };
+
+  const executeDelete = async () => {
+    if (!deleteTargetId) return;
+    const id = deleteTargetId;
     setActionLoadingId(id);
     try {
       const { error } = await supabase
@@ -347,6 +355,7 @@ export default function LFABuilderIndex() {
       });
     } finally {
       setActionLoadingId(null);
+      setDeleteTargetId(null);
     }
   };
 
@@ -640,7 +649,7 @@ export default function LFABuilderIndex() {
                           className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-red-50 dark:hover:bg-red-950/20"
                           title="Hapus Program"
                           disabled={actionLoadingId === p.id}
-                          onClick={(e) => void handleDelete(p.id, e)}
+                          onClick={(e) => handleDeleteClick(p.id, e)}
                         >
                           {actionLoadingId === p.id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -881,6 +890,19 @@ export default function LFABuilderIndex() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteTargetId}
+        onOpenChange={(open) => { if (!open) setDeleteTargetId(null); }}
+        title="Hapus LFA Program?"
+        description="Apakah Anda yakin ingin menghapus LFA program ini? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Ya, Hapus Program"
+        cancelText="Batal"
+        variant="destructive"
+        icon="trash"
+        loading={!!actionLoadingId}
+        onConfirm={executeDelete}
+      />
     </div>
   );
 }

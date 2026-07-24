@@ -20,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 // Helper: Check if an item is a leaf item (has no children in the WBS tree)
 const isLeafItem = (item: WbsItem, allItems: WbsItem[]): boolean => {
@@ -1026,12 +1027,13 @@ export default function WBSBuilder({
   };
 
   // Delete Item
-  const handleDeleteItem = async (itemId: string) => {
-    if (!orgId) return;
-    if (!confirm('Apakah Anda yakin ingin menghapus item ini beserta turunannya?')) return;
+  const [deleteWbsItemId, setDeleteWbsItemId] = useState<string | null>(null);
+
+  const executeDeleteWbsItem = async () => {
+    if (!orgId || !deleteWbsItemId) return;
+    const itemId = deleteWbsItemId;
     setSaving(true);
     try {
-      // Supabase cascade will delete children in lfa_wbs_items because of self REFERENCES cascade
       const { error } = await supabase
         .from('lfa_wbs_items')
         .delete()
@@ -1039,38 +1041,33 @@ export default function WBSBuilder({
 
       if (error) throw error;
 
-      // Filter locally
       const filterOutRecursive = (id: string, list: WbsItem[]): string[] => {
         const ids = [id];
         const children = (list ?? []).filter((item) => item.parent_id === id);
         children.forEach((c) => {
-          if (c) {
-            ids.push(...filterOutRecursive(c.id, list));
-          }
+          ids.push(...filterOutRecursive(c.id, list));
         });
         return ids;
       };
 
-      const deletedIds = filterOutRecursive(itemId, wbsItems);
-      const remaining = (wbsItems ?? []).filter((item) => !(deletedIds ?? []).includes(item.id));
-      const reindexed = remaining.map((item, idx) => ({ ...item, sort_order: idx }));
-
-      setWbsItems(reindexed);
+      const idsToRemove = new Set(filterOutRecursive(itemId, wbsItems ?? []));
+      setWbsItems((prev) => (prev ?? []).filter((item) => !idsToRemove.has(item.id)));
       setLastSaved(new Date());
-      if (onWbsSaved) onWbsSaved();
+
       toast({
-        title: 'Item berhasil dihapus',
-        description: 'WBS tree diperbarui.',
+        title: 'Item Dihapus',
+        description: 'Item WBS dan seluruh turunannya berhasil dihapus.',
       });
-    } catch (err: any) {
-      console.error('[Impactory] Error deleting item:', err);
+    } catch (err) {
+      const error = err as Error;
       toast({
-        title: 'Gagal menghapus item',
-        description: err?.message ?? 'Silakan coba lagi.',
+        title: 'Gagal Menghapus Item',
+        description: error.message,
         variant: 'destructive',
       });
     } finally {
       setSaving(false);
+      setDeleteWbsItemId(null);
     }
   };
 
@@ -2031,7 +2028,7 @@ export default function WBSBuilder({
                           variant="ghost"
                           size="icon"
                           className="h-6 w-6 text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20"
-                          onClick={() => void handleDeleteItem(item.id)}
+                          onClick={() => setDeleteWbsItemId(item.id)}
                           title="Hapus"
                         >
                           <Trash2 className="h-3 w-3" />
@@ -2915,6 +2912,19 @@ export default function WBSBuilder({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!deleteWbsItemId}
+        onOpenChange={(open) => { if (!open) setDeleteWbsItemId(null); }}
+        title="Hapus Item WBS?"
+        description="Apakah Anda yakin ingin menghapus item WBS ini beserta seluruh turunannya? Tindakan ini tidak dapat dibatalkan."
+        confirmText="Ya, Hapus Item"
+        cancelText="Batal"
+        variant="destructive"
+        icon="trash"
+        loading={saving}
+        onConfirm={executeDeleteWbsItem}
+      />
     </div>
   );
 }

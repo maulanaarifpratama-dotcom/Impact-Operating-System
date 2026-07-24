@@ -14,6 +14,7 @@ import {
 import type { WizardData } from '@/lib/grant-writer/types';
 import { ChatMessage, type ChatMessageData } from './ChatMessage';
 import { ChatComposer } from './ChatComposer';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 interface GrantWriterChatProps {
   projectId: string;
@@ -307,8 +308,9 @@ export function GrantWriterChat({
     abortRef.current?.abort();
   }, []);
 
-  const handleClear = useCallback(async () => {
-    if (!confirm('Hapus seluruh percakapan untuk proyek ini?')) return;
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
+
+  const executeClear = useCallback(async () => {
     setMessages([]);
     const { error } = await supabase.from('gw_chat_messages').delete().eq('project_id', projectId);
     if (error) {
@@ -349,7 +351,7 @@ export function GrantWriterChat({
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={handleClear}
+              onClick={() => setClearConfirmOpen(true)}
               aria-label="Hapus percakapan"
               title="Hapus percakapan"
             >
@@ -391,6 +393,18 @@ export function GrantWriterChat({
             : 'Fallback lokal aktif karena Edge Function gagal · history disimpan ke Supabase per proyek'}
         </p>
       </div>
+
+      <ConfirmDialog
+        open={clearConfirmOpen}
+        onOpenChange={setClearConfirmOpen}
+        title="Hapus Percakapan AI?"
+        description="Apakah Anda yakin ingin menghapus seluruh percakapan untuk proyek ini? Riwayat pesan tidak dapat dikembalikan."
+        confirmText="Ya, Hapus Percakapan"
+        cancelText="Batal"
+        variant="destructive"
+        icon="trash"
+        onConfirm={executeClear}
+      />
     </div>
   );
 }

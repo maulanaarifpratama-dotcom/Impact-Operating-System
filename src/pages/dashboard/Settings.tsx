@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -220,26 +221,34 @@ export default function Settings() {
   };
 
   // Delete/Remove member from organization
-  const handleDeleteMember = async (memberId: string, memberName: string) => {
+  const [deleteMemberTarget, setDeleteMemberTarget] = useState<{ id: string; name: string } | null>(null);
+
+  const requestDeleteMember = (memberId: string, memberName?: string) => {
     if (!isAdminOrOwner) {
       toast.error('Gagal: Hanya Owner atau Admin yang dapat menghapus pengelola');
       return;
     }
-    if (confirm(`Apakah Anda yakin ingin menghapus ${memberName || 'staf ini'} dari organisasi?`)) {
-      try {
-        const { error } = await supabase
-          .from('organization_members')
-          .delete()
-          .eq('id', memberId);
+    setDeleteMemberTarget({ id: memberId, name: memberName || 'staf ini' });
+  };
 
-        if (error) throw error;
+  const executeDeleteMember = async () => {
+    if (!deleteMemberTarget) return;
+    const { id } = deleteMemberTarget;
+    try {
+      const { error } = await supabase
+        .from('organization_members')
+        .delete()
+        .eq('id', id);
 
-        await refetchTeam();
-        toast.success('Pengelola berhasil dihapus dari organisasi.');
-      } catch (err: any) {
-        console.error('[Settings] Error deleting member:', err);
-        toast.error('Gagal menghapus pengelola: ' + err.message);
-      }
+      if (error) throw error;
+
+      await refetchTeam();
+      toast.success('Pengelola berhasil dihapus dari organisasi.');
+    } catch (err: any) {
+      console.error('[Settings] Error deleting member:', err);
+      toast.error('Gagal menghapus pengelola: ' + err.message);
+    } finally {
+      setDeleteMemberTarget(null);
     }
   };
 
@@ -716,7 +725,7 @@ export default function Settings() {
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleDeleteMember(m.id, prof?.full_name)}
+                                  onClick={() => requestDeleteMember(m.id, prof?.full_name)}
                                   className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
                                 >
                                   <Trash2 className="h-4 w-4" />
@@ -816,6 +825,18 @@ export default function Settings() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <ConfirmDialog
+        open={!!deleteMemberTarget}
+        onOpenChange={(open) => { if (!open) setDeleteMemberTarget(null); }}
+        title="Hapus Pengelola Organisasi?"
+        description={`Apakah Anda yakin ingin menghapus ${deleteMemberTarget?.name ?? 'staf ini'} dari organisasi? Pengelola ini tidak akan lagi memiliki akses ke dashboard organisasi.`}
+        confirmText="Ya, Hapus Pengelola"
+        cancelText="Batal"
+        variant="destructive"
+        icon="trash"
+        onConfirm={executeDeleteMember}
+      />
     </div>
   );
 }

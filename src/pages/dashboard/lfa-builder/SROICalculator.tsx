@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
 import { getProjectCarbonSummary } from '@/lib/carbon/aggregation';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 
 
 interface SROICalculatorProps {
@@ -706,9 +707,11 @@ export default function SROICalculator({
     });
   };
 
-  const handleDeleteOutcome = async (id: string) => {
-    if (!orgId) return;
-    if (!confirm('Hapus analisa outcome SROI ini?')) return;
+  const [deleteOutcomeId, setDeleteOutcomeId] = useState<string | null>(null);
+
+  const executeDeleteOutcome = async () => {
+    if (!orgId || !deleteOutcomeId) return;
+    const id = deleteOutcomeId;
     setSaving(true);
     try {
       const { error } = await supabase
@@ -724,16 +727,17 @@ export default function SROICalculator({
 
       toast({
         title: 'Outcome Dihapus',
-        description: 'Analis outcome berhasil dihapus dari database.'
+        description: 'Baris outcome berhasil dihapus.'
       });
     } catch (err: any) {
       toast({
         title: 'Gagal Menghapus',
-        description: err?.message || 'Terjadi kesalahan.',
+        description: err.message,
         variant: 'destructive'
       });
     } finally {
       setSaving(false);
+      setDeleteOutcomeId(null);
     }
   };
 
@@ -1513,7 +1517,7 @@ export default function SROICalculator({
                             <div className="flex justify-between items-start">
                               <span className="h-6 w-6 rounded-full bg-slate-100 flex items-center justify-center font-bold text-slate-700">{idx + 1}</span>
                               {!out.is_registry_linked ? (
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => handleDeleteOutcome(out.id)}>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => setDeleteOutcomeId(out.id)}>
                                   <Trash2 className="h-3.5 w-3.5" />
                                 </Button>
                               ) : (
@@ -2046,7 +2050,7 @@ export default function SROICalculator({
                         </td>
                         <td className="p-2 text-center">
                           {!out.is_registry_linked ? (
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => handleDeleteOutcome(out.id)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-red-500" onClick={() => setDeleteOutcomeId(out.id)}>
                               <Trash2 className="h-3.5 w-3.5" />
                             </Button>
                           ) : (
@@ -2419,6 +2423,19 @@ export default function SROICalculator({
           )}
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={!!deleteOutcomeId}
+        onOpenChange={(open) => { if (!open) setDeleteOutcomeId(null); }}
+        title="Hapus Analisa Outcome SROI?"
+        description="Apakah Anda yakin ingin menghapus analisa outcome SROI ini? Data akan dihapus dari perhitungan."
+        confirmText="Ya, Hapus Outcome"
+        cancelText="Batal"
+        variant="destructive"
+        icon="trash"
+        loading={saving}
+        onConfirm={executeDeleteOutcome}
+      />
     </div>
   );
 }

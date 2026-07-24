@@ -11,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { 
   CalendarRange, 
   Plus, 
@@ -129,6 +130,7 @@ export default function MonthlyOperatingReview() {
   const [newDecisionOwner, setNewDecisionOwner] = useState('');
   const [newDecisionDeadline, setNewDecisionDeadline] = useState('');
   const [newDecisionStatus, setNewDecisionStatus] = useState<'pending' | 'in_progress' | 'done'>('pending');
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   // Local state for inline adaptive action item forms
   const [newActions, setNewActions] = useState<Record<string, { action: string; owner: string; deadline: string; status: 'pending' | 'in_progress' | 'done' }>>({});
@@ -818,11 +820,7 @@ export default function MonthlyOperatingReview() {
                 )}
                 {selectedSessionId && (
                   <Button
-                    onClick={() => {
-                      if (confirm('Apakah Anda yakin ingin menghapus arsip review operasional ini?')) {
-                        deleteMutation.mutate(selectedSessionId);
-                      }
-                    }}
+                    onClick={() => setDeleteConfirmOpen(true)}
                     variant="outline"
                     size="sm"
                     className="h-9 text-xs border-destructive/30 text-destructive hover:bg-destructive/5"
@@ -1502,6 +1500,23 @@ export default function MonthlyOperatingReview() {
           </Card>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Hapus Review Operasional?"
+        description="Apakah Anda yakin ingin menghapus arsip review operasional ini? Data catatan, prioritas, dan keputusan terkait akan dihapus."
+        confirmText="Ya, Hapus Review"
+        cancelText="Batal"
+        variant="destructive"
+        icon="trash"
+        loading={deleteMutation.isPending}
+        onConfirm={() => {
+          if (selectedSessionId) {
+            deleteMutation.mutate(selectedSessionId);
+          }
+        }}
+      />
     </div>
   );
 }
