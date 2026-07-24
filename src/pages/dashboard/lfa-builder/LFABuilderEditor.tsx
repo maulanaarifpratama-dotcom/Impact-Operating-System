@@ -1664,6 +1664,7 @@ export default function LFABuilderEditor() {
             programDurationMonths={project.duration_months || 12}
             sector={project.sector || 'Sektor Lainnya'}
             onWbsSaved={checkWbsExistence}
+            onNavigateToBudget={() => setActiveTab('budget')}
           />
         </div>
       ) : activeTab === 'budget' ? (

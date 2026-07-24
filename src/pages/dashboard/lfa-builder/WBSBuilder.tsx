@@ -5,7 +5,7 @@ import { WbsItem, WbsStatus, LfaEntry, LfaProject } from './types';
 import { CARBON_FACTORS_INDONESIA } from '@/data/carbon-factors-indonesia';
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
-  AlertTriangle, Milestone, Calendar, User, AlignLeft, Flag, Network
+  AlertTriangle, Milestone, Calendar, User, AlignLeft, Flag, Network, Wallet, ExternalLink
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -92,12 +92,30 @@ const getStatusLabel = (status?: WbsStatus) => {
   }
 };
 
+export interface RawBudgetItem {
+  id: string;
+  wbs_item_id: string | null;
+  volume: number | null;
+  unit_price_idr: number | null;
+  actual_amount_idr: number | null;
+}
+
+export interface WbsBudgetRollup {
+  plannedTotal: number;
+  realizedTotal: number | null;
+  hasRealization: boolean;
+  itemCount: number;
+  burnPercent: number | null;
+  remainingBudget: number | null;
+}
+
 interface WBSBuilderProps {
   projectId: string;
   orgId: string;
   programDurationMonths?: number;
   sector?: string;
   onWbsSaved?: () => void;
+  onNavigateToBudget?: (wbsItemId?: string) => void;
 }
 
 export default function WBSBuilder({
@@ -105,7 +123,8 @@ export default function WBSBuilder({
   orgId,
   programDurationMonths = 12,
   sector = 'Sektor Lainnya',
-  onWbsSaved
+  onWbsSaved,
+  onNavigateToBudget
 }: WBSBuilderProps) {
   const { toast } = useToast();
   const [wbsItems, setWbsItems] = useState<WbsItem[]>([]);
@@ -115,6 +134,7 @@ export default function WBSBuilder({
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [globalMode, setGlobalMode] = useState<'simple' | 'professional'>('simple');
   const [budgetTotals, setBudgetTotals] = useState<Record<string, number>>({});
+  const [rawBudgetItems, setRawBudgetItems] = useState<RawBudgetItem[]>([]);
   const [carbonMode, setCarbonMode] = useState(false);
 
 
@@ -241,10 +261,12 @@ export default function WBSBuilder({
     try {
       const { data, error } = await supabase
         .from('lfa_budget_items')
-        .select('wbs_item_id, volume, unit_price_idr')
+        .select('id, wbs_item_id, volume, unit_price_idr, actual_amount_idr')
         .eq('lfa_project_id', projectId);
       
       if (!error && data) {
+        setRawBudgetItems(data as RawBudgetItem[]);
+        
         const totals: Record<string, number> = {};
         data.forEach((item) => {
           if (item && item.wbs_item_id) {
@@ -259,6 +281,70 @@ export default function WBSBuilder({
       console.error('Failed to load budget totals:', err);
     }
   };
+
+  // Helper: Get all descendant WBS item IDs (including the item itself)
+  const getSubtreeWbsIds = (itemId: string): string[] => {
+    const ids: string[] = [itemId];
+    const findChildren = (parentId: string) => {
+      const children = wbsItems.filter((i) => i.parent_id === parentId);
+      for (const child of children) {
+        ids.push(child.id);
+        findChildren(child.id);
+      }
+    };
+    findChildren(itemId);
+    return ids;
+  };
+
+  // Helper: Compute budget roll-up summary for a set of WBS item IDs
+  const computeBudgetRollup = (wbsIds: string[]): WbsBudgetRollup => {
+    const linkedItems = rawBudgetItems.filter((b) => b.wbs_item_id && wbsIds.includes(b.wbs_item_id));
+
+    if (linkedItems.length === 0) {
+      return {
+        plannedTotal: 0,
+        realizedTotal: null,
+        hasRealization: false,
+        itemCount: 0,
+        burnPercent: null,
+        remainingBudget: null,
+      };
+    }
+
+    let plannedTotal = 0;
+    let realizedTotal = 0;
+    let hasRealization = false;
+
+    linkedItems.forEach((b) => {
+      const vol = Number(b.volume) || 1;
+      const price = Number(b.unit_price_idr) || 0;
+      plannedTotal += vol * price;
+
+      if (b.actual_amount_idr !== null && b.actual_amount_idr !== undefined && (b.actual_amount_idr as any) !== '') {
+        hasRealization = true;
+        realizedTotal += Number(b.actual_amount_idr) || 0;
+      }
+    });
+
+    const finalRealized = hasRealization ? realizedTotal : null;
+    const remaining = hasRealization ? plannedTotal - realizedTotal : null;
+    const burn = hasRealization && plannedTotal > 0 ? Math.round((realizedTotal / plannedTotal) * 100) : null;
+
+    return {
+      plannedTotal,
+      realizedTotal: finalRealized,
+      hasRealization,
+      itemCount: linkedItems.length,
+      burnPercent: burn,
+      remainingBudget: remaining,
+    };
+  };
+
+  // Program Total Roll-up (All budget items linked to any WBS item in the project)
+  const programBudgetRollup = useMemo(() => {
+    const allWbsIds = wbsItems.map((i) => i.id);
+    return computeBudgetRollup(allWbsIds);
+  }, [wbsItems, rawBudgetItems]);
 
   // Load WBS Items
   const loadWbsItems = async () => {
@@ -1100,6 +1186,57 @@ export default function WBSBuilder({
         </div>
       </div>
 
+      {/* PROGRAM-LEVEL BUDGET ROLL-UP SUMMARY */}
+      <div className="flex flex-wrap items-center justify-between gap-4 p-3 px-4 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg text-xs shadow-sm">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-100">
+            <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <span>Total Anggaran Program:</span>
+            <span className="text-emerald-700 dark:text-emerald-300 font-extrabold text-sm">
+              {formatBudgetBadge(programBudgetRollup.plannedTotal)}
+            </span>
+          </div>
+          
+          <span className="text-slate-300 dark:text-slate-700">|</span>
+
+          <div className="flex items-center gap-2">
+            <span className="text-slate-600 dark:text-slate-400 font-medium">Realisasi:</span>
+            {programBudgetRollup.hasRealization ? (
+              <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                {formatBudgetBadge(programBudgetRollup.realizedTotal || 0)}
+                {programBudgetRollup.burnPercent !== null && (
+                  <Badge variant="outline" className="text-[10px] bg-emerald-100 text-emerald-800 border-emerald-300">
+                    Burn {programBudgetRollup.burnPercent}%
+                  </Badge>
+                )}
+              </span>
+            ) : (
+              <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border">
+                Belum ada data realisasi
+              </Badge>
+            )}
+          </div>
+
+          <span className="text-slate-300 dark:text-slate-700">|</span>
+
+          <span className="text-slate-500 text-[11px]">
+            {programBudgetRollup.itemCount} item anggaran
+          </span>
+        </div>
+
+        {onNavigateToBudget && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onNavigateToBudget()}
+            className="h-7 text-[11px] gap-1.5 text-emerald-700 hover:text-emerald-800 border-emerald-300 hover:bg-emerald-100/50"
+          >
+            <ExternalLink className="h-3 w-3" />
+            Lihat Rincian Anggaran
+          </Button>
+        )}
+      </div>
+
       {/* CORE WORKSPACE GRID */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 border rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-900">
         
@@ -1162,9 +1299,45 @@ export default function WBSBuilder({
 
                       {/* Inline edit input */}
                       {item.level === 1 ? (
-                        <span className={`text-xs font-bold text-slate-800 dark:text-slate-200 truncate py-1 ${item.status === 'cancelled' ? 'line-through opacity-60' : ''}`} title={item.name}>
-                          {item.name}
-                        </span>
+                        <div className="flex flex-col gap-0.5 overflow-hidden py-1">
+                          <span className={`text-xs font-bold text-slate-800 dark:text-slate-200 truncate ${item.status === 'cancelled' ? 'line-through opacity-60' : ''}`} title={item.name}>
+                            {item.name}
+                          </span>
+                          {(() => {
+                            const outputWbsIds = getSubtreeWbsIds(item.id);
+                            const rollup = computeBudgetRollup(outputWbsIds);
+                            return (
+                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                                <Badge variant="outline" className="text-[9px] font-semibold bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 py-0 h-4">
+                                  <Wallet className="h-2.5 w-2.5 mr-0.5 text-emerald-600" />
+                                  <span>{formatBudgetBadge(rollup.plannedTotal)}</span>
+                                  <span className="text-[8px] text-emerald-600 font-normal ml-0.5">({rollup.itemCount} item)</span>
+                                </Badge>
+
+                                {rollup.hasRealization ? (
+                                  <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-800 border-blue-200 py-0 h-4">
+                                    Real: {formatBudgetBadge(rollup.realizedTotal || 0)} {rollup.burnPercent !== null ? `(${rollup.burnPercent}%)` : ''}
+                                  </Badge>
+                                ) : (
+                                  <Badge variant="secondary" className="text-[8px] bg-slate-100 text-slate-500 border border-slate-200 py-0 h-4">
+                                    Belum ada data realisasi
+                                  </Badge>
+                                )}
+
+                                {onNavigateToBudget && (
+                                  <button
+                                    onClick={() => onNavigateToBudget(item.id)}
+                                    className="text-[9px] text-emerald-600 hover:underline flex items-center gap-0.5 font-medium ml-1"
+                                    title="Lihat Rincian Anggaran di Modul Anggaran"
+                                  >
+                                    <span>Rincian</span>
+                                    <ExternalLink className="h-2 w-2" />
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       ) : (
                         <input
                           type="text"
@@ -1710,18 +1883,29 @@ export default function WBSBuilder({
                               </div>
 
                               {/* Budget badge only in professional mode */}
-                              {globalMode === 'professional' && (
-                                <div
-                                  style={{ left: `${leftOffset}px` }}
-                                  className={`absolute top-[28px] text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm shrink-0 truncate max-w-[120px] ${
-                                    hasBudget 
-                                      ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200' 
-                                      : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200'
-                                  }`}
-                                >
-                                  {hasBudget ? formatBudgetBadge(budgetValue) : 'Belum ada anggaran'}
-                                </div>
-                              )}
+                              {globalMode === 'professional' && (() => {
+                                const activityWbsIds = getSubtreeWbsIds(item.id);
+                                const rollup = computeBudgetRollup(activityWbsIds);
+                                const hasBudget = rollup.plannedTotal > 0 || rollup.itemCount > 0;
+
+                                return (
+                                  <div
+                                    style={{ left: `${leftOffset}px` }}
+                                    className={`absolute top-[28px] text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm shrink-0 truncate max-w-[200px] flex items-center gap-1 ${
+                                      hasBudget 
+                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200' 
+                                        : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200'
+                                    }`}
+                                  >
+                                    <span>{hasBudget ? formatBudgetBadge(rollup.plannedTotal) : 'Belum ada anggaran'}</span>
+                                    {rollup.hasRealization && (
+                                      <span className="text-[7.5px] text-blue-800 dark:text-blue-300">
+                                        | Real: {formatBudgetBadge(rollup.realizedTotal || 0)}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })()}
                             </>
                           );
                         })()
