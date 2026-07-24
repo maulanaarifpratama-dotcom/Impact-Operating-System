@@ -845,18 +845,19 @@ Deno.serve(async (req: Request) => {
           updated_at: new Date().toISOString()
         });
 
-      await ctx.supabase.from('lfa_entries').delete().eq('project_id', targetLfaProjectId);
-
       const lfaEntriesToInsert: Array<any> = [];
       let seq = 1;
+
+      // Generate valid UUID for Goal
+      const goalId = crypto.randomUUID();
 
       // Goal
       if (result.matrix.goal) {
         lfaEntriesToInsert.push({
-          id: `goal-${targetLfaProjectId}`,
+          id: goalId,
           project_id: targetLfaProjectId,
-          org_id: project.organization_id || 'ORG-27K-001',
-          level: 1,
+          org_id: project.organization_id || '00000000-0000-0000-0000-000000000000',
+          level: 'goal',
           sequence: seq++,
           parent_id: null,
           description: result.matrix.goal.statement,
@@ -869,15 +870,15 @@ Deno.serve(async (req: Request) => {
       const outcomeIdMap = new Map<number, string>();
       if (Array.isArray(result.matrix.outcomes)) {
         result.matrix.outcomes.forEach((oc, idx) => {
-          const ocId = `outcome-${targetLfaProjectId}-${idx + 1}`;
+          const ocId = crypto.randomUUID();
           outcomeIdMap.set(idx, ocId);
           lfaEntriesToInsert.push({
             id: ocId,
             project_id: targetLfaProjectId,
-            org_id: project.organization_id || 'ORG-27K-001',
-            level: 2,
+            org_id: project.organization_id || '00000000-0000-0000-0000-000000000000',
+            level: 'purpose',
             sequence: seq++,
-            parent_id: `goal-${targetLfaProjectId}`,
+            parent_id: goalId,
             description: oc.statement,
             indicator: Array.isArray(oc.indicators) ? oc.indicators.join('; ') : String(oc.indicators || ''),
             means_of_verification: Array.isArray(oc.means_of_verification) ? oc.means_of_verification.join('; ') : String(oc.means_of_verification || ''),
@@ -890,14 +891,14 @@ Deno.serve(async (req: Request) => {
       const outputIdMap = new Map<number, string>();
       if (Array.isArray(result.matrix.outputs)) {
         result.matrix.outputs.forEach((op, idx) => {
-          const opId = `output-${targetLfaProjectId}-${idx + 1}`;
+          const opId = crypto.randomUUID();
           outputIdMap.set(idx, opId);
-          const parentOutcomeId = outcomeIdMap.get(op.outcome_index ?? 0) || `outcome-${targetLfaProjectId}-1`;
+          const parentOutcomeId = outcomeIdMap.get(op.outcome_index ?? 0) || (outcomeIdMap.get(0) ?? goalId);
           lfaEntriesToInsert.push({
             id: opId,
             project_id: targetLfaProjectId,
-            org_id: project.organization_id || 'ORG-27K-001',
-            level: 3,
+            org_id: project.organization_id || '00000000-0000-0000-0000-000000000000',
+            level: 'output',
             sequence: seq++,
             parent_id: parentOutcomeId,
             description: op.statement,
@@ -911,13 +912,14 @@ Deno.serve(async (req: Request) => {
       // Activities
       if (Array.isArray(result.matrix.activities)) {
         result.matrix.activities.forEach((act, idx) => {
-          const actId = `act-${targetLfaProjectId}-${idx + 1}`;
-          const parentOutputId = outputIdMap.get(act.output_index ?? 0) || `output-${targetLfaProjectId}-1`;
+          const actId = crypto.randomUUID();
+          const firstOutputId = outputIdMap.get(0) || goalId;
+          const parentOutputId = outputIdMap.get(act.output_index ?? 0) || firstOutputId;
           lfaEntriesToInsert.push({
             id: actId,
             project_id: targetLfaProjectId,
-            org_id: project.organization_id || 'ORG-27K-001',
-            level: 4,
+            org_id: project.organization_id || '00000000-0000-0000-0000-000000000000',
+            level: 'activity',
             sequence: seq++,
             parent_id: parentOutputId,
             description: act.statement,
@@ -926,8 +928,16 @@ Deno.serve(async (req: Request) => {
         });
       }
 
+      // Atomic Transactional Write via Postgres RPC
       if (lfaEntriesToInsert.length > 0) {
-        await ctx.supabase.from('lfa_entries').insert(lfaEntriesToInsert);
+        const { error: rpcErr } = await ctx.supabase.rpc('materialize_lfa_matrix_transactional', {
+          p_project_id: targetLfaProjectId,
+          p_entries: lfaEntriesToInsert
+        });
+        if (rpcErr) {
+          console.error('Transactional LFA materialization RPC error:', rpcErr);
+          throw rpcErr;
+        }
       }
     } catch (matErr) {
       console.warn('LFA entry materialization warning:', (matErr as Error).message);
