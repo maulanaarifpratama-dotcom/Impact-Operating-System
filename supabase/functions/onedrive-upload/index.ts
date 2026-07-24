@@ -32,6 +32,7 @@ serve(async (req: Request) => {
     const organizationIdObj = formData.get('organizationId');
     const documentIdObj = formData.get('documentId');
     const fileNameObj = formData.get('fileName');
+    const folderTypeObj = formData.get('folderType');
 
     if (!file || !organizationIdObj || !documentIdObj || !fileNameObj) {
       return new Response(
@@ -119,11 +120,13 @@ serve(async (req: Request) => {
       );
     }
 
-    const tokenData = await tokenRes.json();
-    const accessToken = tokenData.access_token;
+    const folderType = folderTypeObj ? folderTypeObj.toString() : 'library';
 
     // 7. Upload file to OneDrive via Microsoft Graph API
-    const storagePath = `apps/impactory/organizations/${organizationId}/library/${documentId}/original/${fileName}`;
+    let storagePath = `apps/impactory/organizations/${organizationId}/library/${documentId}/original/${fileName}`;
+    if (folderType === 'wbs_evidence') {
+      storagePath = `apps/impactory/organizations/${organizationId}/wbs_evidence/${documentId}/${fileName}`;
+    }
     
     // We encode the storagePath to handle any special characters in the path or filename.
     const graphUploadUrl = `https://graph.microsoft.com/v1.0/drives/${driveId}/root:/${encodeURIComponent(storagePath)}:/content`;

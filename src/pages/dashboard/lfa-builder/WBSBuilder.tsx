@@ -159,6 +159,7 @@ export default function WBSBuilder({
     title: string;
     description: string;
     storage_reference: string;
+    selectedFile?: File | null;
   }>>([]);
   const [submittingClaim, setSubmittingClaim] = useState(false);
 
@@ -670,23 +671,57 @@ export default function WBSBuilder({
       }
 
       // Insert attached evidence items
-      const validEvidences = newEvidences.filter((e) => e.storage_reference.trim().length > 0 || e.title.trim().length > 0);
+      const validEvidences = newEvidences.filter(
+        (e) => e.selectedFile || e.storage_reference.trim().length > 0 || e.title.trim().length > 0
+      );
       if (validEvidences.length > 0 && claimId) {
-        // Note: Client does NOT send uploaded_by; database trigger handle_wbs_completion_evidence_audit enforces auth.uid() server-side
-        const evidenceRows = validEvidences.map((e) => ({
-          org_id: orgId,
-          claim_id: claimId!,
-          evidence_type: e.evidence_type,
-          title: e.title || 'Bukti Penyelesaian',
-          description: e.description || null,
-          storage_reference: e.storage_reference,
-        }));
+        // Upload any selected files to OneDrive via Graph API
+        const evidenceRows = [];
+        for (const e of validEvidences) {
+          let finalType: WbsEvidenceType = e.evidence_type;
+          let finalRef = e.storage_reference.trim();
 
-        const { error: evInsErr } = await supabase
-          .from('wbs_completion_evidence')
-          .insert(evidenceRows);
+          if (e.selectedFile) {
+            const documentId = crypto.randomUUID();
+            const formData = new FormData();
+            formData.append('file', e.selectedFile);
+            formData.append('organizationId', orgId);
+            formData.append('documentId', documentId);
+            formData.append('fileName', e.selectedFile.name);
+            formData.append('folderType', 'wbs_evidence');
 
-        if (evInsErr) throw evInsErr;
+            const { data: uploadResult, error: funcErr } = await supabase.functions.invoke('onedrive-upload', {
+              body: formData,
+            });
+
+            if (funcErr || !uploadResult) {
+              throw new Error(`Upload file "${e.selectedFile.name}" ke OneDrive gagal: ${funcErr?.message || 'Gagal memanggil fungsi edge'}`);
+            }
+
+            finalType = 'onedrive';
+            finalRef = uploadResult.webUrl || `${uploadResult.driveId}:${uploadResult.storageItemId}`;
+          }
+
+          if (finalRef.length > 0 || e.title.trim().length > 0) {
+            evidenceRows.push({
+              org_id: orgId,
+              claim_id: claimId!,
+              evidence_type: finalType,
+              title: e.title || (e.selectedFile ? e.selectedFile.name : 'Bukti Penyelesaian'),
+              description: e.description || null,
+              storage_reference: finalRef,
+            });
+          }
+        }
+
+        if (evidenceRows.length > 0) {
+          // Note: Client does NOT send uploaded_by; database trigger handle_wbs_completion_evidence_audit enforces auth.uid() server-side
+          const { error: evInsErr } = await supabase
+            .from('wbs_completion_evidence')
+            .insert(evidenceRows);
+
+          if (evInsErr) throw evInsErr;
+        }
       }
 
       toast({
@@ -2516,19 +2551,56 @@ export default function WBSBuilder({
                           </div>
                         </div>
 
-                        <div>
-                          <Label className="text-[10px]">Tautan URL / Referensi Dokumen</Label>
-                          <Input
-                            value={ev.storage_reference}
-                            onChange={(e) => {
-                              const updated = [...newEvidences];
-                              updated[idx].storage_reference = e.target.value;
-                              setNewEvidences(updated);
-                            }}
-                            placeholder="https://drive.google.com/file/d/... atau path referensi"
-                            className="h-7 text-xs font-mono"
-                          />
-                        </div>
+                        {ev.evidence_type === 'onedrive' || ev.evidence_type === 'file' ? (
+                          <div className="space-y-1">
+                            <Label className="text-[10px]">Unggah File ke OneDrive (Graph API)</Label>
+                            <Input
+                              type="file"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0] || null;
+                                const updated = [...newEvidences];
+                                updated[idx].selectedFile = file;
+                                if (file && !updated[idx].title) {
+                                  updated[idx].title = file.name;
+                                }
+                                setNewEvidences(updated);
+                              }}
+                              className="h-8 text-xs cursor-pointer"
+                            />
+                            {ev.selectedFile && (
+                              <p className="text-[10px] text-emerald-600 font-medium">
+                                File dipilih: {ev.selectedFile.name} ({(ev.selectedFile.size / 1024).toFixed(1)} KB) — Akan diunggah ke folder OneDrive WBS Evidence saat disimpan.
+                              </p>
+                            )}
+                            <div className="pt-1">
+                              <Label className="text-[10px]">Tautan / Referensi Manual (Opsional jika file diunggah)</Label>
+                              <Input
+                                value={ev.storage_reference}
+                                onChange={(e) => {
+                                  const updated = [...newEvidences];
+                                  updated[idx].storage_reference = e.target.value;
+                                  setNewEvidences(updated);
+                                }}
+                                placeholder="https://... atau path referensi"
+                                className="h-7 text-xs font-mono"
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <Label className="text-[10px]">Tautan URL / Referensi Dokumen</Label>
+                            <Input
+                              value={ev.storage_reference}
+                              onChange={(e) => {
+                                const updated = [...newEvidences];
+                                updated[idx].storage_reference = e.target.value;
+                                setNewEvidences(updated);
+                              }}
+                              placeholder="https://drive.google.com/file/d/... atau path referensi"
+                              className="h-7 text-xs font-mono"
+                            />
+                          </div>
+                        )}
 
                         <div>
                           <Label className="text-[10px]">Deskripsi / Catatan Tambahan (Opsional)</Label>
@@ -2694,13 +2766,15 @@ export default function WBSBuilder({
                                   </div>
                                   {ev.storage_reference && (
                                     <a
-                                      href={ev.storage_reference}
-                                      target="_blank"
+                                      href={ev.storage_reference.startsWith('http') ? ev.storage_reference : '#'}
+                                      target={ev.storage_reference.startsWith('http') ? '_blank' : '_self'}
                                       rel="noreferrer"
                                       className="text-emerald-600 hover:underline flex items-center gap-1 mt-1 font-mono text-[10px] truncate"
                                     >
                                       <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                                      {ev.storage_reference}
+                                      {ev.evidence_type === 'onedrive' || ev.storage_reference.startsWith('http')
+                                        ? '📄 Buka/Pratinjau File OneDrive'
+                                        : ev.storage_reference}
                                     </a>
                                   )}
                                 </div>
