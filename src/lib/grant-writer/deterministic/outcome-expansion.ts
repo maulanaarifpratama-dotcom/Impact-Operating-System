@@ -120,22 +120,11 @@ export function expandOutcomes(
   let guardrailMessage = 'Outcome expansion valid (1-3 outcomes).';
 
   if (topOutcomeEntries.length === 0) {
-    guardrailStatus = 'WARNING';
-    guardrailMessage = 'WARNING: 0 specific keyword candidates matched. Synthesizing baseline outcome from program context.';
-
-    const fallbackTitle = _input.programTitle || _input.program_title || 'Pemberdayaan Masyarakat';
-    const fallbackOutcome: CanonicalOutcomeV2 = {
-      id: 'OC-1',
-      code: 'OF-001',
-      outcome_name: `Pemberdayaan dan Peningkatan Kapasitas (${fallbackTitle})`,
-      description: `Meningkatkan pengetahuan, keterampilan, dan kemandirian peserta melalui intervensi program ${fallbackTitle}.`,
-      impact_category: 'education',
-      indicators: [],
-      outputs: []
-    };
+    guardrailStatus = 'FAIL';
+    guardrailMessage = 'REQUIRE_LLM_GROUNDING: 0 keyword candidates matched. Full GPT-5.5 reasoning required.';
 
     return {
-      outcomes: [fallbackOutcome],
+      outcomes: [],
       guardrailStatus,
       guardrailMessage
     };
