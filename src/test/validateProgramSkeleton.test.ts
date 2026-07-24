@@ -44,16 +44,18 @@ function validateProgramSkeleton(skeleton: any) {
     throw new Error('Validation Failed: At least 1 Purpose or Outcome is required');
   }
 
-  // Outputs validation (at least 1 Output)
+  // Outputs validation (min 3 Outputs required)
   const outputs = lfa.outputs || [];
-  if (!Array.isArray(outputs) || outputs.length === 0) {
-    throw new Error('Validation Failed: At least 1 Output is required');
+  if (!Array.isArray(outputs) || outputs.length < 3) {
+    throw new Error(`ACTIVITY_FLOOR_FAILED: At least 3 Outputs required in lfa.outputs (found ${Array.isArray(outputs) ? outputs.length : 0})`);
   }
 
   const outputIds = new Set<string>();
   const activityIds = new Set<string>();
+  let totalSkeletonActivities = 0;
 
-  for (const output of outputs) {
+  for (let i = 0; i < outputs.length; i++) {
+    const output = outputs[i];
     if (!output || typeof output !== 'object') {
       throw new Error('Validation Failed: Invalid output element in outputs array');
     }
@@ -74,11 +76,12 @@ function validateProgramSkeleton(skeleton: any) {
       throw new Error(`Validation Failed: Output '${output.id}' statement is empty`);
     }
 
-    // Validate Nested Activities (At least 1 Activity per Output)
+    // Validate Nested Activities (At least 3 Activities per Output required)
     const activities = output.activities;
-    if (!Array.isArray(activities) || activities.length === 0) {
-      throw new Error(`Validation Failed: Output '${output.id}' must have at least one nested activity`);
+    if (!Array.isArray(activities) || activities.length < 3) {
+      throw new Error(`ACTIVITY_FLOOR_FAILED: Output '${output.id}' (Output ${i + 1}) must have at least 3 nested activities (found ${Array.isArray(activities) ? activities.length : 0})`);
     }
+    totalSkeletonActivities += activities.length;
 
     for (const act of activities) {
       if (!act || typeof act !== 'object') {
@@ -97,6 +100,10 @@ function validateProgramSkeleton(skeleton: any) {
         throw new Error(`Validation Failed: Activity '${act.id}' title/statement is empty`);
       }
     }
+  }
+
+  if (totalSkeletonActivities < 9) {
+    throw new Error(`ACTIVITY_FLOOR_FAILED: Total activities in lfa.outputs must be at least 9 (found ${totalSkeletonActivities})`);
   }
 
   // Tasks validation

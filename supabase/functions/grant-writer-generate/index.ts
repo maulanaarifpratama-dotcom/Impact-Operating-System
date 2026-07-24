@@ -349,16 +349,18 @@ function validateProgramSkeleton(skeleton: any) {
     throw new Error('Validation Failed: At least 1 Purpose or Outcome is required');
   }
 
-  // Outputs validation (at least 1 Output)
+  // Outputs validation (min 3 Outputs required)
   const outputs = lfa.outputs || [];
-  if (!Array.isArray(outputs) || outputs.length === 0) {
-    throw new Error('Validation Failed: At least 1 Output is required');
+  if (!Array.isArray(outputs) || outputs.length < 3) {
+    throw new Error(`ACTIVITY_FLOOR_FAILED: At least 3 Outputs required in lfa.outputs (found ${Array.isArray(outputs) ? outputs.length : 0})`);
   }
 
   const outputIds = new Set<string>();
   const activityIds = new Set<string>();
+  let totalSkeletonActivities = 0;
 
-  for (const output of outputs) {
+  for (let i = 0; i < outputs.length; i++) {
+    const output = outputs[i];
     if (!output || typeof output !== 'object') {
       throw new Error('Validation Failed: Invalid output element in outputs array');
     }
@@ -379,11 +381,12 @@ function validateProgramSkeleton(skeleton: any) {
       throw new Error(`Validation Failed: Output '${output.id}' statement is empty`);
     }
 
-    // Validate Nested Activities (At least 1 Activity per Output)
+    // Validate Nested Activities (At least 3 Activities per Output required)
     const activities = output.activities;
-    if (!Array.isArray(activities) || activities.length === 0) {
-      throw new Error(`Validation Failed: Output '${output.id}' must have at least one nested activity`);
+    if (!Array.isArray(activities) || activities.length < 3) {
+      throw new Error(`ACTIVITY_FLOOR_FAILED: Output '${output.id}' (Output ${i + 1}) must have at least 3 nested activities (found ${Array.isArray(activities) ? activities.length : 0})`);
     }
+    totalSkeletonActivities += activities.length;
 
     for (const act of activities) {
       if (!act || typeof act !== 'object') {
@@ -402,6 +405,10 @@ function validateProgramSkeleton(skeleton: any) {
         throw new Error(`Validation Failed: Activity '${act.id}' title/statement is empty`);
       }
     }
+  }
+
+  if (totalSkeletonActivities < 9) {
+    throw new Error(`ACTIVITY_FLOOR_FAILED: Total activities in lfa.outputs must be at least 9 (found ${totalSkeletonActivities})`);
   }
 
   // Tasks validation
@@ -435,18 +442,15 @@ function validateProgramSkeleton(skeleton: any) {
       }
 
       if (schemaVersion === '2.1') {
-        // If schema version is 2.1, Level 2 or deeper tasks must reference a valid activity ID
         if (!activityIds.has(sourceId)) {
           throw new Error(`Validation Failed: Level 2+ Task '${task.id}' sourceActivityId '${sourceId}' does not reference a valid canonical Activity ID`);
         }
       } else {
-        // If schema version is 2.0, Level 2 or deeper tasks must reference a valid output ID
         if (!outputIds.has(sourceId)) {
           throw new Error(`Validation Failed: Level 2+ Task '${task.id}' sourceActivityId '${sourceId}' does not reference a valid Output ID in schema version 2.0`);
         }
       }
     } else {
-      // Level 1 task
       if (task.sourceActivityId) {
         const sourceId = task.sourceActivityId;
         if (schemaVersion === '2.1') {
@@ -462,7 +466,7 @@ function validateProgramSkeleton(skeleton: any) {
     }
   }
 
-  // Ensure no overlapping ID clashes across different elements (Outputs vs Activities vs Outcomes vs Tasks)
+  // Ensure no overlapping ID clashes across different elements
   const allIds = new Set<string>();
   const idCollections = [
     { name: 'Outcome', ids: outcomeIds },
@@ -497,13 +501,27 @@ function validateMatrixStructure(matrix: any) {
   }
 
   const outputs = matrix.outputs;
-  if (!Array.isArray(outputs) || outputs.length === 0) {
-    throw new Error('Validation Failed: At least 1 Output is required in matrix');
+  if (!Array.isArray(outputs) || outputs.length < 3) {
+    throw new Error(`ACTIVITY_FLOOR_FAILED: At least 3 Outputs required in matrix (found ${Array.isArray(outputs) ? outputs.length : 0})`);
   }
 
   const activities = matrix.activities;
-  if (!Array.isArray(activities) || activities.length === 0) {
-    throw new Error('Validation Failed: At least 1 Activity is required in matrix');
+  if (!Array.isArray(activities) || activities.length < 9) {
+    throw new Error(`ACTIVITY_FLOOR_FAILED: Total activities in matrix must be at least 9 (found ${Array.isArray(activities) ? activities.length : 0})`);
+  }
+
+  // Count activities per output
+  const actCountsByOutput = new Map<number, number>();
+  for (const act of activities) {
+    const opIdx = act.output_index ?? 0;
+    actCountsByOutput.set(opIdx, (actCountsByOutput.get(opIdx) || 0) + 1);
+  }
+
+  for (let i = 0; i < outputs.length; i++) {
+    const cnt = actCountsByOutput.get(i) || 0;
+    if (cnt < 3) {
+      throw new Error(`ACTIVITY_FLOOR_FAILED: Output ${i + 1} has only ${cnt} activities (minimum 3 required per output)`);
+    }
   }
 
   // Validate parent indices
