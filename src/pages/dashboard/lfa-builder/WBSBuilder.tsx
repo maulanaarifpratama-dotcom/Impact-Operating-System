@@ -1986,6 +1986,7 @@ export default function WBSBuilder({
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
+                      )}
                     </div>
                   </div>
 
