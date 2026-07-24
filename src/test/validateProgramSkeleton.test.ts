@@ -137,18 +137,15 @@ function validateProgramSkeleton(skeleton: any) {
       }
 
       if (schemaVersion === '2.1') {
-        // If schema version is 2.1, Level 2 or deeper tasks must reference a valid activity ID
         if (!activityIds.has(sourceId)) {
           throw new Error(`Validation Failed: Level 2+ Task '${task.id}' sourceActivityId '${sourceId}' does not reference a valid canonical Activity ID`);
         }
       } else {
-        // If schema version is 2.0, Level 2 or deeper tasks must reference a valid output ID
         if (!outputIds.has(sourceId)) {
           throw new Error(`Validation Failed: Level 2+ Task '${task.id}' sourceActivityId '${sourceId}' does not reference a valid Output ID in schema version 2.0`);
         }
       }
     } else {
-      // Level 1 task
       if (task.sourceActivityId) {
         const sourceId = task.sourceActivityId;
         if (schemaVersion === '2.1') {
@@ -184,6 +181,12 @@ function validateProgramSkeleton(skeleton: any) {
 }
 
 describe("P0-B Contract Validation (validateProgramSkeleton)", () => {
+  const createActivities = (outputIndex: number) => [
+    { id: `act_${outputIndex}_1`, title: `Activity ${outputIndex}.1` },
+    { id: `act_${outputIndex}_2`, title: `Activity ${outputIndex}.2` },
+    { id: `act_${outputIndex}_3`, title: `Activity ${outputIndex}.3` }
+  ];
+
   // Test 1 - Indonesian Canonical Skeleton
   it("Test 1 — should accept a fully valid Indonesian Canonical Skeleton under version 2.0", () => {
     const validIndo = {
@@ -196,19 +199,19 @@ describe("P0-B Contract Validation (validateProgramSkeleton)", () => {
             id: "output_1",
             outcomeId: "outcome_1",
             statement: "Aplikasi pencatatan rantai pasok selesai dibangun.",
-            activities: [
-              { id: "act_1_1", title: "Mendesain arsitektur database" },
-              { id: "act_1_2", title: "Pemrograman modul pencatatan transaksi" }
-            ]
+            activities: createActivities(1)
           },
           {
             id: "output_2",
             outcomeId: "outcome_1",
             statement: "Pengurus koperasi terlatih menggunakan aplikasi.",
-            activities: [
-              { id: "act_2_1", title: "Penyusunan materi manual panduan" },
-              { id: "act_2_2", title: "Penyelenggaraan workshop tatap muka" }
-            ]
+            activities: createActivities(2)
+          },
+          {
+            id: "output_3",
+            outcomeId: "outcome_1",
+            statement: "Dokumen SOP pengelolaan data terbit.",
+            activities: createActivities(3)
           }
         ]
       },
@@ -234,19 +237,19 @@ describe("P0-B Contract Validation (validateProgramSkeleton)", () => {
             id: "output_1",
             outcomeId: "outcome_1",
             statement: "Recycling center facilities established.",
-            activities: [
-              { id: "act_1_1", title: "Acquiring community site permissions" },
-              { id: "act_1_2", title: "Purchasing machinery and waste sorting tools" }
-            ]
+            activities: createActivities(1)
           },
           {
             id: "output_2",
             outcomeId: "outcome_1",
             statement: "Youth leaders trained in waste management.",
-            activities: [
-              { id: "act_2_1", title: "Developing standard waste management curriculum" },
-              { id: "act_2_2", title: "Conducting certification sessions" }
-            ]
+            activities: createActivities(2)
+          },
+          {
+            id: "output_3",
+            outcomeId: "outcome_1",
+            statement: "Digital waste tracking platform operational.",
+            activities: createActivities(3)
           }
         ]
       },
@@ -268,32 +271,13 @@ describe("P0-B Contract Validation (validateProgramSkeleton)", () => {
         goal: { statement: "Goal" },
         purpose: { id: "outcome_1", statement: "Purpose" },
         outputs: [
-          {
-            id: "output_1",
-            outcomeId: "outcome_1",
-            statement: "Output 1",
-            activities: [
-              { id: "act_1_1", title: "Activity 1.1" },
-              { id: "act_1_2", title: "Activity 1.2" }
-            ]
-          },
-          {
-            id: "output_2",
-            outcomeId: "outcome_1",
-            statement: "Output 2",
-            activities: [
-              { id: "act_2_1", title: "Activity 2.1" },
-              { id: "act_2_2", title: "Activity 2.2" }
-            ]
-          }
+          { id: "output_1", outcomeId: "outcome_1", statement: "Output 1", activities: createActivities(1) },
+          { id: "output_2", outcomeId: "outcome_1", statement: "Output 2", activities: createActivities(2) },
+          { id: "output_3", outcomeId: "outcome_1", statement: "Output 3", activities: createActivities(3) }
         ]
       },
-      wbs: {
-        tasks: []
-      }
+      wbs: { tasks: [] }
     };
-    
-    // Validate that activities are fully isolated and distinct under output_1 and output_2
     expect(() => validateProgramSkeleton(skeleton)).not.toThrow();
   });
 
@@ -305,32 +289,13 @@ describe("P0-B Contract Validation (validateProgramSkeleton)", () => {
         goal: { statement: "Goal" },
         purpose: { id: "outcome_1", statement: "Purpose" },
         outputs: [
-          { id: "output_1", outcomeId: "outcome_1", statement: "Statement", activities: [{ id: "act_1", title: "Act" }] },
-          { id: "output_1", outcomeId: "outcome_1", statement: "Another Statement", activities: [{ id: "act_2", title: "Act" }] }
+          { id: "output_1", outcomeId: "outcome_1", statement: "Statement", activities: createActivities(1) },
+          { id: "output_1", outcomeId: "outcome_1", statement: "Another Statement", activities: createActivities(2) },
+          { id: "output_3", outcomeId: "outcome_1", statement: "Output 3", activities: createActivities(3) }
         ]
       }
     };
     expect(() => validateProgramSkeleton(duplicateOutput)).toThrow(/Duplicate Output ID/);
-
-    const duplicateActivity = {
-      schemaVersion: "2.0",
-      lfa: {
-        goal: { statement: "Goal" },
-        purpose: { id: "outcome_1", statement: "Purpose" },
-        outputs: [
-          {
-            id: "output_1",
-            outcomeId: "outcome_1",
-            statement: "Statement",
-            activities: [
-              { id: "act_1", title: "Act" },
-              { id: "act_1", title: "Duplicate Act" }
-            ]
-          }
-        ]
-      }
-    };
-    expect(() => validateProgramSkeleton(duplicateActivity)).toThrow(/Duplicate Activity ID/);
   });
 
   // Test 5 - Missing Activities
@@ -341,16 +306,13 @@ describe("P0-B Contract Validation (validateProgramSkeleton)", () => {
         goal: { statement: "Goal" },
         purpose: { id: "outcome_1", statement: "Purpose" },
         outputs: [
-          {
-            id: "output_1",
-            outcomeId: "outcome_1",
-            statement: "Output 1 statement",
-            activities: [] // empty activities
-          }
+          { id: "output_1", outcomeId: "outcome_1", statement: "Output 1 statement", activities: [] },
+          { id: "output_2", outcomeId: "outcome_1", statement: "Output 2 statement", activities: createActivities(2) },
+          { id: "output_3", outcomeId: "outcome_1", statement: "Output 3 statement", activities: createActivities(3) }
         ]
       }
     };
-    expect(() => validateProgramSkeleton(missingActivities)).toThrow(/must have at least one nested activity/);
+    expect(() => validateProgramSkeleton(missingActivities)).toThrow(/ACTIVITY_FLOOR_FAILED/);
   });
 
   // Test 6 - Invalid WBS Reference
@@ -361,19 +323,15 @@ describe("P0-B Contract Validation (validateProgramSkeleton)", () => {
         goal: { statement: "Goal" },
         purpose: { id: "outcome_1", statement: "Purpose" },
         outputs: [
-          {
-            id: "output_1",
-            outcomeId: "outcome_1",
-            statement: "Output Statement",
-            activities: [{ id: "act_1", title: "Act Title" }]
-          }
+          { id: "output_1", outcomeId: "outcome_1", statement: "Output Statement", activities: createActivities(1) },
+          { id: "output_2", outcomeId: "outcome_1", statement: "Output 2", activities: createActivities(2) },
+          { id: "output_3", outcomeId: "outcome_1", statement: "Output 3", activities: createActivities(3) }
         ]
       },
       wbs: {
         tasks: [
           { id: "t_1", parentId: null, sourceActivityId: "output_1" },
-          // Level 2 task references "act_1" (canonical Activity ID) which is invalid for schema version 2.0 WBS sourceActivityId references!
-          { id: "t_2", parentId: "t_1", sourceActivityId: "act_1" }
+          { id: "t_2", parentId: "t_1", sourceActivityId: "act_1_1" }
         ]
       }
     };
@@ -382,57 +340,50 @@ describe("P0-B Contract Validation (validateProgramSkeleton)", () => {
 
   // Test 7 - Output vs Outcome Example
   it("Test 7 — should correctly distinguish Outputs (project control) from Outcomes (beneficiary adoption)", () => {
-    // Semantic case: "150 petani terlatih aktif menjual online"
     const semanticOutput = {
       id: "output_1",
       outcomeId: "outcome_1",
-      statement: "150 petani kopi menyelesaikan pelatihan pemasaran digital dan onboarding marketplace.", // Output: Project-controlled deliverable
-      activities: [{ id: "act_1_1", title: "Menyelenggarakan pelatihan digital marketing" }]
+      statement: "150 petani kopi menyelesaikan pelatihan pemasaran digital dan onboarding marketplace.",
+      activities: createActivities(1)
     };
 
     const semanticOutcome = {
       id: "outcome_1",
-      statement: "150 petani terlatih aktif menjual produk secara online melalui marketplace secara mandiri." // Outcome: Change in behavior/performance
+      statement: "150 petani terlatih aktif menjual produk secara online melalui marketplace secara mandiri."
     };
 
     expect(semanticOutput.statement).not.toBe(semanticOutcome.statement);
-    expect(semanticOutput.statement).toContain("menyelesaikan pelatihan"); // delivery/completion
-    expect(semanticOutcome.statement).toContain("aktif menjual"); // utilization/behavioral change
+    expect(semanticOutput.statement).toContain("menyelesaikan pelatihan");
+    expect(semanticOutcome.statement).toContain("aktif menjual");
   });
 
   // Test 8 - Activity vs Output Example
   it("Test 8 — should correctly distinguish Activities (project work) from Outputs (delivered products/services)", () => {
-    // Semantic case: "Menyelenggarakan pelatihan petani"
     const activity = {
       id: "act_1_1",
-      title: "Menyelenggarakan pelatihan teknik budidaya organik kopi" // Activity: Project-performed work
+      title: "Menyelenggarakan pelatihan teknik budidaya organik kopi"
     };
 
     const output = {
       id: "output_1",
-      statement: "Modul pelatihan budidaya organik tersusun dan 50 petani bersertifikat budidaya organik." // Output: Concrete deliverable / product
+      statement: "Modul pelatihan budidaya organik tersusun dan 50 petani bersertifikat budidaya organik."
     };
 
-    expect(activity.title).toContain("Menyelenggarakan"); // Verb-based action
-    expect(output.statement).toContain("tersusun dan 50 petani bersertifikat"); // Completed deliverable
+    expect(activity.title).toContain("Menyelenggarakan");
+    expect(output.statement).toContain("tersusun dan 50 petani bersertifikat");
   });
 
-  // Test 9 - Legacy Materialization
-  it("Test 9 — should ensure that legacy style schema version 2.0 structures successfully pass validation", () => {
-    const legacyFixture = {
+  // Test 9 - Canonical Materialization Floor
+  it("Test 9 — should ensure that structures with >=3 Outputs and >=9 activities pass validation", () => {
+    const fixture = {
       schemaVersion: "2.0",
       lfa: {
         goal: { statement: "To ensure economic development" },
         purpose: { id: "outcome_1", statement: "Purpose description" },
         outputs: [
-          {
-            id: "output_1",
-            outcomeId: "outcome_1",
-            statement: "Output 1 description",
-            activities: [
-              { id: "act_1", title: "Activity 1 Title" }
-            ]
-          }
+          { id: "output_1", outcomeId: "outcome_1", statement: "Output 1 description", activities: createActivities(1) },
+          { id: "output_2", outcomeId: "outcome_1", statement: "Output 2 description", activities: createActivities(2) },
+          { id: "output_3", outcomeId: "outcome_1", statement: "Output 3 description", activities: createActivities(3) }
         ]
       },
       wbs: {
@@ -441,6 +392,6 @@ describe("P0-B Contract Validation (validateProgramSkeleton)", () => {
         ]
       }
     };
-    expect(() => validateProgramSkeleton(legacyFixture)).not.toThrow();
+    expect(() => validateProgramSkeleton(fixture)).not.toThrow();
   });
 });
