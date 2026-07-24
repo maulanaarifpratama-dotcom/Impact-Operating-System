@@ -30,7 +30,8 @@ import {
   ShieldCheck,
   Layers,
   ExternalLink,
-  ShieldAlert
+  ShieldAlert,
+  Mail
 } from 'lucide-react';
 
 function initials(name?: string | null, email?: string | null) {
@@ -194,9 +195,28 @@ export default function Settings() {
     enabled: !!orgId,
   });
 
+  // Fetch Pending Invitations
+  const { data: pendingInvitations, isLoading: loadingInvites, refetch: refetchInvites } = useQuery({
+    queryKey: ['organization_invitations_settings', orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data, error } = await supabase
+        .from('organization_invitations')
+        .select('*')
+        .eq('organization_id', orgId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+    enabled: !!orgId,
+  });
+
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'member' | 'admin'>('member');
   const [isInviting, setIsInviting] = useState(false);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [cancelInviteTarget, setCancelInviteTarget] = useState<{ id: string; email: string } | null>(null);
 
   // Update member role in Supabase
   const handleUpdateMemberRole = async (memberId: string, targetRole: 'member' | 'admin') => {
@@ -260,7 +280,8 @@ export default function Settings() {
       toast.error('Gagal: Hanya Owner atau Admin yang dapat mengundang rekan baru');
       return;
     }
-    if (!inviteEmail.trim()) {
+    const targetEmail = inviteEmail.trim().toLowerCase();
+    if (!targetEmail) {
       toast.error('Harap masukkan alamat email');
       return;
     }
@@ -271,48 +292,117 @@ export default function Settings() {
       const { data: profileData, error: profileErr } = await supabase
         .from('profiles')
         .select('id, full_name')
-        .eq('email', inviteEmail.trim().toLowerCase())
+        .eq('email', targetEmail)
         .maybeSingle();
 
       if (profileErr) throw profileErr;
 
-      if (!profileData) {
-        // Fallback: If user profile doesn't exist, invite is simulated gracefully to user
-        toast.warning(
-          `Email "${inviteEmail.trim()}" belum terdaftar. Simulasi undangan kemitraan dikirimkan ke email tujuan!`,
-          { duration: 6000 }
-        );
+      // 2. If profile exists, check if already member or insert directly
+      if (profileData) {
+        const isAlreadyMember = teamMembers?.some(m => m.user_id === profileData.id);
+        if (isAlreadyMember) {
+          toast.error('Kesalahan: Rekan dengan email tersebut sudah bergabung dalam organisasi ini');
+          return;
+        }
+
+        const { error: insertErr } = await supabase
+          .from('organization_members')
+          .insert({
+            organization_id: orgId,
+            user_id: profileData.id,
+            role: inviteRole,
+            invited_by: user?.id,
+          });
+
+        if (insertErr) throw insertErr;
+
+        toast.success(`Sukses: ${profileData.full_name || targetEmail} berhasil diundang dan langsung bergabung ke organisasi!`);
         setInviteEmail('');
+        await refetchTeam();
         return;
       }
 
-      // 2. Check if already a member of this organization
-      const isAlreadyMember = teamMembers?.some(m => m.user_id === profileData.id);
-      if (isAlreadyMember) {
-        toast.error('Kesalahan: Rekan dengan email tersebut sudah bergabung dalam organisasi ini');
-        return;
-      }
-
-      // 3. Insert into organization_members
-      const { error: insertErr } = await supabase
-        .from('organization_members')
-        .insert({
-          organization_id: orgId,
-          user_id: profileData.id,
+      // 3. If user profile DOES NOT exist: Create pending invitation & send email via Edge Function
+      const { data: fnData, error: fnErr } = await supabase.functions.invoke('organization-invite', {
+        body: {
+          action: 'send',
+          organizationId: orgId,
+          email: targetEmail,
           role: inviteRole,
-          invited_by: user?.id,
-        });
+          appUrl: window.location.origin,
+        },
+      });
 
-      if (insertErr) throw insertErr;
+      if (fnErr) throw fnErr;
 
-      toast.success(`Sukses: ${profileData.full_name || inviteEmail} berhasil diundang dan bergabung ke organisasi!`);
+      toast.success(
+        `Undangan berhasil dikirim ke ${targetEmail}! Tautan aktivasi telah diproses dan berlaku selama 7 hari.`,
+        { duration: 6000 }
+      );
       setInviteEmail('');
-      await refetchTeam();
+      await refetchInvites();
     } catch (err: any) {
       console.error('[Settings] Error inviting member:', err);
-      toast.error('Gagal mengundang rekan: ' + err.message);
+      toast.error('Gagal mengundang rekan: ' + (err.message || 'Terjadi kesalahan sistem'));
     } finally {
       setIsInviting(false);
+    }
+  };
+
+  // Resend Pending Invite
+  const handleResendInvite = async (inv: any) => {
+    if (!orgId || !isAdminOrOwner) return;
+    setResendingId(inv.id);
+    try {
+      const { error: fnErr } = await supabase.functions.invoke('organization-invite', {
+        body: {
+          action: 'resend',
+          invitationId: inv.id,
+          organizationId: orgId,
+          email: inv.email,
+          role: inv.role,
+          appUrl: window.location.origin,
+        },
+      });
+
+      if (fnErr) throw fnErr;
+
+      toast.success(`Undangan berhasil dikirim ulang ke ${inv.email}`);
+      await refetchInvites();
+    } catch (err: any) {
+      console.error('[Settings] Error resending invite:', err);
+      toast.error('Gagal mengirim ulang undangan: ' + err.message);
+    } finally {
+      setResendingId(null);
+    }
+  };
+
+  // Cancel Pending Invite
+  const requestCancelInvite = (invId: string, email: string) => {
+    if (!isAdminOrOwner) {
+      toast.error('Gagal: Hanya Owner atau Admin yang dapat membatalkan undangan');
+      return;
+    }
+    setCancelInviteTarget({ id: invId, email });
+  };
+
+  const executeCancelInvite = async () => {
+    if (!cancelInviteTarget) return;
+    try {
+      const { error } = await supabase
+        .from('organization_invitations')
+        .update({ status: 'revoked' })
+        .eq('id', cancelInviteTarget.id);
+
+      if (error) throw error;
+
+      toast.success(`Undangan ke ${cancelInviteTarget.email} berhasil dibatalkan.`);
+      await refetchInvites();
+    } catch (err: any) {
+      console.error('[Settings] Error cancelling invite:', err);
+      toast.error('Gagal membatalkan undangan: ' + err.message);
+    } finally {
+      setCancelInviteTarget(null);
     }
   };
 
@@ -740,6 +830,98 @@ export default function Settings() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Bottom Panel: Pending Invitations List Table */}
+            <Card className="md:col-span-3 shadow-sm border border-slate-100 bg-white">
+              <CardHeader className="flex flex-row items-center justify-between pb-3">
+                <div>
+                  <CardTitle className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-amber-500" />
+                    <span>Daftar Undangan Pending</span>
+                    {pendingInvitations && pendingInvitations.length > 0 && (
+                      <Badge className="bg-amber-100 text-amber-800 border-0 text-xs px-2 py-0.5 font-bold">
+                        {pendingInvitations.length}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <CardDescription>
+                    Undangan yang telah dikirim tetapi belum diaktivasi oleh calon rekan tim.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+              <CardContent className="p-0">
+                {!pendingInvitations || pendingInvitations.length === 0 ? (
+                  <div className="p-6 text-center text-xs text-slate-500">
+                    Tidak ada undangan pending saat ini.
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="border-b border-slate-100 bg-slate-50/50">
+                          <th className="p-4 text-xs font-bold uppercase text-slate-500">Email Tujuan</th>
+                          <th className="p-4 text-xs font-bold uppercase text-slate-500 text-center">Hak Akses</th>
+                          <th className="p-4 text-xs font-bold uppercase text-slate-500 text-center">Dikirim Pada</th>
+                          <th className="p-4 text-xs font-bold uppercase text-slate-500 text-center">Kedaluwarsa Pada</th>
+                          <th className="p-4 text-xs font-bold uppercase text-slate-500 text-right">Aksi</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {pendingInvitations.map((inv) => (
+                          <tr key={inv.id} className="hover:bg-slate-50/30 transition-colors">
+                            <td className="p-4">
+                              <div className="font-bold text-slate-800 text-xs">{inv.email}</div>
+                              <Badge className="bg-amber-50 text-amber-700 border-amber-200 text-[10px] px-1.5 py-0 mt-1">
+                                Menunggu Aktivasi
+                              </Badge>
+                            </td>
+                            <td className="p-4 text-center">
+                              <Badge className="bg-slate-50 border-slate-200 text-slate-700 text-xs">
+                                {inv.role === 'admin' ? 'Admin' : 'Staf (Member)'}
+                              </Badge>
+                            </td>
+                            <td className="p-4 text-center text-xs text-slate-600">
+                              {new Date(inv.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </td>
+                            <td className="p-4 text-center text-xs text-slate-600">
+                              {new Date(inv.expires_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}
+                            </td>
+                            <td className="p-4 text-right">
+                              {isAdminOrOwner && (
+                                <div className="flex items-center justify-end gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={resendingId === inv.id}
+                                    onClick={() => handleResendInvite(inv)}
+                                    className="h-8 text-xs gap-1 border-slate-200 hover:bg-slate-50"
+                                  >
+                                    {resendingId === inv.id ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin text-orange-600" />
+                                    ) : (
+                                      <RefreshCw className="h-3.5 w-3.5 text-slate-500" />
+                                    )}
+                                    <span>Kirim Ulang</span>
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => requestCancelInvite(inv.id, inv.email)}
+                                    className="h-8 w-8 p-0 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 
@@ -836,6 +1018,18 @@ export default function Settings() {
         variant="destructive"
         icon="trash"
         onConfirm={executeDeleteMember}
+      />
+
+      <ConfirmDialog
+        open={!!cancelInviteTarget}
+        onOpenChange={(open) => { if (!open) setCancelInviteTarget(null); }}
+        title="Batalkan Undangan Kemitraan?"
+        description={`Apakah Anda yakin ingin membatalkan undangan untuk ${cancelInviteTarget?.email ?? 'email ini'}? Tautan aktivasi yang telah dikirimkan tidak akan bisa digunakan lagi.`}
+        confirmText="Ya, Batalkan Undangan"
+        cancelText="Batal"
+        variant="destructive"
+        icon="trash"
+        onConfirm={executeCancelInvite}
       />
     </div>
   );

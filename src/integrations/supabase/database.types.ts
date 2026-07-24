@@ -94,6 +94,32 @@ export interface Database {
         Update: Partial<Database['public']['Tables']['organization_members']['Insert']>;
         Relationships: [];
       };
+      organization_invitations: {
+        Row: {
+          id: string;
+          organization_id: string;
+          email: string;
+          role: OrgRole;
+          invited_by: string | null;
+          token: string;
+          status: 'pending' | 'accepted' | 'expired' | 'revoked';
+          expires_at: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          organization_id: string;
+          email: string;
+          role?: OrgRole;
+          invited_by?: string | null;
+          token?: string;
+          status?: 'pending' | 'accepted' | 'expired' | 'revoked';
+          expires_at?: string;
+          created_at?: string;
+        };
+        Update: Partial<Database['public']['Tables']['organization_invitations']['Insert']>;
+        Relationships: [];
+      };
       subscriptions: {
         Row: {
           id: string;
@@ -571,6 +597,24 @@ export interface Database {
       get_org_role: { Args: { _org_id: string; _user_id: string }; Returns: OrgRole | null };
       has_product_access: { Args: { _org_id: string; _product: ProductKey }; Returns: boolean };
       is_admin: { Args: { _user_id: string }; Returns: boolean };
+      get_organization_invite_by_token: {
+        Args: { _token: string };
+        Returns: Array<{
+          id: string;
+          organization_id: string;
+          organization_name: string;
+          email: string;
+          role: OrgRole;
+          status: string;
+          expires_at: string;
+          created_at: string;
+          is_expired: boolean;
+        }>;
+      };
+      accept_organization_invite: {
+        Args: { _token: string; _user_id: string };
+        Returns: Json;
+      };
     };
     Enums: {
       primary_role: PrimaryRole;

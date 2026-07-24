@@ -32,6 +32,7 @@ import ImpactoryLibrary from './pages/dashboard/products/ImpactoryLibrary';
 import Grantfinder from './pages/dashboard/products/Grantfinder';
 import ImpactoryAds from './pages/dashboard/products/ImpactoryAds';
 import Onboarding from './pages/auth/Onboarding';
+import AcceptInvite from './pages/auth/AcceptInvite';
 import Settings from './pages/dashboard/Settings';
 import MonthlyOperatingReview from './pages/dashboard/MonthlyOperatingReview';
 import LFABuilderIndex from './pages/dashboard/lfa-builder/LFABuilderIndex';
@@ -129,6 +130,7 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route path="/invite/accept" element={<AcceptInvite />} />
             <Route
               path="/onboarding"
               element={
