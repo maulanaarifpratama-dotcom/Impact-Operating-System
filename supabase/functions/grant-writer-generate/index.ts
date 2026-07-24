@@ -304,6 +304,129 @@ function computeCarbonSummary(rows: Array<{ carbon_factor: number | null; durati
   return total;
 }
 
+export interface SemanticValidationResult {
+  isValid: boolean;
+  code?: 'FAIL_OUTPUT_SEMANTICS' | 'FAIL_OUTCOME_STRENGTH' | 'ACTIVITY_FLOOR_FAILED';
+  reasons: string[];
+}
+
+export function validateLFASemantics(matrix: any): SemanticValidationResult {
+  const reasons: string[] = [];
+  let code: 'FAIL_OUTPUT_SEMANTICS' | 'FAIL_OUTCOME_STRENGTH' | 'ACTIVITY_FLOOR_FAILED' | undefined;
+
+  if (!matrix || typeof matrix !== 'object') {
+    return { isValid: false, code: 'ACTIVITY_FLOOR_FAILED', reasons: ['Matrix is missing or invalid object'] };
+  }
+
+  const outcomes = matrix.outcomes || [];
+  const outputs = matrix.outputs || [];
+  const activities = matrix.activities || [];
+
+  // 1. Cardinality Floor Check (Phase C)
+  if (outputs.length < 3) {
+    reasons.push(`Outputs count (${outputs.length}) is below MVP floor of 3.`);
+    code = 'ACTIVITY_FLOOR_FAILED';
+  }
+
+  if (activities.length < 9) {
+    reasons.push(`Total activities count (${activities.length}) is below MVP floor of 9.`);
+    code = 'ACTIVITY_FLOOR_FAILED';
+  }
+
+  const actCounts = new Map<number, number>();
+  for (const act of activities) {
+    const idx = act.output_index ?? 0;
+    actCounts.set(idx, (actCounts.get(idx) || 0) + 1);
+  }
+
+  for (let i = 0; i < outputs.length; i++) {
+    const count = actCounts.get(i) || 0;
+    if (count < 3) {
+      reasons.push(`Output ${i + 1} has only ${count} activities (minimum 3 required).`);
+      code = 'ACTIVITY_FLOOR_FAILED';
+    }
+  }
+
+  if (reasons.length > 0 && code === 'ACTIVITY_FLOOR_FAILED') {
+    return { isValid: false, code, reasons };
+  }
+
+  // 2. Output Level Semantic Check (Phase A: Deliverables vs Forbidden Activity Verbs - Output Scoped)
+  const forbiddenOutputVerbs = [
+    'terlaksana',
+    'dilaksanakan',
+    'diselenggarakan',
+    'melakukan',
+    'memfasilitasi',
+    'mengadakan',
+    'menyelenggarakan',
+    'melatih',
+    'menyusun'
+  ];
+
+  for (let i = 0; i < outputs.length; i++) {
+    const op = outputs[i];
+    const stmt = op.statement || '';
+    const lower = stmt.toLowerCase();
+
+    for (const verb of forbiddenOutputVerbs) {
+      if (lower.includes(verb)) {
+        reasons.push(`Output [OP-${i + 1}] contains forbidden activity/passive verb '${verb}': "${stmt}". Output must be a finished noun deliverable.`);
+        if (!code) code = 'FAIL_OUTPUT_SEMANTICS';
+      }
+    }
+  }
+
+  if (reasons.length > 0 && code === 'FAIL_OUTPUT_SEMANTICS') {
+    return { isValid: false, code, reasons };
+  }
+
+  // 3. Outcome Level Semantic Check (Phase B: Change of State vs Knowledge-Only / Action Form)
+  for (let i = 0; i < outcomes.length; i++) {
+    const oc = outcomes[i];
+    const stmt = oc.statement || '';
+    const lower = stmt.toLowerCase();
+
+    const isKnowledgeOnly = (lower.includes('pengetahuan') || lower.includes('pemahaman') || lower.includes('kesadaran') || lower.includes('literasi')) &&
+                           !(lower.includes('menerapkan') || lower.includes('memanfaatkan') || lower.includes('praktik') || lower.includes('mematuhi') || lower.includes('menggunakan') || lower.includes('adopsi') || lower.includes('mengalami'));
+
+    if (isKnowledgeOnly) {
+      reasons.push(`Outcome [OC-${i + 1}] is knowledge/awareness-only without behavioral state change: "${stmt}". Must express adoption, practice, or state change.`);
+      if (!code) code = 'FAIL_OUTCOME_STRENGTH';
+    }
+
+    if (stmt.startsWith('Meningkatkan ')) {
+      reasons.push(`Outcome [OC-${i + 1}] starts with action verb 'Meningkatkan': "${stmt}". Must use state change or beneficiary adoption phrasing (e.g. "Meningkatnya...", "Penerima manfaat mempraktikkan...").`);
+      if (!code) code = 'FAIL_OUTCOME_STRENGTH';
+    }
+  }
+
+  if (reasons.length > 0 && code === 'FAIL_OUTCOME_STRENGTH') {
+    return { isValid: false, code, reasons };
+  }
+
+  // 4. Activity Level Semantic Check (Level-Scoped: Activities MUST have active action verbs)
+  const activeVerbPrefixes = ['melakukan', 'memfasilitasi', 'mengadakan', 'menyelenggarakan', 'melatih', 'menyusun', 'melaksanakan', 'mendaftarkan', 'membantu', 'mengumpulkan', 'menyiapkan', 'mengembangkan', 'memberikan', 'mendokumentasikan', 'membangun', 'merekrut'];
+
+  for (let i = 0; i < activities.length; i++) {
+    const act = activities[i];
+    const stmt = act.statement || '';
+    const lower = stmt.toLowerCase();
+
+    const hasActiveVerb = activeVerbPrefixes.some(prefix => lower.includes(prefix));
+    if (!hasActiveVerb) {
+      reasons.push(`Activity [ACT-${i + 1}] lacks a valid active action verb: "${stmt}".`);
+      if (!code) code = 'FAIL_OUTPUT_SEMANTICS';
+    }
+  }
+
+  if (reasons.length > 0) {
+    return { isValid: false, code: code || 'FAIL_OUTPUT_SEMANTICS', reasons };
+  }
+
+  return { isValid: true, reasons: [] };
+}
+
 function validateProgramSkeleton(skeleton: any) {
   if (!skeleton || typeof skeleton !== 'object') {
     throw new Error('Validation Failed: program_skeleton is missing or not a valid object');
