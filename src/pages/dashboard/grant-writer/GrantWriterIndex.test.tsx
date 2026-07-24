@@ -211,4 +211,96 @@ describe('GW-UX-02A — GrantWriterIndex Home Simplification Suite', () => {
       expect(screen.getByText('Buka LFA Studio')).toBeInTheDocument();
     });
   });
+
+  it('BULK DELETE — allows selecting proposals and deleting them via confirmation modal', async () => {
+    const mockDelete = vi.fn().mockReturnValue({
+      eq: vi.fn().mockReturnValue({
+        in: vi.fn().mockResolvedValue({ error: null }),
+      }),
+    });
+
+    const mockUpdate = vi.fn().mockReturnValue({
+      in: vi.fn().mockResolvedValue({ error: null }),
+    });
+
+    (supabase.from as any).mockImplementation((table: string) => {
+      if (table === 'gw_projects') {
+        return {
+          select: vi.fn().mockReturnValue({
+            order: vi.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 'proj-1',
+                  title: 'Pemberdayaan Digital Janda Cirebon',
+                  status: 'draft',
+                  current_step: 1,
+                  updated_at: new Date().toISOString(),
+                  wizard_data: {},
+                },
+              ],
+              error: null,
+            }),
+          }),
+          delete: mockDelete,
+        };
+      }
+      if (table === 'lfa_projects') {
+        return {
+          select: vi.fn().mockResolvedValue({ data: [], error: null }),
+          update: mockUpdate,
+        };
+      }
+      if (table === 'lfa_materializations') {
+        return {
+          delete: mockDelete,
+        };
+      }
+      if (table === 'gw_lfa_documents') {
+        return {
+          select: vi.fn().mockReturnValue({
+            eq: vi.fn().mockResolvedValue({ data: [], error: null }),
+          }),
+        };
+      }
+      return {
+        select: vi.fn().mockResolvedValue({ data: [], error: null }),
+      };
+    });
+
+    render(
+      <BrowserRouter>
+        <GrantWriterIndex />
+      </BrowserRouter>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Pemberdayaan Digital Janda Cirebon')).toBeInTheDocument();
+    });
+
+    // Check "Pilih Semua"
+    const selectAllBtn = screen.getByText('Pilih Semua');
+    fireEvent.click(selectAllBtn);
+
+    // Verify bulk delete banner appears
+    await waitFor(() => {
+      expect(screen.getByText(/1 proposal terpilih/i)).toBeInTheDocument();
+    });
+
+    // Click "Hapus Terpilih"
+    const deleteBtn = screen.getByRole('button', { name: /Hapus Terpilih/i });
+    fireEvent.click(deleteBtn);
+
+    // Confirmation dialog should open
+    await waitFor(() => {
+      expect(screen.getByText((content) => content.includes('Hapus 1 Proposal Terpilih'))).toBeInTheDocument();
+    });
+
+    // Confirm delete
+    const confirmBtn = screen.getByRole('button', { name: /Ya, Hapus 1 Proposal/i });
+    fireEvent.click(confirmBtn);
+
+    await waitFor(() => {
+      expect(mockDelete).toHaveBeenCalled();
+    });
+  });
 });

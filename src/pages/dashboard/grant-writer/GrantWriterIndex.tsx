@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, FileText, Loader2, ArrowRight, Search, Sparkles } from 'lucide-react';
+import { Plus, FileText, Loader2, ArrowRight, Search, Sparkles, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -169,7 +170,82 @@ export default function GrantWriterIndex() {
   const [creating, setCreating] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<StageKey>('all');
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const deepLinkHandled = useRef(false);
+
+  const toggleSelect = (id: string, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
+    );
+  };
+
+  const toggleSelectAll = (filteredList: Array<{ project: Project }>) => {
+    const allFilteredIds = filteredList.map(({ project }) => project.id);
+    const isAllSelected =
+      allFilteredIds.length > 0 &&
+      allFilteredIds.every((id) => selectedIds.includes(id));
+
+    if (isAllSelected) {
+      setSelectedIds((prev) => prev.filter((id) => !allFilteredIds.includes(id)));
+    } else {
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...allFilteredIds])));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0 || deleting) return;
+    setDeleting(true);
+    try {
+      const orgId = await ensureDefaultOrg(user!.id, profile?.full_name);
+
+      // 1. Unlink lfa_projects
+      const { error: unlinkErr } = await supabase
+        .from('lfa_projects')
+        .update({ linked_grant_id: null } as any)
+        .in('linked_grant_id', selectedIds);
+      if (unlinkErr) console.warn('LFA unlink error:', unlinkErr);
+
+      // 2. Delete lfa_materializations
+      const { error: matErr } = await supabase
+        .from('lfa_materializations')
+        .delete()
+        .in('source_gw_project_id', selectedIds);
+      if (matErr) console.warn('Materialization cleanup error:', matErr);
+
+      // 3. Delete gw_projects scoped strictly to orgId
+      const { error: delErr } = await supabase
+        .from('gw_projects')
+        .delete()
+        .eq('organization_id', orgId)
+        .in('id', selectedIds);
+
+      if (delErr) throw delErr;
+
+      toast({
+        title: 'Proposal Berhasil Dihapus',
+        description: `${selectedIds.length} proposal telah dihapus.`,
+      });
+
+      setSelectedIds([]);
+      setDeleteConfirmOpen(false);
+      await load();
+    } catch (err) {
+      const error = err as Error;
+      toast({
+        title: 'Gagal Menghapus Proposal',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   const load = async () => {
     setLoading(true);
@@ -436,17 +512,35 @@ export default function GrantWriterIndex() {
         </Card>
       ) : (
         <section className="space-y-4">
-          {/* Search & Filter Bar */}
+          {/* Search, Filter & Bulk Selection Bar */}
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari nama program..."
-                className="pl-9 text-sm"
-              />
+            <div className="flex items-center gap-3 flex-1 max-w-md">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cari nama program..."
+                  className="pl-9 text-sm"
+                />
+              </div>
+              {filteredProjects.length > 0 && (
+                <div
+                  className="flex items-center gap-2 cursor-pointer select-none rounded-md border px-2.5 py-1.5 text-xs font-medium bg-card hover:bg-muted/50 shrink-0"
+                  onClick={() => toggleSelectAll(filteredProjects)}
+                >
+                  <Checkbox
+                    checked={
+                      filteredProjects.length > 0 &&
+                      filteredProjects.every(({ project }) => selectedIds.includes(project.id))
+                    }
+                    onCheckedChange={() => toggleSelectAll(filteredProjects)}
+                  />
+                  <span>Pilih Semua</span>
+                </div>
+              )}
             </div>
+
             {stageFilter !== 'all' && (
               <Button
                 variant="ghost"
@@ -459,6 +553,36 @@ export default function GrantWriterIndex() {
             )}
           </div>
 
+          {/* Bulk Selection Action Banner */}
+          {selectedIds.length > 0 && (
+            <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-destructive">
+                  {selectedIds.length} proposal terpilih
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedIds([])}
+                  className="text-xs"
+                >
+                  Batal Pilih
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setDeleteConfirmOpen(true)}
+                  className="gap-1.5 font-semibold text-xs"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Hapus Terpilih ({selectedIds.length})
+                </Button>
+              </div>
+            </div>
+          )}
+
           {filteredProjects.length === 0 ? (
             <div className="py-12 text-center text-sm text-muted-foreground border rounded-lg bg-card">
               Tidak ada program yang sesuai dengan kriteria pencarian atau filter.
@@ -469,22 +593,41 @@ export default function GrantWriterIndex() {
                 const wd = (p.wizard_data ?? {}) as Record<string, any>;
                 const locationStr = wd.lokasi ? String(wd.lokasi) : null;
                 const targetStr = wd.sasaran ? String(wd.sasaran) : null;
+                const isSelected = selectedIds.includes(p.id);
 
                 return (
                   <Link key={p.id} to={stageInfo.targetHref} className="group">
-                    <Card className="h-full flex flex-col justify-between transition-all hover:shadow-elegant hover:border-primary/40 border">
+                    <Card
+                      className={cn(
+                        'h-full flex flex-col justify-between transition-all hover:shadow-elegant hover:border-primary/40 border relative',
+                        isSelected && 'border-primary/60 bg-primary/5 shadow-xs'
+                      )}
+                    >
                       <CardHeader className="pb-3 space-y-2">
                         <div className="flex items-start justify-between gap-2">
-                          <CardTitle className="line-clamp-2 text-base font-bold group-hover:text-primary transition-colors">
-                            {p.title}
-                          </CardTitle>
+                          <div className="flex items-start gap-2.5 flex-1 min-w-0">
+                            <div
+                              className="pt-0.5 shrink-0"
+                              onClick={(e) => toggleSelect(p.id, e)}
+                            >
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleSelect(p.id)}
+                                aria-label={`Pilih proposal ${p.title}`}
+                                className="h-4 w-4"
+                              />
+                            </div>
+                            <CardTitle className="line-clamp-2 text-base font-bold group-hover:text-primary transition-colors">
+                              {p.title}
+                            </CardTitle>
+                          </div>
                           <Badge className={cn('shrink-0 border text-[10px] font-bold px-2 py-0.5', stageInfo.badgeClass)}>
                             {stageInfo.badgeLabel}
                           </Badge>
                         </div>
 
                         {(locationStr || targetStr) && (
-                          <p className="text-xs text-muted-foreground line-clamp-1">
+                          <p className="text-xs text-muted-foreground line-clamp-1 pl-6">
                             {[locationStr, targetStr].filter(Boolean).join(' · ')}
                           </p>
                         )}
@@ -497,7 +640,7 @@ export default function GrantWriterIndex() {
                           <p className="text-muted-foreground leading-relaxed">{stageInfo.nextStepText}</p>
                         </div>
 
-                        {/* Task 8: Progress Node Timeline Visualization */}
+                        {/* Progress Node Timeline Visualization */}
                         <div className="space-y-2 pt-1">
                           <div className="flex items-center justify-between text-[11px] font-medium text-muted-foreground">
                             <span>Progress Lifecycle</span>
@@ -550,6 +693,37 @@ export default function GrantWriterIndex() {
         </section>
       )}
 
+      {/* Confirmation Dialog for Bulk Delete */}
+      <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" /> Hapus {selectedIds.length} Proposal Terpilih?
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              Apakah Anda yakin ingin menghapus {selectedIds.length} proposal terpilih? Tindakan ini tidak bisa dibatalkan dan akan menghapus seluruh data blueprint, LFA, dan dokumen terkait.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-end mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setDeleteConfirmOpen(false)}
+              disabled={deleting}
+            >
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void handleBulkDelete()}
+              disabled={deleting}
+              className="gap-2 font-semibold"
+            >
+              {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Ya, Hapus {selectedIds.length} Proposal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
