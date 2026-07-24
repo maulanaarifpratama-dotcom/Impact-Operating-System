@@ -364,6 +364,14 @@ export default function LFABuilderEditor() {
   // Add Activity
   const handleAddActivity = async (outputId: string) => {
     if (!project) return;
+    if (!outputId || !outputs.some((o) => o.id === outputId)) {
+      toast({
+        title: 'Gagal menambah kegiatan',
+        description: 'Output induk tidak valid atau tidak ditemukan.',
+        variant: 'destructive',
+      });
+      return;
+    }
     setSaving(true);
     try {
       const outputActivities = activities.filter((a) => a.parent_id === outputId);

@@ -258,53 +258,47 @@ export default function LFABuilderIndex() {
       if (aiDraft.outputs && Array.isArray(aiDraft.outputs)) {
         for (let i = 0; i < aiDraft.outputs.length; i++) {
           const out = aiDraft.outputs[i];
-          const { data: outEntry, error: outErr } = await supabase
-            .from('lfa_entries')
-            .insert({
-              org_id: orgId,
-              project_id: project.id,
-              level: 'output',
-              sequence: out.sequence || (i + 1),
-              description: out.description || '',
-              indicator: out.indicator || '',
-              means_of_verification: out.means_of_verification || '',
-              assumption: out.assumption || '',
-            })
-            .select('id')
-            .single();
+          const outputId = crypto.randomUUID();
 
-          if (outErr) throw outErr;
+          entriesToInsert.push({
+            id: outputId,
+            org_id: orgId,
+            project_id: project.id,
+            level: 'output',
+            sequence: out.sequence || (i + 1),
+            description: out.description || '',
+            indicator: out.indicator || '',
+            means_of_verification: out.means_of_verification || '',
+            assumption: out.assumption || '',
+          });
 
           if (out.activities && Array.isArray(out.activities)) {
-            const activitiesData = out.activities.map((act: AiActivity, idx: number) => ({
-              org_id: orgId,
-              project_id: project.id,
-              level: 'activity',
-              sequence: act.sequence || (idx + 1),
-              parent_id: outEntry.id,
-              description: act.description || '',
-              indicator: act.indicator || '',
-              means_of_verification: act.means_of_verification || '',
-              assumption: act.assumption || '',
-              timeline_start: act.timeline_start || null,
-              timeline_end: act.timeline_end || null,
-            }));
-
-            const { error: actErr } = await supabase
-              .from('lfa_entries')
-              .insert(activitiesData);
-
-            if (actErr) throw actErr;
+            out.activities.forEach((act: AiActivity, idx: number) => {
+              entriesToInsert.push({
+                id: crypto.randomUUID(),
+                org_id: orgId,
+                project_id: project.id,
+                level: 'activity',
+                sequence: act.sequence || (idx + 1),
+                parent_id: outputId,
+                description: act.description || '',
+                indicator: act.indicator || '',
+                means_of_verification: act.means_of_verification || '',
+                assumption: act.assumption || '',
+                timeline_start: act.timeline_start || null,
+                timeline_end: act.timeline_end || null,
+              });
+            });
           }
         }
       }
 
-      // If we didn't have outputs with nested activities, just bulk insert goal & purpose
       if (entriesToInsert.length > 0) {
-        const { error: bulkErr } = await supabase
-          .from('lfa_entries')
-          .insert(entriesToInsert);
-        if (bulkErr) throw bulkErr;
+        const { error: rpcErr } = await supabase.rpc('materialize_lfa_matrix_transactional', {
+          p_project_id: project.id,
+          p_entries: entriesToInsert
+        });
+        if (rpcErr) throw rpcErr;
       }
 
       toast({
