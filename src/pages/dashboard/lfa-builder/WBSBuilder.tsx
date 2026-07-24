@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { WbsItem, LfaEntry, LfaProject } from './types';
+import { WbsItem, WbsStatus, LfaEntry, LfaProject } from './types';
 import { CARBON_FACTORS_INDONESIA } from '@/data/carbon-factors-indonesia';
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
@@ -14,6 +14,83 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+// Helper: Check if an item is a leaf item (has no children in the WBS tree)
+const isLeafItem = (item: WbsItem, allItems: WbsItem[]): boolean => {
+  if (item.level === 3 || item.level === 4) {
+    const children = allItems.filter((i) => i.parent_id === item.id);
+    return children.length === 0;
+  }
+  if (item.level === 2) {
+    const children = allItems.filter((i) => i.parent_id === item.id);
+    return children.length === 0;
+  }
+  return false; // Level 1 is always a parent
+};
+
+// Helper: Compute parent progress roll-up (average of non-cancelled leaf descendants)
+const computeParentProgress = (parentId: string, allItems: WbsItem[]) => {
+  const getLeafDescendants = (id: string): WbsItem[] => {
+    const children = allItems.filter((i) => i.parent_id === id);
+    if (children.length === 0) {
+      const current = allItems.find((i) => i.id === id);
+      return current ? [current] : [];
+    }
+    return children.flatMap((child) => getLeafDescendants(child.id));
+  };
+
+  const leaves = getLeafDescendants(parentId);
+  const activeLeaves = leaves.filter((leaf) => leaf.status !== 'cancelled');
+
+  if (activeLeaves.length === 0) {
+    return { percent: 0, totalCount: leaves.length, activeCount: 0 };
+  }
+
+  const sum = activeLeaves.reduce((acc, leaf) => {
+    if (leaf.status === 'completed') return acc + 100;
+    return acc + (leaf.progress_percent ?? 0);
+  }, 0);
+
+  const percent = Math.round(sum / activeLeaves.length);
+  return { percent, totalCount: leaves.length, activeCount: activeLeaves.length };
+};
+
+// Helper: CSS classes for status badges and selects
+const getStatusStyleClass = (status?: WbsStatus) => {
+  switch (status) {
+    case 'completed':
+      return 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400';
+    case 'in_progress':
+      return 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-400';
+    case 'blocked':
+      return 'bg-red-100 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-400';
+    case 'in_review':
+      return 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/40 dark:text-purple-400';
+    case 'cancelled':
+      return 'bg-slate-200 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-400';
+    case 'ready':
+      return 'bg-cyan-100 text-cyan-800 border-cyan-300 dark:bg-cyan-950/40 dark:text-cyan-400';
+    case 'draft':
+      return 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-400';
+    case 'not_started':
+    default:
+      return 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-900 dark:text-slate-300';
+  }
+};
+
+const getStatusLabel = (status?: WbsStatus) => {
+  switch (status) {
+    case 'not_started': return 'Belum Mulai';
+    case 'in_progress': return 'Sedang Berjalan';
+    case 'blocked': return 'Terhambat';
+    case 'in_review': return 'Dalam Peninjauan';
+    case 'completed': return 'Selesai';
+    case 'cancelled': return 'Dibatalkan';
+    case 'ready': return 'Siap';
+    case 'draft': return 'Draft';
+    default: return 'Belum Mulai';
+  }
+};
 
 interface WBSBuilderProps {
   projectId: string;
@@ -368,29 +445,46 @@ export default function WBSBuilder({
       clearTimeout(debounceTimers.current[item.id]);
     }
 
+    // Validation warning if status is blocked but reason is empty
+    if (item.status === 'blocked' && (!item.blocked_reason || item.blocked_reason.trim() === '')) {
+      toast({
+        title: 'Penjelasan Terhambat Diperlukan',
+        description: 'Mohon isi penjelasan kenapa tugas terhambat.',
+        variant: 'destructive',
+      });
+    }
+
     setSaving(true);
     debounceTimers.current[item.id] = setTimeout(async () => {
       if (!orgId) return;
       try {
+        const payload: any = {
+          name: item.name,
+          start_month: item.start_month,
+          duration_weeks: item.duration_weeks,
+          pic: item.pic,
+          method: item.method,
+          indicator: item.indicator,
+          notes: item.notes,
+          dependencies: item.dependencies || [],
+          sort_order: item.sort_order,
+          mode: item.mode,
+          carbon_enabled: item.carbon_enabled,
+          carbon_factor: item.carbon_factor,
+          carbon_unit: item.carbon_unit,
+          carbon_source: item.carbon_source,
+          carbon_description: item.carbon_description,
+          status: item.status || 'not_started',
+          progress_percent: item.status === 'completed' ? 100 : (item.progress_percent ?? 0),
+          blocked_reason: item.status === 'blocked' ? item.blocked_reason : null,
+        };
+
+        // NOTE: completed_at and completed_by are omitted intentionally.
+        // They are automatically assigned on the server by the database completion-attribution trigger.
+
         const { error } = await supabase
           .from('lfa_wbs_items')
-          .update({
-            name: item.name,
-            start_month: item.start_month,
-            duration_weeks: item.duration_weeks,
-            pic: item.pic,
-            method: item.method,
-            indicator: item.indicator,
-            notes: item.notes,
-            dependencies: item.dependencies || [],
-            sort_order: item.sort_order,
-            mode: item.mode,
-            carbon_enabled: item.carbon_enabled,
-            carbon_factor: item.carbon_factor,
-            carbon_unit: item.carbon_unit,
-            carbon_source: item.carbon_source,
-            carbon_description: item.carbon_description
-          })
+          .update(payload)
           .eq('id', item.id);
 
         if (error) throw error;
@@ -428,6 +522,8 @@ export default function WBSBuilder({
         duration_weeks: 2, // default 2 weeks
         sort_order: parentItem.sort_order + children.length + 1,
         mode: globalMode,
+        status: 'not_started',
+        progress_percent: 0,
         dependencies: []
       };
 
@@ -449,7 +545,9 @@ export default function WBSBuilder({
           start_month: newItem.start_month,
           duration_weeks: newItem.duration_weeks,
           sort_order: newItem.sort_order,
-          mode: newItem.mode
+          mode: newItem.mode,
+          status: 'not_started',
+          progress_percent: 0
         });
 
       if (error) throw error;
@@ -493,6 +591,8 @@ export default function WBSBuilder({
         duration_weeks: 1,
         sort_order: parentItem.sort_order + children.length + 1,
         mode: globalMode,
+        status: 'not_started',
+        progress_percent: 0,
         dependencies: []
       };
 
@@ -512,7 +612,9 @@ export default function WBSBuilder({
           start_month: newItem.start_month,
           duration_weeks: newItem.duration_weeks,
           sort_order: newItem.sort_order,
-          mode: newItem.mode
+          mode: newItem.mode,
+          status: 'not_started',
+          progress_percent: 0
         });
 
       if (error) throw error;
@@ -1004,8 +1106,10 @@ export default function WBSBuilder({
         {/* LEFT COLUMN (60%): Interactive Tree Sheet */}
         <div className="lg:col-span-3 border-r divide-y overflow-x-auto min-w-0 max-h-[600px] overflow-y-auto">
           {/* Row Headers */}
-          <div className="flex bg-slate-50 dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-500 py-3 px-4 min-w-[500px]">
+          <div className="flex bg-slate-50 dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-500 py-3 px-4 min-w-[700px]">
             <div className="flex-1">Deskripsi WBS Tree</div>
+            <div className="w-20 text-center">Progres</div>
+            <div className="w-28 text-center">Status</div>
             <div className="w-16 text-center">Bulan</div>
             <div className="w-16 text-center">Mgg/Hari</div>
             <div className="w-24 text-left">PIC</div>
@@ -1025,10 +1129,12 @@ export default function WBSBuilder({
               const level1OutputIdx = parentOutput ? getOutputIndex(parentOutput.id) : level1Idx;
               const theme = getLevel1Theme(level1OutputIdx);
 
+              const isLeaf = isLeafItem(item, wbsItems);
+              const computed = (!isLeaf || item.level === 1) ? computeParentProgress(item.id, wbsItems) : null;
+
               let indentStyle = '';
               const rowHeightClass = item.level === 2 && globalMode === 'professional' ? 'h-[50px] py-1' : 'h-[38px] py-1.5';
-              let rowStyle = `px-4 flex items-center min-w-[500px] gap-2 transition-all ${rowHeightClass} `;
-
+              let rowStyle = `px-4 flex items-center min-w-[700px] gap-2 transition-all ${rowHeightClass} `;
 
               if (item.level === 1) {
                 indentStyle = `border-l-4 ${theme.border} bg-slate-50/50 dark:bg-slate-800/10 font-semibold`;
@@ -1056,7 +1162,7 @@ export default function WBSBuilder({
 
                       {/* Inline edit input */}
                       {item.level === 1 ? (
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200 truncate py-1" title={item.name}>
+                        <span className={`text-xs font-bold text-slate-800 dark:text-slate-200 truncate py-1 ${item.status === 'cancelled' ? 'line-through opacity-60' : ''}`} title={item.name}>
                           {item.name}
                         </span>
                       ) : (
@@ -1073,8 +1179,94 @@ export default function WBSBuilder({
                             updateItemLocally(updated);
                             triggerAutosave(updated);
                           }}
-                          className="text-xs w-full bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:border-primary focus:outline-none py-0.5 font-medium truncate"
+                          className={`text-xs w-full bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:border-primary focus:outline-none py-0.5 font-medium truncate ${
+                            item.status === 'cancelled' ? 'line-through text-slate-400 dark:text-slate-500' : ''
+                          }`}
                         />
+                      )}
+                    </div>
+
+                    {/* Progress Column */}
+                    <div className="w-20 text-center flex items-center justify-center">
+                      {!isLeaf || item.level === 1 ? (
+                        <div className="flex flex-col items-center justify-center gap-0.5" title={`Progres roll-up terhitung dari ${computed?.activeCount ?? 0} task aktif`}>
+                          <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">
+                            {computed?.activeCount === 0 ? '0%' : `${computed?.percent}%`}
+                          </span>
+                          <div className="w-12 bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className="bg-emerald-500 h-full transition-all duration-300"
+                              style={{ width: `${computed?.percent ?? 0}%` }}
+                            />
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center gap-0.5">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={item.status === 'completed' ? 100 : (item.progress_percent ?? 0)}
+                            disabled={item.status === 'completed'}
+                            onChange={(e) => {
+                              const val = Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                              const updated = { ...item, progress_percent: val };
+                              updateItemLocally(updated);
+                              triggerAutosave(updated);
+                            }}
+                            className="w-11 text-center text-[10px] border rounded p-0.5 h-6 bg-transparent dark:border-slate-800 disabled:bg-slate-100 dark:disabled:bg-slate-800 disabled:text-slate-400 font-semibold"
+                            title={item.status === 'completed' ? 'Otomatis 100% untuk status Selesai' : 'Ubah persentase progres'}
+                          />
+                          <span className="text-[9px] text-slate-400 font-medium">%</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Status Column */}
+                    <div className="w-28 text-center flex items-center justify-center">
+                      {!isLeaf || item.level === 1 ? (
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${
+                          computed?.activeCount === 0
+                            ? 'bg-slate-100 text-slate-500 border-slate-200'
+                            : computed?.percent === 100
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                            : (computed?.percent ?? 0) > 0
+                            ? 'bg-blue-100 text-blue-800 border-blue-300'
+                            : 'bg-slate-100 text-slate-700 border-slate-300'
+                        }`}>
+                          {computed?.activeCount === 0
+                            ? 'Belum ada task'
+                            : computed?.percent === 100
+                            ? 'Selesai'
+                            : (computed?.percent ?? 0) > 0
+                            ? 'Sedang Berjalan'
+                            : 'Belum Mulai'}
+                        </span>
+                      ) : (
+                        <select
+                          value={item.status || 'not_started'}
+                          onChange={(e) => {
+                            const newStatus = e.target.value as WbsStatus;
+                            const updated: WbsItem = {
+                              ...item,
+                              status: newStatus,
+                              progress_percent: newStatus === 'completed' ? 100 : (item.progress_percent ?? 0),
+                              blocked_reason: newStatus === 'blocked' ? (item.blocked_reason ?? '') : null,
+                            };
+                            updateItemLocally(updated);
+                            triggerAutosave(updated);
+                          }}
+                          className={`text-[10px] w-full border rounded px-1 h-6 focus:outline-none font-semibold ${getStatusStyleClass(item.status)}`}
+                        >
+                          <option value="not_started">Belum Mulai</option>
+                          <option value="in_progress">Sedang Berjalan</option>
+                          <option value="blocked">Terhambat</option>
+                          <option value="in_review">Dalam Peninjauan</option>
+                          <option value="completed">Selesai</option>
+                          <option value="cancelled">Dibatalkan</option>
+                          <option value="ready">Siap</option>
+                          <option value="draft">Draft</option>
+                        </select>
                       )}
                     </div>
 
@@ -1244,9 +1436,34 @@ export default function WBSBuilder({
                         >
                           <Trash2 className="h-3 w-3" />
                         </Button>
-                      )}
                     </div>
                   </div>
+
+                  {/* Blocked Reason Row for leaf items when status === 'blocked' */}
+                  {isLeaf && item.status === 'blocked' && (
+                    <div className="pl-14 pr-4 py-1.5 bg-red-50/50 dark:bg-red-950/20 border-b border-red-100 dark:border-red-900/30 flex items-center gap-2 min-w-[700px] text-xs">
+                      <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+                      <span className="text-[10px] font-bold text-red-700 dark:text-red-400 shrink-0">Alasan Terhambat:</span>
+                      <input
+                        type="text"
+                        value={item.blocked_reason || ''}
+                        placeholder="Ketik penjelasan kenapa tugas terhambat (Wajib diisi)..."
+                        onChange={(e) => {
+                          const updated = { ...item, blocked_reason: e.target.value };
+                          updateItemLocally(updated);
+                          triggerAutosave(updated);
+                        }}
+                        className={`text-xs flex-1 bg-white dark:bg-slate-900 border rounded px-2 py-0.5 focus:outline-none ${
+                          !item.blocked_reason || item.blocked_reason.trim() === ''
+                            ? 'border-red-500 focus:ring-1 focus:ring-red-500'
+                            : 'border-slate-200 dark:border-slate-800'
+                        }`}
+                      />
+                      {(!item.blocked_reason || item.blocked_reason.trim() === '') && (
+                        <span className="text-[9px] text-red-600 font-bold shrink-0">⚠️ Wajib Diisi</span>
+                      )}
+                    </div>
+                  )}
 
                   {/* Level 2 Carbon tracking fields under carbonMode */}
                   {item.level === 2 && carbonMode && (

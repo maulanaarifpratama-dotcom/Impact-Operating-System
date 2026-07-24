@@ -44,6 +44,8 @@ export interface AiActivity {
   timeline_end?: number;
 }
 
+export type WbsStatus = 'draft' | 'not_started' | 'ready' | 'in_progress' | 'blocked' | 'in_review' | 'completed' | 'cancelled';
+
 export interface WbsItem {
   id: string;
   lfa_project_id: string;
@@ -65,6 +67,11 @@ export interface WbsItem {
   carbon_unit?: string | null;
   carbon_source?: string | null;
   carbon_description?: string | null;
+  status?: WbsStatus;
+  progress_percent?: number;
+  blocked_reason?: string | null;
+  completed_at?: string | null;
+  completed_by?: string | null;
   created_at?: string;
   updated_at?: string;
 }
