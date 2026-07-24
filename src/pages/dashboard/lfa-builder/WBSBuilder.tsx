@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
 // Helper: Check if an item is a leaf item (has no children in the WBS tree)
 const isLeafItem = (item: WbsItem, allItems: WbsItem[]): boolean => {
@@ -1598,7 +1599,7 @@ export default function WBSBuilder({
               const computed = (!isLeaf || item.level === 1) ? computeParentProgress(item.id, wbsItems) : null;
 
               let indentStyle = '';
-              const rowHeightClass = 'h-[52px] py-1.5';
+              const rowHeightClass = 'h-[38px] py-1';
               let rowStyle = `px-4 flex items-center min-w-[700px] gap-2 transition-all ${rowHeightClass} `;
 
               if (item.level === 1) {
@@ -1618,168 +1619,171 @@ export default function WBSBuilder({
                 <Fragment key={item.id}>
                   <div className={`${rowStyle} ${indentStyle}`}>
                     {/* Row Body Left Side */}
-                    <div className="flex-1 flex items-start gap-1.5 min-w-0 py-0.5">
+                    <div className="flex-1 flex items-center gap-1.5 min-w-0">
                       {/* Row level tag */}
-                      {item.level === 1 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-800 text-white shrink-0 mt-0.5">H</span>}
-                      {item.level === 2 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-600 text-white shrink-0 mt-0.5">K</span>}
-                      {item.level === 3 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-500 text-white shrink-0 mt-0.5">Sub</span>}
-                      {item.level === 4 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-400 text-white shrink-0 mt-0.5">Task</span>}
+                      {item.level === 1 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-800 text-white shrink-0">H</span>}
+                      {item.level === 2 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-600 text-white shrink-0">K</span>}
+                      {item.level === 3 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-500 text-white shrink-0">Sub</span>}
+                      {item.level === 4 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-400 text-white shrink-0">Task</span>}
 
-                      {/* Inline edit input */}
+                      {/* Inline edit input / Title text */}
                       {item.level === 1 ? (
-                        <div className="flex flex-col gap-0.5 flex-1 min-w-0 justify-center">
-                          <span className={`text-xs font-bold text-slate-800 dark:text-slate-200 truncate ${item.status === 'cancelled' ? 'line-through opacity-60' : ''}`} title={item.name}>
-                            {item.name}
-                          </span>
-                          {(() => {
-                            const outputWbsIds = getSubtreeWbsIds(item.id);
-                            const rollup = computeBudgetRollup(outputWbsIds);
-                            return (
-                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                                <Badge variant="outline" className="text-[9px] font-semibold bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 py-0 h-4 shrink-0">
-                                  <Wallet className="h-2.5 w-2.5 mr-0.5 text-emerald-600" />
-                                  <span>{formatBudgetBadge(rollup.plannedTotal)}</span>
-                                  <span className="text-[8px] text-emerald-600 font-normal ml-0.5">({rollup.itemCount} item)</span>
-                                </Badge>
-
-                                {rollup.hasRealization ? (
-                                  <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-800 border-blue-200 py-0 h-4 shrink-0">
-                                    Real: {formatBudgetBadge(rollup.realizedTotal || 0)} {rollup.burnPercent !== null ? `(${rollup.burnPercent}%)` : ''}
-                                  </Badge>
-                                ) : (
-                                  <Badge variant="secondary" className="text-[8px] bg-slate-100 text-slate-500 border border-slate-200 py-0 h-4 shrink-0">
-                                    Belum ada data realisasi
-                                  </Badge>
-                                )}
-
-                                {onNavigateToBudget && (
-                                  <button
-                                    onClick={() => onNavigateToBudget(item.id)}
-                                    className="text-[9px] text-emerald-600 hover:underline flex items-center gap-0.5 font-medium ml-1 shrink-0"
-                                    title="Lihat Rincian Anggaran di Modul Anggaran"
-                                  >
-                                    <span>Rincian</span>
-                                    <ExternalLink className="h-2 w-2" />
-                                  </button>
-                                )}
-                              </div>
-                            );
-                          })()}
-                        </div>
+                        <span className={`text-xs font-bold text-slate-800 dark:text-slate-200 truncate flex-1 min-w-0 ${item.status === 'cancelled' ? 'line-through opacity-60' : ''}`} title={item.name}>
+                          {item.name}
+                        </span>
                       ) : (
-                        <div className="flex flex-col flex-1 min-w-0 justify-center">
-                          <input
-                            type="text"
-                            value={item.name}
-                            data-testid="wbs-activity-name-input"
-                            placeholder={
-                              item.level === 2 ? 'Ketik nama aktivitas...' :
-                              item.level === 3 ? 'Ketik sub-aktivitas...' : 'Ketik detail task...'
-                            }
-                            onChange={(e) => {
-                              const updated = { ...item, name: e.target.value };
-                              updateItemLocally(updated);
-                              triggerAutosave(updated);
-                            }}
-                            className={`text-xs w-full bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:border-primary focus:outline-none py-0.5 font-medium truncate ${
-                              item.status === 'cancelled' ? 'line-through text-slate-400 dark:text-slate-500' : ''
-                            }`}
-                          />
+                        <input
+                          type="text"
+                          value={item.name}
+                          data-testid="wbs-activity-name-input"
+                          placeholder={
+                            item.level === 2 ? 'Ketik nama aktivitas...' :
+                            item.level === 3 ? 'Ketik sub-aktivitas...' : 'Ketik detail task...'
+                          }
+                          onChange={(e) => {
+                            const updated = { ...item, name: e.target.value };
+                            updateItemLocally(updated);
+                            triggerAutosave(updated);
+                          }}
+                          className={`text-xs flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:border-primary focus:outline-none py-0.5 font-medium truncate ${
+                            item.status === 'cancelled' ? 'line-through text-slate-400 dark:text-slate-500' : ''
+                          }`}
+                        />
+                      )}
 
-                          {/* Level 2 Budget Rollup & Verification Status / Evidence Badges */}
-                          {(() => {
-                            let budgetBadges = null;
-                            if (item.level === 2) {
-                              const activityWbsIds = getSubtreeWbsIds(item.id);
-                              const rollup = computeBudgetRollup(activityWbsIds);
-                              if (rollup.plannedTotal > 0 || rollup.itemCount > 0) {
-                                budgetBadges = (
-                                  <>
-                                    <Badge variant="outline" className="text-[8.5px] font-semibold bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 py-0 h-4 shrink-0">
-                                      <Wallet className="h-2.5 w-2.5 mr-0.5 text-emerald-600" />
-                                      <span>{formatBudgetBadge(rollup.plannedTotal)}</span>
-                                      <span className="text-[7.5px] text-emerald-600 font-normal ml-0.5">({rollup.itemCount} item)</span>
-                                    </Badge>
+                      {/* On-Demand Detail Popover Button */}
+                      {(() => {
+                        const activityWbsIds = getSubtreeWbsIds(item.id);
+                        const rollup = computeBudgetRollup(activityWbsIds);
+                        const hasBudget = rollup.plannedTotal > 0 || rollup.itemCount > 0;
+                        const activeClaim = isLeaf ? getActiveClaim(item.id) : null;
+                        const evidences = activeClaim ? getEvidenceForClaim(activeClaim.id) : [];
+                        const evCount = evidences.length;
 
-                                    {rollup.hasRealization && (
-                                      <Badge variant="outline" className="text-[8.5px] bg-blue-50 text-blue-800 border-blue-200 py-0 h-4 shrink-0">
-                                        Real: {formatBudgetBadge(rollup.realizedTotal || 0)} {rollup.burnPercent !== null ? `(${rollup.burnPercent}%)` : ''}
-                                      </Badge>
-                                    )}
+                        let triggerBadgeClass = 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+                        if (activeClaim) {
+                          if (activeClaim.status === 'verified') triggerBadgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300';
+                          else if (activeClaim.status === 'submitted') triggerBadgeClass = 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950 dark:text-amber-300';
+                          else if (activeClaim.status === 'rejected') triggerBadgeClass = 'bg-red-100 text-red-800 border-red-300 dark:bg-red-950 dark:text-red-300';
+                        } else if (hasBudget) {
+                          triggerBadgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400';
+                        }
 
+                        return (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-semibold border shrink-0 h-5 transition-colors cursor-pointer ${triggerBadgeClass}`}
+                                title="Klik untuk rincian anggaran & klaim verifikasi"
+                                data-testid="wbs-row-detail-popover-trigger"
+                              >
+                                {hasBudget && <Wallet className="h-2.5 w-2.5 shrink-0 text-emerald-600 dark:text-emerald-400" />}
+                                {isLeaf && <ClipboardCheck className="h-2.5 w-2.5 shrink-0" />}
+                                <span>Rincian</span>
+                                {evCount > 0 && (
+                                  <span className="bg-indigo-600 text-white rounded-full text-[7.5px] px-1 font-bold shrink-0">{evCount}</span>
+                                )}
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 p-3 space-y-3 shadow-lg border text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800" align="start" side="bottom" sideOffset={4}>
+                              <div className="border-b pb-1.5 font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
+                                <span className="truncate pr-2">{item.name || 'Detail Item WBS'}</span>
+                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 uppercase text-slate-500 font-semibold shrink-0">
+                                  Level {item.level}
+                                </span>
+                              </div>
+
+                              {/* Budget Section */}
+                              {(rollup.plannedTotal > 0 || rollup.itemCount > 0 || item.level === 1 || item.level === 2) && (
+                                <div className="space-y-1.5 bg-slate-50 dark:bg-slate-950/50 p-2 rounded border border-slate-200 dark:border-slate-800">
+                                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                    <span className="flex items-center gap-1">
+                                      <Wallet className="h-3 w-3 text-emerald-600" />
+                                      Rincian Anggaran
+                                    </span>
                                     {onNavigateToBudget && (
                                       <button
                                         onClick={() => onNavigateToBudget(item.id)}
-                                        className="text-[8.5px] text-emerald-600 hover:underline flex items-center gap-0.5 font-medium shrink-0"
+                                        className="text-[9px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
                                         title="Lihat Rincian Anggaran di Modul Anggaran"
                                       >
-                                        <span>Rincian</span>
-                                        <ExternalLink className="h-2 w-2" />
+                                        <span>Buka Modul</span>
+                                        <ExternalLink className="h-2.5 w-2.5" />
                                       </button>
                                     )}
-                                  </>
-                                );
-                              }
-                            }
+                                  </div>
 
-                            let claimBadges = null;
-                            if (isLeaf) {
-                              const activeClaim = getActiveClaim(item.id);
-                              const evidences = activeClaim ? getEvidenceForClaim(activeClaim.id) : [];
-                              const evCount = evidences.length;
-
-                              claimBadges = (
-                                <>
-                                  {activeClaim ? (
-                                    <Badge
-                                      variant="outline"
-                                      onClick={() => handleOpenClaimDialog(item, activeClaim)}
-                                      className={`text-[8.5px] font-bold cursor-pointer py-0 px-1.5 h-4 flex items-center gap-1 border shrink-0 ${getClaimBadgeStyle(activeClaim.status)}`}
-                                      title={`Status Klaim Verifikasi: ${getClaimLabel(activeClaim.status)}. Klik untuk lihat detail.`}
-                                      data-testid={`wbs-claim-badge-${activeClaim.status}`}
-                                    >
-                                      <ClipboardCheck className="h-2.5 w-2.5" />
-                                      <span>Klaim: {getClaimLabel(activeClaim.status)}</span>
+                                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                    <Badge variant="outline" className="text-[9px] font-semibold bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 py-0.5 h-auto">
+                                      <span>Planned: {formatBudgetBadge(rollup.plannedTotal)}</span>
+                                      <span className="text-[8px] text-emerald-600 font-normal ml-1">({rollup.itemCount} item)</span>
                                     </Badge>
-                                  ) : (
-                                    <button
-                                      onClick={() => handleOpenClaimDialog(item)}
-                                      className="text-[8.5px] text-amber-700 hover:text-amber-800 bg-amber-50/80 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 rounded px-1.5 py-0 h-4 font-semibold flex items-center gap-0.5 transition-colors shrink-0"
-                                      title="Ajukan Klaim Selesai & Lampirkan Bukti untuk Item Ini"
-                                      data-testid="wbs-open-claim-dialog-btn"
-                                    >
-                                      <Plus className="h-2.5 w-2.5" />
-                                      <span>Klaim Selesai</span>
-                                    </button>
-                                  )}
 
-                                  {evCount > 0 && (
-                                    <Badge
-                                      variant="secondary"
-                                      onClick={() => activeClaim && handleOpenClaimDialog(item, activeClaim)}
-                                      className="text-[8.5px] font-semibold py-0 px-1.5 h-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border cursor-pointer hover:bg-slate-200 shrink-0"
-                                      title={`${evCount} bukti terlampir`}
-                                      data-testid="wbs-evidence-badge"
-                                    >
-                                      <FileText className="h-2.5 w-2.5 mr-0.5 text-slate-500" />
-                                      <span>{evCount} bukti</span>
-                                    </Badge>
-                                  )}
-                                </>
-                              );
-                            }
+                                    {rollup.hasRealization ? (
+                                      <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-800 border-blue-200 py-0.5 h-auto">
+                                        Real: {formatBudgetBadge(rollup.realizedTotal || 0)} {rollup.burnPercent !== null ? `(${rollup.burnPercent}%)` : ''}
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="secondary" className="text-[8px] bg-slate-100 text-slate-500 border border-slate-200 py-0.5 h-auto">
+                                        Belum ada data realisasi
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
 
-                            if (!budgetBadges && !claimBadges) return null;
+                              {/* Verification Claim & Evidence Section for Leaf Items */}
+                              {isLeaf && (
+                                <div className="space-y-1.5 bg-slate-50 dark:bg-slate-950/50 p-2 rounded border border-slate-200 dark:border-slate-800">
+                                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                    <ClipboardCheck className="h-3 w-3 text-amber-600" />
+                                    Status Verifikasi & Bukti
+                                  </div>
 
-                            return (
-                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5" data-testid="wbs-claim-badge-group">
-                                {budgetBadges}
-                                {claimBadges}
-                              </div>
-                            );
-                          })()}
-                        </div>
-                      )}
+                                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="wbs-claim-badge-group">
+                                    {activeClaim ? (
+                                      <Badge
+                                        variant="outline"
+                                        onClick={() => handleOpenClaimDialog(item, activeClaim)}
+                                        className={`text-[9px] font-bold cursor-pointer py-0.5 px-2 h-auto flex items-center gap-1 border ${getClaimBadgeStyle(activeClaim.status)}`}
+                                        title={`Status Klaim Verifikasi: ${getClaimLabel(activeClaim.status)}. Klik untuk lihat detail.`}
+                                        data-testid={`wbs-claim-badge-${activeClaim.status}`}
+                                      >
+                                        <ClipboardCheck className="h-3 w-3" />
+                                        <span>Klaim: {getClaimLabel(activeClaim.status)}</span>
+                                      </Badge>
+                                    ) : (
+                                      <button
+                                        onClick={() => handleOpenClaimDialog(item)}
+                                        className="text-[9px] text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 rounded px-2 py-0.5 font-semibold flex items-center gap-1 transition-colors"
+                                        title="Ajukan Klaim Selesai & Lampirkan Bukti untuk Item Ini"
+                                        data-testid="wbs-open-claim-dialog-btn"
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                        <span>Ajukan Klaim Selesai</span>
+                                      </button>
+                                    )}
+
+                                    {evCount > 0 && (
+                                      <Badge
+                                        variant="secondary"
+                                        onClick={() => activeClaim && handleOpenClaimDialog(item, activeClaim)}
+                                        className="text-[9px] font-semibold py-0.5 px-2 h-auto bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border cursor-pointer hover:bg-slate-200"
+                                        title={`${evCount} bukti terlampir`}
+                                        data-testid="wbs-evidence-badge"
+                                      >
+                                        <FileText className="h-3 w-3 mr-1 text-slate-500" />
+                                        <span>{evCount} bukti terlampir</span>
+                                      </Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                            </PopoverContent>
+                          </Popover>
+                        );
+                      })()}
                     </div>
 
                     {/* Progress Column */}
@@ -2260,7 +2264,7 @@ export default function WBSBuilder({
 
                   return (
                     <Fragment key={item.id}>
-                      <div className="h-[52px] flex items-center relative group">
+                      <div className="h-[38px] flex items-center relative group">
                         {/* Vertical Background lines */}
                         {Array.from({ length: programDurationMonths }).map((_, idx) => (
                           <div key={idx} className="w-20 shrink-0 border-r dark:border-slate-800 h-full"></div>
@@ -2280,7 +2284,7 @@ export default function WBSBuilder({
                               <>
                                 <div
                                   style={{ left: `${leftOffset}px`, width: `${widthVal}px` }}
-                                  className={`absolute top-2 h-[22px] rounded-md border flex items-center justify-between px-2 cursor-move select-none shadow-sm transition-shadow group-hover:shadow-md ${
+                                  className={`absolute top-1.5 h-[22px] rounded-md border flex items-center justify-between px-2 cursor-move select-none shadow-sm transition-shadow group-hover:shadow-md ${
                                     isDragging ? 'opacity-80 ring-2 ring-primary' : ''
                                   } ${
                                     isCritical
@@ -2306,31 +2310,6 @@ export default function WBSBuilder({
                                     <span className="w-0.5 h-3 bg-white/40 block rounded"></span>
                                   </div>
                                 </div>
-
-                                {/* Budget badge only in professional mode */}
-                                {globalMode === 'professional' && (() => {
-                                  const activityWbsIds = getSubtreeWbsIds(item.id);
-                                  const rollup = computeBudgetRollup(activityWbsIds);
-                                  const hasBudget = rollup.plannedTotal > 0 || rollup.itemCount > 0;
-
-                                  return (
-                                    <div
-                                      style={{ left: `${leftOffset}px` }}
-                                      className={`absolute top-[27px] text-[8px] font-bold px-1.5 py-0.5 rounded shadow-sm shrink-0 truncate max-w-[200px] flex items-center gap-1 ${
-                                        hasBudget 
-                                          ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400 border border-emerald-200' 
-                                          : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400 border border-slate-200'
-                                      }`}
-                                    >
-                                      <span>{hasBudget ? formatBudgetBadge(rollup.plannedTotal) : 'Belum ada anggaran'}</span>
-                                      {rollup.hasRealization && (
-                                        <span className="text-[7.5px] text-blue-800 dark:text-blue-300">
-                                          | Real: {formatBudgetBadge(rollup.realizedTotal || 0)}
-                                        </span>
-                                      )}
-                                    </div>
-                                  );
-                                })()}
                               </>
                             );
                           })()
@@ -2346,7 +2325,7 @@ export default function WBSBuilder({
                             return (
                               <div
                                 style={{ left: `${leftOffset}px` }}
-                                className="absolute top-3.5 w-4 h-4 bg-indigo-600 dark:bg-indigo-500 rotate-45 flex items-center justify-center shadow-md cursor-pointer group-hover:scale-110 transition-transform"
+                                className="absolute top-2.5 w-4 h-4 bg-indigo-600 dark:bg-indigo-500 rotate-45 flex items-center justify-center shadow-md cursor-pointer group-hover:scale-110 transition-transform"
                                 title={`Deliverable: ${item.name}`}
                               >
                                 <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
