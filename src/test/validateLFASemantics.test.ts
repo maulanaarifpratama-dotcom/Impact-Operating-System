@@ -97,14 +97,28 @@ function validateLFASemantics(matrix: any) {
   }
 
   // 4. Activity Level Semantic Check
-  const activeVerbPrefixes = ['melakukan', 'memfasilitasi', 'mengadakan', 'menyelenggarakan', 'melatih', 'menyusun', 'melaksanakan', 'mendaftarkan', 'membantu', 'mengumpulkan', 'menyiapkan', 'mengembangkan', 'memberikan', 'mendokumentasikan', 'membangun', 'merekrut'];
+  const activeVerbPrefixes = [
+    'melakukan', 'memfasilitasi', 'mengadakan', 'menyelenggarakan', 'melatih', 'menyusun', 'melaksanakan',
+    'mendaftarkan', 'membantu', 'mengumpulkan', 'menyiapkan', 'mengembangkan', 'memberikan', 'mendokumentasikan',
+    'membangun', 'merekrut', 'mengolah', 'membeli', 'mendistribusikan', 'mengkoordinasikan', 'menyediakan',
+    'membuat', 'mengidentifikasi', 'menentukan', 'merevisi', 'mengevaluasi', 'mendampingi', 'memasarkan',
+    'memproses', 'memantau', 'mengelola', 'mendorong', 'menghubungi', 'menginstal', 'memasang', 'mencetak',
+    'merancang', 'mengatur', 'mengajarkan', 'membimbing'
+  ];
 
   for (let i = 0; i < activities.length; i++) {
     const act = activities[i];
     const stmt = act.statement || '';
-    const lower = stmt.toLowerCase();
+    const lower = stmt.toLowerCase().trim();
+    const words = lower.split(/[\s,.-]+/);
 
-    const hasActiveVerb = activeVerbPrefixes.some(prefix => lower.includes(prefix));
+    const hasActiveVerb = words.some(w =>
+      w.startsWith('me') ||
+      w.startsWith('ber') ||
+      w.startsWith('pe') ||
+      activeVerbPrefixes.some(prefix => lower.includes(prefix))
+    );
+
     if (!hasActiveVerb) {
       reasons.push(`Activity [ACT-${i + 1}] lacks a valid active action verb: "${stmt}".`);
       if (!code) code = 'FAIL_OUTPUT_SEMANTICS';

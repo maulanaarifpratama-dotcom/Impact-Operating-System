@@ -222,6 +222,19 @@ export async function embed(input: string | string[]): Promise<EmbeddingResponse
   return await res.json();
 }
 
+function cleanJsonString(raw: string): string {
+  let str = raw.trim();
+  if (str.startsWith('```')) {
+    str = str.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/, '').trim();
+  }
+  const firstBrace = str.indexOf('{');
+  const lastBrace = str.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    str = str.slice(firstBrace, lastBrace + 1);
+  }
+  return str;
+}
+
 /**
  * Convenience: a chat call that REQUIRES a JSON response.
  */
@@ -246,10 +259,12 @@ export async function chatJson<T = unknown>(req: Omit<ChatCompletionRequest, 're
     );
   }
   let data: T;
+  const cleaned = cleanJsonString(raw);
   try {
-    data = JSON.parse(raw) as T;
+    data = JSON.parse(cleaned) as T;
   } catch (err) {
-    console.error('[foundry] chatJson invalid JSON:', finishReason);
+    console.error('[foundry] chatJson invalid JSON:', finishReason, (err as Error).message);
+    console.error('[foundry] raw preview:', raw.slice(0, 500));
     throw new Error(`Foundry returned invalid JSON: ${(err as Error).message}\n--- raw ---\n${raw.slice(0, 800)}`);
   }
   return { data, usage: res.usage, model: res.model };
@@ -285,9 +300,11 @@ export async function foundryJSON<T = unknown>(
       'This usually means the completion budget was consumed by reasoning before any visible output was emitted. Increase max_tokens for this call.',
     );
   }
+  const cleaned = cleanJsonString(raw);
   try {
-    return JSON.parse(raw) as T;
+    return JSON.parse(cleaned) as T;
   } catch (err) {
+    console.error('[foundry] foundryJSON invalid JSON:', finishReason, (err as Error).message);
     throw new Error(`Foundry returned invalid JSON: ${(err as Error).message}\n--- raw ---\n${raw.slice(0, 800)}`);
   }
 }

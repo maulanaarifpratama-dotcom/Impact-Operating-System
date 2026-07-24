@@ -278,11 +278,14 @@ Rules:
 - Write in the SAME language as the wizard input (default Bahasa Indonesia).
 - Indicators MUST be SMART (Specific, Measurable, Achievable, Relevant, Time-bound).
 - Cite real Indonesian context (BPS data, SDGs, RPJMN, sectoral policies) where relevant.
-- The proposal_markdown must include: Executive Summary, Problem Statement, Theory of Change, Objectives, Methodology, Results Framework (LFA table), Risk Management, Budget Narrative, Sustainability, Monitoring & Evaluation.
+- The proposal_markdown should be a concise 3-4 paragraph executive summary and overview, prioritizing high precision for the LFA matrix, WBS, and budget frameworks.
 - Do not invent specific numbers that were not provided. Use ranges and qualitative framing when data is missing, and explicitly mark assumptions.
 - Current programFacts and resolved ontology context override any generic prior lfa_context wording. Do not preserve generic statements from previous drafts.
 - Jumlah penerima manfaat terverifikasi: {{beneficiaries}}. Jika angka ini adalah 'belum ditentukan (null)' atau 0, jangan merekayasa atau memalsukan angka, melainkan sebutkan bahwa data penerima manfaat terverifikasi belum ditentukan/tercatat di dalam sistem. Tetap patuhi batasan dan jangan menimpa angka target pengguna lainnya.
 - {{carbon_impact}}
+- Keep internal reasoning concise and focused. Immediately generate the complete JSON output.
+- proposal_markdown MUST be a concise, high-impact narrative summary of 3 short paragraphs (1: Background & Problem Context, 2: Proposed Intervention & Methodology, 3: Expected Impact & Sustainability). Keep each paragraph concise (3-4 sentences max).
+- Keep all text fields inside program_skeleton (description, justification, definition, rationale, mitigation) concise (1 sentence max each) to maintain compact JSON payload size.
 - Output ONLY valid JSON. No markdown fences around the JSON.
 - Relationships and IDs in program_skeleton MUST be fully valid:
   1. Every outcome has a unique stable ID (e.g. outcome_1).
@@ -415,15 +418,29 @@ export function validateLFASemantics(matrix: any): SemanticValidationResult {
     return { isValid: false, code, reasons };
   }
 
-  // 4. Activity Level Semantic Check (Level-Scoped: Activities MUST have active action verbs)
-  const activeVerbPrefixes = ['melakukan', 'memfasilitasi', 'mengadakan', 'menyelenggarakan', 'melatih', 'menyusun', 'melaksanakan', 'mendaftarkan', 'membantu', 'mengumpulkan', 'menyiapkan', 'mengembangkan', 'memberikan', 'mendokumentasikan', 'membangun', 'merekrut'];
+  // 4. Activity Level Semantic Check (Level-Scoped: Activities MUST have active action verbs or process terms)
+  const activeVerbPrefixes = [
+    'melakukan', 'memfasilitasi', 'mengadakan', 'menyelenggarakan', 'melatih', 'menyusun', 'melaksanakan',
+    'mendaftarkan', 'membantu', 'mengumpulkan', 'menyiapkan', 'mengembangkan', 'memberikan', 'mendokumentasikan',
+    'membangun', 'merekrut', 'mengolah', 'membeli', 'mendistribusikan', 'mengkoordinasikan', 'menyediakan',
+    'membuat', 'mengidentifikasi', 'menentukan', 'merevisi', 'mengevaluasi', 'mendampingi', 'memasarkan',
+    'memproses', 'memantau', 'mengelola', 'mendorong', 'menghubungi', 'menginstal', 'memasang', 'mencetak',
+    'merancang', 'mengatur', 'mengajarkan', 'membimbing'
+  ];
 
   for (let i = 0; i < activities.length; i++) {
     const act = activities[i];
     const stmt = act.statement || '';
-    const lower = stmt.toLowerCase();
+    const lower = stmt.toLowerCase().trim();
+    const words = lower.split(/[\s,.-]+/);
 
-    const hasActiveVerb = activeVerbPrefixes.some(prefix => lower.includes(prefix));
+    const hasActiveVerb = words.some(w =>
+      w.startsWith('me') ||
+      w.startsWith('ber') ||
+      w.startsWith('pe') ||
+      activeVerbPrefixes.some(prefix => lower.includes(prefix))
+    );
+
     if (!hasActiveVerb) {
       reasons.push(`Activity [ACT-${i + 1}] lacks a valid active action verb: "${stmt}".`);
       if (!code) code = 'FAIL_OUTPUT_SEMANTICS';
@@ -872,7 +889,7 @@ Deno.serve(async (req: Request) => {
       // reasoning before producing visible content. The full LFA matrix +
       // proposal markdown can be ~6-10k visible tokens, so we budget 27500 tokens.
       temperature: 0.4,
-      max_tokens: 27500,
+      max_tokens: 16000,
     });
 
     if (!result?.matrix || !result?.proposal_markdown) {
@@ -906,7 +923,7 @@ Deno.serve(async (req: Request) => {
           },
         ],
         temperature: 0.3,
-        max_tokens: 27500,
+        max_tokens: 16000,
       });
 
       if (retryRes?.data?.matrix && retryRes?.data?.proposal_markdown) {
