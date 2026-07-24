@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, Fragment } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/providers/AuthProvider';
@@ -116,6 +116,53 @@ export interface WbsBudgetRollup {
   remainingBudget: number | null;
 }
 
+// Auto-resizing textarea for multi-line WBS Tree activity descriptions
+const AutoResizingTextarea = ({
+  value,
+  onChange,
+  placeholder,
+  className,
+  testId,
+  disabled
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+  className?: string;
+  testId?: string;
+  disabled?: boolean;
+}) => {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const adjustHeight = useCallback(() => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = 'auto';
+      el.style.height = `${el.scrollHeight}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustHeight();
+  }, [value, adjustHeight]);
+
+  return (
+    <textarea
+      ref={textareaRef}
+      rows={1}
+      value={value}
+      data-testid={testId}
+      placeholder={placeholder}
+      disabled={disabled}
+      onChange={(e) => {
+        onChange(e.target.value);
+        adjustHeight();
+      }}
+      className={`resize-none overflow-hidden bg-transparent py-0.5 text-xs font-medium focus:outline-none border-b border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:border-primary w-full whitespace-normal break-words ${className}`}
+    />
+  );
+};
+
 interface WBSBuilderProps {
   projectId: string;
   orgId: string;
@@ -144,6 +191,27 @@ export default function WBSBuilder({
   const [budgetTotals, setBudgetTotals] = useState<Record<string, number>>({});
   const [rawBudgetItems, setRawBudgetItems] = useState<RawBudgetItem[]>([]);
   const [carbonMode, setCarbonMode] = useState(false);
+
+  // Dynamic Row Heights tracking for auto-height text wrapping alignment
+  const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
+  const leftRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useLayoutEffect(() => {
+    const newHeights: Record<string, number> = {};
+    let changed = false;
+    Object.entries(leftRowRefs.current).forEach(([id, el]) => {
+      if (el) {
+        const h = el.offsetHeight;
+        if (h && rowHeights[id] !== h) {
+          newHeights[id] = h;
+          changed = true;
+        }
+      }
+    });
+    if (changed) {
+      setRowHeights((prev) => ({ ...prev, ...newHeights }));
+    }
+  });
 
   // Completion Claims & Evidence State (WBS-P1A-3B)
   const [claims, setClaims] = useState<WbsCompletionClaim[]>([]);
@@ -1569,15 +1637,15 @@ export default function WBSBuilder({
         {/* LEFT COLUMN (60%): Interactive Tree Sheet */}
         <div className="lg:col-span-3 border-r divide-y overflow-x-auto min-w-0 max-h-[600px] overflow-y-auto">
           {/* Row Headers */}
-          <div className="flex bg-slate-50 dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-500 py-3 px-4 min-w-[700px]">
-            <div className="flex-1">Deskripsi WBS Tree</div>
-            <div className="w-20 text-center">Progres</div>
-            <div className="w-28 text-center">Status</div>
-            <div className="w-16 text-center">Bulan</div>
-            <div className="w-16 text-center">Mgg/Hari</div>
-            <div className="w-24 text-left">PIC</div>
-            {globalMode === 'professional' && <div className="w-24 text-left">Metode</div>}
-            <div className="w-8"></div>
+          <div className="flex bg-slate-50 dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-500 py-3 px-4 min-w-[850px] gap-2">
+            <div className="flex-1 min-w-[280px]">Deskripsi WBS Tree</div>
+            <div className="w-16 text-center shrink-0">Progres</div>
+            <div className="w-24 text-center shrink-0">Status</div>
+            <div className="w-14 text-center shrink-0">Bulan</div>
+            <div className="w-14 text-center shrink-0">Mgg/Hari</div>
+            <div className="w-20 text-left shrink-0">PIC</div>
+            {globalMode === 'professional' && <div className="w-20 text-left shrink-0">Metode</div>}
+            <div className="w-8 shrink-0"></div>
           </div>
 
           {/* Tree Rows */}
@@ -1596,17 +1664,17 @@ export default function WBSBuilder({
               const computed = (!isLeaf || item.level === 1) ? computeParentProgress(item.id, wbsItems) : null;
 
               let indentStyle = '';
-              const rowHeightClass = 'h-[38px] py-1';
-              let rowStyle = `px-4 flex items-center min-w-[700px] gap-2 transition-all ${rowHeightClass} `;
+              const rowHeightClass = 'min-h-[42px] py-2';
+              let rowStyle = `px-4 flex items-center min-w-[850px] gap-2 transition-all ${rowHeightClass} `;
 
               if (item.level === 1) {
-                indentStyle = `border-l-4 ${theme.border} bg-slate-50/50 dark:bg-slate-800/10 font-semibold`;
+                indentStyle = `border-l-4 ${theme.border} bg-slate-100/70 dark:bg-slate-800/30 font-bold border-t border-b border-slate-200/50 dark:border-slate-800/50`;
               } else if (item.level === 2) {
-                indentStyle = 'pl-8 bg-white dark:bg-slate-900';
+                indentStyle = 'pl-8 bg-white dark:bg-slate-900 font-medium';
               } else if (item.level === 3) {
-                indentStyle = 'pl-14 bg-slate-50/20 dark:bg-slate-900/10 text-slate-700 dark:text-slate-300';
+                indentStyle = 'pl-14 bg-slate-50/40 dark:bg-slate-900/20 text-slate-700 dark:text-slate-300';
               } else if (item.level === 4) {
-                indentStyle = 'pl-20 bg-slate-50/40 dark:bg-slate-950/20 text-slate-500 dark:text-slate-400 text-xs';
+                indentStyle = 'pl-20 bg-slate-50/60 dark:bg-slate-950/30 text-slate-500 dark:text-slate-400 text-xs';
               }
 
               // Filter out level 4 if simple mode
@@ -1614,35 +1682,42 @@ export default function WBSBuilder({
 
               return (
                 <Fragment key={item.id}>
-                  <div className={`${rowStyle} ${indentStyle}`}>
+                  <div
+                    ref={(el) => (leftRowRefs.current[item.id] = el)}
+                    className={`${rowStyle} ${indentStyle}`}
+                  >
                     {/* Row Body Left Side */}
-                    <div className="flex-1 flex items-center gap-1.5 min-w-0">
+                    <div className="flex-1 flex items-start gap-1.5 min-w-[280px]">
                       {/* Row level tag */}
-                      {item.level === 1 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-800 text-white shrink-0">H</span>}
-                      {item.level === 2 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-600 text-white shrink-0">K</span>}
-                      {item.level === 3 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-500 text-white shrink-0">Sub</span>}
-                      {item.level === 4 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-400 text-white shrink-0">Task</span>}
+                      {item.level === 1 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-900 text-white shrink-0 mt-0.5">H</span>}
+                      {item.level === 2 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-600 text-white shrink-0 mt-0.5">K</span>}
+                      {item.level === 3 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-500 text-white shrink-0 mt-0.5">Sub</span>}
+                      {item.level === 4 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-400 text-white shrink-0 mt-0.5">Task</span>}
 
                       {/* Inline edit input / Title text */}
                       {item.level === 1 ? (
-                        <span className={`text-xs font-bold text-slate-800 dark:text-slate-200 truncate flex-1 min-w-0 ${item.status === 'cancelled' ? 'line-through opacity-60' : ''}`} title={item.name}>
+                        <span
+                          className={`text-xs font-bold text-slate-900 dark:text-slate-100 whitespace-normal break-words flex-1 min-w-0 leading-snug py-0.5 ${
+                            item.status === 'cancelled' ? 'line-through opacity-60' : ''
+                          }`}
+                          title={item.name}
+                        >
                           {item.name}
                         </span>
                       ) : (
-                        <input
-                          type="text"
+                        <AutoResizingTextarea
                           value={item.name}
-                          data-testid="wbs-activity-name-input"
+                          testId="wbs-activity-name-input"
                           placeholder={
                             item.level === 2 ? 'Ketik nama aktivitas...' :
                             item.level === 3 ? 'Ketik sub-aktivitas...' : 'Ketik detail task...'
                           }
-                          onChange={(e) => {
-                            const updated = { ...item, name: e.target.value };
+                          onChange={(val) => {
+                            const updated = { ...item, name: val };
                             updateItemLocally(updated);
                             triggerAutosave(updated);
                           }}
-                          className={`text-xs flex-1 min-w-0 bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:border-primary focus:outline-none py-0.5 font-medium truncate ${
+                          className={`text-xs flex-1 min-w-0 font-medium leading-snug ${
                             item.status === 'cancelled' ? 'line-through text-slate-400 dark:text-slate-500' : ''
                           }`}
                         />
@@ -2039,7 +2114,7 @@ export default function WBSBuilder({
 
                   {/* Blocked Reason Row for leaf items when status === 'blocked' */}
                   {isLeaf && item.status === 'blocked' && (
-                    <div className="pl-14 pr-4 py-1.5 bg-red-50/50 dark:bg-red-950/20 border-b border-red-100 dark:border-red-900/30 flex items-center gap-2 min-w-[700px] text-xs">
+                    <div className="pl-14 pr-4 py-1.5 bg-red-50/50 dark:bg-red-950/20 border-b border-red-100 dark:border-red-900/30 flex items-center gap-2 min-w-[850px] text-xs">
                       <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />
                       <span className="text-[10px] font-bold text-red-700 dark:text-red-400 shrink-0">Alasan Terhambat:</span>
                       <input
@@ -2261,7 +2336,10 @@ export default function WBSBuilder({
 
                   return (
                     <Fragment key={item.id}>
-                      <div className="h-[38px] flex items-center relative group">
+                      <div
+                        style={{ height: rowHeights[item.id] ? `${rowHeights[item.id]}px` : undefined }}
+                        className="min-h-[42px] flex items-center relative group"
+                      >
                         {/* Vertical Background lines */}
                         {Array.from({ length: programDurationMonths }).map((_, idx) => (
                           <div key={idx} className="w-20 shrink-0 border-r dark:border-slate-800 h-full"></div>
