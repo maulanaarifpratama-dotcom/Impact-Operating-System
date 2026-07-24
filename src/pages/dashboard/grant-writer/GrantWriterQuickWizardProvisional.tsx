@@ -1441,53 +1441,47 @@ export default function GrantWriterQuickWizardProvisional() {
         await new Promise((r) => setTimeout(r, 400));
         setMaterializationStage('writing_entries');
 
-        // Restore Azure AI Foundry Reasoning Call (Ontology -> AI Reasoning -> Materialization)
-        try {
-          await supabase.functions.invoke('grant-writer-generate', {
-            body: {
-              projectId: targetProjectId,
-              lfa_project_id: targetProjectId,
-              org_id: canonicalPayload.organization_id || 'ORG-27K-001',
-              ontologyContext: {
-                acceptedSectors,
-                acceptedInterventions,
-                acceptedSdgs,
-                acceptedActorRoles,
-                programFacts: snapshot.programFacts
-              },
-              beneficiaryCount: canonicalPayload.metadata.beneficiary_count
-            }
+        // Invoke AI Reasoning Edge Function (GPT-5.5 -> P1.5F/P1.6 Gate -> Transactional RPC)
+        const fnRes = await supabase.functions.invoke('grant-writer-generate', {
+          body: {
+            projectId: targetProjectId,
+            lfa_project_id: targetProjectId,
+            org_id: canonicalPayload.organization_id || 'ORG-27K-001',
+            ontologyContext: {
+              acceptedSectors,
+              acceptedInterventions,
+              acceptedSdgs,
+              acceptedActorRoles,
+              programFacts: snapshot.programFacts
+            },
+            beneficiaryCount: canonicalPayload.metadata.beneficiary_count
+          }
+        });
+
+        if (fnRes.error) {
+          console.error('⚠️ GrantWriter generation error:', fnRes.error);
+          toast({
+            title: '⚠️ Generasi LFA AI Belum Berhasil',
+            description: fnRes.error.message || 'Gagal menghasilkan matriks terverifikasi. Silakan coba lagi.',
+            variant: 'destructive'
           });
-        } catch (aiErr) {
-          console.warn('⚠️ Azure AI Reasoning call skipped or fallback applied:', aiErr);
+          return;
         }
 
-        // 2. Query materialized entries from PostgreSQL (populated by GPT-5.5 Reasoning Edge Function)
+        // Query materialized entries from PostgreSQL (populated by GPT-5.5 Reasoning Edge Function)
         const { data: dbEntries } = await supabase
           .from('lfa_entries')
           .select('*')
           .eq('project_id', targetProjectId)
           .order('sequence', { ascending: true });
 
-        // Fallback to deterministic entries ONLY if DB entries do not exist
         if (!dbEntries || dbEntries.length === 0) {
-          const formattedEntries = rawEntries.map(entry => ({
-            id: entry.id,
-            project_id: targetProjectId,
-            org_id: canonicalPayload.organization_id || 'ORG-27K-001',
-            level: entry.level,
-            sequence: entry.sequence,
-            parent_id: entry.parent_id,
-            description: entry.description,
-            indicator: entry.indicator,
-            means_of_verification: entry.means_of_verification,
-            assumption: entry.assumption,
-            responsible_party: entry.responsible_party
-          }));
-
-          await supabase
-            .from('lfa_entries')
-            .insert(formattedEntries);
+          toast({
+            title: '⚠️ Matriks LFA Belum Terbentuk',
+            description: 'Matriks AI tidak tersimpan atau gagal validasi. Silakan klik Generate ulang.',
+            variant: 'destructive'
+          });
+          return;
         }
 
         await new Promise((r) => setTimeout(r, 600));
