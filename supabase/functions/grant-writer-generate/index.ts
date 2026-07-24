@@ -481,6 +481,47 @@ function validateProgramSkeleton(skeleton: any) {
   }
 }
 
+function validateMatrixStructure(matrix: any) {
+  if (!matrix || typeof matrix !== 'object') {
+    throw new Error('Validation Failed: matrix is missing or not a valid object');
+  }
+
+  const goal = matrix.goal;
+  if (!goal || typeof goal !== 'object' || !goal.statement || !goal.statement.trim()) {
+    throw new Error('Validation Failed: Goal statement is missing or empty in matrix');
+  }
+
+  const outcomes = matrix.outcomes;
+  if (!Array.isArray(outcomes) || outcomes.length === 0) {
+    throw new Error('Validation Failed: At least 1 Outcome is required in matrix');
+  }
+
+  const outputs = matrix.outputs;
+  if (!Array.isArray(outputs) || outputs.length === 0) {
+    throw new Error('Validation Failed: At least 1 Output is required in matrix');
+  }
+
+  const activities = matrix.activities;
+  if (!Array.isArray(activities) || activities.length === 0) {
+    throw new Error('Validation Failed: At least 1 Activity is required in matrix');
+  }
+
+  // Validate parent indices
+  for (let i = 0; i < outputs.length; i++) {
+    const op = outputs[i];
+    if (op.outcome_index !== undefined && (op.outcome_index < 0 || op.outcome_index >= outcomes.length)) {
+      throw new Error(`Validation Failed: Output ${i + 1} outcome_index ${op.outcome_index} is out of bounds`);
+    }
+  }
+
+  for (let i = 0; i < activities.length; i++) {
+    const act = activities[i];
+    if (act.output_index !== undefined && (act.output_index < 0 || act.output_index >= outputs.length)) {
+      throw new Error(`Validation Failed: Activity ${i + 1} output_index ${act.output_index} is out of bounds`);
+    }
+  }
+}
+
 Deno.serve(async (req: Request) => {
   const cors = handleCors(req);
   if (cors) return cors;
@@ -777,10 +818,23 @@ Deno.serve(async (req: Request) => {
       try {
         validateProgramSkeleton(result.program_skeleton);
       } catch (validationErr) {
-        console.error('Local program skeleton validation failed:', (validationErr as Error).message);
-        throw new Error((validationErr as Error).message);
+        console.error('[GW-STRUCTURE] Local program skeleton validation failed:', (validationErr as Error).message);
+        return errorResponse(
+          `STRUCTURE_VALIDATION_FAILED: ${(validationErr as Error).message}`,
+          422
+        );
       }
       (result.matrix as any).program_skeleton = result.program_skeleton;
+    } else {
+      try {
+        validateMatrixStructure(result.matrix);
+      } catch (structErr) {
+        console.error('[GW-STRUCTURE] Matrix structure validation failed:', (structErr as Error).message);
+        return errorResponse(
+          `STRUCTURE_VALIDATION_FAILED: ${(structErr as Error).message}`,
+          422
+        );
+      }
     }
 
     // 4. Get next version
