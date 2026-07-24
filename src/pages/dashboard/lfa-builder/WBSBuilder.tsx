@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { WbsItem, WbsStatus, LfaEntry, LfaProject } from './types';
+import { useAuth } from '@/providers/AuthProvider';
+import {
+  WbsItem, WbsStatus, LfaEntry, LfaProject,
+  WbsCompletionClaim, WbsCompletionEvidence, WbsCompletionClaimStatus, WbsEvidenceType
+} from './types';
 import { CARBON_FACTORS_INDONESIA } from '@/data/carbon-factors-indonesia';
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
-  AlertTriangle, Milestone, Calendar, User, AlignLeft, Flag, Network, Wallet, ExternalLink
+  AlertTriangle, Milestone, Calendar, User, AlignLeft, Flag, Network, Wallet, ExternalLink,
+  ClipboardCheck, FileText, CheckCircle2, XCircle, AlertCircle, Link2, ShieldAlert, FileUp, Filter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -127,6 +132,7 @@ export default function WBSBuilder({
   onNavigateToBudget
 }: WBSBuilderProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [wbsItems, setWbsItems] = useState<WbsItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -136,6 +142,32 @@ export default function WBSBuilder({
   const [budgetTotals, setBudgetTotals] = useState<Record<string, number>>({});
   const [rawBudgetItems, setRawBudgetItems] = useState<RawBudgetItem[]>([]);
   const [carbonMode, setCarbonMode] = useState(false);
+
+  // Completion Claims & Evidence State (WBS-P1A-3B)
+  const [claims, setClaims] = useState<WbsCompletionClaim[]>([]);
+  const [evidenceMap, setEvidenceMap] = useState<Record<string, WbsCompletionEvidence[]>>({});
+  const [loadingClaims, setLoadingClaims] = useState(false);
+
+  // Claim Submission & Revision Dialog States
+  const [claimDialogOpen, setClaimDialogOpen] = useState(false);
+  const [activeTrackingItem, setActiveTrackingItem] = useState<WbsItem | null>(null);
+  const [existingClaim, setExistingClaim] = useState<WbsCompletionClaim | null>(null);
+  const [claimNote, setClaimNote] = useState('');
+  const [claimedProgress, setClaimedProgress] = useState<number>(100);
+  const [newEvidences, setNewEvidences] = useState<Array<{
+    evidence_type: WbsEvidenceType;
+    title: string;
+    description: string;
+    storage_reference: string;
+  }>>([]);
+  const [submittingClaim, setSubmittingClaim] = useState(false);
+
+  // Verifier Review Queue States
+  const [reviewQueueOpen, setReviewQueueOpen] = useState(false);
+  const [reviewFilter, setReviewFilter] = useState<'submitted' | 'verified' | 'needs_revision' | 'rejected' | 'all'>('submitted');
+  const [reviewingClaimId, setReviewingClaimId] = useState<string | null>(null);
+  const [reviewNote, setReviewNote] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
 
 
   // AI Suggestion Dialog States
@@ -346,6 +378,88 @@ export default function WBSBuilder({
     return computeBudgetRollup(allWbsIds);
   }, [wbsItems, rawBudgetItems]);
 
+  // Load Claims and Evidence (WBS-P1A-3B)
+  const loadClaimsAndEvidence = async () => {
+    if (!orgId || !projectId) return;
+    setLoadingClaims(true);
+    try {
+      const { data: claimsData, error: claimErr } = await supabase
+        .from('wbs_completion_claims')
+        .select('*')
+        .eq('lfa_project_id', projectId)
+        .order('created_at', { ascending: false });
+
+      if (claimErr) throw claimErr;
+
+      if (claimsData) {
+        setClaims(claimsData as WbsCompletionClaim[]);
+
+        const claimIds = claimsData.map((c) => c.id);
+        if (claimIds.length > 0) {
+          const { data: evidenceData, error: evErr } = await supabase
+            .from('wbs_completion_evidence')
+            .select('*')
+            .in('claim_id', claimIds)
+            .order('uploaded_at', { ascending: true });
+
+          if (!evErr && evidenceData) {
+            const map: Record<string, WbsCompletionEvidence[]> = {};
+            (evidenceData as WbsCompletionEvidence[]).forEach((ev) => {
+              if (!map[ev.claim_id]) map[ev.claim_id] = [];
+              map[ev.claim_id].push(ev);
+            });
+            setEvidenceMap(map);
+          }
+        } else {
+          setEvidenceMap({});
+        }
+      }
+    } catch (err: any) {
+      console.error('[Impactory] Failed to load completion claims:', err);
+    } finally {
+      setLoadingClaims(false);
+    }
+  };
+
+  const getActiveClaim = (wbsItemId: string): WbsCompletionClaim | undefined => {
+    return claims.find((c) => c.wbs_item_id === wbsItemId && c.status !== 'cancelled');
+  };
+
+  const getEvidenceForClaim = (claimId?: string): WbsCompletionEvidence[] => {
+    if (!claimId) return [];
+    return evidenceMap[claimId] || [];
+  };
+
+  const getClaimBadgeStyle = (status: WbsCompletionClaimStatus) => {
+    switch (status) {
+      case 'verified':
+        return 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400';
+      case 'submitted':
+        return 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400';
+      case 'needs_revision':
+        return 'bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-400';
+      case 'rejected':
+        return 'bg-red-100 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-400';
+      case 'draft':
+        return 'bg-slate-100 text-slate-700 border-slate-300 dark:bg-slate-800 dark:text-slate-300';
+      case 'cancelled':
+      default:
+        return 'bg-slate-100 text-slate-500 border-slate-200';
+    }
+  };
+
+  const getClaimLabel = (status: WbsCompletionClaimStatus) => {
+    switch (status) {
+      case 'verified': return 'Terverifikasi';
+      case 'submitted': return 'Menunggu Verifikasi';
+      case 'needs_revision': return 'Perlu Perbaikan';
+      case 'rejected': return 'Ditolak';
+      case 'draft': return 'Draft';
+      case 'cancelled': return 'Dibatalkan';
+      default: return 'Belum Ada Klaim';
+    }
+  };
+
   // Load WBS Items
   const loadWbsItems = async () => {
     if (!orgId) return;
@@ -353,6 +467,7 @@ export default function WBSBuilder({
     setError(null);
     try {
       void loadBudgetTotals();
+      void loadClaimsAndEvidence();
 
       const { data, error: wbsError } = await supabase
         .from('lfa_wbs_items')
@@ -490,6 +605,159 @@ export default function WBSBuilder({
       void loadWbsItems();
     }
   }, [projectId, orgId]);
+
+  // Claim Submission & Revision Handlers (WBS-P1A-3B)
+  const handleOpenClaimDialog = (item: WbsItem, existing?: WbsCompletionClaim) => {
+    setActiveTrackingItem(item);
+    setExistingClaim(existing || null);
+    setClaimNote(existing?.claim_note || '');
+    setClaimedProgress(existing?.claimed_progress ?? item.progress_percent ?? (item.status === 'completed' ? 100 : 0));
+    setNewEvidences([]);
+    setClaimDialogOpen(true);
+  };
+
+  const handleAddEvidenceField = () => {
+    setNewEvidences((prev) => [
+      ...prev,
+      { evidence_type: 'link', title: '', description: '', storage_reference: '' }
+    ]);
+  };
+
+  const handleRemoveEvidenceField = (index: number) => {
+    setNewEvidences((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSubmitClaim = async () => {
+    if (!activeTrackingItem || !orgId || !projectId) return;
+
+    setSubmittingClaim(true);
+    try {
+      let claimId = existingClaim?.id;
+
+      if (existingClaim && existingClaim.status === 'needs_revision') {
+        // Resubmit claim needing revision
+        const { error: updateErr } = await supabase
+          .from('wbs_completion_claims')
+          .update({
+            claim_note: claimNote,
+            claimed_progress: claimedProgress,
+            status: 'submitted',
+            submitted_at: new Date().toISOString(),
+            review_note: null,
+          })
+          .eq('id', existingClaim.id);
+
+        if (updateErr) throw updateErr;
+      } else {
+        // Create fresh claim
+        // Note: Client does NOT send claimed_by; database trigger handle_wbs_completion_claim_audit enforces auth.uid() server-side
+        const { data: newClaim, error: insertErr } = await supabase
+          .from('wbs_completion_claims')
+          .insert({
+            org_id: orgId,
+            lfa_project_id: projectId,
+            wbs_item_id: activeTrackingItem.id,
+            claim_note: claimNote,
+            claimed_progress: claimedProgress,
+            status: 'submitted',
+            submitted_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (insertErr) throw insertErr;
+        claimId = newClaim.id;
+      }
+
+      // Insert attached evidence items
+      const validEvidences = newEvidences.filter((e) => e.storage_reference.trim().length > 0 || e.title.trim().length > 0);
+      if (validEvidences.length > 0 && claimId) {
+        // Note: Client does NOT send uploaded_by; database trigger handle_wbs_completion_evidence_audit enforces auth.uid() server-side
+        const evidenceRows = validEvidences.map((e) => ({
+          org_id: orgId,
+          claim_id: claimId!,
+          evidence_type: e.evidence_type,
+          title: e.title || 'Bukti Penyelesaian',
+          description: e.description || null,
+          storage_reference: e.storage_reference,
+        }));
+
+        const { error: evInsErr } = await supabase
+          .from('wbs_completion_evidence')
+          .insert(evidenceRows);
+
+        if (evInsErr) throw evInsErr;
+      }
+
+      toast({
+        title: 'Klaim Penyelesaian Berhasil Diajukan ✨',
+        description: 'Klaim Anda telah dikirim ke antrean verifikasi MEAL/Manajemen.',
+      });
+
+      setClaimDialogOpen(false);
+      await loadClaimsAndEvidence();
+    } catch (err: any) {
+      console.error('[Impactory] Failed to submit completion claim:', err);
+      toast({
+        title: 'Gagal Mengajukan Klaim',
+        description: err?.message || 'Terjadi kesalahan pada server.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmittingClaim(false);
+    }
+  };
+
+  const handleReviewClaim = async (
+    claim: WbsCompletionClaim,
+    actionStatus: 'verified' | 'rejected' | 'needs_revision'
+  ) => {
+    if (!reviewNote && (actionStatus === 'rejected' || actionStatus === 'needs_revision')) {
+      toast({
+        title: 'Catatan Diperlukan',
+        description: 'Harap berikan catatan/alasan untuk penolakan atau permintaan perbaikan.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSubmittingReview(true);
+    try {
+      // Note: Client does NOT send reviewed_by or reviewed_at — database trigger handle_wbs_completion_claim_audit
+      // automatically enforces auth.uid(), NOW(), and Separation of Duties!
+      const { error: updateErr } = await supabase
+        .from('wbs_completion_claims')
+        .update({
+          status: actionStatus,
+          review_note: reviewNote || null,
+        })
+        .eq('id', claim.id);
+
+      if (updateErr) throw updateErr;
+
+      toast({
+        title: actionStatus === 'verified'
+          ? 'Klaim Terverifikasi ✨'
+          : actionStatus === 'needs_revision'
+          ? 'Permintaan Perbaikan Terkirim'
+          : 'Klaim Ditolak',
+        description: 'Status verifikasi klaim telah diperbarui.',
+      });
+
+      setReviewingClaimId(null);
+      setReviewNote('');
+      await loadClaimsAndEvidence();
+    } catch (err: any) {
+      console.error('[Impactory] Failed to review completion claim:', err);
+      toast({
+        title: 'Gagal Memproses Verifikasi',
+        description: err?.message || 'Separation of Duties violation atau kesalahan server.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   // Sync mode changes to DB
   useEffect(() => {
@@ -1174,6 +1442,31 @@ export default function WBSBuilder({
             </label>
           </div>
 
+          {/* Verifier Review Queue Button (WBS-P1A-3B) */}
+          {(() => {
+            const pendingCount = claims.filter((c) => c.status === 'submitted').length;
+            return (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setReviewQueueOpen(true)}
+                className="text-xs font-semibold relative bg-amber-50/60 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/60 hover:bg-amber-100 dark:hover:bg-amber-900/40"
+                data-testid="wbs-review-queue-btn"
+              >
+                <ClipboardCheck className="mr-1.5 h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                <span>Antrean Verifikasi</span>
+                {pendingCount > 0 && (
+                  <Badge
+                    className="ml-1.5 bg-amber-600 text-white text-[9px] h-4 px-1.5 py-0 rounded-full font-bold"
+                    data-testid="wbs-pending-claims-badge"
+                  >
+                    {pendingCount}
+                  </Badge>
+                )}
+              </Button>
+            );
+          })()}
+
           <Button variant="outline" size="sm" onClick={handleExportPrintPDF} className="text-xs font-semibold">
             <Download className="mr-1.5 h-3.5 w-3.5" /> Export PDF
           </Button>
@@ -1339,23 +1632,72 @@ export default function WBSBuilder({
                           })()}
                         </div>
                       ) : (
-                        <input
-                          type="text"
-                          value={item.name}
-                          data-testid="wbs-activity-name-input"
-                          placeholder={
-                            item.level === 2 ? 'Ketik nama aktivitas...' :
-                            item.level === 3 ? 'Ketik sub-aktivitas...' : 'Ketik detail task...'
-                          }
-                          onChange={(e) => {
-                            const updated = { ...item, name: e.target.value };
-                            updateItemLocally(updated);
-                            triggerAutosave(updated);
-                          }}
-                          className={`text-xs w-full bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:border-primary focus:outline-none py-0.5 font-medium truncate ${
-                            item.status === 'cancelled' ? 'line-through text-slate-400 dark:text-slate-500' : ''
-                          }`}
-                        />
+                        <div className="flex flex-col flex-1 min-w-0">
+                          <input
+                            type="text"
+                            value={item.name}
+                            data-testid="wbs-activity-name-input"
+                            placeholder={
+                              item.level === 2 ? 'Ketik nama aktivitas...' :
+                              item.level === 3 ? 'Ketik sub-aktivitas...' : 'Ketik detail task...'
+                            }
+                            onChange={(e) => {
+                              const updated = { ...item, name: e.target.value };
+                              updateItemLocally(updated);
+                              triggerAutosave(updated);
+                            }}
+                            className={`text-xs w-full bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:border-primary focus:outline-none py-0.5 font-medium truncate ${
+                              item.status === 'cancelled' ? 'line-through text-slate-400 dark:text-slate-500' : ''
+                            }`}
+                          />
+
+                          {/* Verification Status & Evidence Badges (WBS-P1A-3B) */}
+                          {isLeaf && (() => {
+                            const activeClaim = getActiveClaim(item.id);
+                            const evidences = activeClaim ? getEvidenceForClaim(activeClaim.id) : [];
+                            const evCount = evidences.length;
+
+                            return (
+                              <div className="flex flex-wrap items-center gap-1.5 mt-0.5" data-testid="wbs-claim-badge-group">
+                                {activeClaim ? (
+                                  <Badge
+                                    variant="outline"
+                                    onClick={() => handleOpenClaimDialog(item, activeClaim)}
+                                    className={`text-[8.5px] font-bold cursor-pointer py-0 px-1.5 h-4 flex items-center gap-1 border ${getClaimBadgeStyle(activeClaim.status)}`}
+                                    title={`Status Klaim Verifikasi: ${getClaimLabel(activeClaim.status)}. Klik untuk lihat detail.`}
+                                    data-testid={`wbs-claim-badge-${activeClaim.status}`}
+                                  >
+                                    <ClipboardCheck className="h-2.5 w-2.5" />
+                                    <span>Klaim: {getClaimLabel(activeClaim.status)}</span>
+                                  </Badge>
+                                ) : (
+                                  <button
+                                    onClick={() => handleOpenClaimDialog(item)}
+                                    className="text-[8.5px] text-amber-700 hover:text-amber-800 bg-amber-50/80 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 rounded px-1.5 py-0 h-4 font-semibold flex items-center gap-0.5 transition-colors shrink-0"
+                                    title="Ajukan Klaim Selesai & Lampirkan Bukti untuk Item Ini"
+                                    data-testid="wbs-open-claim-dialog-btn"
+                                  >
+                                    <Plus className="h-2.5 w-2.5" />
+                                    <span>Klaim Selesai</span>
+                                  </button>
+                                )}
+
+                                {evCount > 0 && (
+                                  <Badge
+                                    variant="secondary"
+                                    onClick={() => activeClaim && handleOpenClaimDialog(item, activeClaim)}
+                                    className="text-[8.5px] font-semibold py-0 px-1.5 h-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border cursor-pointer hover:bg-slate-200 shrink-0"
+                                    title={`${evCount} bukti terlampir`}
+                                    data-testid="wbs-evidence-badge"
+                                  >
+                                    <FileText className="h-2.5 w-2.5 mr-0.5 text-slate-500" />
+                                    <span>{evCount} bukti</span>
+                                  </Badge>
+                                )}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       )}
                     </div>
 
@@ -1994,6 +2336,462 @@ export default function WBSBuilder({
                 Terapkan Rekomendasi
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* CLAIM SUBMISSION & REVISION DIALOG (WBS-P1A-3B) */}
+      <Dialog open={claimDialogOpen} onOpenChange={setClaimDialogOpen}>
+        <DialogContent className="sm:max-w-xl max-h-[85vh] overflow-y-auto" data-testid="wbs-claim-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm uppercase font-bold text-amber-700 dark:text-amber-400">
+              <ClipboardCheck className="h-4 w-4 text-amber-600" />
+              {existingClaim && existingClaim.status === 'needs_revision'
+                ? 'Revisi & Ajukan Ulang Klaim Penyelesaian'
+                : existingClaim
+                ? 'Detail Klaim Penyelesaian & Bukti'
+                : 'Ajukan Klaim Penyelesaian & Bukti Execution'}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {activeTrackingItem?.name} ({activeTrackingItem?.level === 2 ? 'Aktivitas' : activeTrackingItem?.level === 3 ? 'Sub-Aktivitas' : 'Task'})
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            {/* Reviewer Note Warning if Needs Revision or Rejected */}
+            {existingClaim?.review_note && (
+              <div className="p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg space-y-1">
+                <span className="font-bold text-orange-800 dark:text-orange-300 block">
+                  Catatan dari Verifikator MEAL/Manajemen ({getClaimLabel(existingClaim.status)}):
+                </span>
+                <p className="text-slate-700 dark:text-slate-300 leading-relaxed italic">
+                  "{existingClaim.review_note}"
+                </p>
+              </div>
+            )}
+
+            {/* Claim Note Input */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">Catatan Ringkasan Klaim Execution:</Label>
+              <Textarea
+                value={claimNote}
+                onChange={(e) => setClaimNote(e.target.value)}
+                placeholder="Jelaskan secara singkat pencapaian target, lokasi kegiatan, atau catatan penting lapangan..."
+                className="text-xs h-20"
+                disabled={existingClaim && existingClaim.status !== 'needs_revision' && existingClaim.status !== 'draft'}
+                data-testid="wbs-claim-note-input"
+              />
+            </div>
+
+            {/* Claimed Progress % */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold">Persentase Progres yang Diklaim (%):</Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={claimedProgress}
+                onChange={(e) => setClaimedProgress(Math.max(0, Math.min(100, parseInt(e.target.value) || 0)))}
+                className="text-xs h-8 w-32"
+                disabled={existingClaim && existingClaim.status !== 'needs_revision' && existingClaim.status !== 'draft'}
+                data-testid="wbs-claimed-progress-input"
+              />
+            </div>
+
+            {/* Existing Attached Evidence List */}
+            {existingClaim && (
+              <div className="space-y-2 pt-2 border-t">
+                <Label className="text-xs font-bold flex items-center gap-1">
+                  <FileText className="h-3.5 w-3.5 text-slate-500" />
+                  Bukti Terlampir Sebelumnya ({getEvidenceForClaim(existingClaim.id).length}):
+                </Label>
+                {getEvidenceForClaim(existingClaim.id).length === 0 ? (
+                  <p className="text-slate-400 italic">Belum ada bukti yang terlampir pada klaim ini.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {getEvidenceForClaim(existingClaim.id).map((ev) => (
+                      <div key={ev.id} className="p-2 bg-slate-50 dark:bg-slate-800/50 border rounded flex items-start justify-between gap-2">
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <Badge variant="outline" className="text-[8px] uppercase font-bold py-0">{ev.evidence_type}</Badge>
+                            <span className="font-bold text-slate-800 dark:text-slate-200">{ev.title}</span>
+                          </div>
+                          {ev.description && <p className="text-slate-500 mt-0.5">{ev.description}</p>}
+                          {ev.storage_reference && (
+                            <a
+                              href={ev.storage_reference}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-emerald-600 hover:underline flex items-center gap-1 mt-1 font-mono text-[10px]"
+                            >
+                              <ExternalLink className="h-2.5 w-2.5" />
+                              {ev.storage_reference}
+                            </a>
+                          )}
+                        </div>
+                        <span className="text-[9px] text-slate-400 shrink-0">
+                          {new Date(ev.uploaded_at).toLocaleDateString('id-ID')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Add New Evidence Section (if new or revising) */}
+            {(!existingClaim || existingClaim.status === 'needs_revision' || existingClaim.status === 'draft') && (
+              <div className="space-y-3 pt-2 border-t">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold flex items-center gap-1 text-slate-800 dark:text-slate-200">
+                    <FileUp className="h-3.5 w-3.5 text-emerald-600" />
+                    Lampirkan Bukti Baru (MEAL Pattern):
+                  </Label>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddEvidenceField}
+                    className="h-6 text-[10px] gap-1"
+                    data-testid="wbs-add-evidence-btn"
+                  >
+                    <Plus className="h-3 w-3" /> Tambah Bukti
+                  </Button>
+                </div>
+
+                {newEvidences.length === 0 ? (
+                  <p className="text-slate-400 italic text-[11px]">
+                    Klik "Tambah Bukti" untuk melampirkan tautan dokumen, foto/laporan, atau catatan referensi bukti MEAL.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {newEvidences.map((ev, idx) => (
+                      <div key={idx} className="p-3 bg-slate-50 dark:bg-slate-800/40 border rounded-lg space-y-2 relative group">
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveEvidenceField(idx)}
+                          className="absolute top-2 right-2 text-slate-400 hover:text-red-500"
+                          title="Hapus item bukti ini"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          <div>
+                            <Label className="text-[10px]">Tipe Bukti</Label>
+                            <Select
+                              value={ev.evidence_type}
+                              onValueChange={(val: WbsEvidenceType) => {
+                                const updated = [...newEvidences];
+                                updated[idx].evidence_type = val;
+                                setNewEvidences(updated);
+                              }}
+                            >
+                              <SelectTrigger className="h-7 text-xs">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="link">Tautan URL / Cloud</SelectItem>
+                                <SelectItem value="file">Dokumen / File</SelectItem>
+                                <SelectItem value="manual_url">Tautan Manual</SelectItem>
+                                <SelectItem value="onedrive">OneDrive / Google Drive</SelectItem>
+                                <SelectItem value="note">Catatan Penjelasan</SelectItem>
+                                <SelectItem value="other">Lainnya</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="sm:col-span-2">
+                            <Label className="text-[10px]">Judul / Nama Bukti</Label>
+                            <Input
+                              value={ev.title}
+                              onChange={(e) => {
+                                const updated = [...newEvidences];
+                                updated[idx].title = e.target.value;
+                                setNewEvidences(updated);
+                              }}
+                              placeholder="Misal: Laporan Absensi Kegiatan A.1"
+                              className="h-7 text-xs"
+                            />
+                          </div>
+                        </div>
+
+                        <div>
+                          <Label className="text-[10px]">Tautan URL / Referensi Dokumen</Label>
+                          <Input
+                            value={ev.storage_reference}
+                            onChange={(e) => {
+                              const updated = [...newEvidences];
+                              updated[idx].storage_reference = e.target.value;
+                              setNewEvidences(updated);
+                            }}
+                            placeholder="https://drive.google.com/file/d/... atau path referensi"
+                            className="h-7 text-xs font-mono"
+                          />
+                        </div>
+
+                        <div>
+                          <Label className="text-[10px]">Deskripsi / Catatan Tambahan (Opsional)</Label>
+                          <Input
+                            value={ev.description}
+                            onChange={(e) => {
+                              const updated = [...newEvidences];
+                              updated[idx].description = e.target.value;
+                              setNewEvidences(updated);
+                            }}
+                            placeholder="Catatan tambahan mengenai bukti ini..."
+                            className="h-7 text-xs"
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="sm:justify-end gap-2 pt-2 border-t">
+            <Button variant="outline" size="sm" onClick={() => setClaimDialogOpen(false)} className="text-xs">
+              Tutup
+            </Button>
+            {(!existingClaim || existingClaim.status === 'needs_revision' || existingClaim.status === 'draft') && (
+              <Button
+                size="sm"
+                onClick={handleSubmitClaim}
+                disabled={submittingClaim}
+                className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-semibold gap-1.5"
+                data-testid="wbs-submit-claim-confirm-btn"
+              >
+                {submittingClaim && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                <span>{existingClaim?.status === 'needs_revision' ? 'Kirim Ulang Hasil Revisi' : 'Kirim Klaim Verifikasi'}</span>
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* VERIFIER REVIEW QUEUE DIALOG (WBS-P1A-3B) */}
+      <Dialog open={reviewQueueOpen} onOpenChange={setReviewQueueOpen}>
+        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto" data-testid="wbs-review-queue-dialog">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-sm uppercase font-bold text-slate-800 dark:text-slate-100">
+              <ClipboardCheck className="h-4 w-4 text-amber-600" />
+              Antrean Verifikasi Klaim Selesai (MEAL / Manajemen)
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Daftar klaim penyelesaian WBS yang diajukan oleh tim untuk diverifikasi independen.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            {/* Filter Tabs */}
+            <div className="flex flex-wrap items-center gap-1.5 pb-2 border-b">
+              {(['submitted', 'verified', 'needs_revision', 'rejected', 'all'] as const).map((filterKey) => {
+                const count = filterKey === 'all'
+                  ? claims.length
+                  : claims.filter((c) => c.status === filterKey).length;
+
+                return (
+                  <Button
+                    key={filterKey}
+                    variant={reviewFilter === filterKey ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setReviewFilter(filterKey)}
+                    className="h-7 text-[11px] gap-1 px-2.5"
+                  >
+                    <span>
+                      {filterKey === 'submitted' ? 'Menunggu Verifikasi' :
+                       filterKey === 'verified' ? 'Terverifikasi' :
+                       filterKey === 'needs_revision' ? 'Perlu Perbaikan' :
+                       filterKey === 'rejected' ? 'Ditolak' : 'Semua'}
+                    </span>
+                    <Badge variant="secondary" className="text-[9px] h-4 px-1 py-0">
+                      {count}
+                    </Badge>
+                  </Button>
+                );
+              })}
+            </div>
+
+            {/* Claims List */}
+            {(() => {
+              const filteredClaims = claims.filter((c) =>
+                reviewFilter === 'all' ? true : c.status === reviewFilter
+              );
+
+              if (filteredClaims.length === 0) {
+                return (
+                  <div className="p-8 text-center text-xs text-muted-foreground italic">
+                    Tidak ada klaim dalam kategori ini.
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-4">
+                  {filteredClaims.map((claim) => {
+                    const targetItem = wbsItems.find((i) => i.id === claim.wbs_item_id);
+                    const evidences = getEvidenceForClaim(claim.id);
+                    const isSelfClaim = user?.id && user.id === claim.claimed_by;
+
+                    return (
+                      <div
+                        key={claim.id}
+                        className="p-4 bg-white dark:bg-slate-900 border rounded-xl shadow-sm space-y-3"
+                        data-testid={`wbs-review-card-${claim.id}`}
+                      >
+                        {/* Header Info */}
+                        <div className="flex flex-wrap items-start justify-between gap-2 border-b pb-2">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-[9px] uppercase font-bold">
+                                {targetItem?.level === 2 ? 'Aktivitas' : targetItem?.level === 3 ? 'Sub' : 'Task'}
+                              </Badge>
+                              <h5 className="font-bold text-xs text-slate-800 dark:text-slate-100">
+                                {targetItem?.name || 'WBS Item'}
+                              </h5>
+                            </div>
+                            <span className="text-[10px] text-slate-400 block mt-0.5">
+                              Diajukan: {new Date(claim.submitted_at || claim.created_at).toLocaleString('id-ID')}
+                            </span>
+                          </div>
+
+                          <Badge className={`text-[10px] font-bold py-0.5 px-2 ${getClaimBadgeStyle(claim.status)}`}>
+                            {getClaimLabel(claim.status)}
+                          </Badge>
+                        </div>
+
+                        {/* Claim Content */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                          <div>
+                            <span className="text-[10px] font-bold text-slate-400 block">Progres Diklaim:</span>
+                            <span className="font-bold text-emerald-600 text-sm">{claim.claimed_progress}%</span>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <span className="text-[10px] font-bold text-slate-400 block">Catatan Klaim:</span>
+                            <p className="text-slate-700 dark:text-slate-300 italic bg-slate-50 dark:bg-slate-800/40 p-2 rounded border border-slate-100 text-xs">
+                              {claim.claim_note || 'Tanpa catatan tambahan.'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Evidence Section */}
+                        <div className="space-y-1.5 pt-2 border-t text-xs">
+                          <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
+                            <FileText className="h-3 w-3" />
+                            Bukti Terlampir ({evidences.length}):
+                          </span>
+                          {evidences.length === 0 ? (
+                            <p className="text-slate-400 italic text-[11px]">Belum ada bukti terlampir.</p>
+                          ) : (
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {evidences.map((ev) => (
+                                <div key={ev.id} className="p-2 bg-slate-50 dark:bg-slate-800/50 border rounded text-[11px]">
+                                  <div className="flex items-center gap-1 font-bold text-slate-800 dark:text-slate-200">
+                                    <Badge variant="outline" className="text-[8px] uppercase">{ev.evidence_type}</Badge>
+                                    <span className="truncate">{ev.title}</span>
+                                  </div>
+                                  {ev.storage_reference && (
+                                    <a
+                                      href={ev.storage_reference}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="text-emerald-600 hover:underline flex items-center gap-1 mt-1 font-mono text-[10px] truncate"
+                                    >
+                                      <ExternalLink className="h-2.5 w-2.5 shrink-0" />
+                                      {ev.storage_reference}
+                                    </a>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Existing Review Note */}
+                        {claim.review_note && (
+                          <div className="p-2.5 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 rounded text-xs">
+                            <span className="font-bold text-orange-800 dark:text-orange-300 block text-[10px]">Catatan Verifikator:</span>
+                            <p className="text-slate-700 dark:text-slate-300">{claim.review_note}</p>
+                          </div>
+                        )}
+
+                        {/* Separation of Duties & Verifier Action Controls */}
+                        {isSelfClaim ? (
+                          <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+                            <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-bold block">Verifikasi Dibatasi (Separation of Duties)</span>
+                              <span>
+                                Anda adalah pengaju klaim ini. Sesuai aturan Separation of Duties, verifikasi harus dilakukan oleh verifikator / anggota tim lain.
+                              </span>
+                              {/* NOTE: Real security protection is enforced server-side by trigger handle_wbs_completion_claim_audit in Postgres */}
+                            </div>
+                          </div>
+                        ) : (
+                          claim.status === 'submitted' && (
+                            <div className="pt-3 border-t space-y-3">
+                              <div className="space-y-1">
+                                <Label className="text-xs font-bold">Catatan Peninjau / Verifikator:</Label>
+                                <Textarea
+                                  value={reviewingClaimId === claim.id ? reviewNote : ''}
+                                  onChange={(e) => {
+                                    setReviewingClaimId(claim.id);
+                                    setReviewNote(e.target.value);
+                                  }}
+                                  placeholder="Tuliskan catatan hasil verifikasi (wajib untuk Perlu Perbaikan / Penolakan)..."
+                                  className="text-xs h-16"
+                                  data-testid={`wbs-review-note-input-${claim.id}`}
+                                />
+                              </div>
+                              <div className="flex flex-wrap items-center justify-end gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleReviewClaim(claim, 'needs_revision')}
+                                  disabled={submittingReview}
+                                  className="text-xs text-orange-700 border-orange-300 hover:bg-orange-50 dark:text-orange-300"
+                                  data-testid={`wbs-review-needs-revision-btn-${claim.id}`}
+                                >
+                                  Perlu Perbaikan
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => handleReviewClaim(claim, 'rejected')}
+                                  disabled={submittingReview}
+                                  className="text-xs text-red-700 border-red-300 hover:bg-red-50 dark:text-red-300"
+                                  data-testid={`wbs-review-reject-btn-${claim.id}`}
+                                >
+                                  Tolak Klaim
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleReviewClaim(claim, 'verified')}
+                                  disabled={submittingReview}
+                                  className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
+                                  data-testid={`wbs-review-approve-btn-${claim.id}`}
+                                >
+                                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                                  Setujui & Verifikasi
+                                </Button>
+                              </div>
+                            </div>
+                          )
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+
+          <DialogFooter className="sm:justify-end">
+            <Button variant="outline" size="sm" onClick={() => setReviewQueueOpen(false)} className="text-xs">
+              Tutup
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

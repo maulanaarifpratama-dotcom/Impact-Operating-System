@@ -219,3 +219,37 @@ export interface LfaSroiOutcome {
   created_at?: string;
   updated_at?: string;
 }
+
+export type WbsCompletionClaimStatus = 'draft' | 'submitted' | 'verified' | 'rejected' | 'needs_revision' | 'cancelled';
+
+export interface WbsCompletionClaim {
+  id: string;
+  org_id: string;
+  lfa_project_id: string;
+  wbs_item_id: string;
+  claimed_by: string;
+  claimed_at: string;
+  claim_note?: string | null;
+  claimed_progress?: number | null;
+  status: WbsCompletionClaimStatus;
+  submitted_at?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  review_note?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type WbsEvidenceType = 'file' | 'link' | 'note' | 'manual_url' | 'onedrive' | 'other';
+
+export interface WbsCompletionEvidence {
+  id: string;
+  org_id: string;
+  claim_id: string;
+  evidence_type?: WbsEvidenceType | null;
+  storage_reference?: string | null;
+  title?: string | null;
+  description?: string | null;
+  uploaded_by: string;
+  uploaded_at: string;
+}
