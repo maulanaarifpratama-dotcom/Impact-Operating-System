@@ -83,6 +83,47 @@ export default function LFABuilderEditor() {
   const [wbsExists, setWbsExists] = useState(false);
   const [mealExists, setMealExists] = useState(false);
 
+  // Proposal Generation State
+  const [generatingProposal, setGeneratingProposal] = useState(false);
+  const [proposalReady, setProposalReady] = useState(false);
+  const [currentDocId, setCurrentDocId] = useState<string | null>(null);
+
+  const handleGenerateFullProposal = async () => {
+    if (!project) return;
+    setGeneratingProposal(true);
+    toast({
+      title: 'Memproses Proposal Lengkap',
+      description: 'Sedang mengembangkan matriks LFA menjadi proposal naratif 5-7 bab (diperkirakan 30-60 detik)...',
+    });
+
+    try {
+      const targetGwProjectId = project.linked_grant_id || project.id;
+      const { data, error } = await supabase.functions.invoke('grant-writer-proposal', {
+        body: { projectId: targetGwProjectId }
+      });
+
+      if (error || !data?.success) {
+        throw new Error(error?.message || data?.error || 'Gagal membuat proposal');
+      }
+
+      setProposalReady(true);
+      setCurrentDocId(data.document_id);
+      toast({
+        title: 'Proposal Lengkap Selesai!',
+        description: `Proposal ${data.word_count || ''} kata (${data.section_count || 7} bab) berhasil dibuat!`,
+      });
+    } catch (err: any) {
+      console.error('Proposal generation failed:', err);
+      toast({
+        title: 'Gagal membuat proposal',
+        description: err.message || 'Terjadi kesalahan saat memproses proposal',
+        variant: 'destructive',
+      });
+    } finally {
+      setGeneratingProposal(false);
+    }
+  };
+
   const checkWbsExistence = useCallback(async () => {
     if (!projectId) return;
     try {
@@ -770,6 +811,36 @@ export default function LFABuilderEditor() {
             {pdfLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
             Export PDF
           </Button>
+
+          {proposalReady && currentDocId ? (
+            <Button
+              size="sm"
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium"
+              onClick={() => navigate(`/dashboard/grant-writer/proposal/${currentDocId}`)}
+            >
+              <FileText className="mr-1.5 h-3.5 w-3.5" /> Lihat Proposal Lengkap
+            </Button>
+          ) : (
+            <Button
+              size="sm"
+              disabled={generatingProposal}
+              className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium shadow-sm"
+              onClick={handleGenerateFullProposal}
+              title="Mengembangkan matriks LFA menjadi proposal naratif 5-7 bab (membutuhkan waktu 30-60 detik)"
+            >
+              {generatingProposal ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Memproses... (~45d)
+                </>
+              ) : (
+                <>
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5 text-amber-300" />
+                  Buat Proposal Lengkap
+                </>
+              )}
+            </Button>
+          )}
 
           <Button size="sm" className="bg-amber-600 hover:bg-amber-500 text-white border-0" onClick={handleExportToGrantwriter}>
             <Send className="mr-1.5 h-3.5 w-3.5" /> Kirim ke Grantwriter
