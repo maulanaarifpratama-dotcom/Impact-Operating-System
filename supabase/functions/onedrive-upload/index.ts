@@ -120,6 +120,20 @@ serve(async (req: Request) => {
       );
     }
 
+    const tokenData = await tokenRes.json();
+    const accessToken = tokenData.access_token;
+
+    if (!accessToken) {
+      console.error('Microsoft token response missing access_token field:', tokenData);
+      return new Response(
+        JSON.stringify({ error: 'Microsoft token response did not include an access_token' }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     const folderType = folderTypeObj ? folderTypeObj.toString() : 'library';
 
     // 7. Upload file to OneDrive via Microsoft Graph API

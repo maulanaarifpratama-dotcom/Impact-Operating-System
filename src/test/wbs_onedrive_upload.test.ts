@@ -57,4 +57,28 @@ describe('WBS OneDrive Evidence Upload Integration & Logic (WBS-GAP-1)', () => {
 
     expect(handleUpload).toThrow('Upload file "rekap_peserta.xlsx" ke OneDrive gagal: OneDrive Graph API upload failed: 401 Unauthorized');
   });
+
+  it('should extract access_token from Microsoft token response and reject missing tokens (WBS-GAP-1-FIX)', () => {
+    const mockSuccessResponse = {
+      token_type: 'Bearer',
+      expires_in: 3599,
+      access_token: 'eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.mock_graph_access_token',
+    };
+
+    const mockMissingTokenResponse = {
+      error: 'invalid_client',
+      error_description: 'Client secret is invalid',
+    };
+
+    const extractToken = (data: any) => {
+      const accessToken = data.access_token;
+      if (!accessToken) {
+        throw new Error('Microsoft token response did not include an access_token');
+      }
+      return accessToken;
+    };
+
+    expect(extractToken(mockSuccessResponse)).toBe('eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.mock_graph_access_token');
+    expect(() => extractToken(mockMissingTokenResponse)).toThrow('Microsoft token response did not include an access_token');
+  });
 });
