@@ -32,9 +32,9 @@ test.describe('Real Azure OpenAI P0-B Generation & Downstream Materialization', 
     // Increase test timeout to 10 minutes for real Azure OpenAI call
     test.setTimeout(600000);
 
-    const baseUrl = 'http://localhost:8080';
-    const email = 'info@bisabaik.or.id';
-    const password = 'metaproject123';
+    const baseUrl = process.env.E2E_BASE_URL || 'http://localhost:8080';
+    const email = process.env.E2E_USER_EMAIL || 'test@example.com';
+    const password = process.env.E2E_USER_PASSWORD || '';
     const projectTitle = 'E2E P0-B Real Azure Canonical LFA 2026-07-22';
 
     // Resolve Supabase configs
