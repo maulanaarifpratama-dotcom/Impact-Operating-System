@@ -38,3 +38,7 @@ scratch/
 
 # Local migration bootstrap
 supabase/migrations/20260600000000_organizations.sql
+
+# Supabase CLI temp and branch files
+supabase/.temp/
+supabase/.branches/
