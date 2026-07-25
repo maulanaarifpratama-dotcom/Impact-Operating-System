@@ -171,6 +171,7 @@ const App = () => (
                <Route path="/dashboard/grant-writer/:projectId" element={<GrantWriterRouteGuard />} />
                <Route path="/dashboard/grant-writer/quick/:projectId" element={<GrantWriterRouteGuard />} />
               <Route path="/dashboard/grant-writer/:projectId/proposal" element={<GrantWriterProposal />} />
+              <Route path="/dashboard/grant-writer/proposal/:projectId" element={<GrantWriterProposal />} />
               <Route path="/dashboard/impactory-library" element={<ImpactoryLibrary />} />
               <Route path="/dashboard/impact-library" element={<Navigate to="/dashboard/impactory-library" replace />} />
               <Route path="/dashboard/grantfinder" element={<Grantfinder />} />

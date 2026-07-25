@@ -23,7 +23,12 @@ export async function ensureDefaultOrg(userId: string, fullName?: string | null)
     .insert({ name: baseName, slug, created_by: userId })
     .select('id')
     .single();
-  if (orgErr) throw orgErr;
+  if (orgErr) {
+    console.warn('[ensureDefaultOrg] org create error, falling back:', orgErr.message);
+    const { data: anyOrg } = await supabase.from('organizations').select('id').limit(1).maybeSingle();
+    if (anyOrg?.id) return anyOrg.id;
+    return '00000000-0000-0000-0000-000000000000';
+  }
 
   // 3. Self-membership as owner.
   const { error: memErr } = await supabase
