@@ -627,7 +627,7 @@ export default function Index() {
                           <h3 className="text-sm sm:text-base font-extrabold text-slate-100 group-hover:text-teal-300 transition-colors leading-snug">
                             {module.title}
                           </h3>
-                          <p className="mt-2.5 text-xs sm:text-sm text-slate-400 leading-relaxed font-normal line-clamp-3">
+                          <p className="mt-2.5 text-xs sm:text-sm text-slate-400 leading-relaxed font-normal line-clamp-5">
                             {module.description}
                           </p>
                         </div>
