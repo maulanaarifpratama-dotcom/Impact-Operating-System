@@ -41,7 +41,7 @@ serve(async (req: Request) => {
       .single();
 
     if (orgErr || !org) {
-      return errorResponse("Organisasi tidak ditemukan.", 440);
+      return errorResponse("Organisasi tidak ditemukan.", 404);
     }
 
     let invitationRecord;
