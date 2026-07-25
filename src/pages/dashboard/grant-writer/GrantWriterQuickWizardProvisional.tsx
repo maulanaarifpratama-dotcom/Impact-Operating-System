@@ -1484,6 +1484,21 @@ export default function GrantWriterQuickWizardProvisional() {
           return;
         }
 
+        // Calculate actual materialized metrics from DB
+        const actualOutcomes = dbEntries.filter(e => e.level === 'purpose').length;
+        const actualOutputs = dbEntries.filter(e => e.level === 'output').length;
+        const actualActivities = dbEntries.filter(e => e.level === 'activity').length;
+        const actualIndicators = dbEntries.filter(e => e.indicator && e.indicator.trim().length > 0).length;
+
+        setCanonicalMetrics({
+          outcomeCount: actualOutcomes,
+          outputCount: actualOutputs,
+          activityCount: actualActivities,
+          indicatorCount: actualIndicators,
+          costDriverCount: 0,
+          bqs27k: 0
+        });
+
         await new Promise((r) => setTimeout(r, 600));
         setMaterializationStage('preparing_workspace');
 
@@ -1492,7 +1507,7 @@ export default function GrantWriterQuickWizardProvisional() {
 
         toast({
           title: '✅ Workspace & Kerangka Program Disiapkan',
-          description: 'Membuka LFA Matrix Studio...',
+          description: `Terverifikasi: ${actualOutcomes} Outcome, ${actualOutputs} Output, ${actualActivities} Aktivitas, dan ${actualIndicators} Indikator telah tersimpan. Membuka LFA Matrix Studio...`,
         });
 
         // Navigate to LFABuilderEditor with targetProjectId
