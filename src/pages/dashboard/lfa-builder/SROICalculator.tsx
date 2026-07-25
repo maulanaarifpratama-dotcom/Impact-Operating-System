@@ -971,8 +971,9 @@ export default function SROICalculator({
 
     const allOutcomesTableRows = (combinedOutcomes ?? []).map((o, idx) => `
       <tr>
-        <td style="border: 1px solid #CBD5E1; padding: 8px;">${idx + 1}</td>
+        <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${idx + 1}</td>
         <td style="border: 1px solid #CBD5E1; padding: 8px; font-weight:600;">${o?.outcome_name ?? ''}</td>
+        <td style="border: 1px solid #CBD5E1; padding: 8px;">${o?.stakeholder_group || 'Penerima Manfaat Langsung'}</td>
         <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right;">${o?.quantity ?? 0} ${o?.unit || ''}</td>
         <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right;">Rp ${(o?.proxy_value_idr ?? 0).toLocaleString('id-ID')}</td>
         <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right;">Rp ${(o?.gross_value_idr ?? 0).toLocaleString('id-ID')}</td>
@@ -984,32 +985,42 @@ export default function SROICalculator({
       </tr>
     `).join('');
 
-    const sensitivityMarkup = config?.sensitivity_result ? `
+    const sensitivityMarkup = `
       <div style="margin-top: 30px;">
-        <h3>Analisis Sensitivitas Proyeksi SROI</h3>
-        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px;">
+        <h3 style="font-size: 13px; font-weight: 700; margin-bottom: 8px;">2. Analisis Sensitivitas Dampak (SVI Principle 7: Be Transparent)</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 11px;">
           <thead>
             <tr style="background: #F1F5F9;">
-              <th style="border: 1px solid #CBD5E1; padding: 8px; text-align:left;">Skenario</th>
-              <th style="border: 1px solid #CBD5E1; padding: 8px; text-align:left;">Perubahan Asumsi</th>
-              <th style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">SROI Ratio</th>
-              <th style="border: 1px solid #CBD5E1; padding: 8px; text-align:left;">Catatan</th>
+              <th style="border: 1px solid #CBD5E1; padding: 8px; text-align:left;">Skenario Evaluasi</th>
+              <th style="border: 1px solid #CBD5E1; padding: 8px; text-align:left;">Perubahan Asumsi Input</th>
+              <th style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">Rasio SROI</th>
+              <th style="border: 1px solid #CBD5E1; padding: 8px; text-align:left;">Catatan & Keterangan</th>
             </tr>
           </thead>
           <tbody>
-            ${(config?.sensitivity_result?.scenarios ?? []).map((s: any) => `
-              <tr>
-                <td style="border: 1px solid #CBD5E1; padding: 8px; font-weight:bold;">${s?.name ?? ''}</td>
-                <td style="border: 1px solid #CBD5E1; padding: 8px;">${s?.assumptionChange ?? ''}</td>
-                <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center; font-weight:bold; color: #1E293B;">${s?.sroiRatio ?? ''}</td>
-                <td style="border: 1px solid #CBD5E1; padding: 8px;">${s?.notes ?? ''}</td>
-              </tr>
-            `).join('')}
+            <tr>
+              <td style="border: 1px solid #CBD5E1; padding: 8px; font-weight:bold; color: #B91C1C;">Konservatif (Pesimis)</td>
+              <td style="border: 1px solid #CBD5E1; padding: 8px;">Kontribusi Program -20%, Deadweight +20%, Discount Rate +2%</td>
+              <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center; font-weight:800;">1 : ${conservativeRatio}</td>
+              <td style="border: 1px solid #CBD5E1; padding: 8px;">${conservativeRatio >= 1 ? '✅ Tetap Menguntungkan secara Sosial (> 1.00)' : '⚠️ Berisiko di Bawah Pagu Investasi (< 1.00)'}</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #CBD5E1; padding: 8px; font-weight:bold; color: #1D4ED8;">Kasus Dasar (Base Case)</td>
+              <td style="border: 1px solid #CBD5E1; padding: 8px;">Asumsi Utama Saat Ini (Baseline Evaluasi)</td>
+              <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center; font-weight:800;">1 : ${config.sroi_ratio.toFixed(2)}</td>
+              <td style="border: 1px solid #CBD5E1; padding: 8px;">Baseline Rasio Dampak Sosial Utama</td>
+            </tr>
+            <tr>
+              <td style="border: 1px solid #CBD5E1; padding: 8px; font-weight:bold; color: #047857;">Optimis</td>
+              <td style="border: 1px solid #CBD5E1; padding: 8px;">Kontribusi Program +10%, Deadweight -10%</td>
+              <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center; font-weight:800;">1 : ${optimisticRatio}</td>
+              <td style="border: 1px solid #CBD5E1; padding: 8px;">Proyeksi Terbaik Dalam Kondisi Ideal</td>
+            </tr>
           </tbody>
         </table>
-        <p style="margin-top: 10px; font-size: 11px; font-style:italic; color: #64748B;">*Analisa sensitivitas dihitung deterministik berdasarkan variasi input baseline.</p>
+        <p style="margin-top: 10px; font-size: 11px; font-style:italic; color: #64748B;">*Analisis sensitivitas dihitung berdasarkan variasi deterministik indikator baseline SVI.</p>
       </div>
-    ` : '';
+    `;
 
     const content = `
       <html>
@@ -1159,10 +1170,11 @@ export default function SROICalculator({
                   <tr>
                     <th style="padding: 10px; text-align:left;">No</th>
                     <th style="padding: 10px; text-align:left;">Outcome Name</th>
+                    <th style="padding: 10px; text-align:left;">Stakeholder Group</th>
                     <th style="padding: 10px; text-align:right;">Volume</th>
                     <th style="padding: 10px; text-align:right;">Proxy IDR</th>
                     <th style="padding: 10px; text-align:right;">Gross Value</th>
-                    <th style="padding: 10px; text-align:center;">Attribution</th>
+                    <th style="padding: 10px; text-align:center;">Kontribusi</th>
                     <th style="padding: 10px; text-align:center;">Deadweight</th>
                     <th style="padding: 10px; text-align:center;">Displacement</th>
                     <th style="padding: 10px; text-align:center;">Drop-off</th>

@@ -28,6 +28,7 @@ import {
   Check,
   ExternalLink,
   ArrowRight,
+  Printer,
   Download,
   Building2,
   MapPin,
@@ -375,6 +376,165 @@ export default function SROIStandalone() {
   const conservativeRatio = computeScenarioRatio(-20, 20, 0.02);
   const optimisticRatio = computeScenarioRatio(10, -10, 0);
 
+  const handleExportPDF = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    const ratioColor = sroiRatio < 1 ? '#EF4444' : sroiRatio <= 2 ? '#D97706' : sroiRatio <= 4 ? '#10B981' : '#3B82F6';
+
+    const allOutcomesRows = outcomes.map((o, idx) => {
+      const { gross_value, present_value } = calculateOutcomeMetrics(o);
+      return `
+        <tr>
+          <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${idx + 1}</td>
+          <td style="border: 1px solid #CBD5E1; padding: 8px; font-weight:600;">${o.outcome_name || 'Outcome ' + (idx + 1)}</td>
+          <td style="border: 1px solid #CBD5E1; padding: 8px;">${o.stakeholder_group || 'Penerima Manfaat Langsung'}</td>
+          <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right;">${o.quantity || 0} ${o.unit || ''}</td>
+          <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right;">Rp ${(o.proxy_value_idr || 0).toLocaleString('id-ID')}</td>
+          <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right;">Rp ${gross_value.toLocaleString('id-ID')}</td>
+          <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${o.attribution_pct ?? 80}%</td>
+          <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${o.deadweight_pct ?? 20}%</td>
+          <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${o.displacement_pct ?? 0}%</td>
+          <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center;">${o.dropoff_pct_per_year ?? 0}%</td>
+          <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:right; font-weight:700;">Rp ${present_value.toLocaleString('id-ID')}</td>
+        </tr>
+      `;
+    }).join('');
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Laporan Valuasi Dampak Sosial (SROI) — ${programName || 'Program SROI'}</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+            body { font-family: 'Inter', sans-serif; padding: 30px; color: #1E293B; max-width: 900px; margin: 0 auto; }
+            .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #0F3D2E; padding-bottom: 15px; margin-bottom: 20px; }
+            .brand { font-size: 20px; font-weight: 800; color: #0F3D2E; }
+            .title { font-size: 15px; font-weight: 700; color: #334155; }
+            .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 25px; }
+            .kpi-card { background: #F8FAFC; border: 1px solid #E2E8F0; padding: 12px; border-radius: 8px; text-align: center; }
+            .kpi-title { font-size: 10px; font-weight: 700; color: #64748B; text-transform: uppercase; margin-bottom: 4px; }
+            .kpi-value { font-size: 18px; font-weight: 800; }
+            table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 11px; }
+            th { background-color: #F1F5F9; border: 1px solid #CBD5E1; padding: 8px; text-align: left; text-transform: uppercase; font-size: 9px; font-weight: 700; }
+            .footer { margin-top: 30px; border-top: 1px solid #E2E8F0; pt: 15px; font-size: 10px; color: #64748B; text-align: center; }
+            @media print { body { padding: 0; } }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="brand">Impactory.id</div>
+              <div class="title">Laporan Valuasi Dampak Sosial (SROI) Donor-Ready</div>
+            </div>
+            <div style="text-align: right; font-size: 11px; color: #64748B;">
+              <div>Tanggal Evaluasi: ${new Date().toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+              <div>Standar: Social Value International (SVI)</div>
+            </div>
+          </div>
+
+          <div style="margin-bottom: 20px;">
+            <h2 style="font-size: 16px; font-weight: 800; margin: 0 0 6px 0;">Program: ${programName || 'Tanpa Nama Program'}</h2>
+            <div style="font-size: 11px; color: #475569;">
+              Sektor: <strong>${sector}</strong> | Lokasi: <strong>${location || 'Indonesia'}</strong> | Evaluasi: <strong>${durationYears} Tahun</strong> | Discount Rate: <strong>${(discountRate * 100).toFixed(1)}%</strong>
+            </div>
+          </div>
+
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-title">Total Investasi</div>
+              <div class="kpi-value" style="color: #0F172A;">Rp ${totalInvestmentIdr.toLocaleString('id-ID')}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-title">Nilai Sosial Kotor</div>
+              <div class="kpi-value" style="color: #475569;">Rp ${totalGrossSocialValue.toLocaleString('id-ID')}</div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-title">Present Value (PV)</div>
+              <div class="kpi-value" style="color: #059669;">Rp ${totalPresentSocialValue.toLocaleString('id-ID')}</div>
+            </div>
+            <div class="kpi-card" style="background: #EFF6FF; border-color: #BFDBFE;">
+              <div class="kpi-title" style="color: #1E40AF;">Rasio SROI</div>
+              <div class="kpi-value" style="color: ${ratioColor};">1 : ${sroiRatio}</div>
+            </div>
+          </div>
+
+          <h3 style="font-size: 13px; font-weight: 700; margin-bottom: 8px;">1. Matriks Rincian Outcome Dampak Sosial</h3>
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 25px;">No</th>
+                <th>Outcome / Capaian</th>
+                <th>Kelompok Pemangku Kepentingan</th>
+                <th style="text-align:right;">Vol</th>
+                <th style="text-align:right;">Proxy (Rp)</th>
+                <th style="text-align:right;">Gross (Rp)</th>
+                <th style="text-align:center;">Kontribusi</th>
+                <th style="text-align:center;">Dw</th>
+                <th style="text-align:center;">Disp</th>
+                <th style="text-align:center;">Dropoff</th>
+                <th style="text-align:right;">Present Value (Rp)</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${allOutcomesRows}
+            </tbody>
+          </table>
+
+          <h3 style="font-size: 13px; font-weight: 700; margin-top: 25px; margin-bottom: 8px;">2. Analisis Sensitivitas Dampak (SVI Principle 7: Be Transparent)</h3>
+          <table>
+            <thead>
+              <tr>
+                <th>Skenario Evaluasi</th>
+                <th>Asumsi Perubahan Input</th>
+                <th style="text-align:center;">Rasio SROI</th>
+                <th>Status Ketahanan / Kesimpulan</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td style="font-weight:700; color: #B91C1C; border: 1px solid #CBD5E1; padding: 8px;">Konservatif (Pesimis)</td>
+                <td style="border: 1px solid #CBD5E1; padding: 8px;">Kontribusi Program -20%, Deadweight +20%, Discount Rate +2%</td>
+                <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center; font-weight:800;">1 : ${conservativeRatio}</td>
+                <td style="border: 1px solid #CBD5E1; padding: 8px;">${conservativeRatio >= 1 ? '✅ Tetap Menguntungkan secara Sosial (> 1.00)' : '⚠️ Berisiko di Bawah Pagu Investasi (< 1.00)'}</td>
+              </tr>
+              <tr>
+                <td style="font-weight:700; color: #1D4ED8; border: 1px solid #CBD5E1; padding: 8px;">Kasus Dasar (Base Case)</td>
+                <td style="border: 1px solid #CBD5E1; padding: 8px;">Asumsi Utama Saat Ini (Baseline Evaluasi)</td>
+                <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center; font-weight:800;">1 : ${sroiRatio}</td>
+                <td style="border: 1px solid #CBD5E1; padding: 8px;">Baseline Rasio Dampak Sosial Utama</td>
+              </tr>
+              <tr>
+                <td style="font-weight:700; color: #047857; border: 1px solid #CBD5E1; padding: 8px;">Optimis</td>
+                <td style="border: 1px solid #CBD5E1; padding: 8px;">Kontribusi Program +10%, Deadweight -10%</td>
+                <td style="border: 1px solid #CBD5E1; padding: 8px; text-align:center; font-weight:800;">1 : ${optimisticRatio}</td>
+                <td style="border: 1px solid #CBD5E1; padding: 8px;">Proyeksi Terbaik Dalam Kondisi Ideal</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div style="margin-top: 25px; padding: 12px; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; font-size: 10px; color: #475569; line-height: 1.5;">
+            <strong>Metodologi & Prinsip Kepatuhan SVI:</strong> Laporan ini disusun mengacu pada 8 Prinsip Social Value International: (1) Involve Stakeholders, (2) Understand What Changes, (3) Value the Things That Matter, (4) Only Include What is Material, (5) Do Not Over-Claim, (6) Be Transparent, (7) Verify the Result, (8) Be Responsive.
+          </div>
+
+          <div class="footer">
+            Diproduksi oleh Impactory.id — Platform Manajemen Dampak Sosial & Sustainability Indonesia
+          </div>
+
+          <script>
+            window.onload = function() {
+              window.print();
+            };
+          </script>
+        </body>
+      </html>
+    `;
+
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+  };
+
   const handleCopySummary = () => {
     const text = `SROI Calculator (Standalone Estimasi)
 ----------------------------------------
@@ -445,13 +605,14 @@ Estimasi ini bersumber dari proxy value & input manual pengguna.`;
           </div>
 
           <Button
+            id="sroi-standalone-print-btn"
+            data-testid="sroi-standalone-print-btn"
             size="sm"
             variant="outline"
-            className="text-xs font-semibold text-slate-400 cursor-not-allowed border-dashed"
-            disabled
-            title="PDF Export akan hadir di versi rilis berikutnya."
+            onClick={handleExportPDF}
+            className="text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800 print:hidden"
           >
-            <Download className="h-3.5 w-3.5 mr-1" /> Export PDF (Segera Hadir)
+            <Printer className="h-3.5 w-3.5 mr-1.5" /> Cetak / Export PDF Laporan
           </Button>
         </div>
       </div>
