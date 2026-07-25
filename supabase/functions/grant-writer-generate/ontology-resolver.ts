@@ -691,18 +691,22 @@ export function buildDynamicRetryPrompt(
   resolvedContext: ResolvedOntologyContext
 ): string {
   const requiredGroundingTerms = extractGroundingTerms(programFacts, resolvedContext);
+  const floorFailures = failures.filter(f => f.includes('floor') || f.includes('minimum') || f.includes('activities') || f.includes('Outputs count'));
+  const floorNotice = floorFailures.length > 0
+    ? `\nCRITICAL STRUCTURAL REQUIREMENT (CARDINALITY FLOOR FAILED):\nYour previous generation failed the required LFA structure floor with the following issues:\n${floorFailures.map(f => `  * EXPLICIT FAILURE: ${f}`).join('\n')}\nACTION REQUIRED: Please break down the program intervention into more detailed phases/deliverables. Ensure you generate AT LEAST 2 to 3 distinct Outputs, and AT LEAST 2 to 3 Activities per Output (total >= 6 Activities across the matrix).\n`
+    : '';
 
-  return `RETRY REQUEST — GROUNDING PENERBITAN LFA BELUM MEMENUHI KUALITAS:
-
+  return `RETRY REQUEST — GROUNDING & STRUKTUR LFA BELUM MEMENUHI KUALITAS:
+${floorNotice}
 Rewrite using these required grounding terms derived from current request:
 ${requiredGroundingTerms.map((t) => `- ${t}`).join('\n')}
 
-Missing or weak grounding failures to fix:
+Missing or weak grounding / structural failures to fix:
 ${failures.map((f) => `- ${f}`).join('\n')}
 
 Do NOT invent any facts listed as missing:
 ${programFacts.missingFacts.length > 0 ? programFacts.missingFacts.map((mf) => `- ${mf}`).join('\n') : '- None'}
 
 Instruction:
-Please regenerate the full LFA matrix, proposal markdown, and program skeleton ensuring all required grounding terms and program facts are strictly integrated. Do not use generic statements.`;
+Please regenerate the full LFA matrix, proposal markdown, and program skeleton ensuring all required grounding terms, structural cardinality floors (min 2-3 outputs, min 6-9 activities), and program facts are strictly integrated. Do not use generic statements.`;
 }
