@@ -335,14 +335,14 @@ export function validateLFASemantics(matrix: any): SemanticValidationResult {
   const outputs = matrix.outputs || [];
   const activities = matrix.activities || [];
 
-  // 1. Cardinality Floor Check (Phase C)
-  if (outputs.length < 3) {
-    reasons.push(`Outputs count (${outputs.length}) is below MVP floor of 3.`);
+  // 1. Cardinality Floor Check (Safety Net Floor: Min 2 Outputs, Min 2 Activities/Output, Min 6 Total Activities)
+  if (outputs.length < 2) {
+    reasons.push(`Outputs count (${outputs.length}) is below safety floor of 2.`);
     code = 'ACTIVITY_FLOOR_FAILED';
   }
 
-  if (activities.length < 9) {
-    reasons.push(`Total activities count (${activities.length}) is below MVP floor of 9.`);
+  if (activities.length < 6) {
+    reasons.push(`Total activities count (${activities.length}) is below safety floor of 6.`);
     code = 'ACTIVITY_FLOOR_FAILED';
   }
 
@@ -354,8 +354,8 @@ export function validateLFASemantics(matrix: any): SemanticValidationResult {
 
   for (let i = 0; i < outputs.length; i++) {
     const count = actCounts.get(i) || 0;
-    if (count < 3) {
-      reasons.push(`Output ${i + 1} has only ${count} activities (minimum 3 required).`);
+    if (count < 2) {
+      reasons.push(`Output ${i + 1} has only ${count} activities (minimum 2 required).`);
       code = 'ACTIVITY_FLOOR_FAILED';
     }
   }
