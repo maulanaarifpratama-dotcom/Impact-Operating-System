@@ -1301,6 +1301,36 @@ export default function SROICalculator({
 
   const CHART_COLORS = ['#3B82F6', '#10B981', 'brand-amber', '#EF4444', '#8B5CF6', '#EC4899', '#06B6D4'];
 
+  const computeScenarioRatio = (attrDelta: number, dwDelta: number, discountDelta: number) => {
+    const totalInvest = config?.total_investment_idr || 1;
+    const scenarioDiscount = Math.max(0, (config?.discount_rate || 0.05) + discountDelta);
+    let totalPV = 0;
+
+    (combinedOutcomes || []).forEach(out => {
+      const adjAttr = Math.min(100, Math.max(0, (out.attribution_pct ?? 80) + attrDelta));
+      const adjDw = Math.min(100, Math.max(0, (out.deadweight_pct ?? 20) + dwDelta));
+      const qty = out.quantity || 0;
+      const proxyVal = out.proxy_value_idr || 0;
+      const netQtyVal = qty * proxyVal * (adjAttr / 100) * (1 - (adjDw / 100)) * (1 - ((out.displacement_pct || 0) / 100));
+
+      let pvSum = 0;
+      let runningVal = netQtyVal;
+      const yrs = out.duration_years || config?.analysis_period_years || 1;
+      for (let yr = 1; yr <= yrs; yr++) {
+        if (yr > 1) {
+          runningVal = runningVal * (1 - ((out.dropoff_pct_per_year || 0) / 100));
+        }
+        pvSum += runningVal / Math.pow(1 + scenarioDiscount, yr);
+      }
+      totalPV += pvSum;
+    });
+
+    return totalInvest > 0 ? parseFloat((totalPV / totalInvest).toFixed(2)) : 0;
+  };
+
+  const conservativeRatio = computeScenarioRatio(-20, 20, 0.02);
+  const optimisticRatio = computeScenarioRatio(10, -10, 0);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -2137,6 +2167,66 @@ export default function SROICalculator({
               <span className="text-[10px] text-muted-foreground block">SROI Ratio = NPV / Investasi.</span>
             </Card>
           </div>
+
+          {/* SENSITIVITY ANALYSIS CARD (SVI Principle 7: Be Transparent) */}
+          <Card className="border shadow-elegant overflow-hidden">
+            <CardHeader className="bg-slate-50 dark:bg-slate-900/50 py-3.5 px-4 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+                  <Activity className="h-3.5 w-3.5 text-indigo-500" /> Analisis Sensitivitas SROI (SVI Principle 7)
+                </CardTitle>
+                <CardDescription className="text-[9px] mt-0.5">
+                  Uji ketahanan rasio dampak terhadap perubahan asumsi dasar.
+                </CardDescription>
+              </div>
+              <Badge variant="outline" className="text-[10px] bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border-indigo-200">
+                Be Transparent
+              </Badge>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
+                {/* Pesimist / Conservative */}
+                <div className="p-3 rounded-lg border bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-900/40">
+                  <span className="text-[10px] font-bold text-red-600 dark:text-red-400 uppercase block">Skenario Konservatif</span>
+                  <span className="text-xl font-extrabold text-red-700 dark:text-red-300 font-mono">
+                    1 : {conservativeRatio}
+                  </span>
+                  <span className="text-[9px] text-muted-foreground block mt-0.5">
+                    Attr -20%, Dw +20%, Disc +2%
+                  </span>
+                </div>
+
+                {/* Base Case */}
+                <div className="p-3 rounded-lg border bg-blue-50/50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900/40 ring-1 ring-blue-400/30">
+                  <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 uppercase block">Kasus Dasar (Base)</span>
+                  <span className="text-xl font-extrabold text-blue-700 dark:text-blue-300 font-mono">
+                    1 : {config.sroi_ratio.toFixed(2)}
+                  </span>
+                  <span className="text-[9px] text-muted-foreground block mt-0.5">
+                    Asumsi Utama
+                  </span>
+                </div>
+
+                {/* Optimistic */}
+                <div className="p-3 rounded-lg border bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/40">
+                  <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase block">Skenario Optimis</span>
+                  <span className="text-xl font-extrabold text-emerald-700 dark:text-emerald-300 font-mono">
+                    1 : {optimisticRatio}
+                  </span>
+                  <span className="text-[9px] text-muted-foreground block mt-0.5">
+                    Attr +10%, Dw -10%
+                  </span>
+                </div>
+              </div>
+              
+              <div className="text-[10px] text-slate-500 dark:text-slate-400 bg-slate-100/60 dark:bg-slate-900/40 p-2.5 rounded-md leading-relaxed flex items-start gap-1.5">
+                <Info className="h-3.5 w-3.5 text-slate-400 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Rekomendasi SVI:</strong> Apabila rasio SROI dalam skenario konservatif (pesimis) tetap berada di atas <strong>1.00</strong>, maka program ini dipastikan memiliki nilai tambah sosial yang konsisten.
+                </span>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* TWO COLUMN GRID: CHART AND AI ANALYTICS GENERATION */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
