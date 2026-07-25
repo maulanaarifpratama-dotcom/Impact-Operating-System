@@ -1,7 +1,7 @@
 // supabase/functions/grant-writer-proposal/index.ts
 // On-demand full proposal generation derived from an ALREADY-VALIDATED LFA matrix + wizard_data narrative.
 
-import { authenticate, getUserAndOrg, adminClient, AuthError } from '../_shared/auth.ts';
+import { authenticate, adminClient, AuthError } from '../_shared/auth.ts';
 import { chatCompletion } from '../_shared/foundry.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 
@@ -153,7 +153,9 @@ Deno.serve(async (req: Request) => {
   if (cors) return cors;
 
   try {
-    const { user, organization_id, supabase } = await getUserAndOrg(req);
+    const ctx = await authenticate(req);
+    const user = { id: ctx.userId, email: ctx.email };
+    const supabase = ctx.supabase;
 
     const body: ProposalRequest = await req.json().catch(() => ({ projectId: '' }));
     const { projectId, lfaDocumentId } = body;
@@ -296,9 +298,7 @@ Deno.serve(async (req: Request) => {
             version: 1,
             is_current: true,
             matrix: constructedMatrix,
-            status: 'draft',
             created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
           })
           .select('*')
           .maybeSingle();
@@ -470,12 +470,10 @@ Please write the complete narrative proposal now following the 7 sections struct
     const wordCount = proposalMarkdown.trim().split(/\s+/).length;
 
     // 2. Save full proposal narrative to gw_lfa_documents.proposal_markdown
-    const adminSupabase = adminClient();
     const { error: updateErr } = await adminSupabase
       .from('gw_lfa_documents')
       .update({
         proposal_markdown: proposalMarkdown,
-        updated_at: new Date().toISOString(),
       })
       .eq('id', docRow.id);
 
@@ -486,7 +484,7 @@ Please write the complete narrative proposal now following the 7 sections struct
     // 3. Log to ai_generations for audit
     try {
       await adminSupabase.from('ai_generations').insert({
-        organization_id,
+        organization_id: projectRow?.org_id || null,
         user_id: user.id,
         function_name: 'grant-writer-proposal',
         prompt_tokens: completionRes.usage?.prompt_tokens ?? 0,

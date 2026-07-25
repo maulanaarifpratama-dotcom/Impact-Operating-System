@@ -2,7 +2,7 @@
 // Helpers to verify the caller's JWT and get a Supabase client scoped to
 // that user. RLS will then enforce org membership automatically.
 
-import { createClient, SupabaseClient } from 'npm:@supabase/supabase-js@2.45.4';
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2.45.4';
 
 export interface AuthContext {
   userId: string;
