@@ -5,11 +5,11 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/providers/AuthProvider';
-import { MealItem, MealLearningQuestion, MealAccountability, LfaProject, LfaEntry, MealTrackingEntry } from './types';
+import { MealItem, MealLearningQuestion, MealAccountability, LfaProject, LfaEntry, MealTrackingEntry, WbsItem } from './types';
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
   AlertTriangle, HelpCircle, CheckCircle2, Award, ClipboardCheck, Info, FileText,
-  FileUp, Link2, Calendar, User, History, Upload
+  FileUp, Link2, Calendar, User, History, Upload, Layers
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -59,6 +59,7 @@ export default function MEALPlanner({
   const [mealItems, setMealItems] = useState<MealItem[]>([]);
   const [learningQuestions, setLearningQuestions] = useState<MealLearningQuestion[]>([]);
   const [accountabilities, setAccountabilities] = useState<MealAccountability[]>([]);
+  const [wbsItems, setWbsItems] = useState<WbsItem[]>([]);
   const [projectData, setProject] = useState<LfaProject | null>(null);
   
   // UI States
@@ -139,6 +140,13 @@ export default function MEALPlanner({
         .order('created_at', { ascending: true });
       if (accErr) throw accErr;
 
+      // 5. Fetch WBS Items for Progress Rollup
+      const { data: wbsData } = await supabase
+        .from('lfa_wbs_items')
+        .select('*')
+        .eq('lfa_project_id', projectId);
+      if (wbsData) setWbsItems(wbsData as WbsItem[]);
+
       // Check if we need to do first-time auto-import from LFA
       if ((items || []).length === 0) {
         await triggerAutoImport();
@@ -189,6 +197,55 @@ export default function MEALPlanner({
       setLoadingEntries(false);
     }
   }, [projectId]);
+
+  // Computed Rollup: Aggregate WBS progress for Output indicators
+  const getOutputWbsRollup = useCallback((mealItem: MealItem) => {
+    if (mealItem.lfa_level !== 'output' || wbsItems.length === 0) {
+      return null;
+    }
+
+    // Level 1 WBS items (Outputs/Deliverables)
+    const level1WbsItems = wbsItems.filter((w) => w.level === 1);
+    if (level1WbsItems.length === 0) return null;
+
+    // Filter output meal items to find relative index
+    const outputMealItems = mealItems.filter((m) => m.lfa_level === 'output');
+    const outputIdx = outputMealItems.findIndex((m) => m.id === mealItem.id);
+
+    // Try to match Level 1 WBS item by name similarity or index
+    let matchedLevel1 = level1WbsItems.find(
+      (w) => w.name && mealItem.indicator_text && (
+        w.name.toLowerCase().includes(mealItem.indicator_text.substring(0, 15).toLowerCase()) ||
+        mealItem.indicator_text.toLowerCase().includes(w.name.substring(0, 15).toLowerCase())
+      )
+    );
+
+    if (!matchedLevel1 && outputIdx >= 0 && outputIdx < level1WbsItems.length) {
+      matchedLevel1 = level1WbsItems[outputIdx];
+    }
+
+    if (!matchedLevel1) return null;
+
+    // Find Level 2 WBS Activities under matched Output
+    const level2Acts = wbsItems.filter(
+      (w) => w.level === 2 && w.parent_id === matchedLevel1!.id
+    );
+
+    if (level2Acts.length === 0) return null;
+
+    const totalCount = level2Acts.length;
+    const totalProgressSum = level2Acts.reduce((acc, act) => {
+      if (act.status === 'completed') return acc + 100;
+      return acc + (act.progress_percent ?? 0);
+    }, 0);
+
+    const avgPercent = Math.round(totalProgressSum / totalCount);
+
+    return {
+      totalCount,
+      avgPercent,
+    };
+  }, [wbsItems, mealItems]);
 
   useEffect(() => {
     if (projectId) {
@@ -1324,10 +1381,34 @@ export default function MEALPlanner({
                   <tr key={item.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-900/10 group transition-all align-top">
                     {/* Level */}
                     <td className="p-3.5">
-                      <div className="flex flex-col gap-1">
+                      <div className="flex flex-col gap-1.5 items-start">
                         <Badge variant="outline" className={`py-0.5 px-2 text-[10px] font-bold tracking-wide uppercase shadow-sm ${levelBadgeClass}`}>
                           {item.lfa_level === 'goal' ? 'Dampak' : item.lfa_level === 'purpose' ? 'Tujuan' : 'Hasil'}
                         </Badge>
+
+                        {item.lfa_level === 'output' && (() => {
+                          const rollup = getOutputWbsRollup(item);
+                          if (!rollup) return null;
+                          return (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge
+                                    variant="outline"
+                                    className="py-0.5 px-2 text-[10px] font-semibold bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/60 shadow-sm flex items-center gap-1 font-sans cursor-help"
+                                    data-testid="wbs-progress-rollup-badge"
+                                  >
+                                    <Layers className="w-3 h-3 text-blue-600 dark:text-blue-400 shrink-0" />
+                                    <span>Implementasi WBS: {rollup.avgPercent}% ({rollup.totalCount} aktivitas)</span>
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent className="text-xs">
+                                  Progress agregat implementasi {rollup.totalCount} WBS Activity di bawah Output ini.
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          );
+                        })()}
                       </div>
                     </td>
 
@@ -2486,12 +2567,12 @@ export default function MEALPlanner({
                   {evidenceSourceType !== 'other' && (
                     <div className="space-y-1.5">
                       <Label htmlFor="evidence_note" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                        Catatan Bukti (Opsional)
+                        Catatan Bukti & Aktivitas Terkait (Opsional)
                       </Label>
                       <Textarea
                         id="evidence_note"
                         rows={2}
-                        placeholder="E.g. Foto kegiatan penyerahan bibit bersama kelompok wanita tani."
+                        placeholder="E.g. Hasil dari Aktivitas 1.1 - Pelatihan Kader Posyandu. Foto kegiatan & absensi peserta."
                         value={evidenceNote}
                         onChange={(e) => setEvidenceNote(e.target.value)}
                         className="text-xs"
