@@ -843,8 +843,15 @@ export default function GrantWriterQuickWizardProvisional() {
   // Timer Ref to prevent memory leaks on unmount
   const processingTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Ref for Program Story textarea autofocus
+  // Ref for Program Story textarea autofocus and auto-expand
   const programStoryRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (programStoryRef.current) {
+      programStoryRef.current.style.height = 'auto';
+      programStoryRef.current.style.height = `${Math.max(160, programStoryRef.current.scrollHeight)}px`;
+    }
+  }, [programStory]);
 
   useEffect(() => {
     if (currentFlowPage === 'page1') {
@@ -1458,7 +1465,7 @@ export default function GrantWriterQuickWizardProvisional() {
           }
         });
 
-        if (fnRes.error) {
+        if (fnRes?.error) {
           console.error('⚠️ GrantWriter generation error:', fnRes.error);
           toast({
             title: '⚠️ Generasi LFA AI Belum Berhasil',
@@ -1649,7 +1656,7 @@ export default function GrantWriterQuickWizardProvisional() {
                     setReviewIsStale(true);
                   }}
                   required
-                  className="mt-1 bg-white font-sans text-xs leading-relaxed border-indigo-200 focus:border-indigo-500 focus:ring-indigo-500"
+                  className="mt-1 bg-white font-sans text-xs leading-relaxed border-indigo-200 focus:border-indigo-500 focus:ring-indigo-500 overflow-hidden resize-none"
                 />
               </div>
 
@@ -1700,7 +1707,7 @@ export default function GrantWriterQuickWizardProvisional() {
                         setReviewIsStale(true);
                       }}
                       disabled={beneficiaryCountUnknown}
-                      className="mt-1"
+                      className="mt-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
                 </div>
@@ -1768,7 +1775,7 @@ export default function GrantWriterQuickWizardProvisional() {
                         setReviewIsStale(true);
                       }}
                       disabled={durationUnknown}
-                      className="mt-1"
+                      className="mt-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
 
@@ -1800,7 +1807,7 @@ export default function GrantWriterQuickWizardProvisional() {
                         setReviewIsStale(true);
                       }}
                       disabled={budgetIdrUnknown}
-                      className="mt-1"
+                      className="mt-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     />
                   </div>
                 </div>
@@ -1936,7 +1943,7 @@ export default function GrantWriterQuickWizardProvisional() {
                 {/* 1. Masalah Utama */}
                 <div className="rounded-lg border border-slate-200/80 bg-white/90 p-3 shadow-2xs space-y-1">
                   <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">Masalah Utama</span>
-                  <p className="text-xs font-semibold text-slate-800 line-clamp-3 leading-snug">
+                  <p className="text-xs font-semibold text-slate-800 leading-relaxed whitespace-pre-line">
                     {programStory.trim() || domainResponse.blueprint.items.find(i => i.section.toLowerCase().includes('problem') || i.section.toLowerCase().includes('masalah'))?.text || 'Belum dijelaskan'}
                   </p>
                 </div>
