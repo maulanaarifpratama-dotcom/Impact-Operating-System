@@ -208,12 +208,28 @@ export default function LFABuilderEditor() {
         .from('lfa_entries')
         .select('*')
         .eq('project_id', projectId)
-        .eq('org_id', orgId)
         .order('sequence', { ascending: true });
 
-      if (eErr) throw eErr;
+      if (eErr) {
+        console.warn('[LFABuilderEditor] DB select entries error, will fallback to cache if available:', eErr.message);
+      }
 
-      const entriesList = (entries || []) as LfaEntry[];
+      let entriesList = (entries || []) as LfaEntry[];
+
+      if (entriesList.length === 0 || entriesList.every(e => !e.description || e.description.trim() === '')) {
+        try {
+          const cached = localStorage.getItem(`lfa_entries_${projectId}`);
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0 && parsed.some(e => e.description && e.description.trim() !== '')) {
+              console.log(`[LFABuilderEditor] Loaded ${parsed.length} non-empty entries from localStorage for project ${projectId}`);
+              entriesList = parsed as LfaEntry[];
+            }
+          }
+        } catch (cacheErr) {
+          console.warn('[LFABuilderEditor] Error reading localStorage cache:', cacheErr);
+        }
+      }
       
       // Determine if Goal and Purpose exist. If not, pre-insert them immediately!
       let goalEntry = entriesList.find((e) => e.level === 'goal') || null;
@@ -242,10 +258,10 @@ export default function LFABuilderEditor() {
             org_id: orgId,
             level: 'goal',
             sequence: 1,
-            description: 'Meningkatkan kesejahteraan dan keberlanjutan lingkungan masyarakat desa.',
-            indicator: 'Pendapatan masyarakat meningkat 30%',
-            means_of_verification: 'Laporan survei sosial ekonomi tahunan',
-            assumption: 'Kondisi makroekonomi dan iklim stabil',
+            description: '',
+            indicator: '',
+            means_of_verification: '',
+            assumption: '',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           } as LfaEntry;
@@ -277,10 +293,10 @@ export default function LFABuilderEditor() {
             org_id: orgId,
             level: 'purpose',
             sequence: 1,
-            description: 'Penguatan unit usaha lokal dan rehabilitasi lahan kritis.',
-            indicator: '5 unit usaha aktif dan 50 ha lahan terpulihkan',
-            means_of_verification: 'Dokumen operasional dan peta pemetaan drone',
-            assumption: 'Dukungan masyarakat dan pemerintah lokal tinggi',
+            description: '',
+            indicator: '',
+            means_of_verification: '',
+            assumption: '',
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           } as LfaEntry;

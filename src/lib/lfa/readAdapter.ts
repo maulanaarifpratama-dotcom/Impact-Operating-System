@@ -984,8 +984,25 @@ export function mapCanonicalProposalToRawEntries(
   const projectId = proposal.project_id;
   const orgId = proposal.organization_id;
 
+  const uuidMap = new Map<string, string>();
+  const getUuid = (rawId: string | null | undefined): string | null => {
+    if (!rawId) return null;
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(rawId);
+    if (isUuid) return rawId;
+    if (!uuidMap.has(rawId)) {
+      uuidMap.set(
+        rawId,
+        typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : 'a0000000-0000-4000-a000-' + Math.random().toString(36).substring(2, 14).padStart(12, '0')
+      );
+    }
+    return uuidMap.get(rawId)!;
+  };
+
   // 1. Goal Node
-  const goalId = `goal_${projectId}`;
+  const goalRawId = `goal_${projectId}`;
+  const goalId = getUuid(goalRawId)!;
   entries.push({
     id: goalId,
     project_id: projectId,
@@ -1001,7 +1018,8 @@ export function mapCanonicalProposalToRawEntries(
   });
 
   // 2. Primary Purpose Node
-  const purposeId = `purpose_${projectId}`;
+  const purposeRawId = `purpose_${projectId}`;
+  const purposeId = getUuid(purposeRawId)!;
   entries.push({
     id: purposeId,
     project_id: projectId,
@@ -1026,8 +1044,9 @@ export function mapCanonicalProposalToRawEntries(
       .filter(Boolean)
       .join('; ');
 
+    const outcomeUuid = getUuid(outcome.id)!;
     entries.push({
-      id: outcome.id,
+      id: outcomeUuid,
       project_id: projectId,
       org_id: orgId,
       level: 'purpose',
@@ -1050,13 +1069,15 @@ export function mapCanonicalProposalToRawEntries(
         .filter(Boolean)
         .join('; ');
 
+      const outputUuid = getUuid(output.id)!;
+      const parentOutcomeUuid = getUuid(output.parent_outcome_id || outcome.id)!;
       entries.push({
-        id: output.id,
+        id: outputUuid,
         project_id: projectId,
         org_id: orgId,
         level: 'output',
         sequence: opIdx + 1,
-        parent_id: output.parent_outcome_id,
+        parent_id: parentOutcomeUuid,
         description: `${output.code}: ${output.output_name} - ${output.description}`,
         indicator: opIndicatorText || null,
         means_of_verification: opMovText || null,
@@ -1070,13 +1091,15 @@ export function mapCanonicalProposalToRawEntries(
           .map((cd) => `${cd.code}: ${cd.resource_name} (${cd.quantity} ${cd.unit})`)
           .join('; ');
 
+        const actUuid = getUuid(act.id)!;
+        const parentOutputUuid = getUuid(act.parent_output_id || output.id)!;
         entries.push({
-          id: act.id,
+          id: actUuid,
           project_id: projectId,
           org_id: orgId,
           level: 'activity',
           sequence: actIdx + 1,
-          parent_id: act.parent_output_id,
+          parent_id: parentOutputUuid,
           description: `${act.code}: ${act.activity_name} - ${act.description}`,
           indicator: null,
           means_of_verification: null,

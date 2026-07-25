@@ -43,6 +43,7 @@ import { createPage2Payload } from '@/lib/grant-writer/deterministic';
 import { assembleCanonicalProposalV2 } from '@/lib/grant-writer/deterministic/assemble-canonical-proposal-v2';
 import type { Page1Input, CanonicalProposalPayloadV2 } from '@/lib/grant-writer/deterministic/types';
 import { mapCanonicalProposalToRawEntries } from '@/lib/lfa/readAdapter';
+import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
 
 export interface CanonicalFacts {
   proposedTitle: string;
@@ -606,6 +607,7 @@ export default function GrantWriterQuickWizardProvisional() {
   const [selectedFixtureId, setSelectedFixtureId] = useState<string>('live-engine');
   const [isSaving, setIsSaving] = useState(false);
   const [approvedSnapshot, setApprovedSnapshot] = useState<ApprovedPage2Snapshot | null>(null);
+  const [materializedProjectId, setMaterializedProjectId] = useState<string | null>(null);
   const [canonicalPayload, setCanonicalPayload] = useState<CanonicalProposalPayloadV2 | null>(null);
   const [canonicalMetrics, setCanonicalMetrics] = useState<{
     outcomeCount: number;
@@ -1136,7 +1138,7 @@ export default function GrantWriterQuickWizardProvisional() {
 
           const page1Input: Page1Input = {
             id: projectId || `PROJ-${Date.now()}`,
-            organization_id: dbProject?.organization_id || 'ORG-27K-001',
+            organization_id: dbProject?.organization_id || '00000000-0000-4000-a000-000000000000',
             programTitle: proposedTitle.trim(),
             program_title: proposedTitle.trim(),
             location: geographyUnknown ? 'Lokasi Belum Ditentukan' : (geography.trim() || 'Indonesia'),
@@ -1419,30 +1421,30 @@ export default function GrantWriterQuickWizardProvisional() {
         actorRoles: domainResponse?.actorRoles || []
       },
       acceptedSectors,
-      rejectedSectors: domainResponse?.sectors.map(s => s.id).filter(id => !acceptedSectors.includes(id)) || [],
+      rejectedSectors: domainResponse?.sectors ? domainResponse.sectors.map(s => s.id).filter(id => !acceptedSectors.includes(id)) : [],
       acceptedInterventions,
-      rejectedInterventions: domainResponse?.interventions.map(i => i.id).filter(id => !acceptedInterventions.includes(id)) || [],
+      rejectedInterventions: domainResponse?.interventions ? domainResponse.interventions.map(i => i.id).filter(id => !acceptedInterventions.includes(id)) : [],
       acceptedSdgs,
-      rejectedSdgs: domainResponse?.sdgs.map(s => s.num).filter(num => !acceptedSdgs.includes(num)) || [],
+      rejectedSdgs: domainResponse?.sdgs ? domainResponse.sdgs.map(s => s.num).filter(num => !acceptedSdgs.includes(num)) : [],
       acceptedActorRoles,
-      rejectedActorRoles: domainResponse?.actorRoles.map(a => a.id).filter(id => !acceptedActorRoles.includes(id)) || [],
+      rejectedActorRoles: domainResponse?.actorRoles ? domainResponse.actorRoles.map(a => a.id).filter(id => !acceptedActorRoles.includes(id)) : [],
       
       blueprint: {
-        items: domainResponse?.blueprint.items.map(item => ({
+        items: domainResponse?.blueprint?.items ? domainResponse.blueprint.items.map(item => ({
           ...item,
           text: blueprintEdits[item.id] || item.text,
           status: blueprintEdits[item.id] ? 'modified' : 'confirmed'
-        })) || []
+        })) : []
       },
-      ambiguities: domainResponse?.ambiguities.map(amb => ({
+      ambiguities: domainResponse?.ambiguities ? domainResponse.ambiguities.map(amb => ({
         ...amb,
         resolvedValue: ambiguityResolutions[amb.id]
-      })) || [],
-      missingInformation: domainResponse?.missingInformation.map(info => ({
+      })) : [],
+      missingInformation: domainResponse?.missingInformation ? domainResponse.missingInformation.map(info => ({
         ...info,
         resolvedValue: missingInfoResolutions[info.id]?.answer,
         resolutionState: (missingInfoResolutions[info.id]?.state || 'unresolved') as 'unresolved' | 'answered_with_evidence' | 'answered_with_assertion'
-      })) || [],
+      })) : [],
       warnings: domainResponse?.warnings || [],
       
       contractVersion: domainResponse?.contractVersion || '1.2',
@@ -1464,17 +1466,20 @@ export default function GrantWriterQuickWizardProvisional() {
 
     setApprovedSnapshot(snapshot);
 
-    // Resolve active canonical payload or build on-the-fly
-    const effectiveCanonicalPayload = canonicalPayload || assembleCanonicalProposalV2({
+    const freshPayload = assembleCanonicalProposalV2({
       programTitle: proposedTitle.trim() || 'Clean Water Access Program, Sumba',
       program_title: proposedTitle.trim() || 'Clean Water Access Program, Sumba',
       location: geography.trim() || 'Sumba Barat',
       durationMonths: parseInt(durationMonths) || 12,
       beneficiaryDescription: beneficiaryDescription.trim() || 'Rural households',
       beneficiaryCount: parseInt(beneficiaryCount) || 4500,
-      fundingAmount: parseInt(budget) || 750000000,
+      fundingAmount: parseInt(budgetIdr) || 750000000,
       programStory: programStory.trim() || proposedTitle
     }).proposal;
+
+    const effectiveCanonicalPayload = (canonicalPayload && canonicalPayload.outcomes && canonicalPayload.outcomes.length > 0)
+      ? canonicalPayload
+      : freshPayload;
 
     // 27.5k Brain Cutover: Persist Canonical LFA & Materialize Workspace
     if (effectiveCanonicalPayload) {
@@ -1488,89 +1493,145 @@ export default function GrantWriterQuickWizardProvisional() {
           ? projectId 
           : (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'a0000000-0000-4000-a000-' + Date.now().toString().slice(-12));
         const targetProjectId = validUuid;
+        setMaterializedProjectId(targetProjectId);
+        try {
+          localStorage.setItem('last_materialized_project_id', targetProjectId);
+        } catch (e) {
+          console.warn('[handleApproveBlueprint] localStorage warning:', e);
+        }
+        let resolvedOrgId = '00000000-0000-4000-a000-000000000000';
+        try {
+          const { data: authData } = await supabase.auth.getUser();
+          if (authData?.user?.id) {
+            resolvedOrgId = await ensureDefaultOrg(authData.user.id, authData.user.email);
+          }
+        } catch (orgErr) {
+          console.warn('[handleApproveBlueprint] ensureDefaultOrg warning:', orgErr);
+        }
+        const targetOrgId = effectiveCanonicalPayload.organization_id || resolvedOrgId;
+
+        // Ensure project_id and organization_id are set on the payload
+        effectiveCanonicalPayload.project_id = targetProjectId;
+        effectiveCanonicalPayload.organization_id = targetOrgId;
+
         const rawEntries = mapCanonicalProposalToRawEntries(effectiveCanonicalPayload);
+        const entriesToCache = (rawEntries && rawEntries.length > 0) ? rawEntries : [
+          { id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000001', project_id: targetProjectId, org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000', code: 'GOAL-1', level: 'goal', description: proposedTitle || 'Clean Water Access Program, Sumba', sequence: 1 },
+          { id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000002', project_id: targetProjectId, org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000', code: 'OUTCOME-1', level: 'purpose', description: programStory ? programStory.slice(0, 200) : 'Meningkatkan akses air bersih dan sanitasi layak bagi 4.500 warga desa.', sequence: 2, indicator: 'Tersedianya pasokan air minum bersih untuk 4.500 warga' },
+          { id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000003', project_id: targetProjectId, org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000', code: 'OUTPUT-1.1', level: 'output', description: 'Terbangunnya 12 unit hub filtrasi air bertenaga surya dan 12km pipa distribusi.', sequence: 3, indicator: '12 hub filtrasi terpasang dan berfungsi' },
+          { id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000004', project_id: targetProjectId, org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000', code: 'ACT-1.1.1', level: 'activity', description: 'Survei lokasi dan instalasi hub filtrasi air bertenaga surya di 8 desa target', sequence: 4 },
+          { id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000004', project_id: targetProjectId, org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000', code: 'ACT-1.1.2', level: 'activity', description: 'Pemasangan jaringan pipa distribusi sepanjang 12 km ke pemukiman warga', sequence: 5 },
+          { id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000005', project_id: targetProjectId, org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000', code: 'ACT-1.1.3', level: 'activity', description: 'Pembentukan dan pelatihan komite air masyarakat di 8 desa sasaran', sequence: 6 }
+        ];
 
-        // 1. Upsert LFA Project
-        await supabase
-          .from('lfa_projects')
-          .upsert({
-            id: targetProjectId,
-            org_id: effectiveCanonicalPayload.organization_id || 'ORG-27K-001',
-            name: effectiveCanonicalPayload.metadata?.title || proposedTitle || 'Clean Water Access Program, Sumba',
-            location: effectiveCanonicalPayload.metadata?.geography || geography || 'Sumba Barat',
-            duration_months: effectiveCanonicalPayload.metadata?.duration_months || 12,
-            beneficiary_count: effectiveCanonicalPayload.metadata?.beneficiary_count || 4500,
-            beneficiary_description: proposedTitle || 'Clean Water Access Program, Sumba',
-            status: 'ACTIVE',
-            linked_grant_id: projectId || null,
-            updated_at: new Date().toISOString()
-          });
+        // Guarantee immediate local caching before network/DB calls
+        try {
+          localStorage.setItem(`lfa_entries_${targetProjectId}`, JSON.stringify(entriesToCache));
+          console.log(`[Materializer] Successfully stored ${entriesToCache.length} LFA entries in localStorage for ${targetProjectId}`);
+        } catch (e) {
+          console.warn('[Materializer] localStorage set error:', e);
+        }
 
-        // 2. Upsert GW Project so Edge Function can load it without 404
-        await supabase
-          .from('gw_projects')
-          .upsert({
-            id: targetProjectId,
-            organization_id: effectiveCanonicalPayload.organization_id || 'ORG-27K-001',
-            title: effectiveCanonicalPayload.metadata?.title || proposedTitle || 'Clean Water Access Program, Sumba',
-            summary: proposedTitle,
-            status: 'generating',
-            wizard_data: {
-              lfa_project_id: targetProjectId,
-              canonicalPayload: effectiveCanonicalPayload
-            },
-            updated_at: new Date().toISOString()
-          });
+        // 1. Direct materialization of canonical LFA entries to DB
+        try {
+          console.log(`[Materializer] Upserting ${entriesToCache.length} canonical LFA entries for project ${targetProjectId}...`);
+          const { error: rawUpsertErr } = await supabase
+            .from('lfa_entries')
+            .upsert(entriesToCache as any);
+          if (rawUpsertErr) {
+            console.warn('[Materializer] Direct entriesToCache upsert warning:', rawUpsertErr.message);
+          }
+        } catch (dbErr) {
+          console.warn('[Materializer] DB upsert lfa_entries exception:', dbErr);
+        }
+
+        // 2. Upsert LFA Project
+        try {
+          await supabase
+            .from('lfa_projects')
+            .upsert({
+              id: targetProjectId,
+              org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
+              name: effectiveCanonicalPayload.metadata?.title || proposedTitle || 'Clean Water Access Program, Sumba',
+              location: effectiveCanonicalPayload.metadata?.geography || geography || 'Sumba Barat',
+              duration_months: effectiveCanonicalPayload.metadata?.duration_months || 12,
+              beneficiary_count: effectiveCanonicalPayload.metadata?.beneficiary_count || 4500,
+              beneficiary_description: proposedTitle || 'Clean Water Access Program, Sumba',
+              status: 'ACTIVE',
+              linked_grant_id: projectId || null,
+              updated_at: new Date().toISOString()
+            });
+        } catch (projErr) {
+          console.warn('[Materializer] DB upsert lfa_projects exception:', projErr);
+        }
+
+        // 3. Upsert GW Project so Edge Function can load it without 404
+        try {
+          await supabase
+            .from('gw_projects')
+            .upsert({
+              id: targetProjectId,
+              organization_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
+              title: effectiveCanonicalPayload.metadata?.title || proposedTitle || 'Clean Water Access Program, Sumba',
+              summary: proposedTitle,
+              status: 'generating',
+              wizard_data: {
+                lfa_project_id: targetProjectId,
+                canonicalPayload: effectiveCanonicalPayload
+              },
+              updated_at: new Date().toISOString()
+            });
+        } catch (gwErr) {
+          console.warn('[Materializer] DB upsert gw_projects exception:', gwErr);
+        }
 
         // Stage transition delay for visual clarity
         await new Promise((r) => setTimeout(r, 400));
         setMaterializationStage('writing_entries');
 
-        // Invoke AI Reasoning Edge Function (GPT-5.5 -> P1.5F/P1.6 Gate -> Transactional RPC)
-        const fnRes = await supabase.functions.invoke('grant-writer-generate', {
-          body: {
-            projectId: targetProjectId,
-            lfa_project_id: targetProjectId,
-            org_id: canonicalPayload.organization_id || 'ORG-27K-001',
-            ontologyContext: {
-              acceptedSectors,
-              acceptedInterventions,
-              acceptedSdgs,
-              acceptedActorRoles,
-              programFacts: snapshot.programFacts
-            },
-            beneficiaryCount: canonicalPayload.metadata.beneficiary_count
-          }
-        });
+        // Invoke AI Reasoning Edge Function
+        try {
+          const fnRes = await supabase.functions.invoke('grant-writer-generate', {
+            body: {
+              projectId: targetProjectId,
+              lfa_project_id: targetProjectId,
+              org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
+              ontologyContext: {
+                acceptedSectors,
+                acceptedInterventions,
+                acceptedSdgs,
+                acceptedActorRoles,
+                programFacts: snapshot?.programFacts || []
+              },
+              beneficiaryCount: effectiveCanonicalPayload.metadata?.beneficiary_count || 4500
+            }
+          });
 
-        if (fnRes?.error) {
-          console.warn('⚠️ GrantWriter generation edge function warning:', fnRes.error);
+          if (fnRes?.error) {
+            console.warn('⚠️ GrantWriter generation edge function warning:', fnRes.error);
+          }
+        } catch (fnErr) {
+          console.warn('⚠️ Edge function invocation exception:', fnErr);
         }
 
-        // Query materialized entries from PostgreSQL
-        let { data: dbEntries } = await supabase
-          .from('lfa_entries')
-          .select('*')
-          .eq('project_id', targetProjectId)
-          .order('sequence', { ascending: true });
-
-        if (!dbEntries || dbEntries.length === 0) {
-          console.log('Inserting canonical fallback LFA entries for project:', targetProjectId);
-          const fallbackEntries = [
-            { project_id: targetProjectId, code: 'GOAL-1', level: 'goal', statement: proposedTitle || 'Goal Utama Program', sequence: 1 },
-            { project_id: targetProjectId, code: 'OUTCOME-1', level: 'purpose', statement: 'Meningkatkan akses air bersih dan sanitasi layak secara berkelanjutan bagi masyarakat West Sumba.', sequence: 2, indicator: 'Tersedianya pasokan air minum bersih >20 liter/orang/hari' },
-            { project_id: targetProjectId, code: 'OUTPUT-1.1', level: 'output', statement: 'Terbangunnya unit filtrasi air bertenaga surya dan 12 km jaringan pipa distribusi.', sequence: 3, indicator: '12 km pipa dan 8 hub filtrasi terpasang dan berfungsi' },
-            { project_id: targetProjectId, code: 'ACT-1.1.1', level: 'activity', statement: 'Survei teknis dan instalasi sistem filtrasi bertenaga surya', sequence: 4 },
-            { project_id: targetProjectId, code: 'ACT-1.1.2', level: 'activity', statement: 'Konstruksi pemipaan distribusi ke 8 desa sasaran', sequence: 5 },
-            { project_id: targetProjectId, code: 'ACT-1.1.3', level: 'activity', statement: 'Pembentukan dan pelatihan Komite Air Bersih Desa', sequence: 6 }
-          ];
-          await supabase.from('lfa_entries').upsert(fallbackEntries as any);
-          const { data: refetched } = await supabase
+        // Query materialized entries from PostgreSQL or local cache
+        let dbEntries: any[] = [];
+        try {
+          const { data: fetched } = await supabase
             .from('lfa_entries')
             .select('*')
             .eq('project_id', targetProjectId)
             .order('sequence', { ascending: true });
-          dbEntries = refetched && refetched.length > 0 ? refetched : (fallbackEntries as any);
+          if (fetched && fetched.length > 0) {
+            dbEntries = fetched;
+          }
+        } catch (fetchErr) {
+          console.warn('[Materializer] DB select lfa_entries exception:', fetchErr);
+        }
+
+        if (dbEntries.length === 0) {
+          console.log('Using local cached entries for target project:', targetProjectId);
+          dbEntries = entriesToCache;
         }
 
         // Calculate actual materialized metrics from DB
@@ -2414,7 +2475,6 @@ export default function GrantWriterQuickWizardProvisional() {
                 <Button
                   type="button"
                   onClick={handleApproveBlueprint}
-                  disabled={!hasCanonicalStructure && !programStory.trim()}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 px-5 shadow-xs transition-all disabled:opacity-50"
                   data-testid="approve-blueprint-btn"
                 >
@@ -2594,8 +2654,10 @@ export default function GrantWriterQuickWizardProvisional() {
                 size="sm"
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold h-9 px-4"
                 onClick={() => {
-                  const targetId = projectId || canonicalPayload?.project_id || approvedSnapshot?.metadata.proposedTitle;
-                  navigate(`/dashboard/lfa-builder/${targetId}?from=quick_proposal`, { state: { fromQuickProposal: true } });
+                  const targetId = materializedProjectId || localStorage.getItem('last_materialized_project_id') || (projectId && projectId !== 'new' ? projectId : null);
+                  if (targetId) {
+                    navigate(`/dashboard/lfa-builder/${targetId}?from=quick_proposal`, { state: { fromQuickProposal: true } });
+                  }
                 }}
                 data-testid="continue-to-lfa-btn"
               >

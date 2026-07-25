@@ -106,7 +106,7 @@ export function assembleCanonicalProposalV2(
   // Construct Canonical Proposal Contract V2 Payload
   const proposal: CanonicalProposalPayloadV2 = {
     project_id: input.id ? `PROJ-${input.id}` : `PROJ-27K-${Date.now()}`,
-    organization_id: input.organization_id || 'ORG-27K-001',
+    organization_id: input.organization_id || '00000000-0000-4000-a000-000000000000',
     version: 2,
     metadata: {
       title: input.program_title || input.programTitle || 'Untitled Grant Proposal',

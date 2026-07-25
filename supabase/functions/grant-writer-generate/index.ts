@@ -1104,7 +1104,7 @@ Deno.serve(async (req: Request) => {
         .from('lfa_projects')
         .upsert({
           id: targetLfaProjectId,
-          org_id: project.organization_id || 'ORG-27K-001',
+          org_id: project.organization_id || '00000000-0000-4000-a000-000000000000',
           name: programFacts.title || project.title || 'Grant Proposal',
           location: programFacts.geography ?? null,
           duration_months: programFacts.durationMonths ?? null,
