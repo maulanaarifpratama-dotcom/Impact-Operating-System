@@ -2461,6 +2461,8 @@ export default function BudgetCalculator({
                                     <div className="space-y-1">
                                       <div className="flex items-center gap-1.5">
                                         <Input
+                                          id={`budget-item-name-${item.id}`}
+                                          aria-label={`Nama item anggaran ${item.item_name || 'baru'}`}
                                           value={item.item_name}
                                           onChange={(e) => handleItemNameTyping(item.id, e.target.value, item.category || 'Lainnya')}
                                           placeholder="Mis. Narasumber, Sewa LCD..."
@@ -2510,6 +2512,8 @@ export default function BudgetCalculator({
 
                                       {globalMode === 'professional' && (
                                         <Textarea
+                                          id={`budget-justification-${item.id}`}
+                                          aria-label={`Justifikasi anggaran untuk ${item.item_name || 'item'}`}
                                           value={item.justification || ''}
                                           onChange={(e) => handleFieldChange(item.id, 'justification', e.target.value)}
                                           placeholder="Tambahkan narasi justifikasi urgensi anggaran ini..."
@@ -2526,7 +2530,7 @@ export default function BudgetCalculator({
                                       value={item.category || 'Lainnya'}
                                       onValueChange={(val) => handleFieldChange(item.id, 'category', val)}
                                     >
-                                      <SelectTrigger className="h-8 text-xs bg-transparent">
+                                      <SelectTrigger aria-label={`Kategori biaya untuk ${item.item_name || 'item'}`} className="h-8 text-xs bg-transparent">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent className="text-xs">
@@ -2551,7 +2555,7 @@ export default function BudgetCalculator({
                                         value={item.cost_category || 'Other Direct Costs'}
                                         onValueChange={(val) => handleFieldChange(item.id, 'cost_category', val)}
                                       >
-                                        <SelectTrigger className="h-8 text-[10px] bg-transparent font-medium text-slate-600 dark:text-slate-300">
+                                        <SelectTrigger aria-label={`Kategori struktur biaya untuk ${item.item_name || 'item'}`} className="h-8 text-[10px] bg-transparent font-medium text-slate-600 dark:text-slate-300">
                                           <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent className="text-xs">
@@ -2566,6 +2570,8 @@ export default function BudgetCalculator({
                                   {/* 4. Volume Input */}
                                   <td className="p-3 align-middle">
                                     <Input
+                                      id={`budget-volume-${item.id}`}
+                                      aria-label={`Volume unit untuk ${item.item_name || 'item'}`}
                                       type="number"
                                       value={item.volume}
                                       onChange={(e) => handleFieldChange(item.id, 'volume', Number(e.target.value))}
@@ -2580,7 +2586,7 @@ export default function BudgetCalculator({
                                       value={item.unit || 'Orang'}
                                       onValueChange={(val) => handleFieldChange(item.id, 'unit', val)}
                                     >
-                                      <SelectTrigger className="h-8 text-xs bg-transparent">
+                                      <SelectTrigger aria-label={`Satuan unit untuk ${item.item_name || 'item'}`} className="h-8 text-xs bg-transparent">
                                         <SelectValue />
                                       </SelectTrigger>
                                       <SelectContent className="text-xs">
@@ -2600,6 +2606,8 @@ export default function BudgetCalculator({
                                   <td className="p-3 align-middle">
                                     <div className="flex items-center gap-1.5 relative">
                                       <Input
+                                        id={`budget-price-${item.id}`}
+                                        aria-label={`Harga satuan IDR untuk ${item.item_name || 'item'}`}
                                         type="number"
                                         value={item.unit_price_idr}
                                         onChange={(e) => handleFieldChange(item.id, 'unit_price_idr', Number(e.target.value))}
@@ -2624,7 +2632,7 @@ export default function BudgetCalculator({
                                           value={item.funding_source || 'grant'}
                                           onValueChange={(val) => handleFieldChange(item.id, 'funding_source', val)}
                                         >
-                                          <SelectTrigger className="h-8 text-[10px] bg-transparent">
+                                          <SelectTrigger aria-label={`Sumber dana untuk ${item.item_name || 'item'}`} className="h-8 text-[10px] bg-transparent">
                                             <SelectValue />
                                           </SelectTrigger>
                                           <SelectContent className="text-xs">
