@@ -736,7 +736,7 @@ export default function GrantWriterProposal() {
     void (async () => {
       setLoading(true);
 
-      const [{ data: projectData }, { data: documentData }] = await Promise.all([
+      let [{ data: projectData }, { data: documentData }] = await Promise.all([
         supabase.from('gw_projects').select('*').eq('id', projectId).maybeSingle(),
         supabase
           .from('gw_lfa_documents')
@@ -746,6 +746,72 @@ export default function GrantWriterProposal() {
           .limit(1)
           .maybeSingle(),
       ]);
+
+      // Fallback 1: If document is not found, check if projectId parameter is actually a gw_lfa_documents.id
+      if (!documentData) {
+        const { data: docById } = await supabase
+          .from('gw_lfa_documents')
+          .select('*')
+          .eq('id', projectId)
+          .maybeSingle();
+
+        if (docById) {
+          documentData = docById;
+          if (!projectData && docById.project_id) {
+            const { data: pByDoc } = await supabase
+              .from('gw_projects')
+              .select('*')
+              .eq('id', docById.project_id)
+              .maybeSingle();
+            projectData = pByDoc ?? null;
+          }
+        }
+      }
+
+      // Fallback 2: If project is still not found, check if projectId parameter is an lfa_projects.id
+      if (!projectData) {
+        const { data: lfaProj } = await supabase
+          .from('lfa_projects')
+          .select('id, linked_grant_id')
+          .eq('id', projectId)
+          .maybeSingle();
+
+        if (lfaProj?.linked_grant_id) {
+          const [{ data: pByLfaLink }, { data: dByLfaLink }] = await Promise.all([
+            supabase.from('gw_projects').select('*').eq('id', lfaProj.linked_grant_id).maybeSingle(),
+            supabase
+              .from('gw_lfa_documents')
+              .select('*')
+              .eq('project_id', lfaProj.linked_grant_id)
+              .order('version', { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+          ]);
+          projectData = pByLfaLink ?? null;
+          if (!documentData) {
+            documentData = dByLfaLink ?? null;
+          }
+        } else if (lfaProj) {
+          const { data: pByWd } = await supabase
+            .from('gw_projects')
+            .select('*')
+            .eq('wizard_data->>lfa_project_id', lfaProj.id)
+            .maybeSingle();
+          if (pByWd) {
+            projectData = pByWd;
+            if (!documentData) {
+              const { data: dByWd } = await supabase
+                .from('gw_lfa_documents')
+                .select('*')
+                .eq('project_id', pByWd.id)
+                .order('version', { ascending: false })
+                .limit(1)
+                .maybeSingle();
+              documentData = dByWd ?? null;
+            }
+          }
+        }
+      }
 
       if (cancelled) {
         return;

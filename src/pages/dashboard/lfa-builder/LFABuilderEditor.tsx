@@ -88,6 +88,7 @@ export default function LFABuilderEditor() {
   const [generatingProposal, setGeneratingProposal] = useState(false);
   const [proposalReady, setProposalReady] = useState(false);
   const [currentDocId, setCurrentDocId] = useState<string | null>(null);
+  const [generatedGwProjectId, setGeneratedGwProjectId] = useState<string | null>(null);
 
   const handleGenerateFullProposal = async () => {
     if (!project) return;
@@ -109,6 +110,9 @@ export default function LFABuilderEditor() {
 
       setProposalReady(true);
       setCurrentDocId(data.document_id);
+      if (data.project_id) {
+        setGeneratedGwProjectId(data.project_id);
+      }
       toast({
         title: 'Proposal Lengkap Selesai!',
         description: `Proposal ${data.word_count || ''} kata (${data.section_count || 7} bab) berhasil dibuat!`,
@@ -827,11 +831,14 @@ export default function LFABuilderEditor() {
             Export PDF
           </Button>
 
-          {proposalReady && currentDocId ? (
+          {proposalReady && (currentDocId || generatedGwProjectId) ? (
             <Button
               size="sm"
               className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium"
-              onClick={() => navigate(`/dashboard/grant-writer/proposal/${currentDocId}`)}
+              onClick={() => {
+                const targetProposalId = generatedGwProjectId || project?.linked_grant_id || project?.id;
+                navigate(`/dashboard/grant-writer/${targetProposalId}/proposal`);
+              }}
             >
               <FileText className="mr-1.5 h-3.5 w-3.5" /> Lihat Proposal Lengkap
             </Button>
