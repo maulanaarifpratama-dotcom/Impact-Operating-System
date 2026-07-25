@@ -1113,41 +1113,92 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      // Outcomes
-      const outcomeIdMap = new Map<number, string>();
-      if (Array.isArray(result.matrix.outcomes)) {
-        result.matrix.outcomes.forEach((oc: any, idx: number) => {
-          const ocId = crypto.randomUUID();
-          outcomeIdMap.set(idx, ocId);
-          lfaEntriesToInsert.push({
-            id: ocId,
-            project_id: targetLfaProjectId,
-            org_id: project.organization_id || '00000000-0000-0000-0000-000000000000',
-            level: 'purpose',
-            sequence: seq++,
-            parent_id: goalId,
-            description: oc.statement,
-            indicator: Array.isArray(oc.indicators) ? oc.indicators.join('; ') : String(oc.indicators || ''),
-            means_of_verification: Array.isArray(oc.means_of_verification) ? oc.means_of_verification.join('; ') : String(oc.means_of_verification || ''),
-            assumption: Array.isArray(oc.assumptions) ? oc.assumptions.join('; ') : String(oc.assumptions || '')
-          });
+      // Single Purpose/Outcome Consolidation (NORAD/EuropeAid LFA Standard)
+      let singlePurpose: any = null;
+
+      if (Array.isArray(result.matrix.outcomes) && result.matrix.outcomes.length > 0) {
+        if (result.matrix.outcomes.length === 1) {
+          singlePurpose = result.matrix.outcomes[0];
+        } else {
+          console.log(`[Consolidation] AI generated ${result.matrix.outcomes.length} outcome candidates. Consolidating into 1 Purpose...`);
+          try {
+            const consolidationPrompt = `You are a Senior LFA Specialist. Consolidate the following ${result.matrix.outcomes.length} Outcome/Purpose candidates into EXACTLY ONE single, overarching, highly coherent Purpose statement that encompasses all program deliverables. Combine their indicators, means of verification, and assumptions cleanly.
+
+Outcome candidates:
+${JSON.stringify(result.matrix.outcomes, null, 2)}
+
+Return JSON with this exact schema:
+{
+  "statement": "Single consolidated purpose statement",
+  "indicators": ["Combined indicator 1", "Combined indicator 2"],
+  "means_of_verification": ["Combined MoV 1", "Combined MoV 2"],
+  "assumptions": ["Combined assumption 1", "Combined assumption 2"]
+}`;
+
+            const consolidatedRes = await chatJson({
+              messages: [{ role: 'user', content: consolidationPrompt }],
+              temperature: 0.2
+            });
+
+            if (consolidatedRes && consolidatedRes.statement) {
+              singlePurpose = consolidatedRes;
+            } else {
+              throw new Error('Consolidation response missing statement');
+            }
+          } catch (consErr) {
+            console.warn('[Consolidation Fallback] AI consolidation failed, using primary outcome:', consErr);
+            const primary = result.matrix.outcomes[0];
+            const allIndicators = result.matrix.outcomes.flatMap((o: any) => Array.isArray(o.indicators) ? o.indicators : [o.indicators]).filter(Boolean);
+            const allMovs = result.matrix.outcomes.flatMap((o: any) => Array.isArray(o.means_of_verification) ? o.means_of_verification : [o.means_of_verification]).filter(Boolean);
+            const allAssumptions = result.matrix.outcomes.flatMap((o: any) => Array.isArray(o.assumptions) ? o.assumptions : [o.assumptions]).filter(Boolean);
+
+            singlePurpose = {
+              statement: primary.statement,
+              indicators: allIndicators,
+              means_of_verification: allMovs,
+              assumptions: allAssumptions
+            };
+          }
+        }
+      } else if (result.matrix.program_skeleton?.lfa?.purpose?.statement) {
+        const p = result.matrix.program_skeleton.lfa.purpose;
+        singlePurpose = {
+          statement: p.statement,
+          indicators: Array.isArray(p.indicators) ? p.indicators.map((i: any) => typeof i === 'object' ? i.statement : i) : [p.indicators],
+          means_of_verification: Array.isArray(p.indicators) ? p.indicators.map((i: any) => typeof i === 'object' ? i.mov : null).filter(Boolean) : [],
+          assumptions: p.assumptions || []
+        };
+      }
+
+      const singlePurposeId = crypto.randomUUID();
+      if (singlePurpose) {
+        lfaEntriesToInsert.push({
+          id: singlePurposeId,
+          project_id: targetLfaProjectId,
+          org_id: project.organization_id || '00000000-0000-0000-0000-000000000000',
+          level: 'purpose',
+          sequence: seq++,
+          parent_id: goalId,
+          description: singlePurpose.statement,
+          indicator: Array.isArray(singlePurpose.indicators) ? singlePurpose.indicators.join('; ') : String(singlePurpose.indicators || ''),
+          means_of_verification: Array.isArray(singlePurpose.means_of_verification) ? singlePurpose.means_of_verification.join('; ') : String(singlePurpose.means_of_verification || ''),
+          assumption: Array.isArray(singlePurpose.assumptions) ? singlePurpose.assumptions.join('; ') : String(singlePurpose.assumptions || '')
         });
       }
 
-      // Outputs
+      // Outputs: All outputs point to singlePurposeId
       const outputIdMap = new Map<number, string>();
       if (Array.isArray(result.matrix.outputs)) {
         result.matrix.outputs.forEach((op: any, idx: number) => {
           const opId = crypto.randomUUID();
           outputIdMap.set(idx, opId);
-          const parentOutcomeId = outcomeIdMap.get(op.outcome_index ?? 0) || (outcomeIdMap.get(0) ?? goalId);
           lfaEntriesToInsert.push({
             id: opId,
             project_id: targetLfaProjectId,
             org_id: project.organization_id || '00000000-0000-0000-0000-000000000000',
             level: 'output',
             sequence: seq++,
-            parent_id: parentOutcomeId,
+            parent_id: singlePurposeId,
             description: op.statement,
             indicator: Array.isArray(op.indicators) ? op.indicators.join('; ') : String(op.indicators || ''),
             means_of_verification: Array.isArray(op.means_of_verification) ? op.means_of_verification.join('; ') : String(op.means_of_verification || ''),
