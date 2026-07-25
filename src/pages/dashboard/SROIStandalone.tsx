@@ -812,7 +812,7 @@ Estimasi ini bersumber dari proxy value & input manual pengguna.`;
                     {mode === 'simple' ? (
                       <div className="p-3 bg-slate-100/50 dark:bg-slate-900/20 rounded-xl grid grid-cols-2 md:grid-cols-4 gap-3 text-center">
                         <div className="space-y-0.5">
-                          <span className="text-[10px] font-bold block text-slate-500">Attribution</span>
+                          <span className="text-[10px] font-bold block text-slate-500">Kontribusi Program</span>
                           <span className="text-xs font-bold text-slate-800 dark:text-slate-200">80%</span>
                         </div>
                         <div className="space-y-0.5">
@@ -841,7 +841,7 @@ Estimasi ini bersumber dari proxy value & input manual pengguna.`;
                           <div className="space-y-1.5">
                             <div className="flex justify-between items-center">
                               <Label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300">
-                                Attribution ({out.attribution_pct}%)
+                                Kontribusi Program / Our Share ({out.attribution_pct}%)
                               </Label>
                               <TooltipProvider>
                                 <Tooltip>
@@ -849,7 +849,7 @@ Estimasi ini bersumber dari proxy value & input manual pengguna.`;
                                     <HelpCircle className="h-3 w-3 text-muted-foreground hover:text-foreground cursor-pointer" />
                                   </TooltipTrigger>
                                   <TooltipContent className="max-w-[250px] text-xs">
-                                    Berapa persen dampak positif ini murni disebabkan oleh intervensi program kamu (bukan organisasi lain).
+                                    Persentase dampak yang disebabkan program ini (bukan pihak lain).
                                   </TooltipContent>
                                 </Tooltip>
                               </TooltipProvider>

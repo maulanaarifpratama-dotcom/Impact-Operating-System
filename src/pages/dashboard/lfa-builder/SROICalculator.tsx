@@ -1700,7 +1700,7 @@ export default function SROICalculator({
                           {/* Attribution Slider */}
                           <div className="space-y-2">
                             <div className="flex justify-between text-[11px]">
-                              <Label className="font-semibold text-slate-700">Persen Kontribusi Organisasi (Attribution)</Label>
+                              <Label className="font-semibold text-slate-700">Kontribusi Program / Our Share (%)</Label>
                               <span className="font-bold text-blue-600">{out.attribution_pct}%</span>
                             </div>
                             <Slider
@@ -1709,7 +1709,7 @@ export default function SROICalculator({
                               step={5}
                               onValueChange={(val) => debounceSaveOutcome({ ...out, attribution_pct: val[0] })}
                             />
-                            <p className="text-[10px] text-muted-foreground">Persentase seberapa besar dampak ini didorong langsung oleh intervensi program Anda (vs NGO/pihak luar lain).</p>
+                            <p className="text-[10px] text-muted-foreground">Persentase dampak yang disebabkan program ini (bukan pihak lain).</p>
                           </div>
 
                           {/* Deadweight Slider */}
@@ -1917,7 +1917,7 @@ export default function SROICalculator({
                     <th className="p-2 text-left border-r w-24 font-semibold uppercase">Satuan</th>
                     <th className="p-2 text-right border-r w-32 font-semibold uppercase">Proxy Value (IDR)</th>
                     <th className="p-2 text-center border-r w-20 font-semibold uppercase">PIC / Durasi (Thn)</th>
-                    <th className="p-2 text-center border-r w-20 font-semibold uppercase">Kontribusi (Att) %</th>
+                    <th className="p-2 text-center border-r w-24 font-semibold uppercase" title="Persentase dampak yang disebabkan program ini (bukan pihak lain)">Kontribusi Program (%)</th>
                     <th className="p-2 text-center border-r w-20 font-semibold uppercase">Terjadi Sendiri (Dw) %</th>
                     <th className="p-2 text-center border-r w-20 font-semibold uppercase">Displacement %</th>
                     <th className="p-2 text-center border-r w-20 font-semibold uppercase">Dropoff /Thn %</th>
