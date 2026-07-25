@@ -1,13 +1,42 @@
-import { chromium } from '@playwright/test';
-import http from 'node:http';
+import { createServer } from 'vite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+// Provide SSR polyfills for window / localStorage / matchMedia
+if (typeof globalThis.window === 'undefined') {
+  const dummyStorage = {
+    getItem: () => null,
+    setItem: () => {},
+    removeItem: () => {},
+    clear: () => {},
+    length: 0,
+    key: () => null,
+  };
+  globalThis.window = {
+    location: { href: 'https://impactory.id', pathname: '/' },
+    matchMedia: () => ({
+      matches: false,
+      media: '',
+      onchange: null,
+      addListener: () => {},
+      removeListener: () => {},
+      addEventListener: () => {},
+      removeEventListener: () => {},
+      dispatchEvent: () => false,
+    }),
+    localStorage: dummyStorage,
+    sessionStorage: dummyStorage,
+  };
+  globalThis.localStorage = dummyStorage;
+  globalThis.sessionStorage = dummyStorage;
+  globalThis.navigator = { userAgent: 'node' };
+}
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const ROOT_DIR = path.resolve(__dirname, '..');
 const DIST_DIR = path.resolve(__dirname, '../dist');
-const SPA_TEMPLATE_PATH = path.resolve(__dirname, '../dist/spa-template.html');
 
 const PUBLIC_ROUTES = [
   '/',
@@ -18,108 +47,58 @@ const PUBLIC_ROUTES = [
   '/terms'
 ];
 
-const MIME_TYPES = {
-  '.html': 'text/html',
-  '.js': 'text/javascript',
-  '.css': 'text/css',
-  '.json': 'application/json',
-  '.png': 'image/png',
-  '.jpg': 'image/jpeg',
-  '.svg': 'image/svg+xml',
-  '.ico': 'image/x-icon',
-  '.woff': 'font/woff',
-  '.woff2': 'font/woff2',
-};
-
-// Simple Node HTTP server serving dist with SPA fallback
-function startStaticServer() {
-  return new Promise((resolve) => {
-    const server = http.createServer((req, res) => {
-      const port = server.address().port;
-      const parsedUrl = new URL(req.url, `http://localhost:${port}`);
-      let relativePath = parsedUrl.pathname;
-
-      let targetFile = path.join(DIST_DIR, relativePath);
-
-      // If pointing to a directory or non-existent route, fallback to spa-template.html for client rendering
-      let isFile = fs.existsSync(targetFile) && fs.statSync(targetFile).isFile();
-
-      if (!isFile) {
-        targetFile = SPA_TEMPLATE_PATH;
-      }
-
-      const ext = path.extname(targetFile).toLowerCase();
-      const contentType = MIME_TYPES[ext] || 'text/html';
-
-      fs.readFile(targetFile, (err, data) => {
-        if (err) {
-          res.writeHead(500);
-          res.end(`Error loading ${targetFile}: ${err.message}`);
-        } else {
-          res.writeHead(200, { 'Content-Type': contentType });
-          res.end(data);
-        }
-      });
-    });
-
-    server.listen(0, () => {
-      const actualPort = server.address().port;
-      console.log(`[Prerender] Local static server running on http://localhost:${actualPort}`);
-      resolve(server);
-    });
-  });
-}
-
 async function prerender() {
-  const originalIndex = path.join(DIST_DIR, 'index.html');
-  if (!fs.existsSync(originalIndex)) {
+  const templatePath = path.join(DIST_DIR, 'index.html');
+  if (!fs.existsSync(templatePath)) {
     console.error('[Prerender] Error: dist/index.html does not exist. Run vite build first.');
     process.exit(1);
   }
 
-  // Backup original SPA index.html to spa-template.html for server fallback
-  fs.copyFileSync(originalIndex, SPA_TEMPLATE_PATH);
-  console.log('[Prerender] Backed up original dist/index.html to spa-template.html');
+  const template = fs.readFileSync(templatePath, 'utf-8');
 
-  const server = await startStaticServer();
-  const PORT = server.address().port;
-  let browser;
+  console.log('[Prerender] Initializing Vite SSR loader in Node.js (Zero Browser Binary)...');
+  const vite = await createServer({
+    server: { middlewareMode: true },
+    appType: 'custom',
+    root: ROOT_DIR
+  });
 
   try {
-    console.log('[Prerender] Launching Chromium via Playwright...');
-    browser = await chromium.launch({ headless: true });
-    const page = await browser.newPage();
+    const { render } = await vite.ssrLoadModule('/src/entry-server.tsx');
 
     for (const route of PUBLIC_ROUTES) {
-      const url = `http://localhost:${PORT}${route}`;
-      console.log(`[Prerender] Rendering route: ${route} (${url})`);
+      console.log(`[Prerender] SSG rendering route: ${route}`);
+      const helmetContext = {};
+      const { html: appHtml, helmet } = render(route, helmetContext);
 
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-      await page.waitForTimeout(1000); // Allow react-helmet-async to update DOM
+      const headTags = [
+        helmet?.title?.toString() || '',
+        helmet?.meta?.toString() || '',
+        helmet?.link?.toString() || '',
+        helmet?.script?.toString() || ''
+      ].filter(Boolean).join('\n    ');
 
-      const html = await page.content();
+      let finalHtml = template.replace('<div id="root"></div>', `<div id="root">${appHtml}</div>`);
+      if (headTags) {
+        finalHtml = finalHtml.replace('</head>', `    ${headTags}\n</head>`);
+      }
 
       const routeDir = route === '/' ? DIST_DIR : path.join(DIST_DIR, route);
       if (!fs.existsSync(routeDir)) {
         fs.mkdirSync(routeDir, { recursive: true });
       }
 
-      const targetHtmlPath = path.join(routeDir, 'index.html');
-      fs.writeFileSync(targetHtmlPath, html, 'utf-8');
-      console.log(`[Prerender] Successfully saved static HTML: ${targetHtmlPath}`);
+      const targetPath = path.join(routeDir, 'index.html');
+      fs.writeFileSync(targetPath, finalHtml, 'utf-8');
+      console.log(`[Prerender] Saved static HTML: ${targetPath}`);
     }
 
-    console.log('[Prerender] Pre-rendering finished successfully for all public routes!');
+    console.log('[Prerender] Pre-rendering completed successfully for all public routes!');
   } catch (err) {
-    console.error('[Prerender] Error during pre-rendering:', err);
+    console.error('[Prerender] Error during SSG rendering:', err);
     process.exitCode = 1;
   } finally {
-    if (browser) await browser.close();
-    server.close();
-    // Clean up temporary template file
-    if (fs.existsSync(SPA_TEMPLATE_PATH)) {
-      fs.unlinkSync(SPA_TEMPLATE_PATH);
-    }
+    await vite.close();
   }
 }
 

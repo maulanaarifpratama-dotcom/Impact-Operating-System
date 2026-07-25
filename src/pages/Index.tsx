@@ -36,9 +36,11 @@ export default function Index() {
     if (urlLang === 'id' || urlLang === 'en') {
       return urlLang;
     }
-    const saved = localStorage.getItem('impactory-lang');
-    if (saved === 'id' || saved === 'en') {
-      return saved;
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      const saved = localStorage.getItem('impactory-lang');
+      if (saved === 'id' || saved === 'en') {
+        return saved;
+      }
     }
     return 'id';
   };
