@@ -21,6 +21,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { getOrgCarbonSummary } from '@/lib/carbon/aggregation';
+import { ProgramHealthSummary } from '@/components/dashboard/ProgramHealthSummary';
 
 
 // Helpers for score card maturity levels
@@ -411,6 +412,9 @@ export default function ImpactDashboard() {
 
       {/* Grid Layout: 2 Columns on Desktop, 1 Column on Mobile */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* 1.5 PROGRAM HEALTH SUMMARY (3-LENS) */}
+        <ProgramHealthSummary organizationId={organizationId} programs={programs} />
+
         {/* 2. G.R.O.W.T.H. SCORE CARD */}
         <Card className="border border-slate-150 shadow-elegant bg-white dark:bg-slate-950 flex flex-col justify-between">
           <CardHeader className="pb-4">
