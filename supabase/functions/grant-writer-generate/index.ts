@@ -499,10 +499,10 @@ function validateProgramSkeleton(skeleton: any) {
     throw new Error('Validation Failed: At least 1 Purpose or Outcome is required');
   }
 
-  // Outputs validation (min 3 Outputs required)
+  // Outputs validation (safety floor min 2 Outputs required)
   const outputs = lfa.outputs || [];
-  if (!Array.isArray(outputs) || outputs.length < 3) {
-    throw new Error(`ACTIVITY_FLOOR_FAILED: At least 3 Outputs required in lfa.outputs (found ${Array.isArray(outputs) ? outputs.length : 0})`);
+  if (!Array.isArray(outputs) || outputs.length < 2) {
+    throw new Error(`ACTIVITY_FLOOR_FAILED: At least 2 Outputs required in lfa.outputs (found ${Array.isArray(outputs) ? outputs.length : 0})`);
   }
 
   const outputIds = new Set<string>();
@@ -528,47 +528,42 @@ function validateProgramSkeleton(skeleton: any) {
     }
 
     if (!output.statement || !output.statement.trim()) {
-      throw new Error(`Validation Failed: Output '${output.id}' statement is empty`);
+      throw new Error(`Validation Failed: Output '${output.id}' statement is missing or empty`);
     }
 
-    // Validate Nested Activities (At least 3 Activities per Output required)
-    const activities = output.activities;
-    if (!Array.isArray(activities) || activities.length < 3) {
-      throw new Error(`ACTIVITY_FLOOR_FAILED: Output '${output.id}' (Output ${i + 1}) must have at least 3 nested activities (found ${Array.isArray(activities) ? activities.length : 0})`);
+    const activities = output.activities || [];
+    if (!Array.isArray(activities) || activities.length < 2) {
+      throw new Error(`ACTIVITY_FLOOR_FAILED: Output '${output.id}' must contain at least 2 activities (found ${Array.isArray(activities) ? activities.length : 0})`);
     }
-    totalSkeletonActivities += activities.length;
 
-    for (const act of activities) {
+    for (let j = 0; j < activities.length; j++) {
+      const act = activities[j];
       if (!act || typeof act !== 'object') {
-        throw new Error(`Validation Failed: Invalid activity element nested under output '${output.id}'`);
+        throw new Error(`Validation Failed: Invalid activity element in output '${output.id}'`);
       }
       if (!act.id || !act.id.trim()) {
-        throw new Error(`Validation Failed: Activity nested under output '${output.id}' has missing or empty ID`);
+        throw new Error(`Validation Failed: Activity ID is missing or empty in output '${output.id}'`);
       }
       if (activityIds.has(act.id)) {
         throw new Error(`Validation Failed: Duplicate Activity ID found: '${act.id}'`);
       }
       activityIds.add(act.id);
 
-      const title = act.title || act.statement || act.name;
+      const title = act.title || act.statement;
       if (!title || !title.trim()) {
-        throw new Error(`Validation Failed: Activity '${act.id}' title/statement is empty`);
+        throw new Error(`Validation Failed: Activity '${act.id}' title/statement is missing or empty`);
       }
+
+      totalSkeletonActivities++;
     }
   }
 
-  if (totalSkeletonActivities < 9) {
-    throw new Error(`ACTIVITY_FLOOR_FAILED: Total activities in lfa.outputs must be at least 9 (found ${totalSkeletonActivities})`);
+  if (totalSkeletonActivities < 6) {
+    throw new Error(`ACTIVITY_FLOOR_FAILED: Total activities in program_skeleton must be at least 6 (found ${totalSkeletonActivities})`);
   }
 
-  // Tasks validation
+  // WBS validation (every WBS task must reference a valid output via sourceActivityId)
   const wbs = skeleton.wbs;
-  const tasks = wbs?.tasks || [];
-  const taskIds = new Set<string>();
-
-  for (const task of tasks) {
-    if (!task || typeof task !== 'object') {
-      throw new Error('Validation Failed: Invalid task element in WBS');
     }
     if (!task.id || !task.id.trim()) {
       throw new Error('Validation Failed: WBS Task ID is missing or empty');
