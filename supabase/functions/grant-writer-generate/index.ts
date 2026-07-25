@@ -564,6 +564,12 @@ function validateProgramSkeleton(skeleton: any) {
 
   // WBS validation (every WBS task must reference a valid output via sourceActivityId)
   const wbs = skeleton.wbs;
+  const tasks = wbs?.tasks || [];
+  const taskIds = new Set<string>();
+
+  for (const task of tasks) {
+    if (!task || typeof task !== 'object') {
+      throw new Error('Validation Failed: Invalid task element in WBS');
     }
     if (!task.id || !task.id.trim()) {
       throw new Error('Validation Failed: WBS Task ID is missing or empty');
