@@ -1515,14 +1515,78 @@ export default function GrantWriterQuickWizardProvisional() {
         effectiveCanonicalPayload.organization_id = targetOrgId;
 
         const rawEntries = mapCanonicalProposalToRawEntries(effectiveCanonicalPayload);
-        const entriesToCache = (rawEntries && rawEntries.length > 0) ? rawEntries : [
-          { id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000001', project_id: targetProjectId, org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000', code: 'GOAL-1', level: 'goal', description: proposedTitle || 'Clean Water Access Program, Sumba', sequence: 1 },
-          { id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000002', project_id: targetProjectId, org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000', code: 'OUTCOME-1', level: 'purpose', description: programStory ? programStory.slice(0, 200) : 'Meningkatkan akses air bersih dan sanitasi layak bagi 4.500 warga desa.', sequence: 2, indicator: 'Tersedianya pasokan air minum bersih untuk 4.500 warga' },
-          { id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000003', project_id: targetProjectId, org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000', code: 'OUTPUT-1.1', level: 'output', description: 'Terbangunnya 12 unit hub filtrasi air bertenaga surya dan 12km pipa distribusi.', sequence: 3, indicator: '12 hub filtrasi terpasang dan berfungsi' },
-          { id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000004', project_id: targetProjectId, org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000', code: 'ACT-1.1.1', level: 'activity', description: 'Survei lokasi dan instalasi hub filtrasi air bertenaga surya di 8 desa target', sequence: 4 },
-          { id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000004', project_id: targetProjectId, org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000', code: 'ACT-1.1.2', level: 'activity', description: 'Pemasangan jaringan pipa distribusi sepanjang 12 km ke pemukiman warga', sequence: 5 },
-          { id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000005', project_id: targetProjectId, org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000', code: 'ACT-1.1.3', level: 'activity', description: 'Pembentukan dan pelatihan komite air masyarakat di 8 desa sasaran', sequence: 6 }
+        const hasOutputsOrActivities = rawEntries && rawEntries.some((e: any) => e.level === 'output' || e.level === 'activity');
+
+        const groundedFallbackEntries = [
+          {
+            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000001',
+            project_id: targetProjectId,
+            org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
+            code: 'GOAL-1',
+            level: 'goal',
+            description: proposedTitle ? `Peningkatan Dampak: ${proposedTitle}` : 'Peningkatan Akses Air Bersih & Sanitasi Layak',
+            indicator: `Mengurangi risiko penyakit akibat air dan beban hidup masyarakat sasaran di ${geography || 'daerah target'}`,
+            means_of_verification: 'Laporan Monitoring Kesehatan & Survei Dampak Masyarakat',
+            assumption: 'Dukungan pemangku kepentingan lokal dan kondisi lingkungan yang stabil',
+            sequence: 1
+          },
+          {
+            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000002',
+            project_id: targetProjectId,
+            org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
+            code: 'OUTCOME-1',
+            level: 'purpose',
+            description: programStory ? programStory.slice(0, 250) : `Penyediaan pasokan air bersih dan keberlanjutan fasilitas bagi ${beneficiaryDescription || 'penerima manfaat'} di ${geography || 'lokasi target'}`,
+            indicator: `Tersedianya air minum bersih bagi ${beneficiaryCount || '4.500'} ${beneficiaryDescription || 'warga sasaran'}`,
+            means_of_verification: 'Survei Rumah Tangga & Catatan Distribusi Air Komite',
+            assumption: 'Partisipasi aktif warga desa dan pengurus komite lokal',
+            sequence: 2
+          },
+          {
+            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000003',
+            project_id: targetProjectId,
+            org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
+            code: 'OUTPUT-1.1',
+            level: 'output',
+            description: `Pembangunan dan pengoperasian unit hub filtrasi air bertenaga surya serta jaringan distribusi di ${geography || 'desa target'}`,
+            indicator: 'Fasilitas filtrasi air dan jaringan distribusi terpasang serta berfungsi 100%',
+            means_of_verification: 'Berita Acara Serah Terima (BAST) & Laporan Verifikasi Fisik',
+            assumption: 'Izin lokasi dan ketersediaan lahan fasilitas berjalan sesuai rencana',
+            sequence: 3
+          },
+          {
+            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000004',
+            project_id: targetProjectId,
+            org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
+            code: 'ACT-1.1.1',
+            level: 'activity',
+            description: `Survei teknis lapangan, analisis kualitas air baku, dan penetapan titik hub filtrasi di ${geography || 'lokasi sasaran'}`,
+            responsible_party: 'Tim Teknis & Fasilitator Lapangan',
+            sequence: 4
+          },
+          {
+            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000005',
+            project_id: targetProjectId,
+            org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
+            code: 'ACT-1.1.2',
+            level: 'activity',
+            description: 'Pengadaan komponen filtrasi surya, pekerjaan konstruksi fisik, dan pemasangan pipa distribusi',
+            responsible_party: 'Tim Kontraktor/Teknisi & Komite Komunitas',
+            sequence: 5
+          },
+          {
+            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000006',
+            project_id: targetProjectId,
+            org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
+            code: 'ACT-1.1.3',
+            level: 'activity',
+            description: `Pembentukan, pelatihan teknis operasional, dan pendampingan komite kelola air minum untuk ${beneficiaryCount || '4.500'} penerima manfaat`,
+            responsible_party: 'Pengurus Komite Air Desa',
+            sequence: 6
+          }
         ];
+
+        const entriesToCache = hasOutputsOrActivities ? rawEntries : groundedFallbackEntries;
 
         // Guarantee immediate local caching before network/DB calls
         try {

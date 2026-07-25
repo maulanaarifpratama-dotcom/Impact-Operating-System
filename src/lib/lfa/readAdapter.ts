@@ -980,6 +980,10 @@ export function extractCanonicalCostDrivers(proposal: CanonicalProposalPayloadV2
 export function mapCanonicalProposalToRawEntries(
   proposal: CanonicalProposalPayloadV2
 ): RawLfaEntry[] {
+  if (!proposal || !proposal.outcomes || proposal.outcomes.length === 0) {
+    return [];
+  }
+
   const entries: RawLfaEntry[] = [];
   const projectId = proposal.project_id;
   const orgId = proposal.organization_id;
