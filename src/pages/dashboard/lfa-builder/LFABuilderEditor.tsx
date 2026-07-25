@@ -1029,8 +1029,10 @@ export default function LFABuilderEditor() {
               {goal && (
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label className="font-semibold text-slate-800 dark:text-slate-200">Deskripsi Dampak</Label>
+                    <Label htmlFor="goal-description" className="font-semibold text-slate-800 dark:text-slate-200">Deskripsi Dampak</Label>
                     <Textarea
+                      id="goal-description"
+                      aria-label="Deskripsi Dampak"
                       value={goal.description}
                       onChange={(e) => {
                         const updated = { ...goal, description: e.target.value };
@@ -1045,8 +1047,10 @@ export default function LFABuilderEditor() {
                   {/* 3 inline fields */}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 pt-1">
                     <div className="space-y-1">
-                      <Label className="text-[10px] font-semibold">Indikator Kunci (KPI)</Label>
+                      <Label htmlFor="goal-indicator" className="text-[10px] font-semibold">Indikator Kunci (KPI)</Label>
                       <Input
+                        id="goal-indicator"
+                        aria-label="Indikator Kunci Dampak"
                         value={goal.indicator}
                         onChange={(e) => setGoal({ ...goal, indicator: e.target.value })}
                         onBlur={() => void saveEntry(goal)}
@@ -1055,8 +1059,10 @@ export default function LFABuilderEditor() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] font-semibold">Sumber Verifikasi (MoV)</Label>
+                      <Label htmlFor="goal-mov" className="text-[10px] font-semibold">Sumber Verifikasi (MoV)</Label>
                       <Input
+                        id="goal-mov"
+                        aria-label="Sumber Verifikasi Dampak"
                         value={goal.means_of_verification}
                         onChange={(e) => setGoal({ ...goal, means_of_verification: e.target.value })}
                         onBlur={() => void saveEntry(goal)}
@@ -1065,8 +1071,10 @@ export default function LFABuilderEditor() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] font-semibold">Asumsi Eksternal</Label>
+                      <Label htmlFor="goal-assumption" className="text-[10px] font-semibold">Asumsi Eksternal</Label>
                       <Input
+                        id="goal-assumption"
+                        aria-label="Asumsi Eksternal Dampak"
                         value={goal.assumption}
                         onChange={(e) => setGoal({ ...goal, assumption: e.target.value })}
                         onBlur={() => void saveEntry(goal)}
@@ -1110,8 +1118,10 @@ export default function LFABuilderEditor() {
               {purpose && (
                 <div className="space-y-4">
                   <div className="space-y-1.5">
-                    <Label className="font-semibold text-slate-800 dark:text-slate-200">Deskripsi Tujuan Program</Label>
+                    <Label htmlFor="purpose-description" className="font-semibold text-slate-800 dark:text-slate-200">Deskripsi Tujuan Program</Label>
                     <Textarea
+                      id="purpose-description"
+                      aria-label="Deskripsi Tujuan Program"
                       value={purpose.description}
                       onChange={(e) => {
                         const updated = { ...purpose, description: e.target.value };
@@ -1126,8 +1136,10 @@ export default function LFABuilderEditor() {
                   {/* 3 inline fields */}
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 pt-1">
                     <div className="space-y-1">
-                      <Label className="text-[10px] font-semibold">Indikator Kunci (KPI)</Label>
+                      <Label htmlFor="purpose-indicator" className="text-[10px] font-semibold">Indikator Kunci (KPI)</Label>
                       <Input
+                        id="purpose-indicator"
+                        aria-label="Indikator Kunci Tujuan Program"
                         value={purpose.indicator}
                         onChange={(e) => setPurpose({ ...purpose, indicator: e.target.value })}
                         onBlur={() => void saveEntry(purpose)}
@@ -1136,8 +1148,10 @@ export default function LFABuilderEditor() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] font-semibold">Sumber Verifikasi (MoV)</Label>
+                      <Label htmlFor="purpose-mov" className="text-[10px] font-semibold">Sumber Verifikasi (MoV)</Label>
                       <Input
+                        id="purpose-mov"
+                        aria-label="Sumber Verifikasi Tujuan Program"
                         value={purpose.means_of_verification}
                         onChange={(e) => setPurpose({ ...purpose, means_of_verification: e.target.value })}
                         onBlur={() => void saveEntry(purpose)}
@@ -1146,8 +1160,10 @@ export default function LFABuilderEditor() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] font-semibold">Asumsi Eksternal</Label>
+                      <Label htmlFor="purpose-assumption" className="text-[10px] font-semibold">Asumsi Eksternal</Label>
                       <Input
+                        id="purpose-assumption"
+                        aria-label="Asumsi Eksternal Tujuan Program"
                         value={purpose.assumption}
                         onChange={(e) => setPurpose({ ...purpose, assumption: e.target.value })}
                         onBlur={() => void saveEntry(purpose)}
@@ -1247,8 +1263,10 @@ export default function LFABuilderEditor() {
                       </CardHeader>
                       <CardContent className="p-4 space-y-4 text-xs">
                         <div className="space-y-1.5">
-                          <Label className="font-semibold text-slate-800 dark:text-slate-200">Deskripsi Deliverable/Hasil</Label>
+                          <Label htmlFor={`output-desc-${out.id}`} className="font-semibold text-slate-800 dark:text-slate-200">Deskripsi Deliverable/Hasil</Label>
                           <Textarea
+                            id={`output-desc-${out.id}`}
+                            aria-label={`Deskripsi Deliverable Hasil ${index + 1}`}
                             value={out.description}
                             onChange={(e) => {
                               const updated = outputs.map((item) =>
@@ -1268,8 +1286,10 @@ export default function LFABuilderEditor() {
                         {/* Inline fields */}
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 pt-1">
                           <div className="space-y-1">
-                            <Label className="text-[10px] font-semibold">Indikator</Label>
+                            <Label htmlFor={`output-indicator-${out.id}`} className="text-[10px] font-semibold">Indikator</Label>
                             <Input
+                              id={`output-indicator-${out.id}`}
+                              aria-label={`Indikator Hasil ${index + 1}`}
                               value={out.indicator}
                               onChange={(e) => {
                                 const updated = outputs.map((item) =>
@@ -1286,8 +1306,10 @@ export default function LFABuilderEditor() {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-[10px] font-semibold">Sumber Verifikasi (MoV)</Label>
+                            <Label htmlFor={`output-mov-${out.id}`} className="text-[10px] font-semibold">Sumber Verifikasi (MoV)</Label>
                             <Input
+                              id={`output-mov-${out.id}`}
+                              aria-label={`Sumber Verifikasi Hasil ${index + 1}`}
                               value={out.means_of_verification}
                               onChange={(e) => {
                                 const updated = outputs.map((item) =>
@@ -1304,8 +1326,10 @@ export default function LFABuilderEditor() {
                             />
                           </div>
                           <div className="space-y-1">
-                            <Label className="text-[10px] font-semibold">Asumsi</Label>
+                            <Label htmlFor={`output-assumption-${out.id}`} className="text-[10px] font-semibold">Asumsi</Label>
                             <Input
+                              id={`output-assumption-${out.id}`}
+                              aria-label={`Asumsi Hasil ${index + 1}`}
                               value={out.assumption}
                               onChange={(e) => {
                                 const updated = outputs.map((item) =>
@@ -1360,6 +1384,8 @@ export default function LFABuilderEditor() {
                                           {index + 1}.{actIdx + 1}
                                         </span>
                                         <Input
+                                          id={`act-desc-${act.id}`}
+                                          aria-label={`Deskripsi Kegiatan ${index + 1}.${actIdx + 1}`}
                                           value={act.description}
                                           onChange={(e) => {
                                             const updated = activities.map((item) =>
@@ -1405,8 +1431,10 @@ export default function LFABuilderEditor() {
                                     {isExpanded && (
                                       <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3 pt-2 border-t text-[10px]">
                                         <div className="space-y-1">
-                                          <Label className="text-[9px] font-semibold">Penanggung Jawab (PIC)</Label>
+                                          <Label htmlFor={`act-pic-${act.id}`} className="text-[9px] font-semibold">Penanggung Jawab (PIC)</Label>
                                           <Input
+                                            id={`act-pic-${act.id}`}
+                                            aria-label={`Penanggung Jawab Kegiatan ${index + 1}.${actIdx + 1}`}
                                             value={act.responsible_party || ''}
                                             onChange={(e) => {
                                               const updated = activities.map((item) =>
@@ -1423,8 +1451,10 @@ export default function LFABuilderEditor() {
                                           />
                                         </div>
                                         <div className="space-y-1">
-                                          <Label className="text-[9px] font-semibold">Mulai (Bulan)</Label>
+                                          <Label htmlFor={`act-start-${act.id}`} className="text-[9px] font-semibold">Mulai (Bulan)</Label>
                                           <Input
+                                            id={`act-start-${act.id}`}
+                                            aria-label={`Bulan Mulai Kegiatan ${index + 1}.${actIdx + 1}`}
                                             type="number"
                                             value={act.timeline_start || ''}
                                             onChange={(e) => {
@@ -1442,8 +1472,10 @@ export default function LFABuilderEditor() {
                                           />
                                         </div>
                                         <div className="space-y-1">
-                                          <Label className="text-[9px] font-semibold">Selesai (Bulan)</Label>
+                                          <Label htmlFor={`act-end-${act.id}`} className="text-[9px] font-semibold">Selesai (Bulan)</Label>
                                           <Input
+                                            id={`act-end-${act.id}`}
+                                            aria-label={`Bulan Selesai Kegiatan ${index + 1}.${actIdx + 1}`}
                                             type="number"
                                             value={act.timeline_end || ''}
                                             onChange={(e) => {
