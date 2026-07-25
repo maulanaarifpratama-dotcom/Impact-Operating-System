@@ -21,6 +21,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
+import { computeEvmVarianceFlag } from './evmVariance';
 
 // Helper: Check if an item is a leaf item (has no children in the WBS tree)
 const isLeafItem = (item: WbsItem, allItems: WbsItem[]): boolean => {
@@ -1786,6 +1788,17 @@ export default function WBSBuilder({
                         const evidences = activeClaim ? getEvidenceForClaim(activeClaim.id) : [];
                         const evCount = evidences.length;
 
+                        const physicalPercent = !isLeaf || item.level === 1
+                          ? (computed?.percent ?? 0)
+                          : (item.status === 'completed' ? 100 : (item.progress_percent ?? 0));
+
+                        const varianceFlag = computeEvmVarianceFlag(
+                          physicalPercent,
+                          rollup.plannedTotal,
+                          rollup.realizedTotal || 0,
+                          rollup.itemCount
+                        );
+
                         let triggerBadgeClass = 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
                         if (activeClaim) {
                           if (activeClaim.status === 'verified') triggerBadgeClass = 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300';
@@ -1796,68 +1809,115 @@ export default function WBSBuilder({
                         }
 
                         return (
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <button
-                                type="button"
-                                className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-semibold border shrink-0 h-5 transition-colors cursor-pointer ${triggerBadgeClass}`}
-                                title="Klik untuk rincian anggaran & klaim verifikasi"
-                                data-testid="wbs-row-detail-popover-trigger"
-                              >
-                                {hasBudget && <Wallet className="h-2.5 w-2.5 shrink-0 text-emerald-600 dark:text-emerald-400" />}
-                                {isLeaf && <ClipboardCheck className="h-2.5 w-2.5 shrink-0" />}
-                                <span>Rincian</span>
-                                {evCount > 0 && (
-                                  <span className="bg-indigo-600 text-white rounded-full text-[7.5px] px-1 font-bold shrink-0">{evCount}</span>
-                                )}
-                              </button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-80 p-3 space-y-3 shadow-lg border text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800" align="start" side="bottom" sideOffset={4}>
-                              <div className="border-b pb-1.5 font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
-                                <span className="truncate pr-2">{item.name || 'Detail Item WBS'}</span>
-                                <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 uppercase text-slate-500 font-semibold shrink-0">
-                                  Level {item.level}
-                                </span>
-                              </div>
-
-                              {/* Budget Section */}
-                              {(rollup.plannedTotal > 0 || rollup.itemCount > 0 || item.level === 1 || item.level === 2) && (
-                                <div className="space-y-1.5 bg-slate-50 dark:bg-slate-950/50 p-2 rounded border border-slate-200 dark:border-slate-800">
-                                  <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                                    <span className="flex items-center gap-1">
-                                      <Wallet className="h-3 w-3 text-emerald-600" />
-                                      Rincian Anggaran
-                                    </span>
-                                    {onNavigateToBudget && (
-                                      <button
-                                        onClick={() => onNavigateToBudget(item.id)}
-                                        className="text-[9px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
-                                        title="Lihat Rincian Anggaran di Modul Anggaran"
-                                      >
-                                        <span>Buka Modul</span>
-                                        <ExternalLink className="h-2.5 w-2.5" />
-                                      </button>
-                                    )}
-                                  </div>
-
-                                  <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
-                                    <Badge variant="outline" className="text-[9px] font-semibold bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 py-0.5 h-auto">
-                                      <span>Planned: {formatBudgetBadge(rollup.plannedTotal)}</span>
-                                      <span className="text-[8px] text-emerald-600 font-normal ml-1">({rollup.itemCount} item)</span>
+                          <div className="flex items-center gap-1 shrink-0">
+                            {/* EVM Variance Badge on Row */}
+                            {varianceFlag && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Badge
+                                      variant="outline"
+                                      className={`py-0.5 px-1.5 text-[8.5px] font-bold tracking-tight shrink-0 flex items-center gap-1 cursor-help ${
+                                        varianceFlag.type === 'high_physical'
+                                          ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                                          : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                                      }`}
+                                      data-testid={`wbs-variance-flag-${varianceFlag.type}`}
+                                    >
+                                      <AlertTriangle className={`w-2.5 h-2.5 shrink-0 ${varianceFlag.type === 'high_physical' ? 'text-amber-600' : 'text-rose-600'}`} />
+                                      <span>{varianceFlag.badgeLabel}</span>
                                     </Badge>
+                                  </TooltipTrigger>
+                                  <TooltipContent className="max-w-xs text-xs space-y-1 p-2">
+                                    <p className="font-bold">{varianceFlag.message}</p>
+                                    <p className="text-[10px] opacity-80 font-mono">
+                                      Progres Fisik WBS: {varianceFlag.physicalPercent}% | Realisasi Keuangan: {varianceFlag.financialPercent}%
+                                    </p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
 
-                                    {rollup.hasRealization ? (
-                                      <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-800 border-blue-200 py-0.5 h-auto">
-                                        Real: {formatBudgetBadge(rollup.realizedTotal || 0)} {rollup.burnPercent !== null ? `(${rollup.burnPercent}%)` : ''}
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="secondary" className="text-[8px] bg-slate-100 text-slate-500 border border-slate-200 py-0.5 h-auto">
-                                        Belum ada data realisasi
-                                      </Badge>
-                                    )}
-                                  </div>
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <button
+                                  type="button"
+                                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8.5px] font-semibold border shrink-0 h-5 transition-colors cursor-pointer ${triggerBadgeClass}`}
+                                  title="Klik untuk rincian anggaran & klaim verifikasi"
+                                  data-testid="wbs-row-detail-popover-trigger"
+                                >
+                                  {hasBudget && <Wallet className="h-2.5 w-2.5 shrink-0 text-emerald-600 dark:text-emerald-400" />}
+                                  {isLeaf && <ClipboardCheck className="h-2.5 w-2.5 shrink-0" />}
+                                  <span>Rincian</span>
+                                  {evCount > 0 && (
+                                    <span className="bg-indigo-600 text-white rounded-full text-[7.5px] px-1 font-bold shrink-0">{evCount}</span>
+                                  )}
+                                </button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-80 p-3 space-y-3 shadow-lg border text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800" align="start" side="bottom" sideOffset={4}>
+                                <div className="border-b pb-1.5 font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
+                                  <span className="truncate pr-2">{item.name || 'Detail Item WBS'}</span>
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 uppercase text-slate-500 font-semibold shrink-0">
+                                    Level {item.level}
+                                  </span>
                                 </div>
-                              )}
+
+                                {/* EVM Variance Warning Banner inside Popover */}
+                                {varianceFlag && (
+                                  <div className={`p-2 rounded border text-xs space-y-1 ${
+                                    varianceFlag.type === 'high_physical'
+                                      ? 'bg-amber-50 text-amber-900 border-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:border-amber-800'
+                                      : 'bg-rose-50 text-rose-900 border-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:border-rose-800'
+                                  }`}>
+                                    <div className="font-bold flex items-center gap-1 text-[10.5px]">
+                                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                                      <span>Sinyal Evaluasi EVM</span>
+                                    </div>
+                                    <p className="text-[10px] leading-snug">{varianceFlag.message}</p>
+                                    <div className="text-[9.5px] opacity-90 font-mono pt-0.5">
+                                      Progres Fisik: {varianceFlag.physicalPercent}% vs Realisasi Keuangan: {varianceFlag.financialPercent}%
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Budget Section */}
+                                {(rollup.plannedTotal > 0 || rollup.itemCount > 0 || item.level === 1 || item.level === 2) && (
+                                  <div className="space-y-1.5 bg-slate-50 dark:bg-slate-950/50 p-2 rounded border border-slate-200 dark:border-slate-800">
+                                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
+                                      <span className="flex items-center gap-1">
+                                        <Wallet className="h-3 w-3 text-emerald-600" />
+                                        Rincian Anggaran
+                                      </span>
+                                      {onNavigateToBudget && (
+                                        <button
+                                          onClick={() => onNavigateToBudget(item.id)}
+                                          className="text-[9px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
+                                          title="Lihat Rincian Anggaran di Modul Anggaran"
+                                        >
+                                          <span>Buka Modul</span>
+                                          <ExternalLink className="h-2.5 w-2.5" />
+                                        </button>
+                                      )}
+                                    </div>
+
+                                    <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                                      <Badge variant="outline" className="text-[9px] font-semibold bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 py-0.5 h-auto">
+                                        <span>Planned: {formatBudgetBadge(rollup.plannedTotal)}</span>
+                                        <span className="text-[8px] text-emerald-600 font-normal ml-1">({rollup.itemCount} item)</span>
+                                      </Badge>
+
+                                      {rollup.hasRealization ? (
+                                        <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-800 border-blue-200 py-0.5 h-auto">
+                                          Real: {formatBudgetBadge(rollup.realizedTotal || 0)} {rollup.burnPercent !== null ? `(${rollup.burnPercent}%)` : ''}
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="secondary" className="text-[8px] bg-slate-100 text-slate-500 border border-slate-200 py-0.5 h-auto">
+                                          Belum ada data realisasi
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
 
                               {/* Verification Claim & Evidence Section for Leaf Items */}
                               {isLeaf && (
@@ -1908,9 +1968,10 @@ export default function WBSBuilder({
                               )}
                             </PopoverContent>
                           </Popover>
-                        );
-                      })()}
-                    </div>
+                        </div>
+                      );
+                    })()}
+                  </div>
 
                     {/* Progress Column */}
                     <div className="w-20 text-center flex items-center justify-center">

@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { BudgetItem, WbsItem, LfaProject } from './types';
+import { computeEvmVarianceFlag } from './evmVariance';
 import { SBM_2026, SBM_FLAT_ITEMS, SbmItem } from '@/data/sbm2026';
 import { INKINDO_ROLES, calculateInkindoRate, calculateInkindoProfessionalRate, INKINDO_PROVINCE_MULTIPLIERS, INKINDO_DIRECT_COST_MULTIPLIERS } from '@/data/inkindo2026';
 
@@ -2347,6 +2348,15 @@ export default function BudgetCalculator({
             {wbsActivities.map((act, actIdx) => {
               const actItems = budgetItems.filter(i => i.wbs_item_id === act.id);
               const actTotal = actItems.reduce((acc, i) => acc + ((Number(i.volume) || 0) * (Number(i.unit_price_idr) || 0)), 0);
+              const actRealized = actItems.reduce((acc, i) => acc + (Number(i.actual_amount_idr) || 0), 0);
+              const physicalPercent = act.status === 'completed' ? 100 : (act.progress_percent ?? 0);
+
+              const varianceFlag = computeEvmVarianceFlag(
+                physicalPercent,
+                actTotal,
+                actRealized,
+                actItems.length
+              );
 
               return (
                 <Card key={act.id} className="border border-slate-200 overflow-hidden shadow-sm hover:shadow-md transition-all duration-200">
@@ -2357,9 +2367,39 @@ export default function BudgetCalculator({
                         {actIdx + 1}
                       </span>
                       <div className="space-y-0.5">
-                        <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100">{act.name}</span>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-extrabold text-slate-800 dark:text-slate-100">{act.name}</span>
+
+                          {/* EVM Variance Badge */}
+                          {varianceFlag && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Badge
+                                    variant="outline"
+                                    className={`py-0.5 px-2 text-[9.5px] font-bold tracking-tight shrink-0 flex items-center gap-1 cursor-help ${
+                                      varianceFlag.type === 'high_physical'
+                                        ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                                        : 'bg-rose-50 text-rose-800 border-rose-300 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-800'
+                                    }`}
+                                    data-testid={`budget-variance-flag-${varianceFlag.type}`}
+                                  >
+                                    <AlertTriangle className={`w-3 h-3 shrink-0 ${varianceFlag.type === 'high_physical' ? 'text-amber-600' : 'text-rose-600'}`} />
+                                    <span>{varianceFlag.badgeLabel}</span>
+                                  </Badge>
+                                </TooltipTrigger>
+                                <TooltipContent className="max-w-xs text-xs space-y-1 p-2">
+                                  <p className="font-bold">{varianceFlag.message}</p>
+                                  <p className="text-[10px] opacity-80 font-mono">
+                                    Progres Fisik WBS: {varianceFlag.physicalPercent}% | Realisasi Anggaran: {varianceFlag.financialPercent}%
+                                  </p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
                         <span className="text-[10px] text-slate-400 block font-semibold uppercase tracking-wider">
-                          Timeline: {formatTimeline(act.start_month, act.duration_weeks)}
+                          Timeline: {formatTimeline(act.start_month, act.duration_weeks)} | Progres WBS: {physicalPercent}%
                         </span>
                       </div>
                     </div>
