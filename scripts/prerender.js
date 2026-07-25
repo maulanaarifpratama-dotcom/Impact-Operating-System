@@ -3,17 +3,44 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Provide SSR polyfills for window / localStorage / matchMedia
+// Helper to safely define globals in Node.js (including Node 21/24 with read-only getters like navigator)
+function safeSetGlobal(prop, value) {
+  try {
+    if (!(prop in globalThis)) {
+      Object.defineProperty(globalThis, prop, {
+        value,
+        writable: true,
+        configurable: true,
+        enumerable: true,
+      });
+    } else {
+      try {
+        globalThis[prop] = value;
+      } catch {
+        Object.defineProperty(globalThis, prop, {
+          value,
+          writable: true,
+          configurable: true,
+          enumerable: true,
+        });
+      }
+    }
+  } catch {
+    // Ignore errors if a property is a non-configurable getter in Node runtime
+  }
+}
+
+const dummyStorage = {
+  getItem: () => null,
+  setItem: () => {},
+  removeItem: () => {},
+  clear: () => {},
+  length: 0,
+  key: () => null,
+};
+
 if (typeof globalThis.window === 'undefined') {
-  const dummyStorage = {
-    getItem: () => null,
-    setItem: () => {},
-    removeItem: () => {},
-    clear: () => {},
-    length: 0,
-    key: () => null,
-  };
-  globalThis.window = {
+  const windowObj = {
     location: { href: 'https://impactory.id', pathname: '/' },
     matchMedia: () => ({
       matches: false,
@@ -28,9 +55,14 @@ if (typeof globalThis.window === 'undefined') {
     localStorage: dummyStorage,
     sessionStorage: dummyStorage,
   };
-  globalThis.localStorage = dummyStorage;
-  globalThis.sessionStorage = dummyStorage;
-  globalThis.navigator = { userAgent: 'node' };
+  safeSetGlobal('window', windowObj);
+}
+
+safeSetGlobal('localStorage', dummyStorage);
+safeSetGlobal('sessionStorage', dummyStorage);
+
+if (!globalThis.navigator?.userAgent) {
+  safeSetGlobal('navigator', { userAgent: 'node' });
 }
 
 const __filename = fileURLToPath(import.meta.url);
