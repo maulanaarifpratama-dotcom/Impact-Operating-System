@@ -1087,6 +1087,12 @@ Deno.serve(async (req: Request) => {
 
       // Goal
       if (result.matrix.goal) {
+        const goalMovRaw = result.matrix.goal.means_of_verification
+          || result.matrix.goal.mov
+          || (Array.isArray(result.matrix.program_skeleton?.lfa?.goal?.indicators)
+              ? result.matrix.program_skeleton.lfa.goal.indicators.map((i: any) => i.mov).filter(Boolean)
+              : null);
+
         lfaEntriesToInsert.push({
           id: goalId,
           project_id: targetLfaProjectId,
@@ -1095,15 +1101,22 @@ Deno.serve(async (req: Request) => {
           sequence: seq++,
           parent_id: null,
           description: result.matrix.goal.statement,
-          indicator: Array.isArray(result.matrix.goal.indicators) ? result.matrix.goal.indicators.join('; ') : String(result.matrix.goal.indicators || ''),
-          assumption: Array.isArray(result.matrix.goal.assumptions) ? result.matrix.goal.assumptions.join('; ') : String(result.matrix.goal.assumptions || '')
+          indicator: Array.isArray(result.matrix.goal.indicators)
+            ? result.matrix.goal.indicators.map((i: any) => typeof i === 'object' ? (i.statement || i.indicator || JSON.stringify(i)) : String(i)).join('; ')
+            : String(result.matrix.goal.indicators || ''),
+          means_of_verification: Array.isArray(goalMovRaw)
+            ? goalMovRaw.join('; ')
+            : String(goalMovRaw || ''),
+          assumption: Array.isArray(result.matrix.goal.assumptions)
+            ? result.matrix.goal.assumptions.join('; ')
+            : String(result.matrix.goal.assumptions || '')
         });
       }
 
       // Outcomes
       const outcomeIdMap = new Map<number, string>();
       if (Array.isArray(result.matrix.outcomes)) {
-        result.matrix.outcomes.forEach((oc, idx) => {
+        result.matrix.outcomes.forEach((oc: any, idx: number) => {
           const ocId = crypto.randomUUID();
           outcomeIdMap.set(idx, ocId);
           lfaEntriesToInsert.push({
@@ -1124,7 +1137,7 @@ Deno.serve(async (req: Request) => {
       // Outputs
       const outputIdMap = new Map<number, string>();
       if (Array.isArray(result.matrix.outputs)) {
-        result.matrix.outputs.forEach((op, idx) => {
+        result.matrix.outputs.forEach((op: any, idx: number) => {
           const opId = crypto.randomUUID();
           outputIdMap.set(idx, opId);
           const parentOutcomeId = outcomeIdMap.get(op.outcome_index ?? 0) || (outcomeIdMap.get(0) ?? goalId);
@@ -1145,10 +1158,33 @@ Deno.serve(async (req: Request) => {
 
       // Activities
       if (Array.isArray(result.matrix.activities)) {
-        result.matrix.activities.forEach((act, idx) => {
+        const skeletonTasks = result.matrix.program_skeleton?.wbs?.tasks || [];
+        const skeletonOutputs = result.matrix.program_skeleton?.lfa?.outputs || [];
+        const skeletonActivities = skeletonOutputs.flatMap((op: any) => op.activities || []);
+
+        result.matrix.activities.forEach((act: any, idx: number) => {
           const actId = crypto.randomUUID();
           const firstOutputId = outputIdMap.get(0) || goalId;
           const parentOutputId = outputIdMap.get(act.output_index ?? 0) || firstOutputId;
+
+          const matchingSkeletonAct = skeletonActivities[idx] || skeletonTasks[idx] || {};
+
+          const actIndicatorRaw = act.indicator
+            || act.indicators
+            || act.deliverable
+            || matchingSkeletonAct.indicator
+            || matchingSkeletonAct.deliverable;
+
+          const actMovRaw = act.means_of_verification
+            || act.mov
+            || matchingSkeletonAct.means_of_verification
+            || matchingSkeletonAct.mov;
+
+          const actAssumptionRaw = act.assumption
+            || act.assumptions
+            || matchingSkeletonAct.assumption
+            || matchingSkeletonAct.assumptions;
+
           lfaEntriesToInsert.push({
             id: actId,
             project_id: targetLfaProjectId,
@@ -1156,8 +1192,11 @@ Deno.serve(async (req: Request) => {
             level: 'activity',
             sequence: seq++,
             parent_id: parentOutputId,
-            description: act.statement,
-            responsible_party: act.responsible || 'Project Team'
+            description: act.statement || act.title || act.description,
+            indicator: Array.isArray(actIndicatorRaw) ? actIndicatorRaw.join('; ') : String(actIndicatorRaw || ''),
+            means_of_verification: Array.isArray(actMovRaw) ? actMovRaw.join('; ') : String(actMovRaw || ''),
+            assumption: Array.isArray(actAssumptionRaw) ? actAssumptionRaw.join('; ') : String(actAssumptionRaw || ''),
+            responsible_party: act.responsible || act.responsibleRole || matchingSkeletonAct.responsibleRole || 'Project Team'
           });
         });
       }
