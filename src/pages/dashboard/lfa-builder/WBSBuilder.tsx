@@ -2124,7 +2124,7 @@ export default function WBSBuilder({
                           className="h-6 w-6 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
                           onClick={() => void handleAddSubActivity(item.id)}
                           title="Tambah Aktivitas"
-                          data-testid="wbs-add-level2-button"
+                          disabled={true} // Read-only from LFA Matrix!
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </Button>
