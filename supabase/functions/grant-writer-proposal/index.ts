@@ -212,6 +212,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // Fetch current LFA Document from gw_lfa_documents
+    let docRow: any = null;
     let docQuery = supabase.from('gw_lfa_documents').select('*');
     if (lfaDocumentId) {
       docQuery = docQuery.eq('id', lfaDocumentId);
@@ -219,10 +220,107 @@ Deno.serve(async (req: Request) => {
       docQuery = docQuery.eq('project_id', gwProjectId).eq('is_current', true);
     }
 
-    const { data: docRow, error: docErr } = await docQuery.maybeSingle();
+    const { data: fetchedDoc } = await docQuery.maybeSingle();
+    docRow = fetchedDoc;
 
-    if (docErr || !docRow) {
-      return errorResponse(`Document LFA tidak ditemukan untuk project ID ${projectId}`, 4404);
+    const adminSupabase = adminClient();
+
+    // Fallback: If no gw_lfa_documents row exists, construct matrix from lfa_entries table
+    if (!docRow) {
+      const targetSearchId = gwProjectId || projectId;
+      console.log(`[grant-writer-proposal] No gw_lfa_documents found. Attempting fallback from lfa_entries for ID: ${targetSearchId}`);
+
+      const { data: lfaEntries } = await adminSupabase
+        .from('lfa_entries')
+        .select('*')
+        .eq('project_id', targetSearchId)
+        .order('sequence', { ascending: true });
+
+      const constructedMatrix: LfaMatrix = {
+        meta: {
+          donorStandard: 'un_oecd_dac',
+          projectTitle: projectRow?.title || 'Program Proposal',
+          targetDonor: 'Donor',
+          durationMonths: projectRow?.wizard_data?.durationMonths || 12,
+          budgetIdr: projectRow?.wizard_data?.budgetIdr || null,
+        },
+        goal: { statement: '', indicators: [], assumptions: [] },
+        outcomes: [],
+        outputs: [],
+        activities: [],
+        risks: [],
+      };
+
+      if (lfaEntries && lfaEntries.length > 0) {
+        const goalEntry = lfaEntries.find((e: any) => e.level === 'goal');
+        if (goalEntry) {
+          constructedMatrix.goal = {
+            statement: goalEntry.description || '',
+            indicators: goalEntry.indicator ? [goalEntry.indicator] : [],
+            assumptions: goalEntry.assumption ? [goalEntry.assumption] : [],
+          };
+        }
+
+        const purposeEntries = lfaEntries.filter((e: any) => e.level === 'purpose');
+        constructedMatrix.outcomes = purposeEntries.map((pe: any) => ({
+          statement: pe.description || '',
+          indicators: pe.indicator ? [pe.indicator] : [],
+          means_of_verification: pe.means_of_verification ? [pe.means_of_verification] : [],
+          assumptions: pe.assumption ? [pe.assumption] : [],
+        }));
+
+        const outputEntries = lfaEntries.filter((e: any) => e.level === 'output');
+        constructedMatrix.outputs = outputEntries.map((oe: any, idx: number) => ({
+          outcome_index: 0,
+          statement: oe.description || '',
+          indicators: oe.indicator ? [oe.indicator] : [],
+          means_of_verification: oe.means_of_verification ? [oe.means_of_verification] : [],
+          assumptions: oe.assumption ? [oe.assumption] : [],
+        }));
+
+        const activityEntries = lfaEntries.filter((e: any) => e.level === 'activity');
+        constructedMatrix.activities = activityEntries.map((ae: any, idx: number) => ({
+          output_index: 0,
+          statement: ae.description || '',
+          timeline_months: 'M1-M12',
+          responsible: ae.responsible_party || 'Tim Lapangan',
+        }));
+      }
+
+      // Insert constructed matrix into gw_lfa_documents
+      try {
+        const { data: newDoc } = await adminSupabase
+          .from('gw_lfa_documents')
+          .insert({
+            project_id: targetSearchId,
+            version: 1,
+            is_current: true,
+            matrix: constructedMatrix,
+            status: 'draft',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .select('*')
+          .maybeSingle();
+
+        if (newDoc) {
+          docRow = newDoc;
+        }
+      } catch (insertErr) {
+        console.warn('[grant-writer-proposal] Error inserting fallback gw_lfa_documents:', insertErr);
+      }
+
+      if (!docRow) {
+        docRow = {
+          id: targetSearchId,
+          project_id: targetSearchId,
+          matrix: constructedMatrix,
+        };
+      }
+    }
+
+    if (!docRow) {
+      return errorResponse(`Document LFA tidak ditemukan untuk project ID ${projectId}`, 404);
     }
 
     if (!gwProjectId && docRow.project_id) {
