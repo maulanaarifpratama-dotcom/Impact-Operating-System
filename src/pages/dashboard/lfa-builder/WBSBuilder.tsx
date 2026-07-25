@@ -2701,8 +2701,10 @@ export default function WBSBuilder({
 
             {/* Claim Note Input */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Catatan Ringkasan Klaim Execution:</Label>
+              <Label htmlFor="wbs-claim-note" className="text-xs font-bold">Catatan Ringkasan Klaim Execution:</Label>
               <Textarea
+                id="wbs-claim-note"
+                aria-label="Catatan Ringkasan Klaim Execution"
                 value={claimNote}
                 onChange={(e) => setClaimNote(e.target.value)}
                 placeholder="Jelaskan secara singkat pencapaian target, lokasi kegiatan, atau catatan penting lapangan..."
@@ -2714,8 +2716,10 @@ export default function WBSBuilder({
 
             {/* Claimed Progress % */}
             <div className="space-y-1.5">
-              <Label className="text-xs font-bold">Persentase Progres yang Diklaim (%):</Label>
+              <Label htmlFor="wbs-claimed-progress" className="text-xs font-bold">Persentase Progres yang Diklaim (%):</Label>
               <Input
+                id="wbs-claimed-progress"
+                aria-label="Persentase Progres yang Diklaim (%)"
                 type="number"
                 min={0}
                 max={100}
@@ -2831,8 +2835,10 @@ export default function WBSBuilder({
                           </div>
 
                           <div className="sm:col-span-2">
-                            <Label className="text-[10px]">Judul / Nama Bukti</Label>
+                            <Label htmlFor={`ev-title-${idx}`} className="text-[10px]">Judul / Nama Bukti</Label>
                             <Input
+                              id={`ev-title-${idx}`}
+                              aria-label={`Judul Bukti ${idx + 1}`}
                               value={ev.title}
                               onChange={(e) => {
                                 const updated = [...newEvidences];
@@ -2847,8 +2853,10 @@ export default function WBSBuilder({
 
                         {ev.evidence_type === 'onedrive' || ev.evidence_type === 'file' ? (
                           <div className="space-y-1">
-                            <Label className="text-[10px]">Unggah File ke OneDrive (Graph API)</Label>
+                            <Label htmlFor={`ev-file-${idx}`} className="text-[10px]">Unggah File ke OneDrive (Graph API)</Label>
                             <Input
+                              id={`ev-file-${idx}`}
+                              aria-label={`File Bukti ${idx + 1}`}
                               type="file"
                               onChange={(e) => {
                                 const file = e.target.files?.[0] || null;
@@ -2867,8 +2875,10 @@ export default function WBSBuilder({
                               </p>
                             )}
                             <div className="pt-1">
-                              <Label className="text-[10px]">Tautan / Referensi Manual (Opsional jika file diunggah)</Label>
+                              <Label htmlFor={`ev-ref-${idx}`} className="text-[10px]">Tautan / Referensi Manual (Opsional jika file diunggah)</Label>
                               <Input
+                                id={`ev-ref-${idx}`}
+                                aria-label={`Tautan Referensi Bukti ${idx + 1}`}
                                 value={ev.storage_reference}
                                 onChange={(e) => {
                                   const updated = [...newEvidences];
@@ -2882,8 +2892,10 @@ export default function WBSBuilder({
                           </div>
                         ) : (
                           <div>
-                            <Label className="text-[10px]">Tautan URL / Referensi Dokumen</Label>
+                            <Label htmlFor={`ev-ref-${idx}`} className="text-[10px]">Tautan URL / Referensi Dokumen</Label>
                             <Input
+                              id={`ev-ref-${idx}`}
+                              aria-label={`Tautan Referensi Bukti ${idx + 1}`}
                               value={ev.storage_reference}
                               onChange={(e) => {
                                 const updated = [...newEvidences];
@@ -2897,8 +2909,10 @@ export default function WBSBuilder({
                         )}
 
                         <div>
-                          <Label className="text-[10px]">Deskripsi / Catatan Tambahan (Opsional)</Label>
+                          <Label htmlFor={`ev-desc-${idx}`} className="text-[10px]">Deskripsi / Catatan Tambahan (Opsional)</Label>
                           <Input
+                            id={`ev-desc-${idx}`}
+                            aria-label={`Deskripsi Bukti ${idx + 1}`}
                             value={ev.description}
                             onChange={(e) => {
                               const updated = [...newEvidences];
@@ -3101,8 +3115,10 @@ export default function WBSBuilder({
                           claim.status === 'submitted' && (
                             <div className="pt-3 border-t space-y-3">
                               <div className="space-y-1">
-                                <Label className="text-xs font-bold">Catatan Peninjau / Verifikator:</Label>
+                                <Label htmlFor={`wbs-review-note-${claim.id}`} className="text-xs font-bold">Catatan Peninjau / Verifikator:</Label>
                                 <Textarea
+                                  id={`wbs-review-note-${claim.id}`}
+                                  aria-label="Catatan Peninjau / Verifikator"
                                   value={reviewingClaimId === claim.id ? reviewNote : ''}
                                   onChange={(e) => {
                                     setReviewingClaimId(claim.id);
