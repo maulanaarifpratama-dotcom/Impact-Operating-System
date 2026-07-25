@@ -654,10 +654,40 @@ export default function WBSBuilder({
 
         if (insErr) throw insErr;
 
+        // Auto-populate ONE default empty budget row for each Level 2 WBS activity
+        const level2Items = newWbsItems.filter((i) => i.level === 2);
+        if (level2Items.length > 0) {
+          const defaultBudgetItems = level2Items.map((act) => ({
+            lfa_project_id: projectId,
+            org_id: orgId,
+            wbs_item_id: act.id,
+            activity_name: act.name || 'Aktivitas WBS',
+            item_name: 'Rincian anggaran belum diisi',
+            category: 'Operasional',
+            cost_category: 'Direct Operational Costs',
+            volume: 0,
+            unit: 'Paket',
+            unit_price_idr: 0,
+            funding_source: 'grant',
+            justification: 'Belum diisi',
+            needs_donor_approval: false,
+            sort_order: 0,
+            mode: 'simple'
+          }));
+
+          const { error: bgtErr } = await supabase
+            .from('lfa_budget_items')
+            .insert(defaultBudgetItems);
+
+          if (bgtErr) {
+            console.warn('[Impactory] Auto-populate default budget items failed:', bgtErr);
+          }
+        }
+
         setWbsItems(newWbsItems);
         toast({
           title: 'Auto-Import Berhasil ✨',
-          description: 'WBS diisi otomatis dari LFA kamu. Lengkapi detail aktivitas.',
+          description: 'WBS & kerangka anggaran diisi otomatis. Lengkapi detail rincian.',
         });
         if (onWbsSaved) onWbsSaved();
       }
@@ -970,11 +1000,13 @@ export default function WBSBuilder({
       const children = (wbsItems ?? []).filter((i) => i.parent_id === parentActivityId);
       const parentIdx = (wbsItems ?? []).findIndex((i) => i.id === parentActivityId);
 
+      const targetLevel = (parentItem.level || 1) + 1;
+
       const newItem: WbsItem = {
         id: newId,
         lfa_project_id: projectId,
         org_id: orgId,
-        level: 3,
+        level: targetLevel as 1 | 2 | 3 | 4,
         parent_id: parentActivityId,
         name: '',
         start_month: parentItem.start_month,
@@ -1010,6 +1042,28 @@ export default function WBSBuilder({
         });
 
       if (error) throw error;
+
+      if (newItem.level === 2) {
+        await supabase
+          .from('lfa_budget_items')
+          .insert({
+            lfa_project_id: newItem.lfa_project_id,
+            org_id: newItem.org_id,
+            wbs_item_id: newItem.id,
+            activity_name: newItem.name || 'Aktivitas Baru',
+            item_name: 'Rincian anggaran belum diisi',
+            category: 'Operasional',
+            cost_category: 'Direct Operational Costs',
+            volume: 0,
+            unit: 'Paket',
+            unit_price_idr: 0,
+            funding_source: 'grant',
+            justification: 'Belum diisi',
+            needs_donor_approval: false,
+            sort_order: 0,
+            mode: newItem.mode || 'simple'
+          });
+      }
 
       setWbsItems(reindexed);
       setLastSaved(new Date());
@@ -2070,7 +2124,7 @@ export default function WBSBuilder({
                           className="h-6 w-6 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
                           onClick={() => void handleAddSubActivity(item.id)}
                           title="Tambah Aktivitas"
-                          disabled={true} // Read-only from LFA Matrix!
+                          data-testid="wbs-add-level2-button"
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </Button>

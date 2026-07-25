@@ -15,7 +15,7 @@ interface AutocompleteItem {
 
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
-  AlertTriangle, DollarSign, Wallet, Percent, TrendingUp, HelpCircle, Calendar, Link as LinkIcon, FileText
+  AlertTriangle, AlertCircle, DollarSign, Wallet, Percent, TrendingUp, HelpCircle, Calendar, Link as LinkIcon, FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -324,11 +324,43 @@ export default function BudgetCalculator({
             description: 'Aktivitas diimpor dari WBS kamu. Tambahkan item biaya per aktivitas.',
           });
         }
-      } else if (items.length === 0 && activities.length > 0) {
-        toast({
-          title: 'Aktivitas Diimpor dari WBS 📋',
-          description: 'Aktivitas diimpor dari WBS kamu. Tambahkan item biaya per aktivitas.',
-        });
+      }
+
+      // Ensure every Level 2 WBS activity has at least 1 budget line item
+      if (activities.length > 0) {
+        const missingActivities = activities.filter(
+          (act) => !items.some((b) => b.wbs_item_id === act.id)
+        );
+
+        if (missingActivities.length > 0) {
+          let currentMaxOrder = items.length;
+          const defaultEmptyItems = missingActivities.map((act, idx) => ({
+            lfa_project_id: projectId,
+            org_id: orgId,
+            wbs_item_id: act.id,
+            activity_name: act.name || 'Aktivitas WBS',
+            item_name: 'Rincian anggaran belum diisi',
+            category: 'Operasional',
+            cost_category: 'Direct Operational Costs',
+            volume: 0,
+            unit: 'Paket',
+            unit_price_idr: 0,
+            funding_source: 'grant',
+            justification: 'Belum diisi',
+            needs_donor_approval: false,
+            sort_order: currentMaxOrder + idx,
+            mode: globalMode
+          }));
+
+          const { data: newInserted, error: missingErr } = await supabase
+            .from('lfa_budget_items')
+            .insert(defaultEmptyItems)
+            .select('*');
+
+          if (!missingErr && newInserted) {
+            items = [...items, ...(newInserted as BudgetItem[])];
+          }
+        }
       }
 
       setBudgetItems(items);
@@ -2380,9 +2412,10 @@ export default function BudgetCalculator({
                             {actItems.map(item => {
                               const itemTotal = (Number(item.volume) || 0) * (Number(item.unit_price_idr) || 0);
                               const isSuggested = activeSuggestionId === item.id;
+                              const isUnfilled = (item.item_name === 'Rincian anggaran belum diisi' || !item.item_name?.trim()) || (Number(item.volume) === 0 && Number(item.unit_price_idr) === 0);
 
                               return (
-                                <tr key={item.id} className="hover:bg-slate-50/30 dark:hover:bg-slate-900/10">
+                                <tr key={item.id} className={isUnfilled ? "bg-amber-50/20 dark:bg-amber-950/10 hover:bg-amber-50/40 dark:hover:bg-amber-950/20 transition-colors" : "hover:bg-slate-50/30 dark:hover:bg-slate-900/10"}>
                                   {/* 1. Item Name Input with smart autocomplete */}
                                   <td className="p-3 relative align-middle">
                                     <div className="space-y-1">
@@ -2391,13 +2424,17 @@ export default function BudgetCalculator({
                                           value={item.item_name}
                                           onChange={(e) => handleItemNameTyping(item.id, e.target.value, item.category || 'Lainnya')}
                                           placeholder="Mis. Narasumber, Sewa LCD..."
-                                          className="text-xs h-8 bg-transparent flex-1"
+                                          className={`text-xs h-8 bg-transparent flex-1 ${isUnfilled ? 'border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200' : ''}`}
                                         />
-                                        {item.justification?.includes('AUTO_GENERATED') && (
+                                        {isUnfilled ? (
+                                          <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 text-[9px] font-bold px-1.5 py-0.5 h-5 whitespace-nowrap shrink-0 flex items-center gap-1">
+                                            <AlertCircle className="w-2.5 h-2.5 text-amber-600" /> Perlu diisi
+                                          </Badge>
+                                        ) : item.justification?.includes('AUTO_GENERATED') ? (
                                           <Badge variant="outline" className="bg-amber-50 text-amber-600 border-amber-200 dark:bg-amber-950/30 dark:text-amber-400 text-[8px] font-bold px-1.5 py-0 h-5 whitespace-nowrap">
                                             Auto-Draft
                                           </Badge>
-                                        )}
+                                        ) : null}
                                       </div>
 
                                       {/* Custom Autocomplete Suggestions Popover */}
