@@ -16,6 +16,7 @@ import {
   Flag, 
   CheckCircle2 
 } from 'lucide-react';
+import SEO from '@/components/SEO';
 
 export default function AboutPage() {
   const metrics = [
@@ -35,6 +36,11 @@ export default function AboutPage() {
 
   return (
     <div className="landing-page-wrap min-h-screen bg-brand-surface text-white selection:bg-teal-500 selection:text-white flex flex-col">
+      <SEO
+        title="Tentang Kami — Visi & Misi Impactory.id"
+        description="Pelajari kisah dan visi di balik Impactory.id, Operating System pertumbuhan NGO pertama di Indonesia yang memodernisasi manajemen program dan akuntabilitas dampak."
+        canonicalUrl="/about"
+      />
       <Navbar />
 
       {/* Hero Section */}

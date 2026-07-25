@@ -2,10 +2,16 @@ import React from 'react';
 import { Navbar } from '@/components/landing/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { FileText, Calendar, Mail } from 'lucide-react';
+import SEO from '@/components/SEO';
 
 export default function TermsPage() {
   return (
     <div className="min-h-screen bg-brand-surface text-white selection:bg-teal-500 selection:text-white flex flex-col">
+      <SEO
+        title="Syarat & Ketentuan Layanan Impactory.id"
+        description="Syarat dan Ketentuan Ketentuan Layanan resmi Impactory.id mengenai lisensi penggunaan platform, hak kekayaan intelektual, dan ketetapan layanan."
+        canonicalUrl="/terms"
+      />
       <Navbar />
 
       {/* Main Content Area */}

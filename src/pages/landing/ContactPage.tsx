@@ -12,6 +12,7 @@ import {
   AccordionTrigger,
 } from '@/components/ui/accordion';
 import { Mail, MessageSquare, HelpCircle, Send } from 'lucide-react';
+import SEO from '@/components/SEO';
 import { supabase } from '@/integrations/supabase/client'; // Import client for invoking edge functions if available. If not, use standard fetch. Let's look at supabase client setup.
 
 export default function ContactPage() {
@@ -89,6 +90,11 @@ export default function ContactPage() {
 
   return (
     <div className="landing-page-wrap min-h-screen bg-brand-surface text-white selection:bg-teal-500 selection:text-white flex flex-col">
+      <SEO
+        title="Hubungi Kami — Konsultasi & Layanan Impactory.id"
+        description="Hubungi tim Impactory.id untuk demo produk, konsultasi implementasi NGO Growth OS, kemitraan filantropi, atau dukungan teknis."
+        canonicalUrl="/contact"
+      />
       <Navbar />
 
       {/* Hero Section */}

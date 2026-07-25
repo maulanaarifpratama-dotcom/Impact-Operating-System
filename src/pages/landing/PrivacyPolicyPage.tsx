@@ -2,10 +2,16 @@ import React from 'react';
 import { Navbar } from '@/components/landing/Navbar';
 import { Footer } from '@/components/layout/Footer';
 import { ShieldCheck, Calendar, Mail } from 'lucide-react';
+import SEO from '@/components/SEO';
 
 export default function PrivacyPolicyPage() {
   return (
     <div className="min-h-screen bg-brand-surface text-white selection:bg-teal-500 selection:text-white flex flex-col">
+      <SEO
+        title="Kebijakan Privasi — Perlindungan Data Impactory.id"
+        description="Kebijakan Privasi resmi Impactory.id mengenai komitmen perlindungan data pribadi, keamanan data organisasi, dan privasi pengguna."
+        canonicalUrl="/privacy"
+      />
       <Navbar />
 
       {/* Main Content Area */}

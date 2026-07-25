@@ -13,6 +13,7 @@ import {
 } from '@/components/ui/accordion';
 import { Check, X, HelpCircle, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import SEO from '@/components/SEO';
 
 export default function PricingPage() {
   const whatsappNumber = import.meta.env.VITE_WHATSAPP_NUMBER || '6281234567890';
@@ -22,6 +23,59 @@ export default function PricingPage() {
 
   const proWaUrl = `https://wa.me/${whatsappNumber}?text=${proMessage}`;
   const annualWaUrl = `https://wa.me/${whatsappNumber}?text=${annualMessage}`;
+
+  const pricingJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    'name': 'Impactory.id NGO Growth OS',
+    'operatingSystem': 'Web',
+    'applicationCategory': 'BusinessApplication',
+    'description': 'Platform AI terintegrasi untuk NGO, MEAL, SROI, GrantWriter, dan Manajemen Program Impact di Indonesia.',
+    'offers': [
+      {
+        '@type': 'Offer',
+        'name': 'Paket Gratis',
+        'price': '0',
+        'priceCurrency': 'IDR',
+        'description': 'Eksplorasi fitur dasar GrantWriter & LFA Builder.',
+        'availability': 'https://schema.org/InStock'
+      },
+      {
+        '@type': 'Offer',
+        'name': 'Paket Pro Bulanan',
+        'price': '299000',
+        'priceCurrency': 'IDR',
+        'availability': 'https://schema.org/InStock',
+        'priceSpecification': {
+          '@type': 'UnitPriceSpecification',
+          'price': '299000',
+          'priceCurrency': 'IDR',
+          'referenceQuantity': {
+            '@type': 'QuantitativeValue',
+            'value': '1',
+            'unitCode': 'MONTH'
+          }
+        }
+      },
+      {
+        '@type': 'Offer',
+        'name': 'Paket Pro Tahunan',
+        'price': '2500000',
+        'priceCurrency': 'IDR',
+        'availability': 'https://schema.org/InStock',
+        'priceSpecification': {
+          '@type': 'UnitPriceSpecification',
+          'price': '2500000',
+          'priceCurrency': 'IDR',
+          'referenceQuantity': {
+            '@type': 'QuantitativeValue',
+            'value': '1',
+            'unitCode': 'ANN'
+          }
+        }
+      }
+    ]
+  };
 
   const pricingFaqs = [
     {
@@ -48,6 +102,13 @@ export default function PricingPage() {
 
   return (
     <div className="landing-page-wrap min-h-screen bg-brand-surface text-white selection:bg-teal-500 selection:text-white flex flex-col">
+      <SEO
+        title="Harga & Paket Berlangganan NGO Growth OS"
+        description="Pilihan paket investasi transparan Impactory.id untuk NGO, NPO, dan Social Enterprise. Akses penuh fitur AI GrantWriter, LFA Builder, SROI Calculator, dan Donor CRM."
+        canonicalUrl="/pricing"
+        ogType="product"
+        jsonLd={pricingJsonLd}
+      />
       <Navbar />
 
       {/* Pricing Hero */}

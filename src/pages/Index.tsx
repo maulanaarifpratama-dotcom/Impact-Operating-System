@@ -25,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { homepageTranslations } from '@/data/translations/homepage';
+import SEO from '@/components/SEO';
 
 export default function Index() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -157,8 +158,23 @@ export default function Index() {
     return icons[index] || CheckCircle2;
   };
 
+  const orgJsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    'name': 'Impactory.id',
+    'url': 'https://impactory.id',
+    'logo': 'https://impactory.id/favicon.png',
+    'description': t.meta.description,
+  };
+
   return (
     <div className="landing-page-wrap min-h-screen bg-brand-surface text-white font-sans selection:bg-teal-500/30 selection:text-teal-200">
+      <SEO
+        title={t.meta.title.replace(' | Impactory.id', '')}
+        description={t.meta.description}
+        canonicalUrl="/"
+        jsonLd={orgJsonLd}
+      />
       <Navbar lang={lang} onLangChange={setLang} />
       
       <main>
