@@ -12,6 +12,8 @@ export interface HomepageTranslation {
   };
   hero: {
     badge: string;
+    hackathonBadge: string;
+    hackathonBadgeShort: string;
     headingText: string;
     headingHighlight: string;
     subheading: string;
@@ -123,6 +125,8 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
     },
     hero: {
       badge: "NGO Growth Operating System",
+      hackathonBadge: "🏆 Top 101 dari 1.500+ Peserta — Google Cloud Gen AI Academy APAC Hackathon",
+      hackathonBadgeShort: "Peringkat 68/101 Finalis — Gen AI APAC Hackathon",
       headingText: "Rancang Program & Hitung SROI.",
       headingHighlight: "Mudah & Terukur.",
       subheading: "Platform AI untuk merancang program, menyusun anggaran, memantau capaian, mengelola bukti, dan menghitung nilai dampak sosial NGO.",
@@ -153,8 +157,8 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         {
           letter: "R",
           title: "Readiness & Baseline",
-          description: "Ukur kesiapan digital organisasi dan petakan baseline profil secara sistematis.",
-          modules: ["Readiness Scorecard", "Guided Onboarding"]
+          description: "Ukur kesiapan digital organisasi, kelola hak akses tim, dan petakan baseline profil secara sistematis.",
+          modules: ["Readiness Scorecard", "Guided Onboarding", "Google OAuth & Team RLS"]
         },
         {
           letter: "O",
@@ -189,17 +193,17 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
       steps: [
         {
           title: "Rancang Program",
-          desc: "Desain Logical Framework Approach (LFA Matrix) and Work Breakdown Structure (WBS) secara runut.",
+          desc: "Desain Logical Framework Approach (LFA Matrix) dan Work Breakdown Structure (WBS) sesuai hierarki vertikal NORAD & EuropeAid.",
           module: "LFA Builder & WBS Builder"
         },
         {
           title: "Susun Anggaran",
-          desc: "Kalkulasi anggaran kegiatan yang terhubung langsung ke aktivitas WBS secara otomatis.",
+          desc: "Kalkulasi anggaran kegiatan terintegrasi langsung dengan aktivitas WBS dan referensi SBM 2026 secara otomatis.",
           module: "Budget Calculator"
         },
         {
           title: "Pantau Capaian",
-          desc: "Tentukan indikator keberhasilan program dan catat realisasi capaian dalam satu tab.",
+          desc: "Tentukan indikator keberhasilan program sesuai standar MEAL DPro dan catat realisasi capaian dalam satu tab.",
           module: "MEAL Planner & Tracker"
         },
         {
@@ -209,7 +213,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Hitung Dampak",
-          desc: "Kuantifikasikan nilai dampak program sosial Anda menggunakan proxy moneter terverifikasi.",
+          desc: "Kuantifikasikan nilai dampak program sosial Anda menggunakan 4 adjustment standar Social Value International (SVI).",
           module: "SROI Calculator"
         },
         {
@@ -234,7 +238,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "LFA Builder",
-          description: "Desain matriks Logical Framework Approach yang komprehensif, menghubungkan tujuan, output, aktivitas, dan asumsi program secara terstruktur.",
+          description: "Desain matriks Logical Framework Approach komprehensif berbasis norma NORAD & EuropeAid, menghubungkan tujuan, output, aktivitas, dan asumsi program secara terstruktur.",
           cta: "Buka LFA Builder",
           href: "/dashboard/lfa-builder",
           size: "hero",
@@ -242,7 +246,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "WBS Builder",
-          description: "Pecah aktivitas program menjadi paket kerja terstruktur dengan Gantt chart otomatis dan estimasi durasi berbasis AI.",
+          description: "Pecah aktivitas program menjadi paket kerja terstruktur dengan Gantt chart otomatis, estimasi durasi AI, dan sinkronisasi anggaran.",
           cta: "Desain Aktivitas",
           href: "/dashboard/lfa-builder",
           size: "small",
@@ -250,7 +254,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Budget Calculator",
-          description: "Kalkulasi anggaran operasional dan aktivitas yang terhubung langsung dengan alur logis program dan referensi SBM 2026.",
+          description: "Kalkulasi anggaran operasional & kegiatan dengan auto-populate langsung dari WBS, referensi SBM 2026, dan deteksi otomatis deviasi anggaran (variance flag).",
           cta: "Kalkulasi Anggaran",
           href: "/dashboard/lfa-builder",
           size: "small",
@@ -258,7 +262,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "MEAL Planner",
-          description: "Rumuskan indikator, baseline, target, dan metode pengumpulan data pemantauan program secara praktis dan terstandar.",
+          description: "Rumuskan indikator, baseline, target, dan metode pengumpulan data pemantauan program sesuai kerangka kerja MEAL DPro secara terstandar.",
           cta: "Rencanakan MEAL",
           href: "/dashboard/lfa-builder",
           size: "wide",
@@ -274,7 +278,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "LFA Builder (SROI Terintegrasi)",
-          description: "Hitung nilai Social Return on Investment secara otomatis dari indikator MEAL dan anggaran LFA yang sudah tersimpan.",
+          description: "Hitung nilai Social Return on Investment secara otomatis dari indikator MEAL DPro dan anggaran LFA yang tersimpan, lengkap dengan 4 adjustment standar SVI.",
           cta: "Lihat SROI Terintegrasi",
           href: "/dashboard/lfa-builder",
           size: "wide",
@@ -282,7 +286,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "SROI Calculator Standalone",
-          description: "Hitung rasio SROI secara instan tanpa LFA, dan konversikan dampak sosial program menjadi insight siap pakai untuk executive summary dan proposal.",
+          description: "Hitung rasio SROI dengan 4 penyesuaian SVI (attribution, deadweight, displacement, drop-off), analisis sensitivitas 3 skenario, breakdown stakeholder group, dan ekspor laporan PDF siap donor.",
           cta: "Gunakan SROI Mandiri",
           href: "/dashboard/sroi",
           size: "small",
@@ -314,7 +318,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Impact Dashboard",
-          description: "Tampilkan transparansi capaian program, statistik donasi, dan tingkat kesiapan organisasi dalam satu pandang untuk leadership dan donor.",
+          description: "Transparansi capaian program, statistik donasi, serta Program Health Summary 3 dimensi (implementasi, keuangan, hasil) dengan deteksi otomatis variance progress WBS vs realisasi anggaran.",
           cta: "Buka Dashboard",
           href: "/dashboard/impact",
           size: "small",
@@ -340,7 +344,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "E-ROI Carbon Tracker",
-          description: "Ukur dan laporkan dampak lingkungan program berbasis faktor emisi IPCC 2019 dan PLN Indonesia 2023. Terintegrasi ke SROI Calculator dan Grant Writer untuk proposal ESG-ready.",
+          description: "Ukur dan laporkan dampak lingkungan program dengan breakdown Scope 1, Scope 2, dan Scope 3 sesuai GHG Protocol, menggunakan faktor emisi terverifikasi IPCC 2019 dan PLN Indonesia 2023. Terintegrasi ke SROI dan Grant Writer.",
           cta: "Buka E-ROI",
           href: "/dashboard/eroi",
           size: "small",
@@ -357,13 +361,23 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
           variant: "default",
           badge: "Tracking",
           badgeVariant: "t"
+        },
+        {
+          title: "Keamanan & Kolaborasi Tim",
+          description: "Sign-in instan dengan Google OAuth, kelola peran organisasi (Owner, Admin, Member), dan undang tim secara aman melalui token link unik terproteksi Row Level Security (RLS).",
+          cta: "Kelola Akses Tim",
+          href: "/dashboard/settings",
+          size: "small",
+          variant: "default",
+          badge: "Keamanan",
+          badgeVariant: "w"
         }
       ]
     },
     evidenceAndReporting: {
-      badge: "Manajemen Bukti & AI Assist",
+      badge: "Manajemen Bukti & Standardisasi Internasional",
       heading: "Kepercayaan Lahir dari Bukti Fisik dan Keaslian Data",
-      description: "Impactory tidak hanya membantu Anda merancang program, tapi juga memastikan kepatuhan akuntabilitas tingkat tinggi melalui manajemen bukti program yang teratur di mata donor nasional dan internasional.",
+      description: "Impactory tidak hanya membantu Anda merancang program, tetapi juga memastikan kepatuhan akuntabilitas tingkat tinggi yang selaras dengan standar internasional: Social Value International (SROI), GHG Protocol (E-ROI Scope 1/2/3), MEAL DPro, dan logika vertikal NORAD/EuropeAid.",
       cards: [
         {
           title: "Integrasi OneDrive",
@@ -372,6 +386,10 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         {
           title: "AI Assist (RAG & Copilot)",
           description: "Gunakan asisten AI berbasis pengetahuan internal Anda sendiri untuk mempercepat penulisan draf proposal, laporan dampak, dan pembuatan salinan kampanye digital."
+        },
+        {
+          title: "Selaras Standar Internasional",
+          description: "Kalkulasi dan kerangka kerja dirancang selaras dengan Social Value International (SROI 4-adjustment), GHG Protocol (E-ROI Scope 1/2/3), MEAL DPro, dan logika hirarkis NORAD/EuropeAid."
         }
       ]
     },
@@ -440,6 +458,8 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
     },
     hero: {
       badge: "NGO Growth Operating System",
+      hackathonBadge: "🏆 Top 101 of 1,500+ Participants — Google Cloud Gen AI Academy APAC Hackathon",
+      hackathonBadgeShort: "Ranked 68/101 Finalist — Gen AI APAC Hackathon",
       headingText: "Design Programs & Measure SROI.",
       headingHighlight: "Seamless & Scalable.",
       subheading: "An AI-powered platform for NGOs to design programs, manage budgets, track outcomes, organize evidence, and calculate social impact value.",
@@ -470,8 +490,8 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         {
           letter: "R",
           title: "Readiness & Baseline",
-          description: "Assess digital readiness and map operational profiles systematically from the start.",
-          modules: ["Readiness Scorecard", "Guided Onboarding"]
+          description: "Assess digital readiness, manage team access permissions, and map operational profiles systematically.",
+          modules: ["Readiness Scorecard", "Guided Onboarding", "Google OAuth & Team RLS"]
         },
         {
           letter: "O",
@@ -506,17 +526,17 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
       steps: [
         {
           title: "Design Programs",
-          desc: "Design your Logical Framework Approach (LFA Matrix) and Work Breakdown Structure (WBS) step-by-step.",
+          desc: "Design your Logical Framework Approach (LFA Matrix) and Work Breakdown Structure (WBS) aligned with NORAD & EuropeAid hierarchy.",
           module: "LFA Builder & WBS Builder"
         },
         {
           title: "Budget",
-          desc: "Calculate activity-based budgets dynamically linked to your WBS actions.",
+          desc: "Calculate activity-based budgets dynamically linked to your WBS actions and SBM 2026 references.",
           module: "Budget Calculator"
         },
         {
           title: "Track Outcomes",
-          desc: "Define program success indicators and record actual tracking progress entries in one integrated tab.",
+          desc: "Define program success indicators following MEAL DPro standards and record progress entries in one integrated tab.",
           module: "MEAL Planner & Tracker"
         },
         {
@@ -526,7 +546,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Calculate Impact",
-          desc: "Quantify the social impact value of your program using verified monetary proxy values.",
+          desc: "Quantify the social impact value of your program using Social Value International (SVI) 4-adjustment standards.",
           module: "SROI Calculator"
         },
         {
@@ -551,7 +571,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "LFA Builder",
-          description: "Design a comprehensive Logical Framework Approach matrix, connecting program objectives, outputs, activities, and assumptions in a structured manner.",
+          description: "Design a comprehensive Logical Framework Approach matrix based on NORAD & EuropeAid norms, connecting objectives, outputs, activities, and assumptions.",
           cta: "Open LFA Builder",
           href: "/dashboard/lfa-builder",
           size: "hero",
@@ -559,7 +579,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "WBS Builder",
-          description: "Deconstruct program activities into structured work packages with automated Gantt charts and AI-based duration estimation.",
+          description: "Deconstruct program activities into structured work packages with automated Gantt charts, AI duration estimation, and budget sync.",
           cta: "Design Activities",
           href: "/dashboard/lfa-builder",
           size: "small",
@@ -567,7 +587,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Budget Calculator",
-          description: "Calculate operational and activity budgets directly linked to the logical flow of the program and SBM 2026 references.",
+          description: "Calculate operational & activity budgets auto-populated from WBS, SBM 2026 references, and automated budget variance flags.",
           cta: "Calculate Budget",
           href: "/dashboard/lfa-builder",
           size: "small",
@@ -575,7 +595,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "MEAL Planner",
-          description: "Formulate monitoring indicators, baselines, targets, and data collection methods practically and in a standardized manner.",
+          description: "Formulate monitoring indicators, baselines, targets, and data collection methods standardized to the MEAL DPro framework.",
           cta: "Plan MEAL",
           href: "/dashboard/lfa-builder",
           size: "wide",
@@ -591,7 +611,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Integrated SROI Calculator",
-          description: "Calculate Social Return on Investment values automatically from stored MEAL indicators and LFA budgets.",
+          description: "Calculate Social Return on Investment values automatically from MEAL DPro indicators and LFA budgets, complete with 4 SVI standard adjustments.",
           cta: "View Integrated SROI",
           href: "/dashboard/lfa-builder",
           size: "wide",
@@ -599,7 +619,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Standalone SROI Calculator",
-          description: "Calculate SROI ratios instantly without LFA, and convert program social impact into ready-to-use insights for executive summaries and proposals.",
+          description: "Calculate SROI ratios with 4 SVI adjustments (attribution, deadweight, displacement, drop-off), 3-scenario sensitivity analysis, stakeholder group breakdown, and donor-ready PDF exports.",
           cta: "Use Standalone SROI",
           href: "/dashboard/sroi",
           size: "small",
@@ -631,7 +651,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "Impact Dashboard",
-          description: "Display program accomplishment transparency, donation statistics, and organizational readiness level in one view for leadership and donors.",
+          description: "Display program achievements, donation statistics, and 3-lens Program Health Summary (implementation, financial, outcomes) with automatic WBS progress vs budget variance flags.",
           cta: "Open Dashboard",
           href: "/dashboard/impact",
           size: "small",
@@ -657,7 +677,7 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         },
         {
           title: "E-ROI Carbon Tracker",
-          description: "Measure and report program environmental impact based on IPCC 2019 and PLN Indonesia 2023 emission factors. Integrated into SROI Calculator and Grant Writer for ESG-ready proposals.",
+          description: "Measure and report program environmental impact with Scope 1, 2, and 3 breakdowns according to GHG Protocol, utilizing IPCC 2019 and PLN Indonesia 2023 emission factors. Integrated into SROI and Grant Writer.",
           cta: "Open E-ROI",
           href: "/dashboard/eroi",
           size: "small",
@@ -674,13 +694,23 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
           variant: "default",
           badge: "Tracking",
           badgeVariant: "t"
+        },
+        {
+          title: "Team Collaboration & Security",
+          description: "Instant sign-in with Google OAuth, manage org roles (Owner, Admin, Member), and invite team members via secure token links protected by Row Level Security (RLS).",
+          cta: "Manage Team Access",
+          href: "/dashboard/settings",
+          size: "small",
+          variant: "default",
+          badge: "Security",
+          badgeVariant: "w"
         }
       ]
     },
     evidenceAndReporting: {
-      badge: "Evidence & AI Assist",
+      badge: "Evidence & International Standards",
       heading: "Trust is Built on Physical Evidence & Verifiable Data",
-      description: "Impactory does not just help you design programs, it ensures high compliance and trust under national and global donor audits.",
+      description: "Impactory does not just help you design programs; it ensures high-level accountability aligned with international standards: Social Value International (SROI), GHG Protocol (E-ROI Scope 1/2/3), MEAL DPro, and NORAD/EuropeAid vertical logic.",
       cards: [
         {
           title: "OneDrive Sync Integration",
@@ -689,6 +719,10 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
         {
           title: "AI Assist (RAG & Copilot)",
           description: "Leverage AI grounded on your private organizational history to speed up drafting proposals, reports, and copy."
+        },
+        {
+          title: "International Standards Alignment",
+          description: "Calculations and frameworks designed in alignment with Social Value International (SROI 4-adjustment), GHG Protocol (E-ROI Scope 1/2/3), MEAL DPro, and NORAD/EuropeAid vertical logic."
         }
       ]
     },

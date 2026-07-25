@@ -143,7 +143,8 @@ export default function Index() {
       FileText,       // Monthly Impact Report
       Users,          // Beneficiary Registry
       Leaf,           // E-ROI Carbon Tracker
-      ClipboardList   // Monthly Operating Review
+      ClipboardList,  // Monthly Operating Review
+      ShieldCheck     // Team Collaboration & Security
     ];
     return icons[index] || ShieldCheck;
   };
@@ -201,9 +202,14 @@ export default function Index() {
           <div className="container relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid gap-12 lg:grid-cols-12 lg:items-center">
               <div className="max-w-3xl lg:col-span-7">
-                <Badge variant="outline" className="border-brand-accent/30 bg-brand-accent/10 text-teal-300 font-semibold px-3 py-1 tracking-wide rounded-full text-xs">
-                  {t.hero.badge}
-                </Badge>
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <Badge variant="outline" className="border-brand-accent/30 bg-brand-accent/10 text-teal-300 font-semibold px-3 py-1 tracking-wide rounded-full text-xs">
+                    {t.hero.badge}
+                  </Badge>
+                  <Badge variant="outline" className="border-teal-400/40 bg-gradient-to-r from-teal-500/15 via-emerald-500/15 to-brand-accent/15 text-teal-200 font-semibold px-3 py-1 tracking-wide rounded-full text-xs shadow-sm flex items-center gap-1.5 transition-all hover:border-teal-400/60">
+                    <span>{t.hero.hackathonBadge}</span>
+                  </Badge>
+                </div>
                 
                 {/* EXACTLY ONE H1 FOR SEO */}
                 <h1 className="mt-6 text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-white leading-[1.1]">
@@ -677,10 +683,10 @@ export default function Index() {
                 {t.evidenceAndReporting.cards.map((item, idx) => (
                   <Card 
                     key={idx}
-                    className="premium-glass-card p-6 rounded-2xl"
+                    className={`premium-glass-card p-6 rounded-2xl ${idx === 2 ? 'sm:col-span-2 lg:col-span-2 font-medium' : ''}`}
                   >
                     <h3 className="text-base font-extrabold text-slate-100 mb-3 flex items-center gap-2">
-                      {idx === 0 ? <FolderSync className="h-4 w-4 text-teal-400" /> : <Sparkles className="h-4 w-4 text-teal-400" />}
+                      {idx === 0 ? <FolderSync className="h-4 w-4 text-teal-400" /> : idx === 1 ? <Sparkles className="h-4 w-4 text-teal-400" /> : <ShieldCheck className="h-4 w-4 text-teal-400" />}
                       {item.title}
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-400 leading-relaxed">
