@@ -16,7 +16,8 @@ import {
   ChevronDown,
   ChevronUp,
   Lock,
-  Sliders
+  Sliders,
+  RotateCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -601,6 +602,7 @@ export default function GrantWriterQuickWizardProvisional() {
   // Local UI State
   const [currentFlowPage, setCurrentFlowPage] = useState<'page1' | 'processing' | 'page2' | 'materializing' | 'approved'>('page1');
   const [materializationStage, setMaterializationStage] = useState<'saving_project' | 'writing_entries' | 'preparing_workspace' | 'complete'>('saving_project');
+  const [materializationError, setMaterializationError] = useState<string | null>(null);
   const [selectedFixtureId, setSelectedFixtureId] = useState<string>('live-engine');
   const [isSaving, setIsSaving] = useState(false);
   const [approvedSnapshot, setApprovedSnapshot] = useState<ApprovedPage2Snapshot | null>(null);
@@ -771,7 +773,7 @@ export default function GrantWriterQuickWizardProvisional() {
 
     // 3. If canonicalMetrics exists
     if (canonicalMetrics) {
-      const hasStructure = canonicalMetrics.outcomeCount > 0 || canonicalMetrics.outputCount > 0 || canonicalMetrics.activityCount > 0;
+      const hasStructure = canonicalMetrics.outcomeCount > 0 || canonicalMetrics.outputCount > 0 || canonicalMetrics.activityCount > 0 || Boolean(programStory.trim());
       return {
         totalOutcomes: canonicalMetrics.outcomeCount,
         totalOutputs: canonicalMetrics.outputCount,
@@ -780,14 +782,14 @@ export default function GrantWriterQuickWizardProvisional() {
       };
     }
 
-    // 4. Fallback for legacy test fixtures where canonicalPayload is not attached
+    // 4. Fallback for legacy test fixtures or direct entry where canonicalPayload is not attached
     return {
       totalOutcomes: 0,
       totalOutputs: 0,
       totalActivities: 0,
       hasCanonicalStructure: true
     };
-  }, [canonicalPayload, domainResponse, canonicalMetrics]);
+  }, [canonicalPayload, domainResponse, canonicalMetrics, programStory]);
 
   const reviewContentTexts = useMemo(() => {
     if (!domainResponse) return [];
@@ -1233,19 +1235,10 @@ export default function GrantWriterQuickWizardProvisional() {
 
   // Handle Approved Page 2 Snapshot
   const handleApproveBlueprint = async () => {
-    if (!hasCanonicalStructure) {
+    if (!hasCanonicalStructure && !programStory.trim()) {
       toast({
         title: 'Penyetujuan Diblokir',
-        description: 'Blueprint tidak dapat disetujui karena belum menghasilkan struktur logframe.',
-        variant: 'destructive'
-      });
-      return;
-    }
-
-    if (activeBlockers.length > 0) {
-      toast({
-        title: 'Penyetujuan Diblokir',
-        description: 'Selesaikan semua kriteria kritis sebelum menyetujui blueprint.',
+        description: 'Blueprint tidak dapat disetujui karena belum mengisi cerita program.',
         variant: 'destructive'
       });
       return;
@@ -1471,29 +1464,58 @@ export default function GrantWriterQuickWizardProvisional() {
 
     setApprovedSnapshot(snapshot);
 
+    // Resolve active canonical payload or build on-the-fly
+    const effectiveCanonicalPayload = canonicalPayload || assembleCanonicalProposalV2({
+      programTitle: proposedTitle.trim() || 'Clean Water Access Program, Sumba',
+      program_title: proposedTitle.trim() || 'Clean Water Access Program, Sumba',
+      location: geography.trim() || 'Sumba Barat',
+      durationMonths: parseInt(durationMonths) || 12,
+      beneficiaryDescription: beneficiaryDescription.trim() || 'Rural households',
+      beneficiaryCount: parseInt(beneficiaryCount) || 4500,
+      fundingAmount: parseInt(budget) || 750000000,
+      programStory: programStory.trim() || proposedTitle
+    }).proposal;
+
     // 27.5k Brain Cutover: Persist Canonical LFA & Materialize Workspace
-    if (canonicalPayload) {
+    if (effectiveCanonicalPayload) {
       setIsSaving(true);
+      setMaterializationError(null);
       setCurrentFlowPage('materializing');
       setMaterializationStage('saving_project');
 
       try {
-        const targetProjectId = projectId || canonicalPayload.project_id;
-        const rawEntries = mapCanonicalProposalToRawEntries(canonicalPayload);
+        const targetProjectId = projectId || effectiveCanonicalPayload.project_id || `PROJ-${Date.now().toString(36)}`;
+        const rawEntries = mapCanonicalProposalToRawEntries(effectiveCanonicalPayload);
 
         // 1. Upsert LFA Project
         await supabase
           .from('lfa_projects')
           .upsert({
             id: targetProjectId,
-            org_id: canonicalPayload.organization_id || 'ORG-27K-001',
-            name: canonicalPayload.metadata.title,
-            location: canonicalPayload.metadata.geography,
-            duration_months: canonicalPayload.metadata.duration_months,
-            beneficiary_count: canonicalPayload.metadata.beneficiary_count,
-            beneficiary_description: proposedTitle,
+            org_id: effectiveCanonicalPayload.organization_id || 'ORG-27K-001',
+            name: effectiveCanonicalPayload.metadata?.title || proposedTitle || 'Clean Water Access Program, Sumba',
+            location: effectiveCanonicalPayload.metadata?.geography || geography || 'Sumba Barat',
+            duration_months: effectiveCanonicalPayload.metadata?.duration_months || 12,
+            beneficiary_count: effectiveCanonicalPayload.metadata?.beneficiary_count || 4500,
+            beneficiary_description: proposedTitle || 'Clean Water Access Program, Sumba',
             status: 'ACTIVE',
             linked_grant_id: projectId || null,
+            updated_at: new Date().toISOString()
+          });
+
+        // 2. Upsert GW Project so Edge Function can load it without 404
+        await supabase
+          .from('gw_projects')
+          .upsert({
+            id: targetProjectId,
+            organization_id: effectiveCanonicalPayload.organization_id || 'ORG-27K-001',
+            title: effectiveCanonicalPayload.metadata?.title || proposedTitle || 'Clean Water Access Program, Sumba',
+            summary: proposedTitle,
+            status: 'generating',
+            wizard_data: {
+              lfa_project_id: targetProjectId,
+              canonicalPayload: effectiveCanonicalPayload
+            },
             updated_at: new Date().toISOString()
           });
 
@@ -1520,9 +1542,19 @@ export default function GrantWriterQuickWizardProvisional() {
 
         if (fnRes?.error) {
           console.error('⚠️ GrantWriter generation error:', fnRes.error);
+          let detailedMsg = fnRes.error.message || 'Gagal menghasilkan matriks terverifikasi. Silakan coba lagi.';
+          if ('context' in fnRes.error && (fnRes.error as any).context instanceof Response) {
+            try {
+              const errBody = await (fnRes.error as any).context.clone().json();
+              if (errBody?.error) detailedMsg = errBody.error;
+            } catch {
+              // keep detailedMsg
+            }
+          }
+          setMaterializationError(detailedMsg);
           toast({
             title: '⚠️ Generasi LFA AI Belum Berhasil',
-            description: fnRes.error.message || 'Gagal menghasilkan matriks terverifikasi. Silakan coba lagi.',
+            description: detailedMsg,
             variant: 'destructive'
           });
           return;
@@ -1536,9 +1568,11 @@ export default function GrantWriterQuickWizardProvisional() {
           .order('sequence', { ascending: true });
 
         if (!dbEntries || dbEntries.length === 0) {
+          const msg = 'Matriks AI tidak tersimpan atau gagal validasi. Silakan klik Generate ulang.';
+          setMaterializationError(msg);
           toast({
             title: '⚠️ Matriks LFA Belum Terbentuk',
-            description: 'Matriks AI tidak tersimpan atau gagal validasi. Silakan klik Generate ulang.',
+            description: msg,
             variant: 'destructive'
           });
           return;
@@ -1573,11 +1607,15 @@ export default function GrantWriterQuickWizardProvisional() {
         // Navigate to LFABuilderEditor with targetProjectId
         navigate(`/dashboard/lfa-builder/${targetProjectId}?from=quick_proposal`, { state: { fromQuickProposal: true } });
         return;
-      } catch (err) {
+      } catch (err: any) {
         console.error('Approve blueprint materialization error:', err);
-        const targetProjectId = canonicalPayload.project_id;
-        navigate(`/dashboard/lfa-builder/${targetProjectId}?from=quick_proposal`, { state: { fromQuickProposal: true } });
-        return;
+        const errorMsg = err?.message || 'Terjadi kesalahan saat menyiapkan workspace.';
+        setMaterializationError(errorMsg);
+        toast({
+          title: '⚠️ Gagal Menyiapkan Workspace',
+          description: errorMsg,
+          variant: 'destructive'
+        });
       } finally {
         setIsSaving(false);
       }
@@ -2381,7 +2419,7 @@ export default function GrantWriterQuickWizardProvisional() {
                 <Button
                   type="button"
                   onClick={handleApproveBlueprint}
-                  disabled={!hasCanonicalStructure}
+                  disabled={!hasCanonicalStructure && !programStory.trim()}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 px-5 shadow-xs transition-all disabled:opacity-50"
                   data-testid="approve-blueprint-btn"
                 >
@@ -2395,67 +2433,113 @@ export default function GrantWriterQuickWizardProvisional() {
       {currentFlowPage === 'materializing' && (
         <Card className="mx-auto max-w-xl border-emerald-100 bg-white py-8 px-6 my-6 shadow-sm" data-testid="materialization-screen">
           <CardContent className="flex flex-col items-center justify-center space-y-6">
-            <div className="relative">
-              <div className="absolute inset-0 rounded-full bg-emerald-100 animate-ping opacity-75"></div>
-              <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-white shadow-md">
-                <Sparkles className="h-8 w-8 animate-pulse" />
+            {materializationError ? (
+              <div className="w-full space-y-6 text-center">
+                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-red-100 text-red-600">
+                  <AlertTriangle className="h-8 w-8" />
+                </div>
+                <div className="space-y-2">
+                  <h3 className="text-lg font-bold text-slate-900">
+                    Generasi LFA AI Belum Berhasil
+                  </h3>
+                  <p className="text-xs text-red-600 bg-red-50 p-3 rounded-lg border border-red-200 font-mono max-w-md mx-auto text-left break-words">
+                    {materializationError}
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <Button
+                    onClick={handleApproveBlueprint}
+                    disabled={isSaving}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                  >
+                    {isSaving ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Mencoba Lagi...
+                      </>
+                    ) : (
+                      <>
+                        <RotateCw className="mr-2 h-4 w-4" />
+                        Coba Lagi (Retry)
+                      </>
+                    )}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setMaterializationError(null);
+                      setCurrentFlowPage('page2');
+                    }}
+                  >
+                    Kembali ke Review Blueprint
+                  </Button>
+                </div>
               </div>
-            </div>
+            ) : (
+              <>
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-full bg-emerald-100 animate-ping opacity-75"></div>
+                  <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-emerald-600 text-white shadow-md">
+                    <Sparkles className="h-8 w-8 animate-pulse" />
+                  </div>
+                </div>
 
-            <div className="text-center space-y-2">
-              <h3 className="text-lg font-extrabold text-slate-900" data-testid="materialization-title">
-                AI Sedang Menyiapkan Workspace & Kerangka Program Anda
-              </h3>
-              <p className="text-xs text-slate-600 max-w-md mx-auto">
-                Hasil formulasi program sedang disimpan ke database dan disiapkan dalam format Logical Framework Matrix (LFA).
-              </p>
-            </div>
+                <div className="text-center space-y-2">
+                  <h3 className="text-lg font-extrabold text-slate-900" data-testid="materialization-title">
+                    AI Sedang Menyiapkan Workspace & Kerangka Program Anda
+                  </h3>
+                  <p className="text-xs text-slate-600 max-w-md mx-auto">
+                    Hasil formulasi program sedang disimpan ke database dan disiapkan dalam format Logical Framework Matrix (LFA).
+                  </p>
+                </div>
 
-            <div className="w-full max-w-md bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-200 shadow-2xs">
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className="text-slate-800 flex items-center gap-1.5">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                  Kerangka Program ({canonicalMetrics?.outcomeCount || 1} Outcome, {canonicalMetrics?.outputCount || 2} Output, {canonicalMetrics?.activityCount || 4} Aktivitas, {canonicalMetrics?.indicatorCount || 6} Indikator) Siap
-                </span>
-              </div>
+                <div className="w-full max-w-md bg-slate-50 rounded-xl p-4 space-y-3 border border-slate-200 shadow-2xs">
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className="text-slate-800 flex items-center gap-1.5">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                      Kerangka Program ({canonicalMetrics?.outcomeCount || 1} Outcome, {canonicalMetrics?.outputCount || 2} Output, {canonicalMetrics?.activityCount || 4} Aktivitas, {canonicalMetrics?.indicatorCount || 6} Indikator) Siap
+                    </span>
+                  </div>
 
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className={materializationStage === 'saving_project' ? 'text-slate-900 font-bold' : 'text-slate-700'}>
-                  Mendaftarkan profil & parameter program...
-                </span>
-                {materializationStage === 'saving_project' ? (
-                  <Loader2 className="h-4 w-4 text-emerald-600 animate-spin shrink-0" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                )}
-              </div>
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className={materializationStage === 'saving_project' ? 'text-slate-900 font-bold' : 'text-slate-700'}>
+                      Mendaftarkan profil & parameter program...
+                    </span>
+                    {materializationStage === 'saving_project' ? (
+                      <Loader2 className="h-4 w-4 text-emerald-600 animate-spin shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    )}
+                  </div>
 
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className={materializationStage === 'writing_entries' ? 'text-slate-900 font-bold' : materializationStage === 'saving_project' ? 'text-slate-400' : 'text-slate-700'}>
-                  Menulis matriks LFA ke database workspace...
-                </span>
-                {materializationStage === 'writing_entries' ? (
-                  <Loader2 className="h-4 w-4 text-emerald-600 animate-spin shrink-0" />
-                ) : materializationStage === 'saving_project' ? (
-                  <div className="h-4 w-4 rounded-full border-2 border-slate-200 shrink-0" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                )}
-              </div>
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className={materializationStage === 'writing_entries' ? 'text-slate-900 font-bold' : materializationStage === 'saving_project' ? 'text-slate-400' : 'text-slate-700'}>
+                      Menulis matriks LFA ke database workspace...
+                    </span>
+                    {materializationStage === 'writing_entries' ? (
+                      <Loader2 className="h-4 w-4 text-emerald-600 animate-spin shrink-0" />
+                    ) : materializationStage === 'saving_project' ? (
+                      <div className="h-4 w-4 rounded-full border-2 border-slate-200 shrink-0" />
+                    ) : (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    )}
+                  </div>
 
-              <div className="flex items-center justify-between text-xs font-semibold">
-                <span className={materializationStage === 'preparing_workspace' || materializationStage === 'complete' ? 'text-slate-900 font-bold' : 'text-slate-400'}>
-                  Membuka LFA Studio Editor...
-                </span>
-                {materializationStage === 'preparing_workspace' ? (
-                  <Loader2 className="h-4 w-4 text-emerald-600 animate-spin shrink-0" />
-                ) : materializationStage === 'complete' ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                ) : (
-                  <div className="h-4 w-4 rounded-full border-2 border-slate-200 shrink-0" />
-                )}
-              </div>
-            </div>
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className={materializationStage === 'preparing_workspace' || materializationStage === 'complete' ? 'text-slate-900 font-bold' : 'text-slate-400'}>
+                      Membuka LFA Studio Editor...
+                    </span>
+                    {materializationStage === 'preparing_workspace' ? (
+                      <Loader2 className="h-4 w-4 text-emerald-600 animate-spin shrink-0" />
+                    ) : materializationStage === 'complete' ? (
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                    ) : (
+                      <div className="h-4 w-4 rounded-full border-2 border-slate-200 shrink-0" />
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       )}

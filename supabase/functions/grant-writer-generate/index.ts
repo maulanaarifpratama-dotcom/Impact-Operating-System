@@ -706,13 +706,49 @@ Deno.serve(async (req: Request) => {
 
 
     // 1. Load project (RLS enforces org membership)
-    const { data: project, error: pErr } = await ctx.supabase
+    let { data: project, error: pErr } = await ctx.supabase
       .from('gw_projects')
       .select('*')
       .eq('id', body.projectId)
       .maybeSingle();
 
     if (pErr) return errorResponse(`Failed to load project: ${pErr.message}`, 500);
+
+    if (!project) {
+      // Check if lfa_projects exists for body.projectId
+      const { data: lfaProj } = await ctx.supabase
+        .from('lfa_projects')
+        .select('*')
+        .eq('id', body.projectId)
+        .maybeSingle();
+
+      const targetOrgId = body.org_id || lfaProj?.org_id || ctx.user.id;
+      const targetTitle = lfaProj?.name || 'Program Baru';
+
+      // Auto-create/upsert stub in gw_projects so grant generation works seamlessly
+      const stubGw = {
+        id: body.projectId,
+        organization_id: targetOrgId,
+        title: targetTitle,
+        summary: lfaProj?.beneficiary_description || '',
+        status: 'generating',
+        wizard_data: {
+          lfa_project_id: body.projectId
+        },
+        updated_at: new Date().toISOString()
+      };
+
+      const { data: createdProject, error: cErr } = await ctx.supabase
+        .from('gw_projects')
+        .upsert(stubGw)
+        .select('*')
+        .maybeSingle();
+
+      if (!cErr && createdProject) {
+        project = createdProject;
+      }
+    }
+
     if (!project) return errorResponse('Project not found or access denied', 404);
 
     const donorStandard = body.donorStandard ?? project.donor_standard ?? 'un_oecd_dac';
