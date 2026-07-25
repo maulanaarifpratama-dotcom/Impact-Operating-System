@@ -20,7 +20,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
   AlertTriangle, Percent, TrendingUp, HelpCircle, ArrowRight, Settings, Info,
-  BarChart2, RefreshCw, Layers, FileText, Leaf
+  BarChart2, RefreshCw, Layers, FileText, Leaf, Activity
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
 import { getProjectCarbonSummary } from '@/lib/carbon/aggregation';

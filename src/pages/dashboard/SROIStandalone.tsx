@@ -35,7 +35,8 @@ import {
   Users,
   Calendar,
   Layers,
-  ArrowUpRight
+  ArrowUpRight,
+  Activity
 } from 'lucide-react';
 
 interface StandaloneOutcome {
