@@ -32,6 +32,11 @@ interface SummaryMetrics {
   emission: number;
   trees: number;
   count: number;
+  missingQtyCount: number;
+  scope1: number;
+  scope2: number;
+  scope3: number;
+  unassignedScopeCount: number;
 }
 
 export default function EROIStandalone() {
@@ -91,12 +96,12 @@ export default function EROIStandalone() {
       if (error) throw error;
       return data || [];
     },
-    enabled: !!orgId
+    enabled: !!orgId,
   });
 
-  // --- QUERY 3: MAIN DATA (SINGLE SOURCE) ---
+  // --- QUERY 3: WBS ITEMS WITH CARBON ---
   const { data: tableData, isLoading: isTableLoading } = useQuery({
-    queryKey: ['eroi-data', orgId, selectedProject],
+    queryKey: ['eroi_carbon_wbs_items', orgId, selectedProject],
     queryFn: async () => {
       let query = supabase
         .from('lfa_wbs_items')
@@ -105,6 +110,8 @@ export default function EROIStandalone() {
           carbon_factor,
           carbon_unit,
           carbon_source,
+          carbon_quantity,
+          carbon_scope,
           duration_weeks,
           lfa_projects (name)
         `)
@@ -128,22 +135,37 @@ export default function EROIStandalone() {
   // --- COMPUTE SUMMARY (NO EXTRA QUERY) ---
   const summary = useMemo<SummaryMetrics>(() => {
     if (!tableData) {
-      return { total: 0, reduction: 0, emission: 0, trees: 0, count: 0 };
+      return { total: 0, reduction: 0, emission: 0, trees: 0, count: 0, missingQtyCount: 0, scope1: 0, scope2: 0, scope3: 0, unassignedScopeCount: 0 };
     }
 
     let total = 0;
     let reduction = 0;
     let emission = 0;
+    let missingQtyCount = 0;
+    let scope1 = 0;
+    let scope2 = 0;
+    let scope3 = 0;
+    let unassignedScopeCount = 0;
 
     for (const item of tableData) {
-      if (!item.carbon_factor) continue;
+      if (item.carbon_factor == null) continue;
 
-      const multiplier = item.duration_weeks ?? 1;
-      const impact = item.carbon_factor * multiplier;
+      const qty = item.carbon_quantity;
+      if (qty == null || qty === '' || isNaN(Number(qty))) {
+        missingQtyCount++;
+        continue;
+      }
+
+      const impact = Number(item.carbon_factor) * Number(qty);
 
       total += impact;
       if (impact < 0) reduction += Math.abs(impact);
       else emission += impact;
+
+      if (item.carbon_scope === 'scope_1') scope1 += impact;
+      else if (item.carbon_scope === 'scope_2') scope2 += impact;
+      else if (item.carbon_scope === 'scope_3') scope3 += impact;
+      else unassignedScopeCount++;
     }
 
     return {
@@ -151,7 +173,12 @@ export default function EROIStandalone() {
       reduction,
       emission,
       trees: Math.abs(total) / 5,
-      count: tableData.length
+      count: tableData.length,
+      missingQtyCount,
+      scope1,
+      scope2,
+      scope3,
+      unassignedScopeCount
     };
   }, [tableData]);
 
@@ -392,16 +419,18 @@ export default function EROIStandalone() {
                     <th className="py-3 px-4 font-bold">Program</th>
                     <th className="py-3 px-4 font-bold text-right">Faktor Emisi</th>
                     <th className="py-3 px-4 font-bold">Unit</th>
-                    <th className="py-3 px-4 font-bold text-center">Durasi</th>
+                    <th className="py-3 px-4 font-bold text-center">Kuantitas</th>
                     <th className="py-3 px-4 font-bold text-right">Dampak (kg CO₂)</th>
                     <th className="py-3 px-4 font-bold">Sumber Data</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y text-slate-700 dark:text-slate-300">
                   {tableData?.map((item: any, idx: number) => {
-                    const duration = item.duration_weeks ?? 1;
+                    const qty = item.carbon_quantity;
                     const factor = item.carbon_factor ?? 0;
-                    const impact = factor * duration;
+                    const hasQty = qty != null && qty !== '' && !isNaN(Number(qty));
+                    const impact = hasQty ? factor * Number(qty) : 0;
+
                     const prName = item.lfa_projects
                       ? Array.isArray(item.lfa_projects)
                         ? item.lfa_projects[0]?.name
@@ -422,13 +451,27 @@ export default function EROIStandalone() {
                         <td className="py-3.5 px-4 text-slate-500">
                           {item.carbon_unit || '-'}
                         </td>
-                        <td className="py-3.5 px-4 text-center font-semibold text-slate-500">
-                          {duration} mgg
+                        <td className="py-3.5 px-4 text-center font-medium">
+                          {hasQty ? (
+                            <span className="font-mono text-slate-800 dark:text-slate-200 font-semibold">
+                              {Number(qty).toLocaleString('id-ID')}
+                            </span>
+                          ) : (
+                            <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300 text-[10px] whitespace-nowrap">
+                              Belum diisi
+                            </Badge>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-right font-bold">
-                          <span className={impact < 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
-                            {impact < 0 ? '' : '+'}{impact.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
-                          </span>
+                          {hasQty ? (
+                            <span className={impact < 0 ? 'text-emerald-600 dark:text-emerald-400 font-mono' : 'text-amber-600 dark:text-amber-400 font-mono'}>
+                              {impact < 0 ? '' : '+'}{impact.toLocaleString('id-ID', { maximumFractionDigits: 2 })}
+                            </span>
+                          ) : (
+                            <Badge variant="outline" className="bg-amber-100/60 text-amber-800 border-amber-300 text-[10px] whitespace-nowrap">
+                              Kuantitas belum diisi -- perhitungan tidak akurat
+                            </Badge>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-slate-500 max-w-[150px] truncate" title={item.carbon_source}>
                           {item.carbon_source || 'Referensi Internal'}

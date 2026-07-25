@@ -6,6 +6,7 @@ export interface CarbonSummary {
   emissionKg: number;
   netImpact: 'reduction' | 'emission' | 'neutral';
   activitiesWithCarbon: number;
+  activitiesMissingQuantity: number;
   equivalentTrees: number;
 }
 
@@ -14,19 +15,22 @@ export function computeCarbonSummary(data: any[]): CarbonSummary {
   let reduction = 0;
   let emission = 0;
   let count = 0;
+  let missingQtyCount = 0;
 
   for (const item of data) {
     if (item.carbon_factor == null) continue;
 
-    // IMPORTANT:
-    // DO NOT assume duration is quantity
-    // temporary fallback multiplier
-    const multiplier = item.duration_weeks ?? 1;
+    count++;
 
-    const impact = Number(item.carbon_factor) * multiplier;
+    const qty = item.carbon_quantity;
+    if (qty == null || qty === '' || isNaN(Number(qty))) {
+      missingQtyCount++;
+      continue;
+    }
+
+    const impact = Number(item.carbon_factor) * Number(qty);
 
     total += impact;
-    count++;
 
     if (impact < 0) {
       reduction += Math.abs(impact);
@@ -46,6 +50,7 @@ export function computeCarbonSummary(data: any[]): CarbonSummary {
     emissionKg: emission,
     netImpact,
     activitiesWithCarbon: count,
+    activitiesMissingQuantity: missingQtyCount,
     equivalentTrees: Math.abs(total) / 5
   };
 }
@@ -53,7 +58,7 @@ export function computeCarbonSummary(data: any[]): CarbonSummary {
 export async function getProjectCarbonSummary(projectId: string, orgId: string): Promise<CarbonSummary | null> {
   const { data, error } = await supabase
     .from('lfa_wbs_items' as any)
-    .select('carbon_factor, duration_weeks, level')
+    .select('carbon_factor, carbon_quantity, carbon_scope, level')
     .eq('lfa_project_id', projectId)
     .eq('org_id', orgId)
     .eq('carbon_enabled', true)
@@ -67,7 +72,7 @@ export async function getProjectCarbonSummary(projectId: string, orgId: string):
 export async function getOrgCarbonSummary(orgId: string): Promise<CarbonSummary | null> {
   const { data, error } = await supabase
     .from('lfa_wbs_items' as any)
-    .select('carbon_factor, duration_weeks, level')
+    .select('carbon_factor, carbon_quantity, carbon_scope, level')
     .eq('org_id', orgId)
     .eq('carbon_enabled', true)
     .eq('level', 2);

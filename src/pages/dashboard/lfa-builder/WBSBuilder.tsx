@@ -965,6 +965,8 @@ export default function WBSBuilder({
           carbon_unit: item.carbon_unit,
           carbon_source: item.carbon_source,
           carbon_description: item.carbon_description,
+          carbon_quantity: item.carbon_quantity,
+          carbon_scope: item.carbon_scope,
           status: item.status || 'not_started',
           progress_percent: item.status === 'completed' ? 100 : (item.progress_percent ?? 0),
           blocked_reason: item.status === 'blocked' ? item.blocked_reason : null,
@@ -2269,7 +2271,9 @@ export default function WBSBuilder({
                               carbon_factor: enabled ? (item.carbon_factor ?? 0) : null,
                               carbon_unit: enabled ? (item.carbon_unit ?? 'kg_co2_per_unit') : null,
                               carbon_source: enabled ? (item.carbon_source ?? '') : null,
-                              carbon_description: enabled ? (item.carbon_description ?? '') : null
+                              carbon_description: enabled ? (item.carbon_description ?? '') : null,
+                              carbon_quantity: enabled ? (item.carbon_quantity ?? null) : null,
+                              carbon_scope: enabled ? (item.carbon_scope ?? null) : null,
                             };
                             updateItemLocally(updated);
                             triggerAutosave(updated);
@@ -2285,7 +2289,7 @@ export default function WBSBuilder({
                       </div>
 
                       {item.carbon_enabled && (
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-1.5 p-3 bg-white dark:bg-slate-900 border rounded-lg shadow-inner">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-1.5 p-3 bg-white dark:bg-slate-900 border rounded-lg shadow-inner">
                           {/* Template factor selection dropdown */}
                           <div className="flex flex-col gap-1">
                             <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Template Faktor Emisi</label>
@@ -2309,6 +2313,7 @@ export default function WBSBuilder({
                                       carbon_unit: factorObj.unit,
                                       carbon_source: factorObj.source,
                                       carbon_description: factorObj.name_id,
+                                      carbon_scope: (factorObj as any).default_scope || item.carbon_scope,
                                     };
                                     updateItemLocally(updated);
                                     triggerAutosave(updated);
@@ -2328,7 +2333,7 @@ export default function WBSBuilder({
 
                           {/* Value input */}
                           <div className="flex flex-col gap-1">
-                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Nilai Emisi (kg CO₂)</label>
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Faktor (kg CO₂/unit)</label>
                             <input
                               type="number"
                               step="any"
@@ -2342,8 +2347,36 @@ export default function WBSBuilder({
                                 updateItemLocally(updated);
                                 triggerAutosave(updated);
                               }}
-                              placeholder="Masukkan nilai emisi..."
-                              className="text-xs border rounded px-2 h-8 bg-transparent dark:border-slate-800 text-slate-800 dark:text-slate-200"
+                              placeholder="Nilai per unit..."
+                              className="text-xs border rounded px-2 h-8 bg-transparent dark:border-slate-800 text-slate-800 dark:text-slate-200 font-mono"
+                            />
+                          </div>
+
+                          {/* Quantity input */}
+                          <div className="flex flex-col gap-1">
+                            <label className="text-[10px] font-bold text-teal-700 dark:text-teal-400 uppercase tracking-wider flex items-center gap-1">
+                              Jumlah / Kuantitas *
+                            </label>
+                            <input
+                              type="number"
+                              step="any"
+                              value={item.carbon_quantity !== null && item.carbon_quantity !== undefined ? item.carbon_quantity : ''}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? null : parseFloat(e.target.value);
+                                const updated = {
+                                  ...item,
+                                  carbon_quantity: val,
+                                };
+                                updateItemLocally(updated);
+                                triggerAutosave(updated);
+                              }}
+                              placeholder={
+                                item.carbon_unit === 'kg_co2_per_km' ? 'Jarak (km)...' :
+                                item.carbon_unit === 'kg_co2_per_kwh' ? 'Konsumsi (kWh)...' :
+                                item.carbon_unit === 'kg_co2_per_event' ? 'Jumlah event...' :
+                                'Jumlah unit/pohon...'
+                              }
+                              className="text-xs border border-teal-500/50 dark:border-teal-500/40 rounded px-2 h-8 bg-teal-50/30 dark:bg-teal-950/20 text-slate-800 dark:text-slate-200 font-medium"
                             />
                           </div>
 
@@ -2371,7 +2404,7 @@ export default function WBSBuilder({
                           </div>
 
                           {/* Source and Description Inputs */}
-                          <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-slate-100 dark:border-slate-800/50 pt-2.5 mt-1">
+                          <div className="md:col-span-4 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-slate-100 dark:border-slate-800/50 pt-2.5 mt-1">
                             <div className="flex flex-col gap-1">
                               <label className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Sumber Data Referensi</label>
                               <input

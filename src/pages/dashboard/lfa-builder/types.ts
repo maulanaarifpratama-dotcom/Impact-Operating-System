@@ -67,6 +67,8 @@ export interface WbsItem {
   carbon_unit?: string | null;
   carbon_source?: string | null;
   carbon_description?: string | null;
+  carbon_quantity?: number | null;
+  carbon_scope?: 'scope_1' | 'scope_2' | 'scope_3' | null;
   status?: WbsStatus;
   progress_percent?: number;
   blocked_reason?: string | null;
@@ -208,6 +210,7 @@ export interface LfaSroiOutcome {
   dropoff_pct_per_year: number;
   gross_value_idr: number;
   present_value_idr: number;
+  stakeholder_group?: string | null;
   mode: 'simple' | 'professional';
   sort_order: number;
   is_registry_linked?: boolean;
