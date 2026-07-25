@@ -1495,8 +1495,10 @@ export default function SROICalculator({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
                       <div className="space-y-1.5">
-                        <Label className="font-semibold text-slate-700 dark:text-slate-300">Total Investasi Keuangan (IDR)</Label>
+                        <Label htmlFor="sroi-investment-input" className="font-semibold text-slate-700 dark:text-slate-300">Total Investasi Keuangan (IDR)</Label>
                         <Input
+                          id="sroi-investment-input"
+                          aria-label="Total Investasi Keuangan (IDR)"
                           type="number"
                           value={config.total_investment_idr || ''}
                           onChange={(e) => debounceSaveConfig({ ...config, total_investment_idr: parseFloat(e.target.value) || 0 })}
@@ -1508,8 +1510,10 @@ export default function SROICalculator({
                       </div>
 
                       <div className="space-y-1.5">
-                        <Label className="font-semibold text-slate-700 dark:text-slate-300">Durasi Evaluasi Dampak (Tahun)</Label>
+                        <Label htmlFor="sroi-period-input" className="font-semibold text-slate-700 dark:text-slate-300">Durasi Evaluasi Dampak (Tahun)</Label>
                         <Input
+                          id="sroi-period-input"
+                          aria-label="Durasi Evaluasi Dampak (Tahun)"
                           type="number"
                           value={config.analysis_period_years || ''}
                           onChange={(e) => debounceSaveConfig({ ...config, analysis_period_years: parseInt(e.target.value, 10) || 1 })}
@@ -1519,8 +1523,10 @@ export default function SROICalculator({
                       </div>
 
                       <div className="space-y-1.5 md:col-span-2">
-                        <Label className="font-semibold text-slate-700 dark:text-slate-300">Jumlah Penerima Manfaat Langsung</Label>
+                        <Label htmlFor="sroi-beneficiary-input" className="font-semibold text-slate-700 dark:text-slate-300">Jumlah Penerima Manfaat Langsung</Label>
                         <Input
+                          id="sroi-beneficiary-input"
+                          aria-label="Jumlah Penerima Manfaat Langsung"
                           type="number"
                           value={config.beneficiary_count || ''}
                           onChange={(e) => debounceSaveConfig({ ...config, beneficiary_count: parseInt(e.target.value, 10) || null })}
@@ -1820,6 +1826,29 @@ export default function SROICalculator({
                       </div>
                     </div>
 
+                    {/* Finding 2 UX Discoverability: Callout card for Matriks Detail & PDF Report */}
+                    <div className="p-4 border border-indigo-200 dark:border-indigo-900/50 rounded-xl bg-gradient-to-r from-indigo-50/80 to-blue-50/80 dark:from-indigo-950/30 dark:to-blue-950/30 text-left flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm" data-testid="sroi-pro-pdf-callout-card">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                          <span className="text-xs font-bold text-slate-900 dark:text-slate-100">Ingin Mengunduh Laporan SROI / Ekspor PDF Lengkap?</span>
+                        </div>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-300">
+                          Beralih ke <strong>Mode Professional</strong> untuk melihat spreadsheet matriks dampak terperinci, menyesuaikan Deadweight/Attribution, serta mengunduh Executive PDF Summary.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                        <Button
+                          size="sm"
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs w-full sm:w-auto font-semibold shadow-sm"
+                          onClick={() => handleModeToggle('professional')}
+                          data-testid="sroi-pro-pdf-callout-btn"
+                        >
+                          <FileText className="mr-1.5 h-3.5 w-3.5" /> Buka Matriks & PDF Report
+                        </Button>
+                      </div>
+                    </div>
+
                     <div className="flex justify-between items-center pt-3 border-t">
                       <Button variant="outline" size="sm" onClick={() => setStep(3)}>Kembali</Button>
                       <Button size="sm" variant="default" onClick={() => handleModeToggle('professional')}>
@@ -1916,9 +1945,11 @@ export default function SROICalculator({
             <CardContent className="p-4 text-xs">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
                 <div className="space-y-1.5">
-                  <Label className="font-semibold text-slate-700 dark:text-slate-300">Tingkat Diskonto Sosial (Social Discount Rate)</Label>
+                  <Label htmlFor="sroi-pro-discount-input" className="font-semibold text-slate-700 dark:text-slate-300">Tingkat Diskonto Sosial (Social Discount Rate)</Label>
                   <div className="flex items-center gap-2">
                     <Input
+                      id="sroi-pro-discount-input"
+                      aria-label="Tingkat Diskonto Sosial"
                       type="number"
                       step="0.005"
                       value={config.discount_rate || 0.035}
@@ -1931,8 +1962,10 @@ export default function SROICalculator({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="font-semibold text-slate-700 dark:text-slate-300">Investasi Finansial Tambahan (IDR)</Label>
+                  <Label htmlFor="sroi-pro-investment-input" className="font-semibold text-slate-700 dark:text-slate-300">Investasi Finansial Tambahan (IDR)</Label>
                   <Input
+                    id="sroi-pro-investment-input"
+                    aria-label="Investasi Finansial Tambahan (IDR)"
                     type="number"
                     value={config.total_investment_idr || ''}
                     onChange={(e) => debounceSaveConfig({ ...config, total_investment_idr: parseFloat(e.target.value) || 0 })}
@@ -1942,8 +1975,10 @@ export default function SROICalculator({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label className="font-semibold text-slate-700 dark:text-slate-300">Jumlah Penerima Manfaat</Label>
+                  <Label htmlFor="sroi-pro-beneficiary-input" className="font-semibold text-slate-700 dark:text-slate-300">Jumlah Penerima Manfaat</Label>
                   <Input
+                    id="sroi-pro-beneficiary-input"
+                    aria-label="Jumlah Penerima Manfaat"
                     type="number"
                     value={config.beneficiary_count || ''}
                     onChange={(e) => debounceSaveConfig({ ...config, beneficiary_count: parseInt(e.target.value, 10) || null })}
@@ -1999,6 +2034,8 @@ export default function SROICalculator({
                         <td className="p-1.5 border-r">
                           <div className="flex items-center gap-1">
                             <Input
+                              id={`sroi-outcome-name-${out.id}`}
+                              aria-label={`Nama outcome SROI ${out.outcome_name || 'baru'}`}
                               value={out.outcome_name}
                               onChange={(e) => debounceSaveOutcome({ ...out, outcome_name: e.target.value })}
                               className="h-8 border-0 bg-transparent hover:bg-slate-100 focus:bg-white focus:ring-1 py-0.5 text-xs font-semibold text-slate-800 dark:text-slate-200 flex-1"
@@ -2011,6 +2048,8 @@ export default function SROICalculator({
                         </td>
                         <td className="p-1.5 border-r">
                           <select
+                            id={`sroi-stakeholder-${out.id}`}
+                            aria-label={`Kelompok pemangku kepentingan untuk ${out.outcome_name}`}
                             value={out.stakeholder_group || 'Penerima Manfaat Langsung'}
                             onChange={(e) => debounceSaveOutcome({ ...out, stakeholder_group: e.target.value })}
                             className="h-8 border-0 bg-transparent hover:bg-slate-100 focus:bg-white text-xs w-full text-slate-800 dark:text-slate-200"
@@ -2030,6 +2069,8 @@ export default function SROICalculator({
                                 <TooltipTrigger asChild>
                                   <div className="relative">
                                     <Input
+                                      id={`sroi-quantity-${out.id}`}
+                                      aria-label={`Jumlah kuantitas dampak untuk ${out.outcome_name}`}
                                       type="number"
                                       value={out.quantity || ''}
                                       disabled
@@ -2044,6 +2085,8 @@ export default function SROICalculator({
                             </TooltipProvider>
                           ) : (
                             <Input
+                              id={`sroi-quantity-${out.id}`}
+                              aria-label={`Jumlah kuantitas dampak untuk ${out.outcome_name}`}
                               type="number"
                               value={out.quantity || ''}
                               onChange={(e) => debounceSaveOutcome({ ...out, quantity: parseFloat(e.target.value) || 0 })}
@@ -2053,6 +2096,8 @@ export default function SROICalculator({
                         </td>
                         <td className="p-1.5 border-r">
                           <Input
+                            id={`sroi-unit-${out.id}`}
+                            aria-label={`Satuan kuantitas untuk ${out.outcome_name}`}
                             value={out.unit || ''}
                             onChange={(e) => debounceSaveOutcome({ ...out, unit: e.target.value })}
                             className="h-8 border-0 bg-transparent hover:bg-slate-100 focus:bg-white text-xs"
@@ -2062,6 +2107,8 @@ export default function SROICalculator({
                         </td>
                         <td className="p-1.5 border-r space-y-1">
                           <Input
+                            id={`sroi-proxy-${out.id}`}
+                            aria-label={`Nilai finansial proxy IDR untuk ${out.outcome_name}`}
                             type="number"
                             value={out.proxy_value_idr || ''}
                             onChange={(e) => debounceSaveOutcome({ ...out, proxy_value_idr: parseFloat(e.target.value) || 0 })}
@@ -2081,6 +2128,8 @@ export default function SROICalculator({
                         </td>
                         <td className="p-1.5 border-r">
                           <Input
+                            id={`sroi-duration-${out.id}`}
+                            aria-label={`Durasi tahun dampak untuk ${out.outcome_name}`}
                             type="number"
                             value={out.duration_years || ''}
                             onChange={(e) => debounceSaveOutcome({ ...out, duration_years: parseInt(e.target.value, 10) || 1 })}
@@ -2089,6 +2138,8 @@ export default function SROICalculator({
                         </td>
                         <td className="p-1.5 border-r">
                           <Input
+                            id={`sroi-attribution-${out.id}`}
+                            aria-label={`Persentase atribusi untuk ${out.outcome_name}`}
                             type="number"
                             value={out.attribution_pct}
                             onChange={(e) => debounceSaveOutcome({ ...out, attribution_pct: parseFloat(e.target.value) || 0 })}
@@ -2097,6 +2148,8 @@ export default function SROICalculator({
                         </td>
                         <td className="p-1.5 border-r">
                           <Input
+                            id={`sroi-deadweight-${out.id}`}
+                            aria-label={`Persentase deadweight untuk ${out.outcome_name}`}
                             type="number"
                             value={out.deadweight_pct}
                             onChange={(e) => debounceSaveOutcome({ ...out, deadweight_pct: parseFloat(e.target.value) || 0 })}
@@ -2105,6 +2158,8 @@ export default function SROICalculator({
                         </td>
                         <td className="p-1.5 border-r">
                           <Input
+                            id={`sroi-displacement-${out.id}`}
+                            aria-label={`Persentase displacement untuk ${out.outcome_name}`}
                             type="number"
                             value={out.displacement_pct}
                             onChange={(e) => debounceSaveOutcome({ ...out, displacement_pct: parseFloat(e.target.value) || 0 })}
@@ -2113,6 +2168,8 @@ export default function SROICalculator({
                         </td>
                         <td className="p-1.5 border-r">
                           <Input
+                            id={`sroi-dropoff-${out.id}`}
+                            aria-label={`Persentase dropoff per tahun untuk ${out.outcome_name}`}
                             type="number"
                             value={out.dropoff_pct_per_year}
                             onChange={(e) => debounceSaveOutcome({ ...out, dropoff_pct_per_year: parseFloat(e.target.value) || 0 })}
