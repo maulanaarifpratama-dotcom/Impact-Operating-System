@@ -17,7 +17,10 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
   const t = homepageTranslations[lang];
 
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
+    const onScroll = () => {
+      const top = window.scrollY || document.documentElement.scrollTop || 0;
+      setScrolled(top > 10);
+    };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -35,10 +38,10 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
   return (
     <header
       className={cn(
-        'sticky top-0 z-50 w-full transition-all',
+        'sticky top-0 z-50 w-full transition-all duration-300',
         scrolled
-          ? 'border-b border-border/60 bg-brand-surface/90 backdrop-blur-md shadow-card'
-          : 'border-b border-transparent bg-background/0',
+          ? 'border-b border-teal-500/20 bg-[#07161E]/92 backdrop-blur-xl shadow-2xl shadow-black/50'
+          : 'border-b border-transparent bg-transparent',
       )}
     >
       <div className="container flex h-16 items-center justify-between gap-4">
@@ -114,8 +117,8 @@ export function Navbar({ lang = 'id', onLangChange }: NavbarProps) {
       </div>
 
       {open && (
-        <div id="mobile-menu" className="md:hidden border-t border-white/10 bg-brand-surface">
-          <div className="container flex flex-col gap-1 py-4 bg-brand-surface">
+        <div id="mobile-menu" className="md:hidden border-t border-teal-500/20 bg-[#07161E]/95 backdrop-blur-xl shadow-2xl">
+          <div className="container flex flex-col gap-1 py-4">
             {links.map((l) => l.to ? (
               <Link
                 key={l.to}
