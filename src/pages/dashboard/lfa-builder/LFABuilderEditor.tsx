@@ -1609,29 +1609,94 @@ export default function LFABuilderEditor() {
           </Card>
 
           {/* DYNAMIC COMPLETION TRACKER CHIPS */}
-          <Card className="border border-slate-200 shadow-elegant">
-            <CardHeader className="bg-slate-50 dark:bg-slate-900/50 py-3.5 px-4">
-              <CardTitle className="text-xs font-bold uppercase tracking-wider">LFA Completion Tracker</CardTitle>
-            </CardHeader>
-            <CardContent className="p-4 text-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1">🎯 Dampak (Goal)</span>
-                <Badge variant={goal?.description ? 'default' : 'secondary'} className="text-[10px] py-0">{goal?.description ? 'Terisi' : 'Kosong'}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1">🏆 Tujuan (Purpose)</span>
-                <Badge variant={purpose?.description ? 'default' : 'secondary'} className="text-[10px] py-0">{purpose?.description ? 'Terisi' : 'Kosong'}</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1">📦 Hasil (Outputs)</span>
-                <Badge variant={outputs.length > 0 ? 'default' : 'secondary'} className="text-[10px] py-0">{outputs.length} Terdaftar</Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="flex items-center gap-1">🔧 Kegiatan (Activities)</span>
-                <Badge variant={activities.length > 0 ? 'default' : 'secondary'} className="text-[10px] py-0">{activities.length} Terdaftar</Badge>
-              </div>
-            </CardContent>
-          </Card>
+          {(() => {
+            const getEntryCompleteness = (entry: LfaEntry | null) => {
+              if (!entry) return { label: 'Kosong', variant: 'secondary' as const, className: '' };
+              const fields = [
+                Boolean(entry.description && entry.description.trim()),
+                Boolean(entry.indicator && entry.indicator.trim()),
+                Boolean(entry.means_of_verification && entry.means_of_verification.trim()),
+                Boolean(entry.assumption && entry.assumption.trim()),
+              ];
+              const filledCount = fields.filter(Boolean).length;
+              if (filledCount === 4) {
+                return { label: 'Lengkap (4/4)', variant: 'default' as const, className: 'bg-emerald-600 hover:bg-emerald-700 text-white' };
+              } else if (filledCount > 0) {
+                return { label: `Sebagian (${filledCount}/4)`, variant: 'outline' as const, className: 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800' };
+              } else {
+                return { label: 'Kosong', variant: 'secondary' as const, className: '' };
+              }
+            };
+
+            const getListCompleteness = (items: LfaEntry[], level: 'output' | 'activity') => {
+              if (items.length === 0) {
+                return { label: 'Kosong', variant: 'secondary' as const, className: '' };
+              }
+              let completeCount = 0;
+              let partialCount = 0;
+
+              items.forEach((item) => {
+                if (level === 'output') {
+                  const fields = [
+                    Boolean(item.description && item.description.trim()),
+                    Boolean(item.indicator && item.indicator.trim()),
+                    Boolean(item.means_of_verification && item.means_of_verification.trim()),
+                    Boolean(item.assumption && item.assumption.trim()),
+                  ];
+                  const filled = fields.filter(Boolean).length;
+                  if (filled === 4) completeCount++;
+                  else if (filled > 0) partialCount++;
+                } else {
+                  const fields = [
+                    Boolean(item.description && item.description.trim()),
+                    Boolean(item.indicator && item.indicator.trim()),
+                  ];
+                  const filled = fields.filter(Boolean).length;
+                  if (filled === 2) completeCount++;
+                  else if (filled > 0) partialCount++;
+                }
+              });
+
+              if (completeCount === items.length) {
+                return { label: `${items.length}/${items.length} Lengkap`, variant: 'default' as const, className: 'bg-emerald-600 hover:bg-emerald-700 text-white' };
+              } else if (completeCount > 0 || partialCount > 0) {
+                return { label: `${completeCount}/${items.length} Lengkap`, variant: 'outline' as const, className: 'bg-amber-50 text-amber-700 border-amber-300 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800' };
+              } else {
+                return { label: `0/${items.length} Terisi`, variant: 'secondary' as const, className: '' };
+              }
+            };
+
+            const goalComp = getEntryCompleteness(goal);
+            const purposeComp = getEntryCompleteness(purpose);
+            const outputsComp = getListCompleteness(outputs, 'output');
+            const activitiesComp = getListCompleteness(activities, 'activity');
+
+            return (
+              <Card className="border border-slate-200 shadow-elegant">
+                <CardHeader className="bg-slate-50 dark:bg-slate-900/50 py-3.5 px-4">
+                  <CardTitle className="text-xs font-bold uppercase tracking-wider">LFA Completion Tracker</CardTitle>
+                </CardHeader>
+                <CardContent className="p-4 text-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1">🎯 Dampak (Goal)</span>
+                    <Badge variant={goalComp.variant} className={`text-[10px] py-0 ${goalComp.className}`}>{goalComp.label}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1">🏆 Tujuan (Purpose)</span>
+                    <Badge variant={purposeComp.variant} className={`text-[10px] py-0 ${purposeComp.className}`}>{purposeComp.label}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1">📦 Hasil (Outputs)</span>
+                    <Badge variant={outputsComp.variant} className={`text-[10px] py-0 ${outputsComp.className}`}>{outputsComp.label}</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="flex items-center gap-1">🔧 Kegiatan (Activities)</span>
+                    <Badge variant={activitiesComp.variant} className={`text-[10px] py-0 ${activitiesComp.className}`}>{activitiesComp.label}</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
 
           {/* GRANTWRITER CONNECTION STATUS CARD */}
           <Card className="border border-slate-200 shadow-elegant">
