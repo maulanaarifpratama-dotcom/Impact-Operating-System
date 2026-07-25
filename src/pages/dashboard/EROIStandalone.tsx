@@ -392,16 +392,74 @@ export default function EROIStandalone() {
                 </p>
               </CardContent>
             </Card>
-
           </div>
+
+          {/* GHG PROTOCOL SCOPE BREAKDOWN CARD */}
+          <Card className="border shadow-elegant overflow-hidden">
+            <CardHeader className="py-3 px-4 border-b bg-slate-50/50 dark:bg-slate-900/10 flex flex-row items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Breakdown Emisi Berdasarkan Standard GHG Protocol (WRI/WBCSD)
+                </CardTitle>
+              </div>
+              <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300">
+                Scope 1 / Scope 2 / Scope 3
+              </Badge>
+            </CardHeader>
+            <CardContent className="p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+              {/* SCOPE 1 */}
+              <div className="p-4 rounded-xl border bg-slate-50/30 dark:bg-slate-900/20 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">Scope 1 (Emisi Langsung)</span>
+                  <Badge className="bg-red-100 text-red-700 border-0 text-[9px] px-1.5">Kendaraan / Genset</Badge>
+                </div>
+                <div className="text-xl font-bold text-slate-900 dark:text-white">
+                  {summary.scope1.toLocaleString('id-ID', { maximumFractionDigits: 2 })} <span className="text-xs font-normal text-muted-foreground">kg CO₂</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">Emisi langsung dari kendaraan operasional & fasilitas milik organisasi.</p>
+              </div>
+
+              {/* SCOPE 2 */}
+              <div className="p-4 rounded-xl border bg-slate-50/30 dark:bg-slate-900/20 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">Scope 2 (Energi Tidak Langsung)</span>
+                  <Badge className="bg-amber-100 text-amber-700 border-0 text-[9px] px-1.5">Listrik PLN / Gedung</Badge>
+                </div>
+                <div className="text-xl font-bold text-slate-900 dark:text-white">
+                  {summary.scope2.toLocaleString('id-ID', { maximumFractionDigits: 2 })} <span className="text-xs font-normal text-muted-foreground">kg CO₂</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">Emisi tidak langsung dari konsumsi energi listrik PLN / gedung kantor.</p>
+              </div>
+
+              {/* SCOPE 3 */}
+              <div className="p-4 rounded-xl border bg-slate-50/30 dark:bg-slate-900/20 space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200">Scope 3 (Rantai Nilai & Impact)</span>
+                  <Badge className="bg-emerald-100 text-emerald-700 border-0 text-[9px] px-1.5">Travel / Event / Pohon</Badge>
+                </div>
+                <div className="text-xl font-bold text-slate-900 dark:text-white">
+                  {summary.scope3.toLocaleString('id-ID', { maximumFractionDigits: 2 })} <span className="text-xs font-normal text-muted-foreground">kg CO₂</span>
+                </div>
+                <p className="text-[10px] text-muted-foreground">Emisi perjalanan dinas, rantai pasok, pelatihan, dan penyerapan karbon pohon.</p>
+              </div>
+            </CardContent>
+            {summary.unassignedScopeCount > 0 && (
+              <div className="px-4 pb-3 text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1.5 font-medium">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <span>Terdapat {summary.unassignedScopeCount} aktivitas belum dikategorikan Scope GHG (dapat dikategorikan lewat WBS Builder).</span>
+              </div>
+            )}
+          </Card>
 
           {/* TABLE COMPONENT CARD */}
           <Card className="border shadow-elegant overflow-hidden">
             <CardHeader className="py-4 px-5 border-b bg-slate-50/30 dark:bg-slate-900/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
-                <CardTitle className="text-sm font-bold flex items-center gap-2">
-                  <Activity className="h-4 w-4 text-emerald-500" />
-                  <span>Daftar Rincian Aktivitas Carbon Tracking</span>
+                <CardTitle className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span className="p-1.5 bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 rounded-md">
+                    <Leaf className="h-4 w-4" />
+                  </span>
+                  Rincian Aktivitas Terlacak & Kalkulasi Karbon
                 </CardTitle>
                 <CardDescription className="text-xs text-muted-foreground mt-0.5">
                   Menampilkan aktivitas yang diaktifkan pelacakan emisi (Dibatasi maksimal 200 aktivitas).
@@ -417,6 +475,7 @@ export default function EROIStandalone() {
                   <tr className="border-b bg-slate-50 dark:bg-slate-900/30 text-slate-500 dark:text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
                     <th className="py-3 px-4 font-bold">Nama Aktivitas</th>
                     <th className="py-3 px-4 font-bold">Program</th>
+                    <th className="py-3 px-4 font-bold text-center">Scope GHG</th>
                     <th className="py-3 px-4 font-bold text-right">Faktor Emisi</th>
                     <th className="py-3 px-4 font-bold">Unit</th>
                     <th className="py-3 px-4 font-bold text-center">Kuantitas</th>
@@ -424,7 +483,7 @@ export default function EROIStandalone() {
                     <th className="py-3 px-4 font-bold">Sumber Data</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y text-slate-700 dark:text-slate-300">
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                   {tableData?.map((item: any, idx: number) => {
                     const qty = item.carbon_quantity;
                     const factor = item.carbon_factor ?? 0;
@@ -444,6 +503,20 @@ export default function EROIStandalone() {
                         </td>
                         <td className="py-3.5 px-4 font-semibold text-slate-500 max-w-[180px] truncate" title={prName}>
                           {prName}
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          {item.carbon_scope === 'scope_1' && (
+                            <Badge className="bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300 border-0 text-[10px]">Scope 1</Badge>
+                          )}
+                          {item.carbon_scope === 'scope_2' && (
+                            <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 border-0 text-[10px]">Scope 2</Badge>
+                          )}
+                          {item.carbon_scope === 'scope_3' && (
+                            <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border-0 text-[10px]">Scope 3</Badge>
+                          )}
+                          {!item.carbon_scope && (
+                            <Badge variant="outline" className="text-slate-400 border-dashed text-[10px]">Belum dikategorikan</Badge>
+                          )}
                         </td>
                         <td className="py-3.5 px-4 text-right font-mono">
                           {factor > 0 ? '+' : ''}{factor.toLocaleString('id-ID', { maximumFractionDigits: 4 })}

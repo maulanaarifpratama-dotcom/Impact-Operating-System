@@ -11,10 +11,13 @@ export type CarbonCategory =
   | 'energy'
   | 'procurement'
 
+export type CarbonScope = 'scope_1' | 'scope_2' | 'scope_3';
+
 export interface CarbonFactor {
   id: string;
 
   category: CarbonCategory;
+  default_scope: CarbonScope;
 
   name: string;
   name_id: string;
@@ -35,12 +38,13 @@ export interface CarbonFactor {
 }
 
 export const CARBON_FACTORS_INDONESIA: CarbonFactor[] = [
-  // TRANSPORT
+  // TRANSPORT (Scope 1: Direct emissions from owned/controlled vehicles)
   {
     id: 'transport_motor',
     category: 'transport',
+    default_scope: 'scope_1',
     name: 'Motorcycle',
-    name_id: 'Sepeda Motor',
+    name_id: 'Sepeda Motor (Operasional)',
     factor: 0.10,
     unit: 'kg_co2_per_km',
     unit_label: 'kg CO₂/km',
@@ -54,8 +58,9 @@ export const CARBON_FACTORS_INDONESIA: CarbonFactor[] = [
   {
     id: 'transport_car',
     category: 'transport',
+    default_scope: 'scope_1',
     name: 'Car',
-    name_id: 'Mobil',
+    name_id: 'Mobil Operasional',
     factor: 0.21,
     unit: 'kg_co2_per_km',
     unit_label: 'kg CO₂/km',
@@ -65,10 +70,11 @@ export const CARBON_FACTORS_INDONESIA: CarbonFactor[] = [
     confidence: 'medium',
     is_reduction: false,
   },
-  // EVENTS
+  // EVENTS (Scope 3: Value chain / business travel / participant travel)
   {
     id: 'event_offline_training',
     category: 'events',
+    default_scope: 'scope_3',
     name: 'Offline Training',
     name_id: 'Pelatihan Offline',
     factor: 2.0,
@@ -83,6 +89,7 @@ export const CARBON_FACTORS_INDONESIA: CarbonFactor[] = [
   {
     id: 'event_webinar',
     category: 'events',
+    default_scope: 'scope_3',
     name: 'Webinar',
     name_id: 'Pelatihan Online',
     factor: 0.1,
@@ -94,10 +101,11 @@ export const CARBON_FACTORS_INDONESIA: CarbonFactor[] = [
     confidence: 'low',
     is_reduction: false,
   },
-  // ENVIRONMENT (NEGATIVE)
+  // ENVIRONMENT (Scope 3: GHG Removal / Value Chain Offset)
   {
     id: 'environment_tree',
     category: 'environment',
+    default_scope: 'scope_3',
     name: 'Tree Planting',
     name_id: 'Penanaman Pohon',
     factor: -5.0,
@@ -109,10 +117,11 @@ export const CARBON_FACTORS_INDONESIA: CarbonFactor[] = [
     confidence: 'medium',
     is_reduction: true,
   },
-  // ENERGY
+  // ENERGY (Scope 2: Purchased electricity)
   {
     id: 'energy_pln',
     category: 'energy',
+    default_scope: 'scope_2',
     name: 'Electricity PLN',
     name_id: 'Listrik PLN',
     factor: 0.87,

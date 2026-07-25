@@ -2403,6 +2403,31 @@ export default function WBSBuilder({
                             </select>
                           </div>
 
+                          {/* GHG Scope selector */}
+                          <div className="flex flex-col gap-1 md:col-span-4">
+                            <label className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                              GHG Protocol Scope
+                            </label>
+                            <select
+                              value={item.carbon_scope || ''}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? null : (e.target.value as 'scope_1' | 'scope_2' | 'scope_3');
+                                const updated = {
+                                  ...item,
+                                  carbon_scope: val,
+                                };
+                                updateItemLocally(updated);
+                                triggerAutosave(updated);
+                              }}
+                              className="text-xs border rounded px-2 h-8 bg-transparent dark:border-slate-800 text-slate-800 dark:text-slate-200 font-medium"
+                            >
+                              <option value="">Belum dikategorikan</option>
+                              <option value="scope_1">Scope 1 - Emisi Langsung (Kendaraan Operasional / Genset)</option>
+                              <option value="scope_2">Scope 2 - Energi Tidak Langsung (Listrik Gedung / PLN)</option>
+                              <option value="scope_3">Scope 3 - Rantai Nilai (Perjalanan Dinas / Event / Penanaman / Supplier)</option>
+                            </select>
+                          </div>
+
                           {/* Source and Description Inputs */}
                           <div className="md:col-span-4 grid grid-cols-1 md:grid-cols-2 gap-3 border-t border-slate-100 dark:border-slate-800/50 pt-2.5 mt-1">
                             <div className="flex flex-col gap-1">
