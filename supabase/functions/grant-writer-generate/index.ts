@@ -255,12 +255,12 @@ BILINGUAL SEMANTIC LFA RULES (CANONICAL):
   * Output MUST be a finished deliverable noun/condition (e.g. "Modul pelatihan...", "Unit rumah kompos...", "Dokumen kerja sama...").
   * NEVER use passive or activity verbs in Output statements (FORBIDDEN: "terlaksana", "dilaksanakan", "diselenggarakan", "melakukan", "memfasilitasi", "mengadakan", "menyelenggarakan", "melatih", "menyusun").
 - ACTIVITIES: Specific actions/work performed by the project team. REQUIRES active action verbs ("melakukan", "memfasilitasi", "mengadakan", "menyelenggarakan", "melatih", "menyusun", "melaksanakan").
-- CARDINALITY FLOOR (MANDATORY):
+- PROGRAM STRUCTURING & CARDINALITY GUIDELINES:
   * Exactly 1 Goal.
   * At least 1 Purpose/Outcome.
-  * Minimum 3 Outputs (min 3, max 5).
-  * Minimum 3 Activities per Output (min 3, max 5 per Output).
-  * Total Activities across the matrix MUST be at least 9.
+  * For standard or comprehensive programs, naturally structure the project into 3 logical phases (e.g., Phase 1: Persiapan, Pemetaan & Penguatan Kapasitas; Phase 2: Pelaksanaan, Infrastruktur & Intervensi Utama; Phase 3: Pemantauan, Akses Pasar & Keberlanjutan -- or domain-appropriate phases). This naturally produces 3 distinct Outputs and at least 3 Activities per Output (total 9+ Activities).
+  * For small or ultra-focused interventions (e.g., single village, short duration, single core activity), aim for at least 2 distinct Outputs and 2-3 Activities per Output (total 6+ Activities) without forcing artificial padding.
+  * Target for normal programs: 3 Outputs, 3 Activities per Output (9 Total Activities). Absolute minimum safety floor: 2 Outputs, 6 Total Activities.
 - THE THREE SEMANTIC TESTS:
   1. Project Control Test: If achieving the statement requires someone outside the project to choose to act (e.g., "farmers adopt", "clinic complies"), it is an OUTCOME, not an Output.
   2. Actor Test: Agent is project team = Activity; Agent is target group = Outcome.
