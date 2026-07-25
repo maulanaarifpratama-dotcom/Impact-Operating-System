@@ -2029,6 +2029,51 @@ export default function GrantWriterQuickWizardProvisional() {
             </CardContent>
           </Card>
 
+          {/* Pipeline & Blueprint Status Cards */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Card className="border-slate-200" data-testid="program-pipeline-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Program Development Pipeline
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs space-y-2">
+                <p className="font-semibold text-slate-700">Tahap 1 dari 7: Blueprint Concept</p>
+                <div className="flex flex-wrap gap-1 text-[10px]">
+                  <Badge variant="default">Program Blueprint</Badge>
+                  <Badge variant="outline">LFA Matrix</Badge>
+                  <Badge variant="outline">WBS</Badge>
+                  <Badge variant="outline">Budget</Badge>
+                  <Badge variant="outline">MEAL</Badge>
+                  <Badge variant="outline">Evaluation</Badge>
+                  <Badge variant="outline">SROI</Badge>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-slate-200" data-testid="blueprint-status-card">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                  Blueprint Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="text-xs space-y-1">
+                <p className="font-semibold text-emerald-700">✓ Fakta Program Teridentifikasi</p>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Canonical Hierarchy / Logframe Structure */}
+          {canonicalPayload && (
+            <div className="space-y-2">
+              <h4 className="text-xs font-bold text-slate-800">Hierarki Matriks Logframe</h4>
+              <div className="rounded-lg border border-slate-800 bg-slate-900 p-3 text-slate-100 text-xs font-mono">
+                <p>Project ID: {canonicalPayload.project_id}</p>
+                <p>Outcomes: {canonicalPayload.outcomes.length}</p>
+              </div>
+            </div>
+          )}
+
           {/* ADVANCED ANALYSIS ACCORDION (WORKING COLLAPSIBLE) */}
           <div className="rounded-xl border border-slate-200 bg-slate-50/60 transition-all shadow-2xs overflow-hidden" data-testid="advanced-analysis-accordion">
             <button
@@ -2170,51 +2215,6 @@ export default function GrantWriterQuickWizardProvisional() {
                         <p className="text-slate-600 text-[11px]">{actor.explanation}</p>
                       </div>
                     ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Pipeline & Blueprint Status Cards */}
-              <div className="grid gap-4 sm:grid-cols-2">
-                <Card className="border-slate-200" data-testid="program-pipeline-card">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                      Program Development Pipeline
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="text-xs space-y-2">
-                    <p className="font-semibold text-slate-700">Tahap 1 dari 7: Blueprint Concept</p>
-                    <div className="flex flex-wrap gap-1 text-[10px]">
-                      <Badge variant="default">Program Blueprint</Badge>
-                      <Badge variant="outline">LFA Matrix</Badge>
-                      <Badge variant="outline">WBS</Badge>
-                      <Badge variant="outline">Budget</Badge>
-                      <Badge variant="outline">MEAL</Badge>
-                      <Badge variant="outline">Evaluation</Badge>
-                      <Badge variant="outline">SROI</Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-
-                <Card className="border-slate-200" data-testid="blueprint-status-card">
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                      Blueprint Status
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="text-xs space-y-1">
-                    <p className="font-semibold text-emerald-700">✓ Fakta Program Teridentifikasi</p>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {/* Canonical Hierarchy / Logframe Structure */}
-              {canonicalPayload && (
-                <div className="space-y-2">
-                  <h4 className="text-xs font-bold text-slate-800">Hierarki Matriks Logframe</h4>
-                  <div className="rounded-lg border border-slate-800 bg-slate-900 p-3 text-slate-100 text-xs font-mono">
-                    <p>Project ID: {canonicalPayload.project_id}</p>
-                    <p>Outcomes: {canonicalPayload.outcomes.length}</p>
                   </div>
                 </div>
               )}

@@ -19,6 +19,13 @@ export default function GrantWriterRouteGuard() {
 
     async function checkRoute() {
       try {
+        if (projectId === 'new') {
+          if (isMounted) {
+            setTargetComponent('quick');
+            setLoading(false);
+          }
+          return;
+        }
         // 1. Check if proposal exists
         const { data: doc, error: docError } = await supabase
           .from('gw_lfa_documents')

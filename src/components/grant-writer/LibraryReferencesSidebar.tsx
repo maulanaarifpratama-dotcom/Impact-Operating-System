@@ -54,9 +54,11 @@ export function LibraryReferencesSidebar({ projectId, currentStepId }: LibraryRe
       setLoading(true);
       setError(null);
       try {
-        const { data, error: fnError } = await supabase.functions.invoke('grant-writer-rag-references', {
+        const res = await supabase.functions.invoke('grant-writer-rag-references', {
           body: { projectId, sectionTitle },
         });
+        const data = res?.data;
+        const fnError = res?.error;
 
         if (!active) return;
 

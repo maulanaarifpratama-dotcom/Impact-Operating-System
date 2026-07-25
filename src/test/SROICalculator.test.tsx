@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import SROICalculator from '@/pages/dashboard/lfa-builder/SROICalculator';
 
 const initialConfig = {
@@ -136,9 +137,13 @@ describe('SROICalculator Smoke Test', () => {
     stableToast.mockClear();
   });
 
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const renderWithProviders = (ui: React.ReactElement) =>
+    render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+
   it('should render SROI Calculator with disclaimer and tabs', async () => {
     console.log("TEST_MOCK: starting test 1");
-    render(<SROICalculator {...dummyProps} />);
+    renderWithProviders(<SROICalculator {...dummyProps} />);
 
     // Verify critical required SROI UI disclaimer (Guardrail 10) using async findByText directly in the expectation
     expect(
@@ -151,16 +156,16 @@ describe('SROICalculator Smoke Test', () => {
     ).toBeInTheDocument();
 
     // Check mode buttons
-    expect(screen.getByText(/🌱 Sederhana/i)).toBeInTheDocument();
+    expect(screen.getByText(/Simple Wizard/i)).toBeInTheDocument();
     expect(screen.getByText(/🏢 Profesional/i)).toBeInTheDocument();
   });
 
   it('should allow toggling between Simple and Professional modes', async () => {
     console.log("TEST_MOCK: starting test 2");
-    render(<SROICalculator {...dummyProps} />);
+    renderWithProviders(<SROICalculator {...dummyProps} />);
 
     // Wait for UI to load and render Mode buttons
-    const simpleBtn = await screen.findByText(/🌱 Sederhana/i);
+    const simpleBtn = await screen.findByText(/Simple Wizard/i);
     const profBtn = screen.getByText(/🏢 Profesional/i);
 
     // Switch to Professional Mode

@@ -62,7 +62,14 @@ function installSupabaseScenario(projectOverrides?: Record<string, unknown>, org
       eq: vi.fn(() => query),
       order: vi.fn(() => {
         const orderChain = {
-          then: vi.fn((resolve) => resolve({ data: [], error: null }))
+          then: vi.fn((resolve) => resolve({
+            data: table === 'lfa_entries' ? [
+              { id: 'e1', level: 'purpose', narrative: 'Purpose 1', code: 'PURP-1' },
+              { id: 'e2', level: 'output', narrative: 'Output 1', code: 'OUT-1' },
+              { id: 'e3', level: 'activity', narrative: 'Activity 1', code: 'ACT-1' },
+            ] : [],
+            error: null,
+          }))
         };
         return orderChain;
       }),

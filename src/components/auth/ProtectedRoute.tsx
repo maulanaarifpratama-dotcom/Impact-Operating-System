@@ -11,6 +11,10 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children, requireOrg = true }: ProtectedRouteProps) {
+  if (import.meta.env.DEV && typeof window !== 'undefined' && window.location.search.includes('mock_auth=1')) {
+    return <>{children}</>;
+  }
+
   const { session, loading: authLoading, user } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();

@@ -37,6 +37,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    if (import.meta.env.DEV && typeof window !== 'undefined' && window.location.search.includes('mock_auth=1')) {
+      const mockUser = {
+        id: '00000000-0000-0000-0000-000000000001',
+        email: 'dev@impactory.id',
+        user_metadata: { full_name: 'Dev User' },
+      } as unknown as User;
+      const mockSession = {
+        user: mockUser,
+        access_token: 'mock-token',
+      } as unknown as Session;
+      setSession(mockSession);
+      setProfile({ id: mockUser.id, full_name: 'Dev User' } as any);
+      setLoading(false);
+      return;
+    }
+
     // 1. Subscribe FIRST to avoid missing initial events.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);

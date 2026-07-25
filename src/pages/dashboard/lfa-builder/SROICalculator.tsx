@@ -157,7 +157,7 @@ export default function SROICalculator({
         .select('volume, unit_price_idr')
         .eq('lfa_project_id', projectId);
 
-      if (budgetItems) {
+      if (Array.isArray(budgetItems)) {
         const sum = budgetItems.reduce((acc, item) => acc + ((Number(item.volume) || 0) * (Number(item.unit_price_idr) || 0)), 0);
         setItemizedBudget(sum);
       }
