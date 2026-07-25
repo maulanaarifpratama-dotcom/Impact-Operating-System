@@ -192,6 +192,40 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     expect(durationInput.disabled).toBe(false);
   });
 
+  test('Gunakan Contoh button populates program story textarea and displays disclaimer callout', async () => {
+    installSupabaseScenario();
+    const queryClient = createTestQueryClient();
+
+    render(
+      <QueryClientProvider client={queryClient}>
+        <GrantWriterQuickWizardSelector isDevelopment={true} />
+      </QueryClientProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Yayasan Tani Hijau')).toBeTruthy();
+    });
+
+    // Find and click "Gunakan Contoh" button for program story
+    const useExampleBtns = screen.getAllByRole('button', { name: /Gunakan Contoh/i });
+    expect(useExampleBtns.length).toBeGreaterThan(0);
+
+    fireEvent.click(useExampleBtns[0]);
+
+    // Verify textarea populated with sample story
+    const storyTextarea = screen.getByLabelText('Cerita Program (Program Story) *') as HTMLTextAreaElement;
+    expect(storyTextarea.value).toContain('Program Pencegahan Stunting Berbasis Posyandu');
+    expect(storyTextarea.value).toContain('prevalensi stunting balita di desa ini mencapai 27%');
+
+    // Verify disclaimer text displayed
+    expect(screen.getByText(/Ini contoh ilustrasi -- silakan ganti dengan cerita program Anda sendiri sebelum submit/i)).toBeTruthy();
+
+    // Verify toast notification
+    expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
+      title: '✨ Contoh Cerita Program Diterapkan',
+    }));
+  });
+
   test('Submitting Page 1 triggers processing timer and progresses to Page 2', async () => {
     installSupabaseScenario();
     const queryClient = createTestQueryClient();

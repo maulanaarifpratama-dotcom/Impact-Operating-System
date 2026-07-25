@@ -62,6 +62,29 @@ export function cleanLocationString(location?: string): string {
 }
 
 /**
+ * Get active language locale ('id' or 'en')
+ */
+export function getActiveLanguage(): 'id' | 'en' {
+  if (typeof window !== 'undefined') {
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlLang = urlParams.get('lang');
+    if (urlLang === 'id' || urlLang === 'en') return urlLang;
+
+    const htmlLang = document.documentElement.getAttribute('lang');
+    if (htmlLang === 'en' || htmlLang === 'id') return htmlLang;
+
+    const saved = localStorage.getItem('impactory-lang');
+    if (saved === 'id' || saved === 'en') return saved;
+  }
+  return 'id';
+}
+
+export const EXAMPLE_PROGRAM_STORY_ID = `Program Pencegahan Stunting Berbasis Posyandu di Desa Cikoneng, Kecamatan Ciparay, Kabupaten Bandung. Berdasarkan data Puskesmas Ciparay 2026, prevalensi stunting balita di desa ini mencapai 27%, di atas ambang batas WHO 20%. Sasaran program adalah 150 balita usia 0-59 bulan dan 120 ibu hamil/menyusui di 4 dusun. Intervensi meliputi: (1) pemberian makanan tambahan bergizi 6 bulan, (2) pelatihan 20 kader Posyandu untuk deteksi dini stunting, (3) kelas edukasi gizi ibu hamil 12 sesi. Program berdurasi 12 bulan dengan anggaran Rp 450.000.000. Target akhir: prevalensi stunting turun dari 27% menjadi di bawah 15% dalam 12 bulan.`;
+
+export const EXAMPLE_PROGRAM_STORY_EN = `Posyandu-Based Stunting Prevention Program in Cikoneng Village, Ciparay District, Bandung Regency. Based on 2026 Ciparay Public Health Center data, toddler stunting prevalence in this village reaches 27%, exceeding the WHO threshold of 20%. The target group includes 150 toddlers aged 0-59 months and 120 pregnant/lactating mothers across 4 hamlets. Interventions include: (1) 6-month supplementary nutritional feeding, (2) training 20 Posyandu cadres in early stunting detection, and (3) 12 nutrition education sessions for pregnant women. The 12-month program has a budget of IDR 450,000,000. Final target: reduce stunting prevalence from 27% to below 15% within 12 months.`;
+
+
+/**
  * Extract primary target actor by removing location occurrences from beneficiary description
  */
 export function extractPrimaryTargetActor(beneficiaryDescription?: string, geography?: string): string {
@@ -605,7 +628,37 @@ export default function GrantWriterQuickWizardProvisional() {
   const [targetDonor, setTargetDonor] = useState('');
   const [donorStandard, setDonorStandard] = useState('un_oecd_dac');
   const [programStory, setProgramStory] = useState('');
+  const [showExampleDisclaimer, setShowExampleDisclaimer] = useState(false);
   const [additionalNotes, setAdditionalNotes] = useState('');
+
+  const handleUseExampleStory = () => {
+    const lang = getActiveLanguage();
+    const story = lang === 'en' ? EXAMPLE_PROGRAM_STORY_EN : EXAMPLE_PROGRAM_STORY_ID;
+    setProgramStory(story);
+    setShowExampleDisclaimer(true);
+    setReviewIsStale(true);
+
+    if (!beneficiaryDescription.trim()) {
+      setBeneficiaryDescription(lang === 'en' ? '150 toddlers (0-59m) & 120 pregnant/lactating mothers' : '150 balita (0-59 bln) & 120 ibu hamil/menyusui');
+    }
+    if (!geography.trim()) {
+      setGeography(lang === 'en' ? 'Desa Cikoneng, Ciparay, Bandung' : 'Desa Cikoneng, Ciparay, Kabupaten Bandung');
+    }
+    if (!durationMonths) {
+      setDurationMonths(12);
+      setDurationUnknown(false);
+    }
+    if (!budgetIdr) {
+      setBudgetIdr(450000000);
+      setBudgetIdrUnknown(false);
+    }
+
+    toast({
+      title: lang === 'en' ? '✨ Example Story Applied' : '✨ Contoh Cerita Program Diterapkan',
+      description: lang === 'en' ? 'Sample program story has been filled into the form.' : 'Contoh cerita program telah diisikan ke dalam form.',
+    });
+  };
+
 
   // Processing Animation State
   const [processingStep, setProcessingStep] = useState(0);
@@ -1630,11 +1683,23 @@ export default function GrantWriterQuickWizardProvisional() {
 
               {/* CERITA PROGRAM / MASALAH UTAMA */}
               <div className="rounded-lg border-2 border-indigo-100 bg-indigo-50/20 p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="program-story" className="font-bold text-indigo-950 text-base flex items-center gap-2">
-                    <Sparkles className="h-4 w-4 text-indigo-600" />
-                    Cerita Program (Program Story) *
-                  </Label>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Label htmlFor="program-story" className="font-bold text-indigo-950 text-base flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-indigo-600" />
+                      Cerita Program (Program Story) *
+                    </Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleUseExampleStory}
+                      className="h-7 px-2.5 gap-1.5 text-xs font-medium text-indigo-700 border-indigo-200 bg-indigo-50/80 hover:bg-indigo-100 shadow-none transition-colors"
+                    >
+                      <Sparkles className="h-3.5 w-3.5 text-indigo-600" />
+                      {getActiveLanguage() === 'en' ? '✨ Use Example' : '✨ Gunakan Contoh'}
+                    </Button>
+                  </div>
                   <Badge variant="outline" className="border-indigo-200 bg-white text-indigo-700 text-[10px]">Paling Utama</Badge>
                 </div>
                 <p className="text-xs text-slate-600 leading-relaxed">
@@ -1658,6 +1723,16 @@ export default function GrantWriterQuickWizardProvisional() {
                   required
                   className="mt-1 bg-white font-sans text-xs leading-relaxed border-indigo-200 focus:border-indigo-500 focus:ring-indigo-500 overflow-hidden resize-none"
                 />
+                {showExampleDisclaimer && (
+                  <div className="mt-2 flex items-start gap-2 rounded-md bg-amber-50/90 border border-amber-200/80 p-2.5 text-xs text-amber-800 animate-in fade-in duration-200">
+                    <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                    <span className="leading-snug">
+                      {getActiveLanguage() === 'en'
+                        ? 'This is an illustrative example -- please replace with your own program story before submitting.'
+                        : 'Ini contoh ilustrasi -- silakan ganti dengan cerita program Anda sendiri sebelum submit.'}
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* PENERIMA MANFAAT */}
@@ -1665,7 +1740,32 @@ export default function GrantWriterQuickWizardProvisional() {
                 <h3 className="font-bold text-slate-800 text-sm">Penerima Manfaat</h3>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
-                    <Label htmlFor="beneficiary-description" className="font-semibold text-xs">Kelompok Sasaran Penerima Manfaat *</Label>
+                    <div className="flex items-center justify-between gap-2">
+                      <Label htmlFor="beneficiary-description" className="font-semibold text-xs">Kelompok Sasaran Penerima Manfaat *</Label>
+                      {!beneficiaryDescription && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            const isEn = getActiveLanguage() === 'en';
+                            const exampleBeneficiary = isEn
+                              ? '150 toddlers (0-59m) & 120 pregnant/lactating mothers'
+                              : '150 balita usia 0-59 bulan & 120 ibu hamil/menyusui';
+                            setBeneficiaryDescription(exampleBeneficiary);
+                            setReviewIsStale(true);
+                            toast({
+                              title: isEn ? '✨ Example Applied' : '✨ Contoh Diterapkan',
+                              description: exampleBeneficiary,
+                            });
+                          }}
+                          className="h-5 px-1.5 text-[10px] text-indigo-700 hover:bg-indigo-50 hover:text-indigo-800"
+                        >
+                          <Sparkles className="h-3 w-3 mr-1 text-indigo-600" />
+                          {getActiveLanguage() === 'en' ? 'Use Example' : 'Gunakan Contoh'}
+                        </Button>
+                      )}
+                    </div>
                     <Input
                       id="beneficiary-description"
                       placeholder="cth. UMKM Perempuan"
