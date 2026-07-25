@@ -1415,6 +1415,8 @@ export default function MEALPlanner({
                     {/* Indicator description */}
                     <td className="p-3.5">
                       <Textarea
+                        id={`meal-indicator-${item.id}`}
+                        aria-label={`Deskripsi indikator ${item.indicator_text || 'MEAL'}`}
                         value={item.indicator_text}
                         data-testid="meal-indicator-name-input"
                         onChange={(e) => {
@@ -1863,6 +1865,8 @@ export default function MEALPlanner({
                     <tr key={q.id} className="align-top group">
                       <td className="py-3 pr-4">
                         <Textarea
+                          id={`meal-question-${q.id}`}
+                          aria-label={`Pertanyaan pembelajaran ${q.question_text || 'MEAL'}`}
                           value={q.question_text}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -2016,6 +2020,8 @@ export default function MEALPlanner({
                       </td>
                       <td className="py-3 pr-4">
                         <Textarea
+                          id={`meal-escalation-${acc.id}`}
+                          aria-label={`Prosedur eskalasi keluhan ${acc.mechanism_name || 'MEAL'}`}
                           value={acc.escalation_procedure || ''}
                           onChange={(e) => {
                             const val = e.target.value;
@@ -2553,6 +2559,7 @@ export default function MEALPlanner({
                         </Label>
                         <Textarea
                           id="evidence_note_direct"
+                          aria-label="Detail Lokasi/Keterangan Bukti Fisik"
                           rows={3}
                           placeholder="E.g. Disimpan di lemari arsip 2, lembar kuesioner no 1-50, bertanda tangan kepala desa."
                           value={evidenceNote}
@@ -2571,6 +2578,7 @@ export default function MEALPlanner({
                       </Label>
                       <Textarea
                         id="evidence_note"
+                        aria-label="Catatan Bukti & Aktivitas Terkait (Opsional)"
                         rows={2}
                         placeholder="E.g. Hasil dari Aktivitas 1.1 - Pelatihan Kader Posyandu. Foto kegiatan & absensi peserta."
                         value={evidenceNote}
