@@ -1697,6 +1697,23 @@ export default function SROICalculator({
                             <p className="font-semibold text-xs leading-relaxed text-slate-900 dark:text-slate-100">{out.outcome_name}</p>
                           </div>
 
+                          {/* Stakeholder Group Selector */}
+                          <div className="space-y-1">
+                            <Label className="text-[11px] font-semibold text-slate-700">Kelompok Pemangku Kepentingan (Stakeholder Group)</Label>
+                            <select
+                              value={out.stakeholder_group || 'Penerima Manfaat Langsung'}
+                              onChange={(e) => debounceSaveOutcome({ ...out, stakeholder_group: e.target.value })}
+                              className="w-full text-xs border rounded px-2 h-8 bg-transparent text-slate-800 dark:text-slate-200"
+                            >
+                              <option value="Penerima Manfaat Langsung">Penerima Manfaat Langsung</option>
+                              <option value="Keluarga Penerima Manfaat">Keluarga Penerima Manfaat</option>
+                              <option value="Komunitas Lokal">Komunitas Lokal</option>
+                              <option value="Pemerintah Lokal / Daerah">Pemerintah Lokal / Daerah</option>
+                              <option value="Mitra Lembaga / NGO">Mitra Lembaga / NGO</option>
+                              <option value="Staf / Relawan Lapangan">Staf / Relawan Lapangan</option>
+                            </select>
+                          </div>
+
                           {/* Attribution Slider */}
                           <div className="space-y-2">
                             <div className="flex justify-between text-[11px]">
@@ -1912,7 +1929,8 @@ export default function SROICalculator({
                 <thead>
                   <tr className="bg-slate-100 dark:bg-slate-900 border-b text-[10px] text-muted-foreground">
                     <th className="p-2 text-left border-r w-8 font-semibold uppercase">No</th>
-                    <th className="p-2 text-left border-r min-w-[200px] font-semibold uppercase">Outcome / Indikator (MEAL)</th>
+                    <th className="p-2 text-left border-r min-w-[180px] font-semibold uppercase">Outcome / Indikator (MEAL)</th>
+                    <th className="p-2 text-left border-r w-36 font-semibold uppercase">Stakeholder Group</th>
                     <th className="p-2 text-right border-r w-20 font-semibold uppercase">Volume</th>
                     <th className="p-2 text-left border-r w-24 font-semibold uppercase">Satuan</th>
                     <th className="p-2 text-right border-r w-32 font-semibold uppercase">Proxy Value (IDR)</th>
@@ -1948,6 +1966,20 @@ export default function SROICalculator({
                               <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 dark:bg-blue-950 dark:text-blue-300 border-0 text-[9px] py-0 px-1 shrink-0">🔗 Registry</Badge>
                             )}
                           </div>
+                        </td>
+                        <td className="p-1.5 border-r">
+                          <select
+                            value={out.stakeholder_group || 'Penerima Manfaat Langsung'}
+                            onChange={(e) => debounceSaveOutcome({ ...out, stakeholder_group: e.target.value })}
+                            className="h-8 border-0 bg-transparent hover:bg-slate-100 focus:bg-white text-xs w-full text-slate-800 dark:text-slate-200"
+                          >
+                            <option value="Penerima Manfaat Langsung">Penerima Manfaat Langsung</option>
+                            <option value="Keluarga Penerima Manfaat">Keluarga Penerima Manfaat</option>
+                            <option value="Komunitas Lokal">Komunitas Lokal</option>
+                            <option value="Pemerintah Lokal / Daerah">Pemerintah Lokal / Daerah</option>
+                            <option value="Mitra Lembaga / NGO">Mitra Lembaga / NGO</option>
+                            <option value="Staf / Relawan Lapangan">Staf / Relawan Lapangan</option>
+                          </select>
                         </td>
                         <td className="p-1.5 border-r">
                           {out.is_registry_linked ? (

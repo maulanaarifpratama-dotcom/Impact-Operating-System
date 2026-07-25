@@ -665,6 +665,9 @@ Estimasi ini bersumber dari proxy value & input manual pengguna.`;
                       <span className="font-bold text-slate-800 dark:text-slate-200 text-xs">
                         Outcome {idx + 1}
                       </span>
+                      <Badge variant="outline" className="text-[10px] bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300">
+                        👥 {out.stakeholder_group || 'Penerima Manfaat Langsung'}
+                      </Badge>
                     </div>
                     <Button
                       variant="ghost"
@@ -710,6 +713,30 @@ Estimasi ini bersumber dari proxy value & input manual pengguna.`;
                         />
                       </div>
 
+                    </div>
+
+                    {/* Stakeholder Group Selector (SVI Principle 1) */}
+                    <div className="space-y-1.5 pt-1 border-t">
+                      <div className="flex justify-between items-center">
+                        <Label className="font-semibold text-slate-700 dark:text-slate-300">
+                          Kelompok Pemangku Kepentingan (Stakeholder Group)
+                        </Label>
+                        <Badge variant="secondary" className="text-[10px] bg-slate-100 dark:bg-slate-800">
+                          SVI Principle 1: Involve Stakeholders
+                        </Badge>
+                      </div>
+                      <select
+                        value={out.stakeholder_group || 'Penerima Manfaat Langsung'}
+                        onChange={(e) => setOutcomes(outcomes.map(o => o.id === out.id ? { ...o, stakeholder_group: e.target.value } : o))}
+                        className="w-full text-xs border rounded-lg px-3 h-9 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200"
+                      >
+                        <option value="Penerima Manfaat Langsung">Penerima Manfaat Langsung</option>
+                        <option value="Keluarga Penerima Manfaat">Keluarga Penerima Manfaat</option>
+                        <option value="Komunitas Lokal">Komunitas Lokal</option>
+                        <option value="Pemerintah Lokal / Daerah">Pemerintah Lokal / Daerah</option>
+                        <option value="Mitra Lembaga / NGO">Mitra Lembaga / NGO</option>
+                        <option value="Staf / Relawan Lapangan">Staf / Relawan Lapangan</option>
+                      </select>
                     </div>
 
                     {/* Indonesian SROI Proxies Selector */}
