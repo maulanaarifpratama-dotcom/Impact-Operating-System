@@ -95,12 +95,39 @@ test.describe('Plan entitlements', () => {
         const onPaid = paidOrgId ? await tryLfa(paidOrgId, 'paid') : null;
 
         // --- tidy up ---------------------------------------------------------
+        // Order matters. Deleting the membership first strips the owner role the
+        // organisation's own delete policy requires, so the organisation then
+        // survives as an orphan. Drop the organisation while still a member and
+        // let the membership cascade.
         const paidRowId = Array.isArray(onPaid?.body) ? (onPaid!.body as any[])[0]?.id : null;
         if (paidRowId) await call(`lfa_projects?id=eq.${paidRowId}`, { method: 'DELETE' });
-        await call(`organization_members?organization_id=eq.${freeOrgId}`, { method: 'DELETE' });
-        await call(`organizations?id=eq.${freeOrgId}`, { method: 'DELETE' });
+        const orgDelete = await call(`organizations?id=eq.${freeOrgId}`, { method: 'DELETE' });
+        const leftovers = await call(`organizations?select=id&id=eq.${freeOrgId}`);
 
-        return { freeOrgId, paidOrgId, freeSub, onFree, onPaid };
+        return { freeOrgId, paidOrgId, freeSub, onFree, onPaid, orgDelete, leftovers };
+      },
+      { url: SUPABASE_URL, anon: ANON_KEY },
+    );
+
+    // Sweep any probe organisations an earlier run failed to remove, so debris
+    // does not accumulate in the shared project.
+    await page.evaluate(
+      async ({ url, anon }) => {
+        const k = Object.keys(localStorage).find((x) => x.includes('auth-token'))!;
+        const token = JSON.parse(localStorage.getItem(k)!).access_token as string;
+        const uid = JSON.parse(atob(token.split('.')[1])).sub as string;
+        const h = { apikey: anon, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+        const res = await fetch(`${url}/rest/v1/organizations?select=id,name&created_by=eq.${uid}`, { headers: h });
+        const stale = ((await res.json()) as any[]).filter((o) => String(o.name).startsWith('E2E Free Plan Probe'));
+        for (const o of stale) {
+          // Re-join so the owner-only delete policy applies, then remove it.
+          await fetch(`${url}/rest/v1/organization_members`, {
+            method: 'POST',
+            headers: h,
+            body: JSON.stringify({ organization_id: o.id, user_id: uid, role: 'owner' }),
+          });
+          await fetch(`${url}/rest/v1/organizations?id=eq.${o.id}`, { method: 'DELETE', headers: h });
+        }
       },
       { url: SUPABASE_URL, anon: ANON_KEY },
     );
@@ -126,5 +153,13 @@ test.describe('Plan entitlements', () => {
       result.onPaid?.status,
       'creating an LFA project must still work on a paid plan',
     ).toBeLessThan(300);
+
+    // The probe organisation must not survive the run. An earlier version of
+    // this test deleted the membership first, which stripped the owner role the
+    // delete policy needs, and left orphans behind in the shared project.
+    expect(
+      Array.isArray(result.leftovers.body) ? result.leftovers.body : [],
+      'the probe organisation should have been deleted',
+    ).toHaveLength(0);
   });
 });
