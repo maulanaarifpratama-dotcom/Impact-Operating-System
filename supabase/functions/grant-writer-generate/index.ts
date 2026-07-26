@@ -86,6 +86,23 @@ interface LfaMatrix {
  */
 const RETRY_TIME_BUDGET_MS = 55_000;
 
+/**
+ * Completion budget for a full LFA matrix + proposal generation.
+ *
+ * GPT-5 and o-series deployments spend this budget on hidden reasoning before
+ * emitting anything visible, so a figure that looks generous against ~6-10k
+ * tokens of actual output is not. Starve it and the model returns an empty or
+ * truncated payload — foundry.ts says as much when it fails: "the completion
+ * budget was consumed by reasoning before any visible output was emitted."
+ * That empty payload then fails validation and triggers the retry, which is the
+ * expensive path this budget exists to avoid needing.
+ *
+ * One constant because the number had drifted across three places: the comment
+ * on the first call said 27500, the call itself passed 16000, and ai_debug
+ * reported 27500 back to the caller regardless of what was actually sent.
+ */
+const GENERATION_MAX_TOKENS = 27_500;
+
 const SYSTEM_PROMPT = `You are an expert grant proposal writer for Indonesian foundations, NGOs, and social enterprises. You produce proposals that meet international donor standards (UN/OECD-DAC LFA, World Bank, USAID, EU).
 
 When given a wizard data payload, you MUST return JSON with this exact shape:
@@ -963,11 +980,9 @@ Deno.serve(async (req: Request) => {
           content: `Wizard Data Payload:\n${fenceUserPayload(userPayload)}\n\n${groundingPrompt}`,
         },
       ],
-      // gpt-5.5 / o-series reasoning deployments consume tokens for hidden
-      // reasoning before producing visible content. The full LFA matrix +
-      // proposal markdown can be ~6-10k visible tokens, so we budget 27500 tokens.
+      // See GENERATION_MAX_TOKENS for why the budget is what it is.
       temperature: 0.4,
-      max_tokens: 16000,
+      max_tokens: GENERATION_MAX_TOKENS,
     });
 
     if (!result?.matrix || !result?.proposal_markdown) {
@@ -1014,7 +1029,7 @@ Deno.serve(async (req: Request) => {
             },
           ],
           temperature: 0.3,
-          max_tokens: 16000,
+          max_tokens: GENERATION_MAX_TOKENS,
         });
 
         if (retryRes?.data?.matrix && retryRes?.data?.proposal_markdown) {
@@ -1397,8 +1412,8 @@ Return JSON with this exact schema:
       document: doc,
       version: nextVersion,
       ai_debug: {
-        requestedMaxCompletionTokens: 27500,
-        actualMaxCompletionTokens: 27500,
+        requestedMaxCompletionTokens: GENERATION_MAX_TOKENS,
+        actualMaxCompletionTokens: GENERATION_MAX_TOKENS,
         retryAttempted,
         groundingValid: validationResult.isValid
       }
