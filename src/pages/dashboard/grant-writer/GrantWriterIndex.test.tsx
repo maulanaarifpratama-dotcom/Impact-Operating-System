@@ -1,7 +1,22 @@
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render as rtlRender, screen, fireEvent, waitFor } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import GrantWriterIndex from './GrantWriterIndex';
+
+/**
+ * The page reads the caller's organisation role and plan through react-query
+ * (useOrgRole / usePlan), so it needs a client in context. Every render here
+ * goes through this wrapper; a bare render throws "No QueryClient set" before
+ * a single assertion runs.
+ *
+ * retry:false keeps a failed query from being retried on a timer that outlives
+ * the test.
+ */
+const render = (ui: React.ReactElement) => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+};
 import { supabase } from '@/integrations/supabase/client';
 
 vi.mock('@/providers/AuthProvider', () => ({
@@ -9,6 +24,23 @@ vi.mock('@/providers/AuthProvider', () => ({
     user: { id: 'test-user-id' },
     profile: { full_name: 'Test NGO User' },
   }),
+}));
+
+// These tests predate the role and plan gating. They exercise the owner view
+// on a paid organisation — the delete controls and the create button only
+// exist in that state — so pin both hooks rather than have every assertion
+// depend on what an unmocked query happens to resolve to.
+vi.mock('@/hooks/useOrgRole', () => ({
+  useOrgRole: () => ({
+    role: 'owner',
+    organizationId: 'org-1',
+    canDelete: true,
+    isLoading: false,
+  }),
+}));
+
+vi.mock('@/hooks/usePlan', () => ({
+  usePlan: () => ({ plan: 'premium', status: 'active', isPaid: true, isLoading: false }),
 }));
 
 vi.mock('@/hooks/use-toast', () => ({

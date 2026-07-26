@@ -162,6 +162,7 @@ export default function GrantWriterIndex() {
   const [searchQuery, setSearchQuery] = useState('');
   const [stageFilter, setStageFilter] = useState<StageKey>('all');
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const deepLinkHandled = useRef(false);
@@ -189,8 +190,16 @@ export default function GrantWriterIndex() {
     }
   };
 
-  const handleBulkDelete = async () => {
-    if (selectedIds.length === 0 || deleting) return;
+  /**
+   * Deletes one proposal or many.
+   *
+   * Both paths run the same three steps — unlink the LFA, drop the
+   * materialisation, then remove the project — because a second copy of this
+   * sequence written for single delete would be the copy that forgets to unlink
+   * and leaves an LFA pointing at a project that no longer exists.
+   */
+  const deleteProposals = async (ids: string[]) => {
+    if (ids.length === 0 || deleting) return;
     setDeleting(true);
     try {
       const orgId = await ensureDefaultOrg(user!.id, profile?.full_name);
@@ -199,32 +208,43 @@ export default function GrantWriterIndex() {
       const { error: unlinkErr } = await supabase
         .from('lfa_projects')
         .update({ linked_grant_id: null } as any)
-        .in('linked_grant_id', selectedIds);
+        .in('linked_grant_id', ids);
       if (unlinkErr) console.warn('LFA unlink error:', unlinkErr);
 
       // 2. Delete lfa_materializations
       const { error: matErr } = await supabase
         .from('lfa_materializations')
         .delete()
-        .in('source_gw_project_id', selectedIds);
+        .in('source_gw_project_id', ids);
       if (matErr) console.warn('Materialization cleanup error:', matErr);
 
       // 3. Delete gw_projects scoped strictly to orgId
-      const { error: delErr } = await supabase
+      const { data: deleted, error: delErr } = await supabase
         .from('gw_projects')
         .delete()
         .eq('organization_id', orgId)
-        .in('id', selectedIds);
+        .in('id', ids)
+        .select('id');
 
       if (delErr) throw delErr;
 
+      // RLS answers a fully filtered DELETE with success and zero rows, so
+      // without this a staff user would see "berhasil dihapus" and watch the
+      // card stay exactly where it was.
+      if (!deleted || deleted.length === 0) {
+        throw new Error(
+          'Tidak ada proposal yang terhapus. Hanya pemilik atau admin organisasi yang boleh menghapus.',
+        );
+      }
+
       toast({
         title: 'Proposal Berhasil Dihapus',
-        description: `${selectedIds.length} proposal telah dihapus.`,
+        description: `${deleted.length} proposal telah dihapus.`,
       });
 
       setSelectedIds([]);
       setDeleteConfirmOpen(false);
+      setDeleteTargetId(null);
       await load();
     } catch (err) {
       const error = err as Error;
@@ -678,9 +698,29 @@ export default function GrantWriterIndex() {
                           <span className="text-muted-foreground text-[11px]">
                             {formatRelativeTime(p.updated_at)}
                           </span>
-                          <div className="flex items-center gap-1 font-bold text-primary group-hover:translate-x-0.5 transition-transform">
-                            <span>{stageInfo.ctaText}</span>
-                            <ArrowRight className="h-3.5 w-3.5" />
+                          <div className="flex items-center gap-2">
+                            {canDelete && (
+                              // The whole card is a Link, so the click has to be
+                              // stopped before it navigates into the proposal.
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:bg-red-50 hover:text-destructive dark:hover:bg-red-950/20"
+                                title="Hapus proposal"
+                                disabled={deleting}
+                                onClick={(e) => {
+                                  e.preventDefault();
+                                  e.stopPropagation();
+                                  setDeleteTargetId(p.id);
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            <div className="flex items-center gap-1 font-bold text-primary transition-transform group-hover:translate-x-0.5">
+                              <span>{stageInfo.ctaText}</span>
+                              <ArrowRight className="h-3.5 w-3.5" />
+                            </div>
                           </div>
                         </div>
                       </CardContent>
@@ -714,12 +754,44 @@ export default function GrantWriterIndex() {
             </Button>
             <Button
               variant="destructive"
-              onClick={() => void handleBulkDelete()}
+              onClick={() => void deleteProposals(selectedIds)}
               disabled={deleting}
               className="gap-2 font-semibold"
             >
               {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
               Ya, Hapus {selectedIds.length} Proposal
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirmation Dialog for Single Delete */}
+      <Dialog open={!!deleteTargetId} onOpenChange={(open) => !open && setDeleteTargetId(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-destructive flex items-center gap-2">
+              <Trash2 className="h-5 w-5" /> Hapus proposal ini?
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              {(() => {
+                const title = projects.find((p) => p.id === deleteTargetId)?.title;
+                return title ? `"${title}" akan dihapus permanen, ` : 'Proposal ini akan dihapus permanen, ';
+              })()}
+              beserta seluruh blueprint, LFA, dan dokumen terkaitnya. Tindakan ini tidak bisa dibatalkan.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-end mt-4">
+            <Button variant="outline" onClick={() => setDeleteTargetId(null)} disabled={deleting}>
+              Batal
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => void deleteProposals(deleteTargetId ? [deleteTargetId] : [])}
+              disabled={deleting}
+              className="gap-2 font-semibold"
+            >
+              {deleting && <Loader2 className="h-4 w-4 animate-spin" />}
+              Ya, Hapus
             </Button>
           </DialogFooter>
         </DialogContent>

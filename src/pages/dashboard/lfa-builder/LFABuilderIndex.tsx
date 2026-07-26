@@ -11,8 +11,6 @@ import {
   ClipboardList,
   Target,
   Download,
-  AlertTriangle,
-  X,
   CheckCircle2,
   CalendarDays,
 } from 'lucide-react';
@@ -343,18 +341,37 @@ export default function LFABuilderIndex() {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
+  const allSelected = projects.length > 0 && projects.every((p) => selectedIds.includes(p.id));
+
+  const toggleSelectAll = () => {
+    setSelectedIds(allSelected ? [] : projects.map((p) => p.id));
+  };
+
   const executeBulkDelete = async () => {
     if (selectedIds.length === 0 || bulkDeleting) return;
     setBulkDeleting(true);
     try {
       // Every child table references lfa_projects ON DELETE CASCADE, so the
       // entries, WBS, budget, MEAL and SROI rows go with it.
-      const { error } = await supabase.from('lfa_projects').delete().in('id', selectedIds);
+      const { data: deleted, error } = await supabase
+        .from('lfa_projects')
+        .delete()
+        .in('id', selectedIds)
+        .select('id');
       if (error) throw error;
+
+      // A DELETE that RLS filters down to nothing still succeeds, so reporting
+      // on the request alone would tell a staff user their programmes were
+      // removed while the rows sat untouched.
+      if (!deleted || deleted.length === 0) {
+        throw new Error(
+          'Tidak ada program yang terhapus. Hanya pemilik atau admin organisasi yang boleh menghapus.',
+        );
+      }
 
       toast({
         title: 'Program Berhasil Dihapus',
-        description: `${selectedIds.length} program beserta seluruh isinya telah dihapus.`,
+        description: `${deleted.length} program beserta seluruh isinya telah dihapus.`,
       });
       setProjects((prev) => prev.filter((p) => !selectedIds.includes(p.id)));
       setSelectedIds([]);
@@ -382,12 +399,19 @@ export default function LFABuilderIndex() {
     const id = deleteTargetId;
     setActionLoadingId(id);
     try {
-      const { error } = await supabase
+      const { data: deleted, error } = await supabase
         .from('lfa_projects')
         .delete()
-        .eq('id', id);
+        .eq('id', id)
+        .select('id');
 
       if (error) throw error;
+
+      if (!deleted || deleted.length === 0) {
+        throw new Error(
+          'Program tidak terhapus. Hanya pemilik atau admin organisasi yang boleh menghapus.',
+        );
+      }
 
       toast({
         title: 'Program Berhasil Dihapus',
@@ -590,9 +614,23 @@ export default function LFABuilderIndex() {
 
       {/* SAVED PROJECTS */}
       <div className="space-y-4">
-        <div>
-          <h2 className="text-lg font-bold tracking-tight">Program LFA Aktif</h2>
-          <p className="text-xs text-muted-foreground">Logframe program organisasi Anda yang sedang berjalan.</p>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-bold tracking-tight">Program LFA Aktif</h2>
+            <p className="text-xs text-muted-foreground">Logframe program organisasi Anda yang sedang berjalan.</p>
+          </div>
+          {/* Grantwriter has had this since bulk delete landed; the LFA list only
+              ever offered per-card checkboxes, so clearing out a run of test
+              programmes meant ticking each one. */}
+          {canDelete && projects.length > 0 && (
+            <div
+              className="flex w-fit shrink-0 cursor-pointer select-none items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-xs font-medium hover:bg-muted/50"
+              onClick={toggleSelectAll}
+            >
+              <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} aria-label="Pilih semua program" />
+              <span>Pilih Semua</span>
+            </div>
+          )}
         </div>
 
         {loading ? (
