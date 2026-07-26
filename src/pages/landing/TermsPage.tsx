@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navbar } from '@/components/landing/Navbar';
-import { Footer } from '@/components/layout/Footer';
+import { Footer } from '@/components/landing/Footer';
 import { FileText, Calendar, Mail } from 'lucide-react';
 import SEO from '@/components/SEO';
 
