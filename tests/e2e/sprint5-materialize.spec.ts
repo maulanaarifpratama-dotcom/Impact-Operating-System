@@ -379,13 +379,23 @@ test.describe('Sprint 5 E2E Program Materialization V2 Test Suite', () => {
 
       // Query organization
       console.log('[E2E-S5] Fetching organizations with headers:', JSON.stringify({ apikey: anonKey ? 'present' : 'missing', auth: token ? 'present' : 'missing' }));
-      const orgRes = await fetch(`${supabaseUrl}/rest/v1/organizations?select=id`, { headers });
+      // Ask for the organisations this user actually belongs to. Listing every
+      // organisation and taking [0] picked whichever row Postgres returned
+      // first, which is another tenant's workspace — so the test seeded its
+      // fixtures into a stranger's account, and only stopped when the plan gate
+      // refused the write.
+      const orgRes = await fetch(
+        `${supabaseUrl}/rest/v1/organization_members?select=organization_id&user_id=eq.${userId}`,
+        { headers },
+      );
       const orgText = await orgRes.text();
       console.log('[E2E-S5] orgRes status:', orgRes.status, 'body:', orgText);
-      
+
       const orgs = JSON.parse(orgText);
-      if (!orgs || orgs.length === 0 || orgs.error) throw new Error(`No organizations found. Response: ${orgText}`);
-      const orgId = orgs[0].id;
+      if (!Array.isArray(orgs) || orgs.length === 0) {
+        throw new Error(`User ${userId} belongs to no organization. Response: ${orgText}`);
+      }
+      const orgId = orgs[0].organization_id;
 
       // Clean up previous E2E projects
       const projectTitle = 'E2E Program Desa Digital Kopi Garut V2';
@@ -748,10 +758,13 @@ test.describe('Sprint 5 E2E Program Materialization V2 Test Suite', () => {
           'Prefer': 'return=representation'
         };
 
-        // Get organization ID
-        const orgRes = await fetch(`${supabaseUrl}/rest/v1/organizations?select=id`, { headers });
+        // The user's own organisation — not merely the first one visible.
+        const orgRes = await fetch(
+          `${supabaseUrl}/rest/v1/organization_members?select=organization_id&user_id=eq.${userId}`,
+          { headers },
+        );
         const orgs = await orgRes.json();
-        const orgId = orgs[0]?.id;
+        const orgId = Array.isArray(orgs) ? orgs[0]?.organization_id : undefined;
 
         // Set status of project to 'completed'
         await fetch(`${supabaseUrl}/rest/v1/gw_projects?id=eq.${projectId}`, {
