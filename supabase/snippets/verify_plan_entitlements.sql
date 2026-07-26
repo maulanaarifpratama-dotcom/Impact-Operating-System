@@ -76,8 +76,42 @@ SELECT
     'GAGAL — organisasi info@bisabaik.or.id tidak berbayar'
   );
 
--- Daftar lengkap paket tiap organisasi, untuk mengubah tier setelah ada yang membayar.
+-- Daftar lengkap paket tiap organisasi.
 SELECT o.name AS organisasi, s.plan AS paket, s.status, s.current_period_end AS berlaku_sampai
 FROM public.organizations o
 LEFT JOIN public.subscriptions s ON s.organization_id = o.id
 ORDER BY (s.plan = 'free') NULLS FIRST, o.name;
+
+
+-- ===========================================================================
+-- MENAIKKAN PAKET SETELAH ADA YANG MEMBAYAR
+--
+-- Kolom plan memakai enum plan_tier, jadi hanya empat nilai ini yang diterima:
+--
+--   free        -> paket Dasar (Rp 0)
+--   premium     -> paket Berdaya (Rp 499.000/bln)
+--   enterprise  -> paket Institusi
+--   starter     -> belum dipakai; tersedia bila nanti ada tier di bawah Berdaya
+--
+-- Semua yang bukan 'free' membuka modul berbayar. Perbedaan Berdaya dan
+-- Institusi ada di white label, API, SSO dan pendampingan — hal di luar
+-- aplikasi, jadi tidak ada yang perlu dibedakan di tingkat basis data.
+--
+-- Ganti alamat surel dan tanggalnya, lalu jalankan:
+-- ===========================================================================
+
+-- UPDATE public.subscriptions s
+-- SET plan = 'premium',
+--     status = 'active',
+--     current_period_start = now(),
+--     current_period_end = now() + interval '1 month',
+--     cancel_at_period_end = false,
+--     updated_at = now()
+-- FROM public.organization_members m
+-- JOIN auth.users u ON u.id = m.user_id
+-- WHERE m.organization_id = s.organization_id
+--   AND u.email = 'ganti@dengan-email-pembeli.com';
+
+-- Menurunkan kembali saat langganan habis dan tidak diperpanjang:
+-- UPDATE public.subscriptions SET plan = 'free', status = 'canceled', updated_at = now()
+-- WHERE organization_id = 'ganti-dengan-uuid-organisasi';
