@@ -138,8 +138,8 @@ test.describe('Impactory E2E Smoke Test Suite', () => {
     await expect(lfaNavLink).toBeVisible({ timeout: 15000 });
     await lfaNavLink.click();
 
-    // Look for existing E2E Smoke Test Project card
-    const targetProjectName = 'E2E Smoke Test Project';
+    // Look for existing Literasi Keuangan Perempuan Pesisir Demak card
+    const targetProjectName = 'Literasi Keuangan Perempuan Pesisir Demak';
     const projectCard = page.locator('div.cursor-pointer', { has: page.locator(`:text("${targetProjectName}")`) }).first();
     const isProjectFound = await projectCard.isVisible();
 

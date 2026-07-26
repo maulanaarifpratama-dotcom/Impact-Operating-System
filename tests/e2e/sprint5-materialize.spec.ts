@@ -33,7 +33,7 @@ test.describe('Sprint 5 E2E Program Materialization V2 Test Suite', () => {
   const testSkeleton = {
     schemaVersion: '2.0',
     meta: {
-      projectTitle: 'E2E Program Desa Digital Kopi Garut V2',
+      projectTitle: 'Desa Digital Kopi Garut',
       sector: 'Economic Development & Agriculture',
       geography: {
         locationName: 'Kabupaten Garut',
@@ -398,7 +398,7 @@ test.describe('Sprint 5 E2E Program Materialization V2 Test Suite', () => {
       const orgId = orgs[0].organization_id;
 
       // Clean up previous E2E projects
-      const projectTitle = 'E2E Program Desa Digital Kopi Garut V2';
+      const projectTitle = 'Desa Digital Kopi Garut';
       const findRes = await fetch(`${supabaseUrl}/rest/v1/gw_projects?title=eq.${encodeURIComponent(projectTitle)}&select=id`, { headers });
       const findText = await findRes.text();
       console.log('[E2E-S5] findRes status:', findRes.status, 'body:', findText);

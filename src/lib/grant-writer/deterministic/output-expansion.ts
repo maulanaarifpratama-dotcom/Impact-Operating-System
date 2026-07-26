@@ -34,33 +34,54 @@ const OUTPUT_DISPLAY_NAMES: Record<string, string> = {
   'OPF-026': 'SOP dan Skema Mekanisme Rujukan Terbentuk'
 };
 
+/**
+ * Which kind of thing an output family delivers.
+ *
+ * This map used to speak a private vocabulary — 'training', 'system',
+ * 'document', 'infrastructure', 'goods' — while everything that reads
+ * deliverable_type tests the declared one: 'training_completed',
+ * 'digital_system', 'sop_document', 'tangible_good', 'service'. Only 'service'
+ * appeared in both, so `del === 'digital_system'` in indicator-scaffolding and
+ * `deliverable === 'digital_system'` in activity-decomposition were false for
+ * every output this function ever produced.
+ *
+ * Those branches survived on their `|| output.code === 'OPF-020'` fallbacks,
+ * which name a handful of codes each. Everything else — OPF-003 through
+ * OPF-007, OPF-008, OPF-016 through OPF-019, OPF-012, OPF-021 through
+ * OPF-025 — fell through to the generic "Service / Market" indicators and the
+ * default activity template, regardless of what it actually delivered. A
+ * digital platform got the same indicators as a market linkage.
+ *
+ * 'infrastructure' and 'goods' both fold into 'tangible_good'; the contract has
+ * no separate member for built facilities.
+ */
 export function getDeliverableType(outputFamilyId: string): CanonicalOutputV2['deliverable_type'] {
   const map: Record<string, CanonicalOutputV2['deliverable_type']> = {
-    'OPF-001': 'training',
-    'OPF-002': 'training',
-    'OPF-003': 'system',
-    'OPF-004': 'system',
-    'OPF-005': 'system',
-    'OPF-006': 'system',
-    'OPF-007': 'system',
-    'OPF-008': 'document',
-    'OPF-009': 'document',
-    'OPF-010': 'document',
-    'OPF-011': 'infrastructure',
-    'OPF-012': 'infrastructure',
-    'OPF-014': 'goods',
-    'OPF-015': 'infrastructure',
-    'OPF-016': 'document',
-    'OPF-017': 'document',
-    'OPF-018': 'document',
-    'OPF-019': 'document',
-    'OPF-020': 'system',
+    'OPF-001': 'training_completed',
+    'OPF-002': 'training_completed',
+    'OPF-003': 'digital_system',
+    'OPF-004': 'digital_system',
+    'OPF-005': 'digital_system',
+    'OPF-006': 'digital_system',
+    'OPF-007': 'digital_system',
+    'OPF-008': 'sop_document',
+    'OPF-009': 'sop_document',
+    'OPF-010': 'sop_document',
+    'OPF-011': 'tangible_good',
+    'OPF-012': 'tangible_good',
+    'OPF-014': 'tangible_good',
+    'OPF-015': 'tangible_good',
+    'OPF-016': 'sop_document',
+    'OPF-017': 'sop_document',
+    'OPF-018': 'sop_document',
+    'OPF-019': 'sop_document',
+    'OPF-020': 'digital_system',
     'OPF-021': 'service',
-    'OPF-022': 'goods',
+    'OPF-022': 'tangible_good',
     'OPF-023': 'service',
-    'OPF-024': 'document',
-    'OPF-025': 'document',
-    'OPF-026': 'document'
+    'OPF-024': 'sop_document',
+    'OPF-025': 'sop_document',
+    'OPF-026': 'sop_document'
   };
   return map[outputFamilyId] || 'service';
 }

@@ -69,7 +69,7 @@ test.describe('Impactory E2E Level 2 SROI Smoke Test Suite', () => {
     }
 
     // Own the fixture instead of pointing at a UUID that may no longer exist.
-    await openOrCreateLfaProject(page, baseUrl, 'E2E SROI Level 2 Project');
+    await openOrCreateLfaProject(page, baseUrl, 'Sekolah Lapang Kopi Arabika Papandayan');
 
     // Verify LFA Editor is loaded
     console.log('[E2E] Verifying LFA Editor load...');

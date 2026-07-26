@@ -40,7 +40,7 @@ test.describe('Impactory Sprint 5.1R — Truthful Draft & Flow Preservation E2E 
     await page.waitForURL('**/dashboard**', { timeout: 20000 });
     console.log('[E2E] Login successful!');
 
-    await openOrCreateLfaProject(page, baseUrl, 'E2E Truthful Draft Project');
+    await openOrCreateLfaProject(page, baseUrl, 'Posyandu Siaga Hipertensi Lansia Cimahi');
     await expect(page.locator(LFA_EDITOR_ROOT).first()).toBeVisible({ timeout: 25000 });
     await fillLfaMatrixIfLocked(page);
 

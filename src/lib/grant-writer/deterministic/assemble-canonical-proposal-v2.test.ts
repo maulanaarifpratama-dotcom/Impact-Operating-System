@@ -77,7 +77,14 @@ describe('RC-9A — Canonical Pipeline Assembler (assembleCanonicalProposalV2)',
     expect(totalOutputs).toBe(59);
     expect(totalActivities).toBe(218);
     expect(totalIndicators).toBe(168);
-    expect(totalCostDrivers).toBe(316);
+    // 316 before getDeliverableType stopped emitting a private vocabulary.
+    // Outputs that deliver a digital system or a document now say so, which
+    // routes them to the matching activity template instead of the default
+    // one, and the cost drivers follow the activities. The two extra drivers
+    // are that correction, not drift: OPF-004 used to be handed the generic
+    // "Fasilitasi / Kemitraan" indicator and partnership activities despite
+    // being a portal.
+    expect(totalCostDrivers).toBe(318);
   });
 
   test('Validation layer should detect orphan activities if parent link is broken', () => {

@@ -35,7 +35,7 @@ test.describe('Real Azure OpenAI P0-B Generation & Downstream Materialization', 
     const baseUrl = process.env.E2E_BASE_URL || 'http://localhost:8080';
     const email = process.env.E2E_USER_EMAIL || 'test@example.com';
     const password = process.env.E2E_USER_PASSWORD || '';
-    const projectTitle = 'E2E P0-B Real Azure Canonical LFA 2026-07-22';
+    const projectTitle = 'Ketertelusuran Panen Kopi Specialty Garut';
 
     // Resolve Supabase configs
     const { supabaseUrl, supabaseKey } = getEnvVars();

@@ -62,7 +62,7 @@ test.describe('Plan entitlements', () => {
         const created = await call('organizations', {
           method: 'POST',
           body: JSON.stringify({
-            name: `E2E Free Plan Probe ${stamp}`,
+            name: `Uji Paket Langganan ${stamp}`,
             slug: `e2e-free-${stamp}`,
             created_by: uid,
           }),
@@ -88,7 +88,7 @@ test.describe('Plan entitlements', () => {
         const tryLfa = (orgId: string, label: string) =>
           call('lfa_projects', {
             method: 'POST',
-            body: JSON.stringify({ org_id: orgId, name: `E2E entitlement ${label} ${stamp}`, sector: 'Pendidikan', status: 'draft' }),
+            body: JSON.stringify({ org_id: orgId, name: `Uji Paket Langganan — ${label} ${stamp}`, sector: 'Pendidikan', status: 'draft' }),
           });
 
         const onFree = await tryLfa(freeOrgId, 'free');
@@ -118,7 +118,7 @@ test.describe('Plan entitlements', () => {
         const uid = JSON.parse(atob(token.split('.')[1])).sub as string;
         const h = { apikey: anon, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
         const res = await fetch(`${url}/rest/v1/organizations?select=id,name&created_by=eq.${uid}`, { headers: h });
-        const stale = ((await res.json()) as any[]).filter((o) => String(o.name).startsWith('E2E Free Plan Probe'));
+        const stale = ((await res.json()) as any[]).filter((o) => String(o.name).startsWith('Uji Paket Langganan'));
         for (const o of stale) {
           // Re-join so the owner-only delete policy applies, then remove it.
           await fetch(`${url}/rest/v1/organization_members`, {

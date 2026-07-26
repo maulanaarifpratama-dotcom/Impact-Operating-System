@@ -150,7 +150,7 @@ test.describe('Impactory SROI AI Smoke Test Suite', () => {
     }
 
     // Own the fixture rather than pointing at a UUID that may no longer exist.
-    const projectId = await openOrCreateLfaProject(page, baseUrl, 'E2E SROI AI Smoke Project');
+    const projectId = await openOrCreateLfaProject(page, baseUrl, 'Air Bersih dan Sanitasi Desa Sembalun');
     log(`Using project ${projectId}`);
 
     // A new project starts with an empty matrix, which leaves WBS, MEAL and
