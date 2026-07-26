@@ -269,20 +269,15 @@ test.describe('Real Azure OpenAI P0-B Generation & Downstream Materialization', 
     await page.screenshot({ path: 'playwright-report/sprint5-real-azure-p0b-generate-success.png', fullPage: true });
     console.log('[E2E-REAL-AZURE] Generation screenshot captured.');
 
-    // Click "Materialisasikan Sekarang"
-    const materializeBtn = page.locator('button:has-text("Materialisasikan Sekarang")').first();
-    await expect(materializeBtn).toBeVisible();
-    await materializeBtn.click();
-    console.log('[E2E-REAL-AZURE] Clicked Materialisasikan Sekarang! Waiting for direct redirection to LFA Builder...');
-
-    // Wait for the direct redirection to LFA Builder workspace
-    await page.waitForURL(/.*lfa-builder.*/, { timeout: 60000 });
-    console.log('[E2E-REAL-AZURE] Successfully navigated directly to LFA Builder. URL:', page.url());
+    // No separate "Materialisasikan Sekarang" step any more — in the Blueprint
+    // Studio, approving the blueprint runs materialisation and lands here. We
+    // are already in the LFA Builder by this point.
+    expect(page.url()).toMatch(/\/dashboard\/lfa-builder\//);
 
     await page.waitForTimeout(5000);
     const bodyText = await page.innerText('body');
     expect(bodyText.toLowerCase()).toContain('petani');
-    console.log('[E2E-REAL-AZURE] Verified LFA Builder renders live content successfully.');
+    console.log('[E2E-REAL-AZURE] LFA Builder renders the generated programme.');
 
     await page.screenshot({ path: 'playwright-report/sprint5-real-azure-p0b-materialize-success.png', fullPage: true });
     console.log('[E2E-REAL-AZURE] All E2E checks passed perfectly!');
