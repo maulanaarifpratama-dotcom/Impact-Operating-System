@@ -7,41 +7,84 @@ applied. Three items still need a human: they cannot be done from the repo.
 
 ## Action required
 
-### 1. Rotate the Brevo API key — do this first
+### 1. Apply the RLS fix migration
 
-`NewsletterSection.tsx` read `import.meta.env.VITE_BREVO_API_KEY` and called
-`api.brevo.com` from the browser. Vite inlines every `VITE_*` value at build
-time, so the key was shipped inside `dist/assets/index-*.js` and served to every
-visitor of impactory.id. It was confirmed present in the deployed bundle.
+`supabase/migrations/20260726020000_fix_rls_cross_tenant_gaps.sql` closes a live
+cross-tenant takeover chain. Apply it on a Supabase branch first, exercise
+signup → onboarding → invite a teammate → open a grant project, then promote.
 
-The code is fixed (see below) but **the key itself is compromised** and must be
-rotated in the Brevo dashboard. Redeploying without rotating changes nothing —
-the old bundle was public for as long as it was live.
+Two production policies combined into a complete compromise:
 
-After rotating, set the new value as `BREVO_API_KEY` in Supabase edge function
-secrets (server-side, no `VITE_` prefix). Then remove `VITE_BREVO_API_KEY` from
-`.env` and from Vercel environment variables.
+- `organization_invitations.invitations_read_by_token` was `SELECT USING (true)`
+  with no role restriction, so anyone holding the public anon key could read
+  every pending invitation — email, token, and **organization_id**.
+- `organization_members.members_self_insert` was
+  `INSERT WITH CHECK (auth.uid() = user_id)`. It verified *who* you are but never
+  that you were invited, so any authenticated user could insert themselves into
+  any organization whose id they knew.
 
-### 2. Verify RLS before applying the hardening migration
+Chain: read the invitations table → take an `organization_id` → insert yourself
+as a member → every `is_org_member()` policy in the database now answers true for
+you → read that org's projects, proposals, library documents, donors and
+beneficiaries.
 
-`supabase/migrations/20260726010000_harden_org_rls.sql` is **not safe to apply
-blind**. The migration that creates the organization tables
-(`20260600000000_organizations.sql`) is gitignored as a local bootstrap, so the
-repo cannot show what RLS is actually live in production.
+Migration `20260725150000` already dropped the first policy but was evidently
+never applied to production. Worth checking what else is unapplied:
 
-Procedure:
+```sql
+select version from supabase_migrations.schema_migrations order by version;
+```
 
-1. Run `supabase/snippets/audit_rls_state.sql` (read-only) against production and
-   read the results. It flags unconditional policies, tables with RLS off, and
-   whether `is_org_member()` is still the `SELECT true` stub.
-2. Apply the migration on a Supabase branch or staging copy.
-3. Exercise signup → onboarding → invite a teammate → open a grant project.
-4. Only then promote to production.
+Separately, `wbs_completion_claims` and `wbs_completion_evidence` carried
+`OR (auth.role() = 'authenticated')` on a `FOR ALL` policy
+([20260724180000:138,146](../../supabase/migrations/20260724180000_wbs_completion_claims_evidence.sql)),
+which every signed-in user satisfies — making the org check ahead of it dead
+code, for writes as well as reads. The migration fixes this too.
 
-The migration replaces policies *by name*, so a database that is already locked
-down correctly is unaffected apart from the helper functions being hardened.
+### 2. Decide what to do about `system_integrations`
 
-### 3. Flip CSP from report-only to enforcing
+`system_integrations` has `system_integrations_all_policy` —
+`ALL USING (true) WITH CHECK (true)`. Read *and write*, for everyone.
+
+It holds the OneDrive integration config; `onedrive-upload/index.ts:72` reads
+`drive_id` from it, and `Settings.tsx:153` does `select('*')`. Two concerns:
+
+- Anyone can **overwrite `drive_id`**, redirecting where NGO evidence documents
+  are uploaded.
+- If the table also stores tokens or secrets, they are world-readable.
+
+The table exists in no repo migration, so it was created through the dashboard.
+Check its columns before writing a policy:
+
+```sql
+select column_name, data_type from information_schema.columns
+where table_schema = 'public' and table_name = 'system_integrations';
+```
+
+If it is org-scoped, it should route through `is_org_member()`. If it is a
+single global config row, reads can stay open but writes should be admin-only
+via `is_admin(auth.uid())`.
+
+### 3. Brevo — no action needed (earlier advice was wrong)
+
+An earlier version of this document said the Brevo key was confirmed present in
+the production bundle and had to be rotated. **That was incorrect.** The grep
+that "confirmed" it ran against a local `dist/` built from a local `.env` that
+contained `VITE_BREVO_API_KEY` — not against the deployed bundle.
+
+`dist/` was never committed, Vercel builds from git plus Vercel's own env vars,
+and `VITE_BREVO_API_KEY` was never set there. So `import.meta.env.VITE_BREVO_API_KEY`
+resolved to `undefined` in every production build and the key never shipped.
+
+The real consequence was that newsletter signup was **silently broken** in
+production — `api-key: undefined` meant Brevo rejected every request. Moving the
+call into the `newsletter-subscribe` edge function repairs the feature; it was
+not a security fix. No rotation required.
+
+The one scenario that would change this: a manual `vercel --prod` deploy from a
+machine holding that `.env`. Deploys via git push are unaffected.
+
+### 4. Flip CSP from report-only to enforcing
 
 `vercel.json` ships `Content-Security-Policy-Report-Only`. It is not enforcing
 yet because the Budget and WBS print/export views inject
@@ -163,3 +206,35 @@ CI does not gate on lint.
 - **Stale metadata**: `index.html` still points `og:image` at a
   `lovable.app` R2 URL. The prerenderer overrides it for the six public routes,
   so only non-prerendered paths are affected.
+- **`LIMIT 1` multi-org bug**: roughly fourteen policies scope rows with
+  `org_id = (SELECT organization_id FROM organization_members WHERE user_id = auth.uid() LIMIT 1)`
+  — no `ORDER BY`. A user who belongs to two organizations silently loses access
+  to everything outside whichever one Postgres returns first. Affects
+  `beneficiaries`, `budget_items`, `wbs_tasks`, `impact_readiness_assessments`
+  and most `lfa_*` tables. Not a leak — the check is still membership-scoped —
+  but it will break real users as soon as the invite feature sees use. The fix
+  is `org_id IN (SELECT ...)`, deliberately left out of the security migration
+  to keep that one small and reviewable.
+
+## Correction log
+
+The first pass of this audit made two claims that later verification overturned.
+Both came from reasoning about local artefacts instead of production:
+
+1. **Brevo key exposure** — asserted from a local `dist/` build. See item 3
+   above. No exposure occurred.
+2. **RLS was wide open** — asserted from `20260600000000_organizations.sql`,
+   which is gitignored as a local bootstrap and carries `USING (true)` stubs plus
+   an `is_org_member()` that returns `SELECT true`. Production bears no
+   resemblance to it: every public table has RLS enabled with at least one
+   policy, `is_org_member()` is properly implemented, and the org-scoped tables
+   route through it correctly.
+
+   A blind hardening migration was written against that stub and has been
+   deleted. It would have *reduced* security: Postgres OR-combines permissive
+   policies, so its broad `FOR ALL` grants would have sat alongside the existing
+   narrow ones and, for example, handed `gw_projects` DELETE to any member when
+   production correctly restricts it to owners and admins.
+
+   Lesson: for anything whose schema lives outside the repo, read the database
+   before writing the migration.
