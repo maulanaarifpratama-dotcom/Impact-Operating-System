@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { openOrCreateLfaProject, fillLfaMatrixIfLocked } from './helpers/lfaProject';
 import * as fs from 'fs';
 
 test.describe('Impactory SROI AI Smoke Test Suite', () => {
@@ -15,13 +16,13 @@ test.describe('Impactory SROI AI Smoke Test Suite', () => {
   });
 
   test('should execute single SROI AI suggest smoke test', async ({ page }) => {
-    // Increase test timeout to 60 seconds to allow for AI model cold starts
-    test.setTimeout(60000);
+    // Room for an AI cold start on top of building the fixture project and
+    // walking LFA -> WBS -> MEAL until the SROI tab unlocks.
+    test.setTimeout(240_000);
 
     const baseUrl = process.env.E2E_BASE_URL!;
     const email = process.env.E2E_USER_EMAIL!;
     const password = process.env.E2E_USER_PASSWORD!;
-    const projectId = '240c87a4-9b25-417e-96cc-4b00e7592d19';
 
     // Track any potential secret leaks or app crashes
     let secretLeakDetected = false;
@@ -148,10 +149,35 @@ test.describe('Impactory SROI AI Smoke Test Suite', () => {
       log('Onboarding completed!');
     }
 
-    // Direct navigation to the target E2E project
-    const targetUrl = `${baseUrl}/dashboard/lfa-builder/${projectId}`;
-    log(`Navigating directly to project URL: ${targetUrl}`);
-    await page.goto(targetUrl);
+    // Own the fixture rather than pointing at a UUID that may no longer exist.
+    const projectId = await openOrCreateLfaProject(page, baseUrl, 'E2E SROI AI Smoke Project');
+    log(`Using project ${projectId}`);
+
+    // A new project starts with an empty matrix, which leaves WBS, MEAL and
+    // SROI all locked. Walk the chain so the SROI tab this test is about can
+    // actually open.
+    await fillLfaMatrixIfLocked(page);
+
+    const wbsTab = page
+      .locator('[data-testid="lfa-tab-wbs"], button:has-text("WBS Builder"), button:has-text("WBS")')
+      .first();
+    await wbsTab.click();
+    await expect(
+      page.locator('[data-testid="wbs-builder-root"], input[placeholder*="aktivitas"]').first(),
+    ).toBeVisible({ timeout: 15000 });
+    await page.waitForTimeout(4000);
+
+    const mealTab = page
+      .locator('[data-testid="lfa-tab-meal"], button:has-text("MEAL Planner"), button:has-text("MEAL")')
+      .first();
+    await mealTab.click();
+    await expect(
+      page.locator('[data-testid="meal-planner-root"], button:has-text("Tambah Indikator")').first(),
+    ).toBeVisible({ timeout: 15000 });
+    await page.waitForTimeout(4000);
+
+    await page.reload();
+    log('LFA -> WBS -> MEAL prepared; SROI should now be unlocked.');
 
     // Verify LFA Editor loaded
     log('Verifying LFA Editor load...');

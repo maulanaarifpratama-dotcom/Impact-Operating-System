@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { openOrCreateLfaProject, fillLfaMatrixIfLocked } from './helpers/lfaProject';
 import * as fs from 'fs';
 
 test.describe('Impactory E2E Level 2 SROI Smoke Test Suite', () => {
@@ -15,10 +16,16 @@ test.describe('Impactory E2E Level 2 SROI Smoke Test Suite', () => {
   });
 
   test('should execute Level 2 SROI unlock and validation flow', async ({ page }) => {
+    // This walks the whole chain — create a project, fill the LFA matrix, let
+    // WBS and MEAL auto-import, reload twice for the lock states to settle —
+    // with several seconds of deliberate waiting for autosave commits along the
+    // way. The 30s default in playwright.config is a budget for a single
+    // interaction, not for this.
+    test.setTimeout(180_000);
+
     const baseUrl = process.env.E2E_BASE_URL!;
     const email = process.env.E2E_USER_EMAIL!;
     const password = process.env.E2E_USER_PASSWORD!;
-    const projectId = '240c87a4-9b25-417e-96cc-4b00e7592d19';
 
     // Set up console and error listeners
     page.on('console', msg => console.log(`[BROWSER CONSOLE] ${msg.type()}: ${msg.text()}`));
@@ -61,10 +68,8 @@ test.describe('Impactory E2E Level 2 SROI Smoke Test Suite', () => {
       console.log('[E2E] Onboarding completed!');
     }
 
-    // Direct navigation to the target E2E project
-    const targetUrl = `${baseUrl}/dashboard/lfa-builder/${projectId}`;
-    console.log(`[E2E] Navigating directly to project URL: ${targetUrl}`);
-    await page.goto(targetUrl);
+    // Own the fixture instead of pointing at a UUID that may no longer exist.
+    await openOrCreateLfaProject(page, baseUrl, 'E2E SROI Level 2 Project');
 
     // Verify LFA Editor is loaded
     console.log('[E2E] Verifying LFA Editor load...');
@@ -80,73 +85,13 @@ test.describe('Impactory E2E Level 2 SROI Smoke Test Suite', () => {
     await expect(tabMeal).toBeVisible({ timeout: 10000 });
     await expect(tabSroi).toBeVisible({ timeout: 10000 });
 
-    // Check if WBS Tab is locked
-    const wbsText = await tabWbs.textContent() || '';
-    console.log(`[E2E] WBS Tab button text: "${wbsText.trim()}"`);
-    const isWbsLocked = wbsText.includes('🔒');
+    console.log(`[E2E] WBS Tab button text: "${((await tabWbs.textContent()) || '').trim()}"`);
 
     let wbsFoundOrCreated = 'found';
     let mealFoundOrCreated = 'found';
 
-    if (isWbsLocked) {
-      console.log('[E2E] WBS Builder is locked. Filling LFA Matrix (Dampak, Tujuan, Hasil, Kegiatan) to 100% completion...');
-
-      // 1. Fill Goal Description
-      console.log('[E2E] Filling Goal Description...');
-      const goalTextarea = page.locator('textarea[placeholder*="pernyataan dampak"], textarea[placeholder*="Dampak"]').first();
-      await expect(goalTextarea).toBeVisible({ timeout: 10000 });
-      await goalTextarea.fill('E2E Goal: Mengurangi tingkat putus sekolah anak-anak di daerah marginal.');
-      await goalTextarea.blur();
-
-      // 2. Fill Purpose Description
-      console.log('[E2E] Filling Purpose Description...');
-      const purposeTextarea = page.locator('textarea[placeholder*="pernyataan tujuan"], textarea[placeholder*="Tujuan"]').first();
-      await expect(purposeTextarea).toBeVisible({ timeout: 10000 });
-      await purposeTextarea.fill('E2E Purpose: Meningkatkan partisipasi belajar dan motivasi anak sekolah.');
-      await purposeTextarea.blur();
-
-      // 3. Ensure Output exists and Fill its description
-      console.log('[E2E] Checking Output...');
-      const outputTextarea = page.locator('textarea[placeholder*="output terukur"], textarea[placeholder*="Output"]').first();
-      const hasOutput = await outputTextarea.isVisible();
-      if (!hasOutput) {
-        console.log('[E2E] No Outputs found, creating one...');
-        const addOutputBtn = page.locator('button:has-text("Tambah Hasil"), button:has-text("Buat Hasil")').first();
-        await addOutputBtn.click();
-        await expect(outputTextarea).toBeVisible({ timeout: 10000 });
-      }
-      await outputTextarea.fill('E2E Output: Modul bimbingan belajar alternatif untuk anak-anak.');
-      await outputTextarea.blur();
-
-      // Ensure Output Indicator is set so MEAL auto-imports it correctly
-      console.log('[E2E] Filling Output Indicator...');
-      const outputIndicatorInput = page.locator('input[placeholder*="Terlatihnya 100 kader"], input[placeholder*="Indikator"]').first();
-      await expect(outputIndicatorInput).toBeVisible({ timeout: 10000 });
-      await outputIndicatorInput.fill('1 bimbingan belajar aktif dengan 20 peserta.');
-      await outputIndicatorInput.blur();
-
-      // 4. Ensure Activity exists and Fill its description
-      console.log('[E2E] Checking Activity...');
-      const activityInput = page.locator('input[placeholder*="Tuliskan aksi kegiatan"]').first();
-      const hasActivity = await activityInput.isVisible();
-      if (!hasActivity) {
-        console.log('[E2E] No Activities found, creating one...');
-        const addActivityBtn = page.locator('button:has-text("Tambah Kegiatan")').first();
-        await addActivityBtn.click();
-        await expect(activityInput).toBeVisible({ timeout: 10000 });
-      }
-      await activityInput.fill('E2E Activity: Menyusun modul bimbingan belajar mingguan.');
-      await activityInput.blur();
-
-      // Wait for debounce autosave
-      console.log('[E2E] Waiting 5 seconds for LFA matrix database autosave to fully commit...');
-      await page.waitForTimeout(5000);
-
-      // Reload page to ensure the freshly populated data is loaded and tab-locking states are recalculated
-      console.log('[E2E] Reloading page to update tab states...');
-      await page.reload();
-      await expect(lfaEditorRoot).toBeVisible({ timeout: 25000 });
-    }
+    // Shared with sroi-ai-smoke — see tests/e2e/helpers/lfaProject.ts.
+    await fillLfaMatrixIfLocked(page);
 
     // Verify WBS Tab is now unlocked
     const tabWbsAfter = page.locator('[data-testid="lfa-tab-wbs"], button:has-text("WBS Builder"), button:has-text("WBS")').first();
