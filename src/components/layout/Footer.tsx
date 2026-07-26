@@ -111,11 +111,11 @@ export function Footer() {
 
         {/* Bottom Bar */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-center">
-          <p className="text-[10px] sm:text-xs text-slate-500 font-semibold tracking-wider uppercase">
+          <p className="text-[10px] sm:text-xs text-slate-400 font-semibold tracking-wider uppercase">
             © 2026 Impactory. Dibuat dengan <Heart className="inline h-3 w-3 text-rose-500 fill-rose-500 mx-0.5" /> untuk NGO Indonesia.
           </p>
-          <div className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
-            <Globe className="h-3.5 w-3.5 text-slate-600" />
+          <div className="flex items-center gap-1.5 text-xs text-slate-400 font-medium">
+            <Globe className="h-3.5 w-3.5 text-slate-400" />
             <span>Indonesia</span>
           </div>
         </div>

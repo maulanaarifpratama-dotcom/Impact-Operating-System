@@ -219,7 +219,7 @@ export default function ContactPage() {
                     <div>
                       <h4 className="font-bold text-xs text-slate-200 uppercase tracking-wider">Kirim Email</h4>
                       <p className="text-sm font-semibold text-teal-400 mt-1">arif@impactory.id</p>
-                      <p className="text-xs text-slate-500 mt-1">Estimasi balasan dalam 1x24 jam kerja</p>
+                      <p className="text-xs text-slate-400 mt-1">Estimasi balasan dalam 1x24 jam kerja</p>
                     </div>
                   </Card>
                 </a>
@@ -233,7 +233,7 @@ export default function ContactPage() {
                     <div>
                       <h4 className="font-bold text-xs text-slate-200 uppercase tracking-wider">Chat WhatsApp</h4>
                       <p className="text-sm font-semibold text-emerald-400 mt-1">Hubungi via WA</p>
-                      <p className="text-xs text-slate-500 mt-1">Layanan cepat, bantuan instan via obrolan</p>
+                      <p className="text-xs text-slate-400 mt-1">Layanan cepat, bantuan instan via obrolan</p>
                     </div>
                   </Card>
                 </a>

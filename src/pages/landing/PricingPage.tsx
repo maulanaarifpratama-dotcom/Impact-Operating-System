@@ -169,20 +169,20 @@ export default function PricingPage() {
                     <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
                     <span className="text-slate-300">Budget Calculator</span>
                   </li>
-                  <li className="flex items-start gap-2.5 text-slate-500 line-through">
-                    <X className="h-4 w-4 text-slate-600 shrink-0 mt-0.5" />
+                  <li className="flex items-start gap-2.5 text-slate-400 line-through">
+                    <X className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
                     <span>Grant Writer AI</span>
                   </li>
-                  <li className="flex items-start gap-2.5 text-slate-500 line-through">
-                    <X className="h-4 w-4 text-slate-600 shrink-0 mt-0.5" />
+                  <li className="flex items-start gap-2.5 text-slate-400 line-through">
+                    <X className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
                     <span>MEAL Planner</span>
                   </li>
-                  <li className="flex items-start gap-2.5 text-slate-500 line-through">
-                    <X className="h-4 w-4 text-slate-600 shrink-0 mt-0.5" />
+                  <li className="flex items-start gap-2.5 text-slate-400 line-through">
+                    <X className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
                     <span>SROI Calculator</span>
                   </li>
-                  <li className="flex items-start gap-2.5 text-slate-500 line-through">
-                    <X className="h-4 w-4 text-slate-600 shrink-0 mt-0.5" />
+                  <li className="flex items-start gap-2.5 text-slate-400 line-through">
+                    <X className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
                     <span>Export PDF Laporan</span>
                   </li>
                 </ul>

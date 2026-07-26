@@ -424,7 +424,7 @@ export default function Index() {
                     <p className="mt-4 text-xs sm:text-sm text-slate-400 leading-relaxed font-normal">
                       {step.desc}
                     </p>
-                    <div className="mt-4 pt-3 border-t border-white/5 text-[11px] font-semibold text-slate-500">
+                    <div className="mt-4 pt-3 border-t border-white/5 text-[11px] font-semibold text-slate-400">
                       Module: <span className="text-teal-400/80 font-bold">{step.module}</span>
                     </div>
                   </Card>
