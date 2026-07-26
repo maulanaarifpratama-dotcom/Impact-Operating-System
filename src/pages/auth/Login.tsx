@@ -20,10 +20,29 @@ const passwordSchema = magicSchema.extend({
 type MagicValues = z.infer<typeof magicSchema>;
 type PasswordValues = z.infer<typeof passwordSchema>;
 
+const DEFAULT_REDIRECT = '/dashboard';
+
+/**
+ * Only ever hand navigate() a path that stays on this origin.
+ *
+ * React Router reinterprets "//host" as a protocol-relative URL and, in the
+ * versions this app pins, treats a leading "/\" the same way — so a post-login
+ * redirect can be steered off-site (CVE-2025-68470 and its backslash bypass).
+ * `from` is set from location.pathname by ProtectedRoute and is not reachable
+ * from a crafted URL today, but a single-slash check costs nothing and removes
+ * the whole class regardless of which router version is installed.
+ */
+function safeInternalPath(candidate: string | undefined): string {
+  if (!candidate || !candidate.startsWith('/')) return DEFAULT_REDIRECT;
+  // Reject "//evil.com" and "/\evil.com"; both escape the current origin.
+  if (candidate[1] === '/' || candidate[1] === '\\') return DEFAULT_REDIRECT;
+  return candidate;
+}
+
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation() as { state?: { from?: string } };
-  const redirectTo = location.state?.from || '/dashboard';
+  const redirectTo = safeInternalPath(location.state?.from);
   const [mode, setMode] = useState<'magic' | 'password'>('magic');
   const [googleLoading, setGoogleLoading] = useState(false);
 

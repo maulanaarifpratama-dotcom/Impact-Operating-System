@@ -237,6 +237,50 @@ CI does not gate on lint.
   is `org_id IN (SELECT ...)`, deliberately left out of the security migration
   to keep that one small and reviewable.
 
+## Dependency advisories — triaged 2026-07-26
+
+GitHub reports 35 advisories; `npm audit` resolves them to 16 affected packages
+(1 critical, 11 high, 4 moderate). **Two reach the browser. Neither is
+exploitable as the app is written.**
+
+Method: check each package against the production dependency tree, then grep the
+actual built bundle in `dist/assets/`. Being in the npm "prod tree" is not the
+same as shipping — `postcss`, `glob`, `minimatch` and `picomatch` all appear
+there but none survive into the bundle.
+
+| Package | Severity | Ships to users? | Assessment |
+| --- | --- | --- | --- |
+| `vitest` | critical | no | Test runner. The advisory needs `vitest --ui` listening locally. Zero production surface. |
+| `vite`, `rollup`, `esbuild`, `postcss` | high/moderate | no | Build-time only. |
+| `glob`, `minimatch`, `picomatch`, `brace-expansion` | high | no | Globbing utilities; confirmed absent from the bundle. |
+| `flatted`, `js-yaml`, `ajv`, `form-data` | high/moderate | no | ESLint and tooling dependencies. |
+| `lodash` | high | **yes**, via recharts | `_.template` code injection needs the app to call `_.template` on untrusted input. The app never imports lodash directly and never calls it; recharts uses only internal keys with `_.omit`/`_.unset`. Not exploitable. |
+| `react-router-dom` | moderate | **yes** | See below. |
+
+### react-router-dom
+
+Pinned at 6.30.3; the advisory range is 6.6.3 – 6.30.4 and `npm audit` offers
+only `react-router-dom@7.18.1`, a **major** bump. Three advisories apply:
+
+- Open redirect via `//path` reinterpreted as protocol-relative
+- Open redirect via backslash in `<Link>`/`useNavigate` (CVE-2025-68470 bypass)
+- Arbitrary constructor injection in `deserializeErrors()` during **SSR
+  hydration** — not applicable; `main.tsx` uses `createRoot().render()`, and the
+  prerenderer renders to a string through a separate entry.
+
+For the redirect pair, the app has exactly one navigation driven by stored data:
+`ProtectedRoute.tsx:56` stashes `state: { from: location.pathname }` and
+`Login.tsx` navigates there after sign-in. `location.state` cannot be set from a
+crafted URL, and a path like `//evil.com` matches no protected route, so it never
+reaches `ProtectedRoute`. No `?redirect=` or `?returnTo=` parameter exists
+anywhere.
+
+**Decision: do not force the v6 → v7 migration for a non-exploitable advisory.**
+Instead `Login.tsx` now runs the stored path through `safeInternalPath()`, which
+rejects anything not starting with a single `/`. That closes the class outright
+and holds no matter which router version is installed. Revisit v7 as planned
+work, not as an incident.
+
 ## Correction log
 
 The first pass of this audit made two claims that later verification overturned.
