@@ -89,10 +89,73 @@ test.describe('Tenant isolation (RLS authority)', () => {
           ? [...new Set((projects.body as { organization_id: string }[]).map((r) => r.organization_id))]
           : [];
 
+        // Reading across tenants is allowed for a platform admin; writing is
+        // not — gw_projects_member_insert carries no admin clause. Pick a real
+        // organization this user does not belong to and try to plant a project
+        // in it. Using a genuine id matters: a made-up UUID would be rejected
+        // by the foreign key before RLS ever got a say.
+        const allOrgs = await call('organizations?select=id');
+        const foreignRealOrg = (Array.isArray(allOrgs.body) ? (allOrgs.body as { id: string }[]) : [])
+          .map((o) => o.id)
+          .find((id) => !ownOrgIds.includes(id));
+
+        const foreignProjectInsert = foreignRealOrg
+          ? await call('gw_projects', {
+              method: 'POST',
+              body: JSON.stringify({
+                organization_id: foreignRealOrg,
+                created_by: uid,
+                title: 'E2E tenant isolation probe — must never persist',
+              }),
+            })
+          : null;
+
+        // The integration probes below write for real. That was harmless while
+        // RLS refused them; now that this account is a platform admin they
+        // succeed, and the PATCH was overwriting the live OneDrive drive_id —
+        // the field that decides where evidence uploads land. Remember the
+        // original so it can be put back, whatever the probe returns.
+        const beforeOnedrive = await call('system_integrations?provider=eq.onedrive&select=id,drive_id');
+        const onedriveRows = Array.isArray(beforeOnedrive.body)
+          ? (beforeOnedrive.body as { id: string; drive_id: string | null }[])
+          : [];
+
+        const isAdmin = await call(`admin_users?select=user_id&user_id=eq.${uid}`);
+        const integrationInsert = await call('system_integrations', {
+          method: 'POST',
+          body: JSON.stringify({ provider: 'e2e-probe', status: 'inactive' }),
+        });
+        const integrationPatch = await call('system_integrations?provider=eq.onedrive', {
+          method: 'PATCH',
+          body: JSON.stringify({ drive_id: 'e2e-should-never-apply' }),
+          headers: { Prefer: 'return=representation' },
+        });
+        const integrationRows = await call('system_integrations?select=provider,drive_id');
+
+        // Put the real integration back, then drop the probe rows so they stop
+        // piling up in a live table.
+        for (const row of onedriveRows) {
+          await call(`system_integrations?id=eq.${row.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ drive_id: row.drive_id }),
+          });
+        }
+        await call('system_integrations?provider=eq.e2e-probe', { method: 'DELETE' });
+
+        const afterOnedrive = await call('system_integrations?provider=eq.onedrive&select=drive_id');
+
         return {
           uid,
           ownOrgIds,
           projectOrgIds,
+          foreignRealOrg,
+          foreignProjectInsert,
+          isAdmin,
+          integrationInsert,
+          integrationPatch,
+          integrationRows,
+          onedriveBefore: onedriveRows.map((r) => r.drive_id),
+          onedriveAfter: afterOnedrive.body,
           // Was world-readable until invitations_read_by_token was dropped.
           invitations: await call('organization_invitations?select=id,email,organization_id,token'),
           // Self-insert into an arbitrary org: the takeover step.
@@ -100,25 +163,6 @@ test.describe('Tenant isolation (RLS authority)', () => {
             method: 'POST',
             body: JSON.stringify({ organization_id: foreignOrg, user_id: uid, role: 'owner' }),
           }),
-          // Was ALL USING(true) WITH CHECK(true); drive_id decides where NGO
-          // evidence uploads land.
-          //
-          // A bare PATCH is not conclusive: PostgREST answers 204 both when RLS
-          // filtered every row away and when the filter simply matched nothing.
-          // An INSERT has no such ambiguity — it is refused outright — so that
-          // is the probe, with the PATCH kept as a second signal asking for the
-          // affected rows back.
-          isAdmin: await call(`admin_users?select=user_id&user_id=eq.${uid}`),
-          integrationInsert: await call('system_integrations', {
-            method: 'POST',
-            body: JSON.stringify({ provider: 'e2e-probe', status: 'inactive' }),
-          }),
-          integrationPatch: await call('system_integrations?provider=eq.onedrive', {
-            method: 'PATCH',
-            body: JSON.stringify({ drive_id: 'e2e-should-never-apply' }),
-            headers: { Prefer: 'return=representation' },
-          }),
-          integrationRows: await call('system_integrations?select=provider,drive_id'),
           // Reachable only through the org check, never by naming an org.
           foreignBeneficiaries: await call(`beneficiaries?select=id&org_id=eq.${foreignOrg}`),
         };
@@ -134,14 +178,65 @@ test.describe('Tenant isolation (RLS authority)', () => {
     console.log(`[RLS] system_integrations INSERT -> ${result.integrationInsert.status} ${JSON.stringify(result.integrationInsert.body)}`);
     console.log(`[RLS] system_integrations PATCH -> ${result.integrationPatch.status} rows=${JSON.stringify(result.integrationPatch.body)}`);
     console.log(`[RLS] system_integrations visible rows -> ${JSON.stringify(result.integrationRows.body)}`);
+    console.log(`[RLS] onedrive drive_id before=${JSON.stringify(result.onedriveBefore)} after=${JSON.stringify(result.onedriveAfter)}`);
+
+    // Whatever the probe did, the live integration must look exactly as it did
+    // before the test touched it.
+    expect(
+      result.onedriveAfter,
+      'the probe changed the live OneDrive integration and did not put it back',
+    ).toEqual(result.onedriveBefore.map((drive_id) => ({ drive_id })));
+
+    if (result.onedriveBefore.includes('e2e-should-never-apply')) {
+      console.warn(
+        '[RLS] WARNING: the live OneDrive drive_id still holds the probe value. An earlier run ' +
+          'overwrote it while this account had admin rights and nothing restored it. Reconnect ' +
+          'OneDrive in Settings to get the real drive id back.',
+      );
+    }
     console.log(`[RLS] foreign beneficiaries -> ${JSON.stringify(result.foreignBeneficiaries.body)}`);
 
-    // Projects only ever come from organizations the user belongs to.
-    for (const orgId of result.projectOrgIds) {
+    // The read policies on gw_projects and organizations both say
+    // "is_org_member(...) OR is_admin(auth.uid())". Once info@bisabaik.or.id
+    // was made a platform super admin — deliberately, so the pilot foundation
+    // can support its own tenants — this account sees every organization by
+    // design, and the cross-tenant read assertions below stop meaning anything
+    // for it.
+    //
+    // Skipping them silently would leave a test that reports green while
+    // checking nothing, so this states plainly what is no longer covered. To
+    // restore the coverage, point E2E_USER_EMAIL at an account that is not in
+    // admin_users.
+    const isPlatformAdmin = Array.isArray(result.isAdmin.body) && result.isAdmin.body.length > 0;
+
+    // Writing into a stranger's organization must fail for everyone, admin or
+    // not. This ran green for months only because the fixture happened to pick
+    // the user's own organization out of an unordered list; the check is now
+    // explicit.
+    if (result.foreignRealOrg) {
+      console.log(
+        `[RLS] insert into foreign org ${result.foreignRealOrg} -> ${result.foreignProjectInsert?.status}`,
+      );
       expect(
-        result.ownOrgIds,
-        `gw_projects leaked a row from org ${orgId}, which the user is not a member of`,
-      ).toContain(orgId);
+        result.foreignProjectInsert?.status,
+        `gw_projects accepted a row for org ${result.foreignRealOrg}, which the user is not a member of`,
+      ).toBeGreaterThanOrEqual(400);
+    }
+
+    if (isPlatformAdmin) {
+      console.log(
+        '[RLS] NOTE: this account is a platform admin, so the read policies admit it to every ' +
+          'organization on purpose. Cross-tenant READ isolation is NOT verified by this run. ' +
+          'The write and privilege-escalation checks below still apply.',
+      );
+    } else {
+      // Projects only ever come from organizations the user belongs to.
+      for (const orgId of result.projectOrgIds) {
+        expect(
+          result.ownOrgIds,
+          `gw_projects leaked a row from org ${orgId}, which the user is not a member of`,
+        ).toContain(orgId);
+      }
     }
 
     // Invitations must not be enumerable. Rows are acceptable only for the
