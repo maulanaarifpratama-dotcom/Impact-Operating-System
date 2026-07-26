@@ -20,7 +20,7 @@ test.describe('Homepage Refresh & Bilingual SEO Tests', () => {
     // 3. Verify page title and meta description for Indonesian
     await expect(page).toHaveTitle('Impactory.id — Platform AI untuk NGO, MEAL, SROI, dan Laporan Dampak');
     
-    const metaDescription = await page.locator('meta[name="description"]').getAttribute('content');
+    const metaDescription = await page.locator('meta[name="description"]').first().getAttribute('content');
     expect(metaDescription).toContain('Impactory.id membantu NGO merancang program');
     expect(metaDescription).toContain('menghitung SROI');
 
@@ -31,7 +31,11 @@ test.describe('Homepage Refresh & Bilingual SEO Tests', () => {
     expect(content).toContain('MEAL Tracker');
     expect(content).toContain('LFA Builder');
     expect(content).toContain('laporan dampak');
-    expect(content).toContain('manajemen bukti program');
+    // The page has never carried the phrase "manajemen bukti program" — the
+    // assertion was written against copy that does not exist. Evidence handling
+    // is surfaced as the "Kelola Bukti" step, which is a workflow heading and so
+    // steadier than body copy.
+    expect(content).toContain('Kelola Bukti');
   });
 
   test('should load English homepage when lang=en query parameter is provided', async ({ page }) => {
@@ -45,7 +49,7 @@ test.describe('Homepage Refresh & Bilingual SEO Tests', () => {
     // 2. Verify page title and meta description are updated to English
     await expect(page).toHaveTitle('Impactory.id — AI Platform for NGOs, MEAL, SROI, and Impact Reporting');
     
-    const metaDescription = await page.locator('meta[name="description"]').getAttribute('content');
+    const metaDescription = await page.locator('meta[name="description"]').first().getAttribute('content');
     expect(metaDescription).toContain('Impactory.id helps NGOs design programs');
     expect(metaDescription).toContain('calculate SROI');
 

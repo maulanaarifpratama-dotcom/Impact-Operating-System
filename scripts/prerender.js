@@ -79,6 +79,51 @@ const PUBLIC_ROUTES = [
   '/terms'
 ];
 
+/** Escape a string for safe use inside a RegExp. */
+function escapeRe(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Drop the baseline tags Helmet is about to supply for this route.
+ *
+ * index.html carries a static <title> and a set of SEO meta so that routes
+ * which are never pre-rendered still say something sensible. Pre-rendered
+ * routes then get Helmet's per-route versions appended — and nothing removed
+ * the originals, so every public page shipped two <meta name="description">,
+ * two og:title, two og:image, and so on.
+ *
+ * That was not merely untidy. Crawlers generally take the first occurrence, and
+ * the first was the baseline: index.html's og:image still pointed at a stale
+ * preview asset on lovable.app, so a shared impactory.id link could render with
+ * the wrong image entirely while the correct one sat further down the document.
+ */
+function stripTagsReplacedByHelmet(html, helmetHead) {
+  let out = html;
+
+  if (/<title[\s>]/i.test(helmetHead)) {
+    out = out.replace(/[ \t]*<title>[\s\S]*?<\/title>\s*\n?/i, '');
+  }
+
+  for (const [, attr, value] of helmetHead.matchAll(/<meta[^>]*?\b(name|property)="([^"]+)"/gi)) {
+    out = out.replace(
+      new RegExp(`[ \\t]*<meta(?![^>]*data-rh)[^>]*\\b${attr}="${escapeRe(value)}"[^>]*>\\s*\\n?`, 'gi'),
+      '',
+    );
+  }
+
+  for (const [, rel] of helmetHead.matchAll(/<link[^>]*?\brel="([^"]+)"/gi)) {
+    // hreflang alternates are per-language; only collapse a rel that carries no
+    // hreflang, so the alternates in the template survive.
+    out = out.replace(
+      new RegExp(`[ \\t]*<link(?![^>]*data-rh)(?![^>]*hreflang)[^>]*\\brel="${escapeRe(rel)}"[^>]*>\\s*\\n?`, 'gi'),
+      '',
+    );
+  }
+
+  return out;
+}
+
 async function prerender() {
   const templatePath = path.join(DIST_DIR, 'index.html');
   if (!fs.existsSync(templatePath)) {
@@ -112,6 +157,7 @@ async function prerender() {
 
       let finalHtml = template.replace('<div id="root"></div>', `<div id="root">${appHtml}</div>`);
       if (headTags) {
+        finalHtml = stripTagsReplacedByHelmet(finalHtml, headTags);
         finalHtml = finalHtml.replace('</head>', `    ${headTags}\n</head>`);
       }
 
