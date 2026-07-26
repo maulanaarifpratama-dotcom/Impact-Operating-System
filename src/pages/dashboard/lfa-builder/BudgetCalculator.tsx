@@ -123,7 +123,12 @@ export default function BudgetCalculator({
     }
 
     try {
-      const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=IDR');
+      // Call api.frankfurter.dev directly. The old api.frankfurter.app host
+      // 301s here, and a CSP connect-src that lists only the .app origin blocks
+      // the redirect — which silently dropped every budget to the Rp 16.000
+      // fallback while the real rate was ~Rp 17.900, a 12% understatement on
+      // USD-denominated donor budgets.
+      const res = await fetch('https://api.frankfurter.dev/v1/latest?from=USD&to=IDR');
       const data = await res.json();
       const rate = data?.rates?.IDR || 16000;
       localStorage.setItem(cacheKey, String(rate));

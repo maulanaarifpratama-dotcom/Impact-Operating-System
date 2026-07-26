@@ -43,6 +43,29 @@ import SROICalculator from './SROICalculator';
 import { buildEditorCanonicalLfaView } from '@/lib/lfa/editorCanonicalBridge';
 
 
+/**
+ * Turn a failed Goal/Purpose bootstrap insert into something the user can act on.
+ *
+ * These rows used to fall back to a fabricated entry with a hardcoded id
+ * ('mock-goal-1', 'mock-purpose-1'). The editor then rendered as if all was
+ * well, but the id is not a UUID, so every autosave afterwards died with
+ * 22P02 and nothing typed into the logframe was ever stored. Silent data loss
+ * is worse than a visible failure — especially mid-demo.
+ *
+ * The common cause is a project_id with no matching lfa_projects row (a deleted
+ * or stale link), which surfaces as an FK violation; that case gets a message
+ * saying what to do rather than the raw constraint name.
+ */
+function lfaBootstrapError(level: 'Goal' | 'Purpose', message: string): Error {
+  if (message.includes('lfa_entries_project_id_fkey')) {
+    return new Error(
+      'Program LFA ini tidak ditemukan — kemungkinan sudah dihapus. ' +
+        'Buka ulang dari daftar LFA Builder.',
+    );
+  }
+  return new Error(`Gagal menyiapkan baris ${level}: ${message}`);
+}
+
 export default function LFABuilderEditor() {
   const { projectId } = useParams<{ projectId: string }>();
   const { user, profile } = useAuth();
@@ -251,23 +274,9 @@ export default function LFABuilderEditor() {
           .select()
           .single();
         if (gErr) {
-          console.warn('[LFABuilderEditor] goal insert error, falling back:', gErr.message);
-          goalEntry = {
-            id: 'mock-goal-1',
-            project_id: projectId!,
-            org_id: orgId,
-            level: 'goal',
-            sequence: 1,
-            description: '',
-            indicator: '',
-            means_of_verification: '',
-            assumption: '',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          } as LfaEntry;
-        } else {
-          goalEntry = g as LfaEntry;
+          throw lfaBootstrapError('Goal', gErr.message);
         }
+        goalEntry = g as LfaEntry;
       }
 
       if (!purposeEntry) {
@@ -286,23 +295,9 @@ export default function LFABuilderEditor() {
           .select()
           .single();
         if (prpErr) {
-          console.warn('[LFABuilderEditor] purpose insert error, falling back:', prpErr.message);
-          purposeEntry = {
-            id: 'mock-purpose-1',
-            project_id: projectId!,
-            org_id: orgId,
-            level: 'purpose',
-            sequence: 1,
-            description: '',
-            indicator: '',
-            means_of_verification: '',
-            assumption: '',
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          } as LfaEntry;
-        } else {
-          purposeEntry = prp as LfaEntry;
+          throw lfaBootstrapError('Purpose', prpErr.message);
         }
+        purposeEntry = prp as LfaEntry;
       }
 
       setGoal(goalEntry);
