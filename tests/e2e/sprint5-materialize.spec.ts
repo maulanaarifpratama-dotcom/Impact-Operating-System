@@ -545,38 +545,102 @@ test.describe('Sprint 5 E2E Program Materialization V2 Test Suite', () => {
     await expect(page.locator('text=150 petani kopi muda terlatih').first()).toBeVisible({ timeout: 5000 });
     console.log('[E2E-S5] Checked LFA items.');
 
-    // Navigate to Budget Tab
+    // Navigate to Budget Tab.
+    //
+    // These were `if (await tabBtn.isVisible())`. Materialization always writes
+    // budget and SROI rows, so the tabs are always meant to be there — the
+    // guard meant that a tab which stopped rendering would take its assertions
+    // with it and the test would still pass.
     const budgetTabBtn = page.locator('button:has-text("Budget"), button:has-text("Anggaran")').first();
-    if (await budgetTabBtn.isVisible()) {
-      await budgetTabBtn.click();
-      
-      // Wait for any Budget loading spinner to disappear completely
-      await page.locator('.animate-spin').waitFor({ state: 'detached', timeout: 15000 });
-      await page.waitForTimeout(2000);
-      
-      await expect(page.locator('input[value="Fasilitator"]').first()).toBeVisible({ timeout: 10000 });
-      await expect(page.locator('input[value="Makan + 2 Snack"]').first()).toBeVisible({ timeout: 5000 });
-      console.log('[E2E-S5] Checked Budget items.');
-    }
+    await expect(budgetTabBtn, 'tab Anggaran tidak muncul setelah materialisasi').toBeVisible({ timeout: 15000 });
+    await budgetTabBtn.click();
 
-    // Navigate to SROI Tab
+    // Wait for any Budget loading spinner to disappear completely
+    await page.locator('.animate-spin').waitFor({ state: 'detached', timeout: 15000 });
+    await page.waitForTimeout(2000);
+
+    await expect(page.locator('input[value="Fasilitator"]').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('input[value="Makan + 2 Snack"]').first()).toBeVisible({ timeout: 5000 });
+    console.log('[E2E-S5] Checked Budget items.');
+
+    // SROI stays a soft check on purpose.
+    //
+    // Materialization can only scaffold it. A real SROI needs the MEAL
+    // evaluation data collected in the field first, which does not exist at
+    // design time — so what lands here is a placeholder, and asserting on it
+    // would be asserting on something the programme has not measured yet. The
+    // chain this test guards ends at MEAL.
     const sroiTabBtn = page.locator('button:has-text("SROI")').first();
     if (await sroiTabBtn.isVisible()) {
       await sroiTabBtn.click();
-      
-      // Wait for any SROI loading spinner to disappear completely
       await page.locator('.animate-spin').waitFor({ state: 'detached', timeout: 15000 });
       await page.waitForTimeout(1000);
-      
-      // Click Step 3: Ajustmen to display standard text <p> elements with outcomes
+
       const ajustmenBtn = page.locator('button:has-text("3. Ajustmen")').first();
-      await expect(ajustmenBtn).toBeVisible({ timeout: 15000 });
-      await ajustmenBtn.click();
-      await page.waitForTimeout(1000);
-      
-      await expect(page.locator('text=petani kopi muda').first()).toBeVisible({ timeout: 15000 });
-      console.log('[E2E-S5] Checked SROI draft items.');
+      if (await ajustmenBtn.isVisible()) {
+        await ajustmenBtn.click();
+        await page.waitForTimeout(1000);
+        console.log('[E2E-S5] SROI scaffold rendered.');
+      }
     }
+
+    // --- What materialization actually wrote -------------------------------
+    //
+    // The budget tab check above used to be wrapped in `if (isVisible())`, so
+    // a tab that stopped rendering took its assertions with it and the test
+    // still reported green. MEAL had no check at all. This reads the rows
+    // directly, so a materialization that quietly stops populating a module
+    // fails here instead of being found by a programme officer opening an
+    // empty MEAL planner.
+    //
+    // The chain ends at MEAL, deliberately. That is as far as a design-stage
+    // logframe can honestly go: SROI needs evaluation data from the field, so
+    // anything materialization writes there is a placeholder, not a finding.
+    const lfaProjectId = page.url().match(/lfa-builder\/([0-9a-f-]{36})/i)?.[1];
+    expect(lfaProjectId, `no LFA project id in the URL: ${page.url()}`).toBeTruthy();
+
+    const materialized = await page.evaluate(
+      async ({ lfaId, anonKey, supabaseUrl }) => {
+        let token = '';
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.includes('auth-token')) {
+            token = JSON.parse(localStorage.getItem(key) || '{}').access_token || '';
+          }
+        }
+        const headers = { apikey: anonKey, Authorization: `Bearer ${token}` };
+        const rows = async (table: string, column: string) => {
+          const res = await fetch(`${supabaseUrl}/rest/v1/${table}?select=id&${column}=eq.${lfaId}`, { headers });
+          const body = await res.json();
+          return Array.isArray(body) ? body.length : -1;
+        };
+        const meal = await fetch(
+          `${supabaseUrl}/rest/v1/lfa_meal_items?select=indicator_text,target_value,frequency,pic&lfa_project_id=eq.${lfaId}&limit=1`,
+          { headers },
+        ).then((r) => r.json());
+
+        return {
+          entries: await rows('lfa_entries', 'project_id'),
+          wbs: await rows('lfa_wbs_items', 'lfa_project_id'),
+          budget: await rows('lfa_budget_items', 'lfa_project_id'),
+          meal: await rows('lfa_meal_items', 'lfa_project_id'),
+          firstMeal: Array.isArray(meal) ? meal[0] : null,
+        };
+      },
+      { lfaId: lfaProjectId, anonKey: supabaseKey, supabaseUrl },
+    );
+
+    console.log('[E2E-S5] Materialized rows: ' + JSON.stringify(materialized));
+
+    expect(materialized.entries, 'lfa_entries kosong — logframe tidak terisi').toBeGreaterThan(0);
+    expect(materialized.wbs, 'lfa_wbs_items kosong — WBS tidak terisi').toBeGreaterThan(0);
+    expect(materialized.budget, 'lfa_budget_items kosong — anggaran tidak terisi').toBeGreaterThan(0);
+    expect(materialized.meal, 'lfa_meal_items kosong — MEAL tidak terisi').toBeGreaterThan(0);
+
+    // A MEAL row with no indicator or no target is not a usable MEAL plan.
+    expect(materialized.firstMeal?.indicator_text, 'indikator MEAL kosong').toBeTruthy();
+    expect(materialized.firstMeal?.target_value, 'target MEAL kosong').toBeTruthy();
+    expect(materialized.firstMeal?.frequency, 'frekuensi pemantauan MEAL kosong').toBeTruthy();
   });
 
   test('should execute real Azure Beginner Wizard generation and downstream materialization (real Azure integration test)', async ({ page }) => {
