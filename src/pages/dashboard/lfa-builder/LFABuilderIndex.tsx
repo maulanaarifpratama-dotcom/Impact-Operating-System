@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   X,
   CheckCircle2,
+  CalendarDays,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,6 +42,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { useAuth } from '@/providers/AuthProvider';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
+import { formatRelativeTime } from '@/lib/utils';
 import { LfaProject, LfaEntry, AiActivity } from './types';
 
 export default function LFABuilderIndex() {
@@ -620,6 +622,14 @@ export default function LFABuilderIndex() {
                           }`}
                           style={{ width: `${score}%` }}
                         />
+                      </div>
+
+                      {/* The list is ordered by created_at but never showed it,
+                          so identically-named programmes were impossible to tell
+                          apart. Same wording as the Grant Writer list. */}
+                      <div className="flex items-center gap-1.5 pt-1 text-muted-foreground">
+                        <CalendarDays className="h-3 w-3" aria-hidden />
+                        <span>Dibuat {formatRelativeTime(p.created_at)}</span>
                       </div>
                     </div>
 
