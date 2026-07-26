@@ -2,8 +2,21 @@
 // On-demand full proposal generation derived from an ALREADY-VALIDATED LFA matrix + wizard_data narrative.
 
 import { authenticate, adminClient, AuthError } from '../_shared/auth.ts';
+import { enforceRateLimit, GENERATE_LIMIT } from '../_shared/rateLimit.ts';
 import { chatCompletion } from '../_shared/foundry.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
+
+/**
+ * Completion budget for the seven-chapter narrative proposal.
+ *
+ * Was 7000, which is the same trap grant-writer-generate fell into: GPT-5 and
+ * o-series deployments spend this budget on hidden reasoning before emitting
+ * anything visible, so a seven-section document plus the skeleton context it now
+ * receives can run out mid-way and come back truncated. foundry.ts names the
+ * symptom when it happens — "the completion budget was consumed by reasoning
+ * before any visible output was emitted."
+ */
+const PROPOSAL_MAX_TOKENS = 27_500;
 
 interface ProposalRequest {
   projectId: string;
@@ -154,6 +167,12 @@ Deno.serve(async (req: Request) => {
 
   try {
     const ctx = await authenticate(req);
+    // A seven-chapter narrative is as expensive as a full LFA generation, and
+    // this endpoint had no ceiling at all while grant-writer-generate did.
+    await enforceRateLimit(ctx.supabaseAdmin, ctx.userId, {
+      bucket: 'grant-writer-proposal',
+      ...GENERATE_LIMIT,
+    });
     const user = { id: ctx.userId, email: ctx.email };
     const supabase = ctx.supabase;
 
@@ -334,6 +353,22 @@ Deno.serve(async (req: Request) => {
     }
 
     const matrix: LfaMatrix = docRow.matrix || {};
+
+    /**
+     * The generated programme skeleton, when the document carries one.
+     *
+     * grant-writer-generate produces far more than the flat matrix: a work
+     * breakdown with durations, dependencies and responsible roles; budget
+     * lines referenced against SBM 2026; MEAL indicators with baselines,
+     * targets and collection methods; SROI models; and beneficiary figures.
+     * None of it reached this prompt, yet the prompt asks for an implementation
+     * plan (section 4) and a MEAL framework (section 5) — so the model invented
+     * both, and what it invented did not match the WBS and MEAL tabs the
+     * organisation would actually work from. Passing the skeleton makes the
+     * narrative describe the plan that exists.
+     */
+    const skeleton = matrix.program_skeleton ?? docRow.matrix?.program_skeleton ?? null;
+
     const wizardData = projectRow?.wizard_data || {};
     const narrativeContext = extractNarrativeContext(
       wizardData,
@@ -448,7 +483,32 @@ ${JSON.stringify(narrativeContext.ambiguityResolutions, null, 2)}
 
 Missing Info Resolutions:
 ${JSON.stringify(narrativeContext.missingInfoResolutions, null, 2)}
+${
+  skeleton
+    ? `
+=== PROGRAM SKELETON (THE PLAN THAT ALREADY EXISTS — DO NOT INVENT AROUND IT) ===
+Sections 4 and 5 must describe THIS work breakdown and THIS MEAL framework. The
+organisation will execute from these exact records, so inventing different
+activities, indicators or budget lines would put the proposal at odds with the
+plan it is meant to describe. Narrate and justify what is here; do not replace it.
 
+Beneficiaries:
+${JSON.stringify(skeleton.beneficiaries ?? {}, null, 2)}
+
+Work Breakdown (tasks, durations in weeks, dependencies, deliverables, responsible roles):
+${JSON.stringify(skeleton.wbs?.tasks ?? [], null, 2)}
+
+Budget lines (referenced against SBM 2026 where engineRule says sbm_lookup):
+${JSON.stringify(skeleton.budget_hints?.items ?? [], null, 2)}
+
+MEAL indicators (baselines, targets, frequency, data source, disaggregation):
+${JSON.stringify(skeleton.meal?.indicators ?? [], null, 2)}
+
+SROI models (financial proxies and the four SVI adjustments):
+${JSON.stringify(skeleton.sroi?.models ?? [], null, 2)}
+`
+    : ''
+}
 Please write the complete narrative proposal now following the 7 sections structure.`;
 
     const completionRes = await chatCompletion({
@@ -456,7 +516,7 @@ Please write the complete narrative proposal now following the 7 sections struct
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
       ],
-      max_tokens: 7000,
+      max_tokens: PROPOSAL_MAX_TOKENS,
     });
 
     const choice = completionRes.choices[0];
