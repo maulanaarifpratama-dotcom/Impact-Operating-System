@@ -15,14 +15,57 @@ import { Check, X, HelpCircle, ArrowRight, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import SEO from '@/components/SEO';
 
+/**
+ * What each tier includes, as shown to the public.
+ *
+ * Kept as data rather than inline JSX so the three cards cannot drift apart,
+ * and so there is one obvious place to reconcile against when the entitlement
+ * checks land — today nothing enforces these lists, and a page that promises a
+ * split the database does not apply is worse than no page at all.
+ */
+const DASAR_FEATURES = [
+  'Readiness Scorecard',
+  'Resource Access Tracker',
+  'Donor CRM',
+  'Campaign Builder',
+  'Manajemen anggota tim',
+];
+
+const DASAR_EXCLUDED = ['Grantwriter AI', 'LFA Builder & WBS', 'MEAL & SROI'];
+
+const BERDAYA_FEATURES = [
+  'Semua fitur Dasar',
+  'Grant Pipeline & Grantwriter AI',
+  'LFA Builder, WBS & Budget SBM 2026',
+  'MEAL Planner & Tracker',
+  'SROI Calculator & E-ROI Carbon',
+  'Impact Library & Beneficiary Registry',
+  'Monthly Report & Operating Review',
+  'Export PDF seluruh modul',
+];
+
+const INSTITUSI_FEATURES = [
+  'Semua fitur Berdaya',
+  'White label & domain sendiri',
+  'Model AI & knowledge base kustom',
+  'Server khusus & SSO',
+  'Akses API',
+  'Struktur multi-entitas',
+  'SLA & pendamping khusus',
+];
+
 export default function PricingPage() {
   const whatsappNumber = import.meta.env.VITE_WHATSAPP_NUMBER || '6281234567890';
   
-  const proMessage = encodeURIComponent("Halo, saya ingin berlangganan Impactory Pro (Rp 299.000/bulan)");
-  const annualMessage = encodeURIComponent("Halo, saya ingin berlangganan Impactory Tahunan (Rp 2.500.000/tahun)");
+  const berdayaMessage = encodeURIComponent(
+    "Halo, saya ingin berlangganan Impactory Berdaya (Rp 499.000/bulan)",
+  );
+  const institusiMessage = encodeURIComponent(
+    "Halo, saya ingin berdiskusi tentang Impactory Institusi untuk organisasi kami",
+  );
 
-  const proWaUrl = `https://wa.me/${whatsappNumber}?text=${proMessage}`;
-  const annualWaUrl = `https://wa.me/${whatsappNumber}?text=${annualMessage}`;
+  const berdayaWaUrl = `https://wa.me/${whatsappNumber}?text=${berdayaMessage}`;
+  const institusiWaUrl = `https://wa.me/${whatsappNumber}?text=${institusiMessage}`;
 
   const pricingJsonLd = {
     '@context': 'https://schema.org',
@@ -31,46 +74,33 @@ export default function PricingPage() {
     'operatingSystem': 'Web',
     'applicationCategory': 'BusinessApplication',
     'description': 'Platform AI terintegrasi untuk NGO, MEAL, SROI, GrantWriter, dan Manajemen Program Impact di Indonesia.',
+    // Only the two concrete prices are declared. Institusi is quoted per
+    // organisation, and inventing a figure here would put a number in Google's
+    // results that nobody at Impactory ever agreed to.
     'offers': [
       {
         '@type': 'Offer',
-        'name': 'Paket Gratis',
+        'name': 'Dasar',
         'price': '0',
         'priceCurrency': 'IDR',
-        'description': 'Eksplorasi fitur dasar GrantWriter & LFA Builder.',
+        'description': 'Readiness Scorecard, Resource Access, Donor CRM, dan Campaign Builder. Gratis selamanya.',
         'availability': 'https://schema.org/InStock'
       },
       {
         '@type': 'Offer',
-        'name': 'Paket Pro Bulanan',
-        'price': '299000',
+        'name': 'Berdaya',
+        'price': '499000',
         'priceCurrency': 'IDR',
+        'description': 'Seluruh modul G.R.O.W.T.H. termasuk Grantwriter AI, LFA Builder, MEAL, SROI, dan E-ROI Carbon.',
         'availability': 'https://schema.org/InStock',
         'priceSpecification': {
           '@type': 'UnitPriceSpecification',
-          'price': '299000',
+          'price': '499000',
           'priceCurrency': 'IDR',
           'referenceQuantity': {
             '@type': 'QuantitativeValue',
             'value': '1',
-            'unitCode': 'MONTH'
-          }
-        }
-      },
-      {
-        '@type': 'Offer',
-        'name': 'Paket Pro Tahunan',
-        'price': '2500000',
-        'priceCurrency': 'IDR',
-        'availability': 'https://schema.org/InStock',
-        'priceSpecification': {
-          '@type': 'UnitPriceSpecification',
-          'price': '2500000',
-          'priceCurrency': 'IDR',
-          'referenceQuantity': {
-            '@type': 'QuantitativeValue',
-            'value': '1',
-            'unitCode': 'ANN'
+            'unitCode': 'MON'
           }
         }
       }
@@ -92,11 +122,11 @@ export default function PricingPage() {
     },
     {
       q: "Berapa batas user?",
-      a: "Batas user adalah tidak terbatas (unlimited) di seluruh plan berbayar kami (Pro dan Tahunan). Anda bebas mendaftarkan semua jajaran staf atau relawan organisasi Anda tanpa biaya tambahan."
+      a: "Tidak ada batas jumlah user pada paket Berdaya maupun Institusi. Anda bebas mendaftarkan seluruh staf, relawan, dan mitra program tanpa biaya tambahan per kursi."
     },
     {
       q: "Apakah tersedia invoice resmi?",
-      a: "Ya. Bagi organisasi yang berlangganan Plan Tahunan, kami menerbitkan kuitansi, faktur, serta invoice resmi bertandatangan basah untuk melengkapi kebutuhan laporan keuangan administrasi internal Anda."
+      a: "Ya. Untuk paket Berdaya dan Institusi kami menerbitkan kuitansi, faktur, serta invoice resmi bertandatangan basah sesuai kebutuhan administrasi dan pelaporan keuangan organisasi Anda."
     }
   ];
 
@@ -144,11 +174,11 @@ export default function PricingPage() {
         <div className="container max-w-6xl mx-auto px-4">
           <div className="grid md:grid-cols-3 gap-8 items-stretch">
             
-            {/* Tier 1 — Gratis */}
+            {/* Tier 1 — Dasar */}
             <Card className="premium-glass-card rounded-3xl p-6 sm:p-8 flex flex-col justify-between h-full">
               <div>
                 <div className="flex justify-between items-center gap-2">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plan Dasar</span>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Dasar</span>
                   <Badge variant="outline" className="bg-white/5 text-slate-300 border-white/10 px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg">
                     Gratis selamanya
                   </Badge>
@@ -157,34 +187,24 @@ export default function PricingPage() {
                   <div className="flex items-baseline">
                     <span className="text-3xl sm:text-4xl font-black text-slate-100">Rp 0</span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1 font-semibold">1 organisasi · 1 user</p>
+                  <p className="text-xs text-slate-400 mt-1 font-semibold">
+                    Untuk organisasi yang baru membangun sistem
+                  </p>
                 </div>
                 <hr className="border-white/5 my-6" />
                 <ul className="space-y-3.5 text-xs">
-                  <li className="flex items-start gap-2.5">
-                    <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-                    <span className="text-slate-300">LFA Builder (maks 3 program)</span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-                    <span className="text-slate-300">Budget Calculator</span>
-                  </li>
-                  <li className="flex items-start gap-2.5 text-slate-400 line-through">
-                    <X className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
-                    <span>Grant Writer AI</span>
-                  </li>
-                  <li className="flex items-start gap-2.5 text-slate-400 line-through">
-                    <X className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
-                    <span>MEAL Planner</span>
-                  </li>
-                  <li className="flex items-start gap-2.5 text-slate-400 line-through">
-                    <X className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
-                    <span>SROI Calculator</span>
-                  </li>
-                  <li className="flex items-start gap-2.5 text-slate-400 line-through">
-                    <X className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
-                    <span>Export PDF Laporan</span>
-                  </li>
+                  {DASAR_FEATURES.map((f) => (
+                    <li key={f} className="flex items-start gap-2.5">
+                      <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
+                      <span className="text-slate-300">{f}</span>
+                    </li>
+                  ))}
+                  {DASAR_EXCLUDED.map((f) => (
+                    <li key={f} className="flex items-start gap-2.5 text-slate-400 line-through">
+                      <X className="h-4 w-4 text-slate-400 shrink-0 mt-0.5" />
+                      <span>{f}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
               <Button asChild variant="outline" className="w-full border-white/10 text-white bg-transparent hover:bg-white/5 rounded-xl py-6 mt-8 font-bold text-xs">
@@ -192,100 +212,71 @@ export default function PricingPage() {
               </Button>
             </Card>
 
-            {/* Tier 2 — Pro (FEATURED) */}
+            {/* Tier 2 — Berdaya (FEATURED) */}
             <div className="relative group flex flex-col h-full">
               <div className="absolute -inset-1 bg-gradient-to-b from-teal-500 to-brand-accent rounded-3xl blur opacity-30 group-hover:opacity-40 transition-opacity" />
               <Card className="premium-glass-card relative rounded-3xl p-6 sm:p-8 flex flex-col justify-between h-full scale-100 md:scale-105 border-2 border-teal-500/50">
                 <div>
                   <div className="flex justify-between items-center gap-2">
-                    <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">Plan Menengah</span>
+                    <span className="text-xs font-bold text-teal-400 uppercase tracking-wider">Berdaya</span>
                     <Badge className="bg-gradient-to-r from-teal-500 to-brand-accent text-white px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg border-none">
                       Paling populer
                     </Badge>
                   </div>
                   <div className="mt-5">
                     <div className="flex items-baseline">
-                      <span className="text-3xl sm:text-4xl font-black text-slate-100">Rp 299.000</span>
+                      <span className="text-3xl sm:text-4xl font-black text-slate-100">Rp 499.000</span>
                       <span className="text-xs text-slate-400 ml-1.5 font-medium">/ bulan</span>
                     </div>
-                    <p className="text-xs text-slate-300 mt-1 font-semibold">per organisasi · unlimited user</p>
+                    <p className="text-xs text-slate-300 mt-1 font-semibold">
+                      per organisasi &middot; user tanpa batas
+                    </p>
                   </div>
                   <hr className="border-white/5 my-6" />
                   <ul className="space-y-3.5 text-xs">
-                    <li className="flex items-start gap-2.5">
-                      <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-                      <span className="text-slate-200 font-medium">Semua modul G.R.O.W.T.H.</span>
-                    </li>
-                    <li className="flex items-start gap-2.5">
-                      <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-                      <span className="text-slate-200">AI unlimited (fair use)</span>
-                    </li>
-                    <li className="flex items-start gap-2.5">
-                      <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-                      <span className="text-slate-200">OneDrive evidence upload</span>
-                    </li>
-                    <li className="flex items-start gap-2.5">
-                      <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-                      <span className="text-slate-200">Export PDF semua modul</span>
-                    </li>
-                    <li className="flex items-start gap-2.5">
-                      <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-                      <span className="text-slate-200 font-medium">Grant Finder</span>
-                    </li>
-                    <li className="flex items-start gap-2.5">
-                      <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-                      <span className="text-slate-200">Priority support via WhatsApp</span>
-                    </li>
+                    {BERDAYA_FEATURES.map((f) => (
+                      <li key={f} className="flex items-start gap-2.5">
+                        <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
+                        <span className="text-slate-200">{f}</span>
+                      </li>
+                    ))}
                   </ul>
                 </div>
                 <Button asChild className="w-full bg-gradient-to-r from-teal-500 to-brand-accent hover:from-teal-600 hover:to-teal-700 text-white font-bold rounded-xl py-6 mt-8 text-xs shadow-lg shadow-teal-500/20">
-                  <a href={proWaUrl} target="_blank" rel="noreferrer noopener">Hubungi via WhatsApp</a>
+                  <a href={berdayaWaUrl} target="_blank" rel="noreferrer noopener">Mulai berdaya</a>
                 </Button>
               </Card>
             </div>
 
-            {/* Tier 3 — Tahunan */}
+            {/* Tier 3 — Institusi */}
             <Card className="premium-glass-card rounded-3xl p-6 sm:p-8 flex flex-col justify-between h-full">
               <div>
                 <div className="flex justify-between items-center gap-2">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Plan Korporasi</span>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Institusi</span>
                   <Badge variant="outline" className="bg-amber-500/10 text-amber-400 border-amber-500/20 px-2.5 py-1 text-[10px] font-bold uppercase rounded-lg">
-                    Hemat 30%
+                    Kustom
                   </Badge>
                 </div>
                 <div className="mt-5">
                   <div className="flex items-baseline">
-                    <span className="text-3xl sm:text-4xl font-black text-slate-100">Rp 2.500.000</span>
-                    <span className="text-xs text-slate-400 ml-1.5 font-medium">/ tahun</span>
+                    <span className="text-2xl sm:text-3xl font-black text-slate-100">Hubungi kami</span>
                   </div>
-                  <p className="text-xs text-slate-400 mt-1 font-semibold">per organisasi · unlimited user</p>
+                  <p className="text-xs text-slate-400 mt-1 font-semibold">
+                    Untuk yayasan besar, CSR, dan lembaga multi-program
+                  </p>
                 </div>
                 <hr className="border-white/5 my-6" />
                 <ul className="space-y-3.5 text-xs">
-                  <li className="flex items-start gap-2.5">
-                    <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-                    <span className="text-slate-300">Semua fitur Pro</span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-                    <span className="text-slate-300 font-medium">Sesi onboarding 1x (60 menit)</span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-                    <span className="text-slate-300">Invoice resmi & Administrasi</span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-                    <span className="text-slate-300">Akses fitur beta eksklusif</span>
-                  </li>
-                  <li className="flex items-start gap-2.5">
-                    <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
-                    <span className="text-slate-300">Custom SBM reference</span>
-                  </li>
+                  {INSTITUSI_FEATURES.map((f) => (
+                    <li key={f} className="flex items-start gap-2.5">
+                      <Check className="h-4 w-4 text-teal-400 shrink-0 mt-0.5" />
+                      <span className="text-slate-300">{f}</span>
+                    </li>
+                  ))}
                 </ul>
               </div>
               <Button asChild className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white font-bold rounded-xl py-6 mt-8 text-xs">
-                <a href={annualWaUrl} target="_blank" rel="noreferrer noopener">Hubungi via WhatsApp</a>
+                <a href={institusiWaUrl} target="_blank" rel="noreferrer noopener">Diskusikan kebutuhan</a>
               </Button>
             </Card>
 
