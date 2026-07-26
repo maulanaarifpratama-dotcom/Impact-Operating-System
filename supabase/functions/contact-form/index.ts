@@ -2,22 +2,59 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { handleCors, jsonResponse, errorResponse } from "../_shared/cors.ts";
 
+/** Where contact submissions are delivered. */
+const RECIPIENT = { email: "arif@impactory.id", name: "Maulana Arif Pratama" };
+
+// Anyone on the internet can post here, and whatever they send is rendered as
+// HTML in someone's inbox. Cap the fields so a submission cannot be used to
+// deliver a wall of content.
+const LIMITS = { nama: 120, email: 254, organisasi: 200, pesan: 5000 };
+
+const EMAIL_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]{2,}$/;
+
+/**
+ * Escape a submitted value for interpolation into the email body.
+ *
+ * Without this, a "message" of `<a href="https://evil.example">Verifikasi akun
+ * Anda</a>` arrives as a working link in a mail that genuinely came from
+ * Impactory's own sender — a phishing vector aimed straight at the team's inbox.
+ */
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+/** Collapse whitespace so a submitted value cannot break the Subject line. */
+function singleLine(value: string, max: number): string {
+  return value.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
 serve(async (req: Request) => {
-  // Handle CORS preflight
   const corsRes = handleCors(req);
   if (corsRes) return corsRes;
 
-  // Ensure method is POST
   if (req.method !== "POST") {
     return errorResponse("Method not allowed", 405);
   }
 
   try {
-    const { nama, email, organisasi, pesan } = await req.json();
+    const body = await req.json();
+    const nama = singleLine(String(body?.nama ?? ""), LIMITS.nama);
+    const email = singleLine(String(body?.email ?? ""), LIMITS.email);
+    const organisasi = singleLine(String(body?.organisasi ?? ""), LIMITS.organisasi);
+    const pesan = String(body?.pesan ?? "").slice(0, LIMITS.pesan).trim();
 
-    // Validate fields
     if (!nama || !email || !pesan) {
       return errorResponse("Nama, Email, dan Pesan wajib diisi.", 400);
+    }
+    // The address becomes replyTo, so an invalid one either bounces the reply or
+    // is rejected outright by Brevo.
+    if (!EMAIL_RE.test(email)) {
+      return errorResponse("Alamat email tidak valid.", 400);
     }
 
     const brevoApiKey = Deno.env.get("BREVO_API_KEY");
@@ -29,12 +66,15 @@ serve(async (req: Request) => {
     const orgName = organisasi || "Personal / Tanpa Organisasi";
     const subject = `Pesan baru dari ${nama} - ${orgName}`;
 
+    // Every interpolation below is escaped. Note `class`, not `className`: this
+    // is an email document, not JSX, and the previous React spelling meant none
+    // of the styles above ever applied.
     const htmlContent = `
       <!DOCTYPE html>
       <html>
         <head>
           <meta charset="utf-8">
-          <title>${subject}</title>
+          <title>${escapeHtml(subject)}</title>
           <style>
             body { font-family: sans-serif; line-height: 1.6; color: #333333; margin: 0; padding: 20px; }
             .container { max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 24px; background-color: #ffffff; }
@@ -46,25 +86,25 @@ serve(async (req: Request) => {
           </style>
         </head>
         <body>
-          <div className="container">
+          <div class="container">
             <h2>Pesan Kontak Baru — Impactory</h2>
-            <div className="field">
-              <div className="label">Nama Lengkap:</div>
-              <div className="value">${nama}</div>
+            <div class="field">
+              <div class="label">Nama Lengkap:</div>
+              <div class="value">${escapeHtml(nama)}</div>
             </div>
-            <div className="field">
-              <div className="label">Alamat Email:</div>
-              <div className="value">${email}</div>
+            <div class="field">
+              <div class="label">Alamat Email:</div>
+              <div class="value">${escapeHtml(email)}</div>
             </div>
-            <div className="field">
-              <div className="label">Nama Organisasi:</div>
-              <div className="value">${orgName}</div>
+            <div class="field">
+              <div class="label">Nama Organisasi:</div>
+              <div class="value">${escapeHtml(orgName)}</div>
             </div>
-            <div className="field">
-              <div className="label">Pesan / Pertanyaan:</div>
-              <div className="value">${pesan}</div>
+            <div class="field">
+              <div class="label">Pesan / Pertanyaan:</div>
+              <div class="value">${escapeHtml(pesan)}</div>
             </div>
-            <div className="footer">
+            <div class="footer">
               Email ini dikirim secara otomatis oleh formulir kontak situs web Impactory.
             </div>
           </div>
@@ -72,7 +112,6 @@ serve(async (req: Request) => {
       </html>
     `;
 
-    // Call Brevo SMTP Send Email API
     const response = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
       headers: {
@@ -81,22 +120,22 @@ serve(async (req: Request) => {
       },
       body: JSON.stringify({
         sender: { name: "Impactory Form", email: "system@impactory.id" },
-        to: [{ email: "arif@impactory.id", name: "Maulana Arif Pratama" }],
-        replyTo: { email: email, name: nama },
-        subject: subject,
-        htmlContent: htmlContent,
+        to: [RECIPIENT],
+        replyTo: { email, name: nama },
+        subject,
+        htmlContent,
       }),
     });
 
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Brevo SMTP email send failed: Status ${response.status}. Details: ${errorText}`);
-      throw new Error(`SMTP API failed with status ${response.status}`);
+      return errorResponse("Gagal mengirim pesan. Coba lagi nanti.", 502);
     }
 
     return jsonResponse({ success: true });
   } catch (error) {
     console.error("Error in contact-form edge function:", error);
-    return errorResponse(error instanceof Error ? error.message : "Internal Server Error", 500);
+    return errorResponse("Internal Server Error", 500);
   }
 });
