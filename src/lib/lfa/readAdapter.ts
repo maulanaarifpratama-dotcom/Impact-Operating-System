@@ -1039,12 +1039,19 @@ export function mapCanonicalProposalToRawEntries(
   });
 
   // 3. Outcomes (as purpose level entries in raw storage, sequence >= 2)
+  // These read ind.id / ind.means_of_verification / cd.item_name. They used to
+  // read ind.code, ind.data_source and cd.resource_name — none of which exist
+  // on IndicatorV2 or CostDriverV2, so every one of them was undefined. The
+  // interpolations rendered "undefined: Peningkatan Rata-rata Pendapatan..."
+  // and "undefined: undefined (2 Hari)" into the logframe, and the means of
+  // verification column came out empty because .filter(Boolean) dropped a list
+  // of undefined.
   (proposal.outcomes || []).forEach((outcome, oIdx) => {
     const indicatorText = (outcome.indicators || [])
-      .map((ind) => `${ind.code}: ${ind.indicator_name} (Target: ${ind.target_value} ${ind.unit_of_measure})`)
+      .map((ind) => `${ind.id}: ${ind.indicator_name} (Target: ${ind.target_value} ${ind.unit_of_measure})`)
       .join('; ');
     const movText = (outcome.indicators || [])
-      .map((ind) => ind.data_source)
+      .map((ind) => ind.means_of_verification)
       .filter(Boolean)
       .join('; ');
 
@@ -1066,10 +1073,10 @@ export function mapCanonicalProposalToRawEntries(
     // 4. Outputs
     (outcome.outputs || []).forEach((output, opIdx) => {
       const opIndicatorText = (output.indicators || [])
-        .map((ind) => `${ind.code}: ${ind.indicator_name} (Target: ${ind.target_value} ${ind.unit_of_measure})`)
+        .map((ind) => `${ind.id}: ${ind.indicator_name} (Target: ${ind.target_value} ${ind.unit_of_measure})`)
         .join('; ');
       const opMovText = (output.indicators || [])
-        .map((ind) => ind.data_source)
+        .map((ind) => ind.means_of_verification)
         .filter(Boolean)
         .join('; ');
 
@@ -1092,7 +1099,7 @@ export function mapCanonicalProposalToRawEntries(
       // 5. Activities
       (output.activities || []).forEach((act, actIdx) => {
         const costDriverSummary = (act.cost_drivers || [])
-          .map((cd) => `${cd.code}: ${cd.resource_name} (${cd.quantity} ${cd.unit})`)
+          .map((cd) => `${cd.id}: ${cd.item_name} (${cd.quantity} ${cd.unit})`)
           .join('; ');
 
         const actUuid = getUuid(act.id)!;
@@ -1195,8 +1202,8 @@ export function materializeCanonicalProposalToLfaView(
     parentRef: { viewNodeId: `raw:${purposeId}`, nodeType: 'purpose' },
     rawSequence: idx + 1,
     statement: `${o.code}: ${o.outcome_name} - ${o.description}`,
-    legacyIndicatorText: (o.indicators || []).map((i) => `${i.code}: ${i.indicator_name}`).join('; ') || null,
-    legacyMeansOfVerificationText: (o.indicators || []).map((i) => i.data_source).filter(Boolean).join('; ') || null,
+    legacyIndicatorText: (o.indicators || []).map((i) => `${i.id}: ${i.indicator_name}`).join('; ') || null,
+    legacyMeansOfVerificationText: (o.indicators || []).map((i) => i.means_of_verification).filter(Boolean).join('; ') || null,
     legacyAssumptionText: null,
     legacyResponsiblePartyText: null,
     timelineStart: null,
@@ -1218,8 +1225,8 @@ export function materializeCanonicalProposalToLfaView(
     parentRef: { viewNodeId: `raw:${op.parent_outcome_id}`, nodeType: 'outcome' },
     rawSequence: idx + 1,
     statement: `${op.code}: ${op.output_name} - ${op.description}`,
-    legacyIndicatorText: (op.indicators || []).map((i) => `${i.code}: ${i.indicator_name}`).join('; ') || null,
-    legacyMeansOfVerificationText: (op.indicators || []).map((i) => i.data_source).filter(Boolean).join('; ') || null,
+    legacyIndicatorText: (op.indicators || []).map((i) => `${i.id}: ${i.indicator_name}`).join('; ') || null,
+    legacyMeansOfVerificationText: (op.indicators || []).map((i) => i.means_of_verification).filter(Boolean).join('; ') || null,
     legacyAssumptionText: null,
     legacyResponsiblePartyText: null,
     timelineStart: null,
@@ -1244,7 +1251,7 @@ export function materializeCanonicalProposalToLfaView(
     legacyIndicatorText: null,
     legacyMeansOfVerificationText: null,
     legacyAssumptionText: null,
-    legacyResponsiblePartyText: (act.cost_drivers || []).map((cd) => `${cd.code}: ${cd.resource_name}`).join('; ') || null,
+    legacyResponsiblePartyText: (act.cost_drivers || []).map((cd) => `${cd.id}: ${cd.item_name}`).join('; ') || null,
     timelineStart: null,
     timelineEnd: null,
     evidence: { precedenceLevel: 1, source: 'persisted_canonical' },

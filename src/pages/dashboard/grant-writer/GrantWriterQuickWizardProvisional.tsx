@@ -1253,11 +1253,17 @@ export default function GrantWriterQuickWizardProvisional() {
     const derivedGeoLevel = undefined;
     const derivedGeoStatus = undefined;
 
+    // 'months' and 'individuals' until now. Nothing broke, because the edge
+    // function reads a fixed subset of programFacts that excludes both, and the
+    // deterministic engine is handed 'bulan'/'orang' from the other call site.
+    // But the engine interpolates beneficiaryUnit straight into indicator text
+    // — "% dari 240 ${benUnit}" — so the day anything wires these through, the
+    // Indonesian logframe would read "240 individuals".
     const durationValue = typeof numericDuration === 'number' ? numericDuration : undefined;
-    const durationUnit = 'months';
+    const durationUnit = 'bulan';
 
     const beneficiaryCountValue = typeof numericBeneficiaries === 'number' ? numericBeneficiaries : undefined;
-    const beneficiaryUnit = 'individuals';
+    const beneficiaryUnit = 'orang';
 
     const fundingAmount = typeof numericBudget === 'number' ? numericBudget : undefined;
     const currency = 'IDR';
