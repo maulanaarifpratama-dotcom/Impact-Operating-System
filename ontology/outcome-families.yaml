@@ -276,10 +276,25 @@ outcome_families:
       - verifikasi odf
       - deklarasi odf
       - odf
+      # Keluarga ini sudah mengklaim SECTOR-WASH-009, IND-WASH-USE-018 dan
+      # SDG 6.1 "air minum", tetapi seluruh predikatnya hanya menyentuh SDG 6.2
+      # (sanitasi). Akibatnya program penyediaan air bersih tidak mendapat satu
+      # pun kandidat outcome dan logframe-nya keluar kosong. Predikat berikut
+      # melengkapi target yang sudah dinyatakan keluarga ini, bukan memperluas
+      # cakupannya.
+      - mengakses air bersih
+      - akses air bersih
+      - akses air minum layak
+      - akses air layak
+      - menggunakan air perpipaan
+      - terlayani jaringan air
+      - berlangganan layanan air
     positive_predicates_en:
       - regularly utilizes
       - complete immunization
       - routinely uses toilets
+      - accesses safe drinking water
+      - uses piped water supply
     object_of_change_ids:
       - frekuensi berkala
       - volume konsumsi/pasokan

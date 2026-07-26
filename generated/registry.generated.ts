@@ -1,8 +1,8 @@
 /**
  * AUTO-GENERATED ONTOLOGY REGISTRY — DO NOT EDIT DIRECTLY
- * Generated At: 2026-07-23T04:16:31.308Z
+ * Generated At: 2026-07-26T22:47:18.770Z
  * Ontology Version: 0.1.0
- * Content Hash: 1be4e9ffec53
+ * Content Hash: 440381eea1c3
  * Source Authority: ADR-0001 Rev 2 (100% YAML Derived)
  */
 
@@ -17,8 +17,8 @@ import type {
 
 export const ONTOLOGY_METADATA = {
   version: "0.1.0",
-  contentHash: "1be4e9ffec53",
-  generatedAt: "2026-07-23T04:16:31.309Z",
+  contentHash: "440381eea1c3",
+  generatedAt: "2026-07-26T22:47:18.772Z",
   sourceTrace: "100% YAML-derived (ontology/*.yaml)"
 };
 
@@ -1058,12 +1058,21 @@ export const OUTCOME_FAMILIES: OutcomeFamily[] = [
       "verifikasi odf",
       "deklarasi odf",
       "odf",
+      "mengakses air bersih",
+      "akses air bersih",
+      "akses air minum layak",
+      "akses air layak",
+      "menggunakan air perpipaan",
+      "terlayani jaringan air",
+      "berlangganan layanan air",
       "layanan_digunakan_rutin"
     ],
     "positive_predicates_en": [
       "regularly utilizes",
       "complete immunization",
-      "routinely uses toilets"
+      "routinely uses toilets",
+      "accesses safe drinking water",
+      "uses piped water supply"
     ],
     "object_of_change_ids": [
       "frekuensi berkala",

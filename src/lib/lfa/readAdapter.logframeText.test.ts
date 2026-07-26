@@ -52,7 +52,7 @@ describe('Teks logframe tersimpan (readAdapter)', () => {
   test('tidak ada "undefined" yang bocor ke teks yang dibaca pengguna', () => {
     for (const entry of entries) {
       for (const field of ['description', 'indicator', 'means_of_verification', 'responsible_party'] as const) {
-        const value = (entry as Record<string, unknown>)[field];
+        const value = entry[field];
         if (typeof value !== 'string') continue;
         expect(value, `${field} pada entri ${entry.level} memuat "undefined"`).not.toMatch(/\bundefined\b/);
         expect(value, `${field} pada entri ${entry.level} memuat "[object Object]"`).not.toContain('[object Object]');
