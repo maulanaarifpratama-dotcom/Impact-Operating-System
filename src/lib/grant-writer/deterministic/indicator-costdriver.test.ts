@@ -6,6 +6,7 @@ import { expandOutputs } from './output-expansion';
 import { decomposeActivities } from './activity-decomposition';
 import { scaffoldOutcomeIndicators, scaffoldOutputIndicators } from './indicator-scaffolding';
 import { extractCostDrivers } from './cost-driver-extraction';
+import { beneficiaryCountOf } from './page1-readers';
 import { evaluateBQS27K } from './bqs-27k';
 import type { CanonicalProposalPayloadV2, CanonicalOutcomeV2 } from './types';
 
@@ -59,7 +60,7 @@ describe('27.5k Brain — Indicator Scaffolding & Cost Driver Extraction (RC-8O)
           title: fixture.page_1_input.program_title || 'Untitled',
           geography: fixture.page_1_input.location || 'Indonesia',
           duration_months: fixture.page_1_input.duration_value || 12,
-          beneficiary_count: fixture.page_1_input.beneficiary_count || 100,
+          beneficiary_count: beneficiaryCountOf(fixture.page_1_input, 100),
           total_budget_idr: fixture.page_1_input.funding_amount || 100000000,
           target_donor: 'Global Fund',
           donor_standard: '2026'

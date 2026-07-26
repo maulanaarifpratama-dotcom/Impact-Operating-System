@@ -10,6 +10,7 @@ import {
   INDICATOR_FAMILIES
 } from './registry';
 import { evaluateMethodologyQualityGate } from './methodology-gate';
+import { answeredNumber, fundingAmountOf } from './page1-readers';
 
 /**
  * -------------------------------------------------------------------------
@@ -542,8 +543,11 @@ export function processConflictsAndPenalties(
   }
 
   // 2. CONF-012: Budget Scope Mismatch
-  const count = input.beneficiary_count !== undefined ? input.beneficiary_count : (input.beneficiaryCount !== undefined ? input.beneficiaryCount : (input.beneficiaryCountValue !== undefined ? input.beneficiaryCountValue : undefined));
-  const funding = input.funding_amount !== undefined ? input.funding_amount : (input.fundingAmount !== undefined ? input.fundingAmount : (input.budgetIdr !== undefined ? input.budgetIdr : undefined));
+  const count =
+    answeredNumber(input.beneficiary_count) ??
+    answeredNumber(input.beneficiaryCount) ??
+    input.beneficiaryCountValue;
+  const funding = fundingAmountOf(input);
   let budgetScopeMismatch = false;
 
   if (count && funding) {
@@ -744,7 +748,10 @@ export function getTriggeredMissingInformationRules(input: Page1Input, eligibleC
 
   // MISS-022: Unsupported impact claim
   const hasLongTermClaim = storyText.includes('stunting turun') || storyText.includes('mengentaskan kemiskinan') || storyText.includes('pendapatan naik');
-  if (hasLongTermClaim && duration !== undefined && duration < 12) {
+  // duration stays raw above so MISS-003 can tell 'unentered' from 0; only the
+  // arithmetic comparison needs it narrowed to an actual number.
+  const durationMonths = answeredNumber(duration);
+  if (hasLongTermClaim && durationMonths !== undefined && durationMonths < 12) {
     missing.push('MISS-022');
   }
 

@@ -8,6 +8,7 @@
  * - Guarantees 100% field completeness and explicit validation for FIX-GOLD-01, FIX-GOLD-06, and FIX-GOLD-12.
  */
 
+import { beneficiaryCountOf } from './page1-readers';
 import type {
   Page1Input,
   CanonicalActivityV2,
@@ -24,7 +25,7 @@ export function extractCostDrivers(
   const actName = activity.activity_name.toLowerCase();
   const actType = activity.activity_type;
 
-  const count = input.beneficiary_count || input.beneficiaryCount || 30;
+  const count = beneficiaryCountOf(input, 30);
   const benUnit = input.beneficiary_unit || input.beneficiaryUnit || 'orang';
   const duration = input.duration_value || input.durationValue || 6;
   const durUnit = input.duration_unit || input.durationUnit || 'bulan';

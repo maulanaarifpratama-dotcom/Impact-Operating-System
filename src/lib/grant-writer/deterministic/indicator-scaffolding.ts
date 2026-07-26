@@ -8,6 +8,7 @@
  * - Guarantees 100% field completeness (id, indicator_name, baseline_value, target_value, unit_of_measure, means_of_verification).
  */
 
+import { beneficiaryCountOf } from './page1-readers';
 import type {
   Page1Input,
   CanonicalOutcomeV2,
@@ -23,7 +24,9 @@ export function scaffoldOutcomeIndicators(
   const title = (input.program_title || input.programTitle || '').toLowerCase();
   const story = (input.program_story || input.programStory || '').toLowerCase();
   const cat = outcome.impact_category || 'economic';
-  const targetBeneficiaries = input.beneficiary_count || input.beneficiaryCount || 100;
+  // Interpolated into indicator text, so a sentinel here would not fail the
+  // type check — it would just print "% dari unentered orang" in the logframe.
+  const targetBeneficiaries = beneficiaryCountOf(input, 100);
   const benUnit = input.beneficiary_unit || input.beneficiaryUnit || 'orang';
 
   // FIX-GOLD-01 Specific Override: Demplot Padi Organik Adaptif
@@ -190,7 +193,7 @@ export function scaffoldOutputIndicators(
 ): IndicatorV2[] {
   const indicators: IndicatorV2[] = [];
   const del = output.deliverable_type;
-  const count = input.beneficiary_count || input.beneficiaryCount || 50;
+  const count = beneficiaryCountOf(input, 50);
   const benUnit = input.beneficiary_unit || input.beneficiaryUnit || 'orang';
 
   if (del === 'training_completed' || output.code === 'OPF-001' || output.code === 'OPF-002') {

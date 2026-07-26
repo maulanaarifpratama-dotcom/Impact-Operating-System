@@ -10,6 +10,7 @@
  * - The deterministic engine extracts ontology candidates, audits structural hierarchy, and evaluates BQS scores.
  */
 
+import { beneficiaryCountOf } from './page1-readers';
 import type {
   Page1Input,
   CanonicalProposalPayloadV2,
@@ -112,7 +113,7 @@ export function assembleCanonicalProposalV2(
       title: input.program_title || input.programTitle || 'Untitled Grant Proposal',
       geography: input.location || 'Indonesia',
       duration_months: input.duration_value || input.durationValue || 12,
-      beneficiary_count: input.beneficiary_count || input.beneficiaryCount || 100,
+      beneficiary_count: beneficiaryCountOf(input, 100),
       total_budget_idr: input.funding_amount || input.fundingAmount || 100000000,
       target_donor: input.target_donor || 'Global Fund / CSR 2026',
       donor_standard: 'BQS-27K Standard Specification'

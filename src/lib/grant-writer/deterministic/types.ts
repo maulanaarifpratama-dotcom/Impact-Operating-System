@@ -126,25 +126,78 @@ export interface AntiSignalRule {
   positive_signals: string[];
 }
 
+/**
+ * "The user did not tell us", as distinct from a value of zero.
+ *
+ * The wizard has to keep these apart: a programme with no budget entered yet is
+ * not a programme with a budget of nothing, and only the first should raise
+ * MISS-004. The scoring engine tests for both spellings by hand — see
+ * getTriggeredMissingInformationRules — so they are part of the contract, not
+ * an accident of the form.
+ */
+export type Unanswered = 'unknown' | 'unentered';
+
+/**
+ * Everything the deterministic engine will accept on page one.
+ *
+ * Two things about this interface look like mistakes and are not.
+ *
+ * Every field appears in both snake_case and camelCase because the engine is
+ * fed from two directions — the wizard hands it camelCase state, the fixtures
+ * and stored payloads use snake_case — and each reader tries both in turn.
+ *
+ * The numeric fields accept Unanswered because the wizard genuinely produces
+ * it. This interface used to declare only `beneficiaryCount?: number`, so the
+ * one type that mattered disagreed with the code around it: the engine's own
+ * `count === 'unentered'` checks compared values TypeScript said could never be
+ * strings, and every fixture in deterministic.test.ts was rejected for passing
+ * exactly what the wizard passes in production. That is why the test imported
+ * its Page1Input from provisionalAdapter instead — a second, incompatible
+ * definition of the same name, which then disagreed with the engine in the
+ * other direction.
+ *
+ * The declaration was narrower than the contract the code already implemented.
+ * Widening it changes no behaviour; it just stops the type lying about what
+ * these functions take.
+ */
 export interface Page1Input {
+  id?: string;
+  organization_id?: string;
+
   program_title?: string;
   programTitle?: string;
+
   location?: string;
+  locationValue?: string;
+  geography?: string;
+  geographyLevel?: string;
+  geographyStatus?: 'known' | Unanswered;
+
   duration_value?: number;
   durationValue?: number;
+  durationMonths?: number | Unanswered;
   duration_unit?: string;
   durationUnit?: string;
+
   beneficiary_description?: string;
   beneficiaryDescription?: string;
-  beneficiary_count?: number;
-  beneficiaryCount?: number;
+  beneficiary_count?: number | Unanswered;
+  beneficiaryCount?: number | Unanswered;
+  beneficiaryCountValue?: number;
   beneficiary_unit?: string;
   beneficiaryUnit?: string;
+
   funding_amount?: number;
   fundingAmount?: number;
+  budgetIdr?: number | Unanswered;
   currency?: string;
+
   donor_or_call_optional?: string | null;
   donorOrCallOptional?: string | null;
+  target_donor?: string;
+  targetDonor?: string;
+  donorStandard?: string;
+
   program_story?: string;
   programStory?: string;
   background?: string;

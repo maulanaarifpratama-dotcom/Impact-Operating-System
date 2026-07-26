@@ -39,7 +39,11 @@ import {
   EvidenceSpan,
   CanonicalCandidate
 } from './deterministic';
-import type { Page1Input } from './provisionalAdapter';
+// The engine's own input contract, not provisionalAdapter's same-named type.
+// These fixtures are handed straight to scoreSector, runScoringPipeline and
+// friends, so they have to be the shape those functions declare — the adapter's
+// version is the wizard's form state and disagreed on beneficiaryCount.
+import type { Page1Input } from './deterministic/types';
 
 const P0E_HARD_NEGATIVE_DEFERRED_IDS = [
   'FIX-HN-101',
@@ -2382,7 +2386,7 @@ describe('P0-C Scoring Engine Exhaustive Verification Layer', () => {
       const hardNegative = [...P0E_HARD_NEGATIVE_DEFERRED_IDS];
       const gold = [...P0E_GOLD_DEFERRED_IDS];
       const hardSet = new Set(hardNegative);
-      const goldSet = new Set(gold);
+      const goldSet = new Set<string>(gold);
       const overlap = hardNegative.filter(id => goldSet.has(id));
 
       expect(hardNegative.length).toBe(15);
