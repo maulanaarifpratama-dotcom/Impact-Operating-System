@@ -346,6 +346,50 @@ imported nowhere; auth is Supabase-only. Removed, along with their `manualChunks
 rule and the README's stale tech-stack row. `src/components/ui/chart.tsx` had no
 importers.
 
+## Open: three competing definitions of Page1Input
+
+147 of the 203 remaining typecheck errors sit in the grant-writer deterministic
+engine and its tests. They are not 147 separate problems — they are one
+architectural inconsistency, and it needs an owner's decision rather than a
+guess.
+
+The same concept is declared three ways, and no two agree:
+
+| Where | Shape |
+| --- | --- |
+| `deterministic/types.ts` → `Page1Input` | every field optional, both casings of each name (`program_title` *and* `programTitle`), `beneficiaryCount?: number` |
+| `provisionalAdapter.ts` → `Page1Input` | fields required, sentinels: `beneficiaryCount: number \| 'unknown' \| 'unentered'`; also carries `geography`, `durationMonths`, `budgetIdr`, `programStory` |
+| `impactory_deterministic_scoring_contract_v1.md` → `Page1InputSnapshot` | `programId`, `programTitle`, `programStory`, `beneficiaryDescription`, `durationValue`, `fundingAmount`, `locationValue`, `candidates` |
+
+The engine is *typed* against the first but *called* with the second —
+`createPage2Payload(input: Page1Input)` in `page2-payload.ts` takes the loose
+type, while `GrantWriterQuickWizardProvisional.tsx` and `deterministic.test.ts`
+pass the strict one. That mismatch is where the 147 errors come from, and it is
+why `GrantWriterQuickWizardProvisional.tsx` alone contributes 18. The third
+shape, the one in the signed contract document, matches neither.
+
+This was deliberately left alone. Runtime is fine — 108 of the engine's 116
+tests pass, and the 8 failures predate this work and are unrelated. Picking a
+canonical shape means deciding which of the three is authoritative, and getting
+it wrong would quietly change scoring behaviour, which is to say the quality of
+the LFA matrices and proposals NGOs submit to donors. That is not a call to make
+from type errors alone.
+
+What it needs, roughly in order:
+
+1. Decide whether the contract document or `provisionalAdapter` is authoritative.
+   The document is the more formal artefact, but the adapter is what production
+   actually runs.
+2. If the contract wins, update `provisionalAdapter` and the engine to match it
+   and amend the document's version number.
+3. If the adapter wins, amend the contract document to describe reality, then
+   retype `page2-payload.ts` and the engine modules against it.
+4. Delete `deterministic/types.ts`'s `Page1Input` either way — the dual-casing,
+   all-optional shape looks like a legacy tolerance layer that nothing should
+   still be typed against.
+5. The 116 engine tests are the safety net for the change; run them at every
+   step.
+
 ## Correction log
 
 The first pass of this audit made two claims that later verification overturned.
