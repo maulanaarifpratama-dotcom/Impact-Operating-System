@@ -6,7 +6,28 @@ const { Pool } = pg;
 // Local Postgres connection URL provided by `supabase start`
 const POSTGRES_URL = 'postgresql://postgres:postgres@127.0.0.1:54322/postgres';
 
-describe('WBS-P1A-1A Real Postgres DB Validation', () => {
+
+/**
+ * These exercise real Postgres behaviour — RLS, triggers, separation of duties —
+ * against the database `supabase start` provides on :54322. Without a local
+ * Supabase running there is nothing to test against, and every case reports as
+ * a failure that says nothing about the product. Probe once and skip the suite
+ * instead, so a missing local stack is visibly "skipped" rather than "broken".
+ */
+const canReachPostgres = await (async () => {
+  const probePool = new Pool({ connectionString: POSTGRES_URL, connectionTimeoutMillis: 2000 });
+  try {
+    await probePool.query('select 1');
+    return true;
+  } catch {
+    console.warn('[wbs postgres tests] no local Postgres on :54322 — run `supabase start` to include these.');
+    return false;
+  } finally {
+    await probePool.end().catch(() => {});
+  }
+})();
+
+describe.skipIf(!canReachPostgres)('WBS-P1A-1A Real Postgres DB Validation', () => {
   let pool: pg.Pool;
 
   beforeAll(() => {
