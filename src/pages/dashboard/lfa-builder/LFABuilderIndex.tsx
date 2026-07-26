@@ -44,6 +44,8 @@ import { useAuth } from '@/providers/AuthProvider';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
 import { formatRelativeTime } from '@/lib/utils';
 import { useOrgRole } from '@/hooks/useOrgRole';
+import { usePlan } from '@/hooks/usePlan';
+import { UpgradeNotice } from '@/components/dashboard/UpgradeNotice';
 import { Checkbox } from '@/components/ui/checkbox';
 import { LfaProject, LfaEntry, AiActivity } from './types';
 
@@ -331,6 +333,7 @@ export default function LFABuilderIndex() {
   // 20260727010000_restrict_deletes_to_admins.sql. RLS is the real boundary —
   // this keeps the UI from offering what the database will refuse.
   const { canDelete } = useOrgRole();
+  const { isPaid } = usePlan();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
@@ -524,6 +527,8 @@ export default function LFABuilderIndex() {
         </Card>
       </div>
 
+      <UpgradeNotice module="LFA Builder" />
+
       {/* ENTRY CARDS */}
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         {/* Card 1: Mulai dari nol */}
@@ -536,7 +541,7 @@ export default function LFABuilderIndex() {
             <CardDescription className="text-xs leading-5">Panduan step-by-step membuat logframe dari awal dengan bimbingan standar internasional.</CardDescription>
           </CardHeader>
           <CardContent className="mt-auto pt-2">
-            <Button className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200" onClick={() => setSetupModalOpen(true)}>
+            <Button className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-slate-100 dark:hover:bg-slate-200" disabled={!isPaid} onClick={() => setSetupModalOpen(true)}>
               Mulai Sekarang <ArrowRight className="ml-1.5 h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
             </Button>
           </CardContent>
@@ -557,7 +562,7 @@ export default function LFABuilderIndex() {
             <CardDescription className="text-xs leading-5">Paste narasi proposal atau ToR yang sudah ada, AI akan mengekstrak LFA otomatis secara instan.</CardDescription>
           </CardHeader>
           <CardContent className="mt-auto pt-2">
-            <Button className="w-full bg-amber-600 hover:bg-amber-500 text-white border-0" onClick={() => setProposalModalOpen(true)}>
+            <Button className="w-full bg-amber-600 hover:bg-amber-500 text-white border-0" disabled={!isPaid} onClick={() => setProposalModalOpen(true)}>
               Upload Proposal <ArrowRight className="ml-1.5 h-3.5 w-3.5 group-hover:translate-x-1 transition-transform" />
             </Button>
           </CardContent>
@@ -607,10 +612,10 @@ export default function LFABuilderIndex() {
                 </p>
               </div>
               <div className="flex gap-2">
-                <Button size="sm" onClick={() => setSetupModalOpen(true)}>
+                <Button size="sm" disabled={!isPaid} onClick={() => setSetupModalOpen(true)}>
                   <Plus className="mr-1.5 h-3.5 w-3.5" /> Mulai dari Nol
                 </Button>
-                <Button variant="outline" size="sm" onClick={() => setProposalModalOpen(true)}>
+                <Button variant="outline" size="sm" disabled={!isPaid} onClick={() => setProposalModalOpen(true)}>
                   <Sparkles className="mr-1.5 h-3.5 w-3.5 text-amber-500" /> Draft dari Proposal
                 </Button>
               </div>

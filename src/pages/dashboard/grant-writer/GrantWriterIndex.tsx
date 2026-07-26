@@ -20,6 +20,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { formatRelativeTime } from '@/lib/utils';
 import { useAuth } from '@/providers/AuthProvider';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
+import { useOrgRole } from '@/hooks/useOrgRole';
+import { usePlan } from '@/hooks/usePlan';
+import { UpgradeNotice } from '@/components/dashboard/UpgradeNotice';
 import type { Database } from '@/integrations/supabase/database.types';
 import { cn } from '@/lib/utils';
 
@@ -143,6 +146,12 @@ function getProjectStageInfo(
 export default function GrantWriterIndex() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
+  // The database already refuses deletes from staff, PMO and expert roles
+  // (20260727010000_restrict_deletes_to_admins.sql), but PostgREST answers a
+  // fully filtered DELETE with 200 and an empty array — so without this the
+  // button appeared to work and silently did nothing.
+  const { canDelete } = useOrgRole();
+  const { isPaid } = usePlan();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -383,12 +392,14 @@ export default function GrantWriterIndex() {
         <Button
           size="lg"
           onClick={() => void handleQuickCreate()}
-          disabled={creating}
+          disabled={creating || !isPaid}
           className="gap-2 font-semibold shadow-md shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
         >
           {creating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />} Program Baru
         </Button>
       </div>
+
+      <UpgradeNotice module="Grantwriter" />
 
       {/* Task 5: Pipeline Summary Bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card p-3.5 shadow-xs">
@@ -487,8 +498,15 @@ export default function GrantWriterIndex() {
                 Mulai susun proposal Anda dari ide dasar. Sistem akan memandu Anda dari Blueprint hingga Anggaran.
               </p>
             </div>
-            <Button size="lg" onClick={() => setCreateOpen(true)} className="gap-2 font-semibold">
-              <Plus className="h-5 w-5" /> Buat Program Pertama
+            {/* Was onClick={() => setCreateOpen(true)} — no such state existed, so
+                the first button a new account ever sees threw a ReferenceError. */}
+            <Button
+              size="lg"
+              disabled={creating || !isPaid}
+              onClick={() => void handleQuickCreate()}
+              className="gap-2 font-semibold"
+            >
+              {creating ? <Loader2 className="h-5 w-5 animate-spin" /> : <Plus className="h-5 w-5" />} Buat Program Pertama
             </Button>
           </CardContent>
         </Card>
@@ -506,7 +524,7 @@ export default function GrantWriterIndex() {
                   className="pl-9 text-sm"
                 />
               </div>
-              {filteredProjects.length > 0 && (
+              {canDelete && filteredProjects.length > 0 && (
                 <div
                   className="flex items-center gap-2 cursor-pointer select-none rounded-md border px-2.5 py-1.5 text-xs font-medium bg-card hover:bg-muted/50 shrink-0"
                   onClick={() => toggleSelectAll(filteredProjects)}
@@ -536,7 +554,7 @@ export default function GrantWriterIndex() {
           </div>
 
           {/* Bulk Selection Action Banner */}
-          {selectedIds.length > 0 && (
+          {canDelete && selectedIds.length > 0 && (
             <div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm animate-in fade-in">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-destructive">
@@ -589,7 +607,7 @@ export default function GrantWriterIndex() {
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-start gap-2.5 flex-1 min-w-0">
                             <div
-                              className="pt-0.5 shrink-0"
+                              className={cn('pt-0.5 shrink-0', !canDelete && 'hidden')}
                               onClick={(e) => toggleSelect(p.id, e)}
                             >
                               <Checkbox
