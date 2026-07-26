@@ -44,6 +44,16 @@ test.describe('Real Azure OpenAI P0-B Generation & Downstream Materialization', 
     page.on('console', msg => console.log(`[BROWSER CONSOLE] ${msg.type()}: ${msg.text()}`));
     page.on('pageerror', err => console.log(`[BROWSER ERROR] ${err.message}`));
 
+    // supabase-js surfaces a bare FunctionsHttpError with no body, which is
+    // useless when the generation fails. Capture the real response instead.
+    page.on('response', async (res) => {
+      if (!res.url().includes('grant-writer-generate')) return;
+      console.log(`[EDGE] grant-writer-generate -> HTTP ${res.status()}`);
+      if (res.status() >= 400) {
+        console.log(`[EDGE] body: ${(await res.text().catch(() => '<unreadable>')).slice(0, 600)}`);
+      }
+    });
+
     // 1. Clean up any existing project with this name first to ensure clean execution
     console.log(`[E2E-REAL-AZURE] Pre-run cleanup of project: "${projectTitle}"`);
     
@@ -97,19 +107,14 @@ test.describe('Real Azure OpenAI P0-B Generation & Downstream Materialization', 
     await page.goto(`${baseUrl}/dashboard/grant-writer`);
     await page.waitForURL(/.*grant-writer$/, { timeout: 20000 });
 
-    // Click "Program Baru" to open Create Project dialog
+    // "Program Baru" creates the project and opens the Blueprint Studio in one
+    // step. It used to raise a title dialog first; that was removed
+    // deliberately (see GW-UX-02B in GrantWriterIndex.test.tsx), and this test
+    // was still waiting for the dialog's #project-title. The title is set in
+    // Step 2 below instead.
     const mulaiQuickBtn = page.locator('button:has-text("Program Baru")').first();
     await expect(mulaiQuickBtn).toBeVisible({ timeout: 20000 });
     await mulaiQuickBtn.click();
-
-    // Check project title input in Dialog
-    const titleInput = page.locator('#project-title').first();
-    await expect(titleInput).toBeVisible({ timeout: 10000 });
-    await titleInput.fill(projectTitle);
-
-    // Click "Buat proyek"
-    const submitCreateBtn = page.locator('button:has-text("Buat proyek")').first();
-    await submitCreateBtn.click();
 
     // Wait for redirection to Quick Wizard
     await page.waitForURL(/.*grant-writer\/quick\/.*/, { timeout: 30000 });
@@ -117,71 +122,82 @@ test.describe('Real Azure OpenAI P0-B Generation & Downstream Materialization', 
     const realProjId = quickUrl.split('/quick/')[1];
     console.log(`[E2E-REAL-AZURE] Project created! ID: ${realProjId}`);
 
-    // Helper to transition steps
-    const clickLanjutToStep = async (targetSelector: string, stepName: string) => {
-      console.log(`[E2E-REAL-AZURE] Transitioning to ${stepName} by clicking Lanjut...`);
-      const btn = page.locator('#wizard-lanjut-btn').first();
-      await btn.scrollIntoViewIfNeeded();
-      await btn.click();
-      await page.locator(targetSelector).waitFor({ state: 'visible', timeout: 10000 });
-    };
+    // ---------------------------------------------------------------------
+    // Program Blueprint Studio (the "provisional" wizard).
+    //
+    // This test used to drive the four-step Legacy wizard — #org-name,
+    // #prog-title, #wizard-lanjut-btn and a "Buat Proposal (AI)" button. That
+    // wizard is no longer what the route renders: GrantWriterQuickWizard now
+    // returns GrantWriterQuickWizardProvisional, whose fields and flow are
+    // entirely different, so every locator below the login step was pointing at
+    // markup that had not existed for some time.
+    //
+    // The shape now is: fill the programme facts, submit for a deterministic
+    // blueprint built from the ontology layer, approve it, and only then does
+    // materialisation call Azure with that ontology context attached.
+    // ---------------------------------------------------------------------
 
-    // --- STEP 1: Info Organisasi ---
-    console.log('[E2E-REAL-AZURE] Filling Step 1: Info Organisasi...');
-    await page.locator('#org-name').fill('Yayasan Rumah Pembangunan Berkelanjutan');
-    await page.locator('button:has-text("Pilih jenis")').first().click();
-    await page.locator('[role="option"]:has-text("Yayasan")').first().click();
-    await page.locator('#org-year').fill('2015');
-    await page.locator('button:has-text("SDG 8")').first().click();
+    console.log('[E2E-REAL-AZURE] Page 1 — programme facts...');
+    await page.locator('#program-title').fill(projectTitle);
+    await page.locator('#program-story').fill(
+      'Petani kopi muda di Kabupaten Garut kesulitan bersaing karena rantai pasok ' +
+      'konvensional yang panjang memotong margin mereka. Program ini melakukan sensus ' +
+      'koordinat GPS lahan, membangun dashboard koperasi digital, dan melatih petani ' +
+      'berjualan langsung lewat marketplace, sehingga pendapatan mereka naik minimal ' +
+      '30% dalam 24 bulan.',
+    );
+    await page.locator('#program-geography').fill('Kabupaten Garut, Jawa Barat');
+    await page.locator('#beneficiary-count').fill('300');
+    await page.locator('#beneficiary-description').fill(
+      '300 petani kopi muda berusia 15-24 tahun, memprioritaskan perempuan pemroses pasca panen.',
+    );
+    await page.locator('#program-duration').fill('24');
+    await page.locator('#budget-idr').fill('2500000000');
 
-    await clickLanjutToStep('#prog-title', 'Step 2: Deskripsi Program');
+    // Submit is gated on the story and the beneficiary description.
+    const reviewBtn = page.locator('button:has-text("Tinjau Program Blueprint")').first();
+    await expect(reviewBtn).toBeEnabled({ timeout: 10000 });
+    await reviewBtn.click();
+    console.log('[E2E-REAL-AZURE] Submitted — waiting for the deterministic blueprint...');
 
-    // --- STEP 2: Deskripsi Program ---
-    console.log('[E2E-REAL-AZURE] Filling Step 2: Deskripsi Program...');
-    const titleVal = await page.locator('#prog-title').inputValue();
-    if (!titleVal) {
-      await page.locator('#prog-title').fill(projectTitle);
+    // --- Page 2: review the blueprint the ontology layer produced ----------
+    await expect(page.locator('[data-testid="blueprint-status-card"]')).toBeVisible({ timeout: 120000 });
+    await expect(page.locator('[data-testid="canonical-fact-banner"]')).toBeVisible({ timeout: 30000 });
+    console.log('[E2E-REAL-AZURE] Blueprint rendered. Canonical facts:');
+    for (const id of ['fact-program', 'fact-lokasi', 'fact-sasaran']) {
+      const fact = page.locator(`[data-testid="${id}"]`).first();
+      if (await fact.isVisible().catch(() => false)) {
+        console.log(`  ${id}: ${(await fact.innerText()).replace(/\s+/g, ' ').trim()}`);
+      }
     }
-    await page.locator('button:has-text("Pilih sektor")').first().click();
-    await page.locator('[role="option"]:has-text("Pemberdayaan Ekonomi")').first().click();
-    await page.locator('#prog-donor').fill('International Coffee Fund');
-    await page.locator('button:has-text("Pilih standar donor")').first().click();
-    await page.locator('[role="option"]:has-text("UN / OECD-DAC")').first().click();
-    await page.locator('#prog-partners').fill('Koperasi Kopi Garut Sejahtera, Dinas Koperasi UMKM Garut, dan local digital e-commerce enablers.');
-    await page.locator('#prog-bg').fill('Petani kopi muda di Garut menghadapi hambatan besar dalam memasarkan produk mereka secara langsung ke konsumen dan eksportir. Rantai distribusi konvensional yang terlalu panjang merugikan profitabilitas mereka secara masif.');
-    await page.locator('#prog-problem').fill('Petani kopi muda di Garut kesulitan bersaing karena pemasaran konvensional dan rantai pasok panjang yang memotong laba mereka.');
-    await page.locator('#prog-sol').fill('Sensus koordinat GPS lahan petani, pembuatan dashboard web koperasi, dan pelatihan toko online/marketplace.');
-    await page.locator('#prog-out').fill('Meningkatnya pendapatan petani kopi muda minimal 30% dalam waktu 24 bulan melalui digitalisasi koperasi dan toko online.');
 
-    await clickLanjutToStep('#ben-count', 'Step 3: Target & Anggaran');
+    // Nothing should be blocking approval.
+    await expect(page.locator('[data-testid="empty-payload-approval-blocker"]')).toHaveCount(0);
 
-    // --- STEP 3: Target & Anggaran ---
-    console.log('[E2E-REAL-AZURE] Filling Step 3: Target & Anggaran...');
-    await page.locator('#ben-count').fill('300');
-    await page.locator('#geo').fill('Kabupaten Garut');
-    await page.locator('#ben-desc').fill('300 petani kopi muda');
-    await page.locator('#dur').fill('24');
-    await page.locator('#budget').fill('2500000000');
-    await page.locator('#break').fill('- Sensus & Pemetaan: 30%\n- Pelatihan & Koperasi: 50%\n- Admin & MEAL: 20%');
+    const approveBtn = page.locator('[data-testid="approve-blueprint-btn"]').first();
+    await expect(approveBtn).toBeVisible({ timeout: 30000 });
+    await approveBtn.click();
+    console.log('[E2E-REAL-AZURE] Blueprint approved — Azure generation starts now.');
 
-    await clickLanjutToStep('text=Semua bagian sudah lengkap.', 'Step 4: Generate Proposal');
+    // --- Materialisation: the real Azure call, with ontology context -------
+    await expect(page.locator('[data-testid="materialization-screen"]')).toBeVisible({ timeout: 60000 });
+    console.log('[E2E-REAL-AZURE] Materialisation running. Waiting for Azure Foundry...');
 
-    // --- STEP 4: Generate Proposal ---
-    console.log('[E2E-REAL-AZURE] Verifying Step 4: Summary & Generate...');
-    const generateAiBtn = page.locator('button:has-text("Buat Proposal (AI)")').first();
-    await expect(generateAiBtn).toBeVisible();
-    
-    // Trigger real Azure execution!
-    await generateAiBtn.click();
-    console.log('[E2E-REAL-AZURE] CLICKED GENERATE! Waiting for remote Azure OpenAI Foundry to complete and local validateProgramSkeleton to execute...');
+    // It either navigates on its own or parks on a confirmation card; accept both.
+    const transitionBtn = page.locator('[data-testid="continue-to-lfa-btn"]').first();
+    await Promise.race([
+      page.waitForURL(/\/dashboard\/lfa-builder\/[a-f0-9-]+/, { timeout: 500000 }),
+      transitionBtn.waitFor({ state: 'visible', timeout: 500000 }),
+    ]);
+    if (await transitionBtn.isVisible().catch(() => false)) {
+      console.log('[E2E-REAL-AZURE] Transition card shown — continuing to the LFA matrix.');
+      await transitionBtn.click();
+    }
+    await page.waitForURL(/\/dashboard\/lfa-builder\/[a-f0-9-]+/, { timeout: 60000 });
 
-    // Wait for the redirection to `/dashboard/grant-writer/[projectId]/proposal`
-    await page.waitForURL(/.*\/proposal$/, { timeout: 500000 });
-    const proposalUrl = page.url();
-    console.log(`[E2E-REAL-AZURE] Success! Redirection completed. URL: ${proposalUrl}`);
-
-    // Retrieve and log Project ID and Document ID
-    const generatedProjId = proposalUrl.split('/grant-writer/')[1].split('/proposal')[0];
+    const generatedProjId = page.url().match(/lfa-builder\/([a-f0-9-]+)/)?.[1] ?? '';
+    expect(generatedProjId, 'no project id in the LFA builder URL').not.toBe('');
+    console.log(`[E2E-REAL-AZURE] Materialised project: ${generatedProjId}`);
     console.log(`[E2E-REAL-AZURE] Successfully generated Project ID: ${generatedProjId}`);
 
     // Read the document ID from the database using page context

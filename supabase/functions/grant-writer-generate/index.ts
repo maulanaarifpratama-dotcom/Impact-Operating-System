@@ -20,7 +20,7 @@ import { authenticate } from '../_shared/auth.ts';
 import { enforceRateLimit, GENERATE_LIMIT } from '../_shared/rateLimit.ts';
 import { chatJson, foundryEmbed } from '../_shared/foundry.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
-import { resolveOntologyContext, buildGroundingPromptMessage, buildProgramFactsForPrompt, extractGroundingTerms, validateGrounding } from './ontology-resolver.ts';
+import { resolveOntologyContext, buildGroundingPromptMessage, buildProgramFactsForPrompt, extractGroundingTerms, validateGrounding, buildDynamicRetryPrompt } from './ontology-resolver.ts';
 
 interface GenerateRequest {
   projectId: string;
