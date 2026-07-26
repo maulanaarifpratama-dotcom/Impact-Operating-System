@@ -5,7 +5,28 @@ applied. Three items still need a human: they cannot be done from the repo.
 
 ---
 
-## Action required
+## Status: applied and verified — 2026-07-26
+
+All six pending migrations were applied by hand through the SQL editor
+(`supabase/snippets/apply_pending_manual.sql`), and
+`supabase/snippets/verify_remediation.sql` returns AMAN/ADA on all twelve checks:
+the five policy fixes, the three restored feature columns, the rate-limit table
+and RPC, and the `schema_migrations` backfill.
+
+The anon-key bypass was additionally verified end-to-end against production. All
+six affected endpoints — `meal-ai-suggest`, `wbs-ai-suggest`,
+`budget-sbm-suggest`, `lfa-ai-draft`, `sroi-ai-suggest`, `foundry-health` — now
+answer **HTTP 401** when called with nothing but the public anon key. Before the
+fix they would have answered 400, having passed authentication and failed only on
+input validation.
+
+Two items remain open: the CSP flip (item 4) and the `LIMIT 1` multi-org policy
+bug (see the queue at the end). The sections below are kept as the record of what
+was wrong and why.
+
+---
+
+## What was fixed
 
 ### 1. Apply the RLS fix migration
 
