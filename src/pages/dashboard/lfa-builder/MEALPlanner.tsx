@@ -20,6 +20,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { finalizePrintWindow } from '@/lib/print/printWindow';
 
 interface MEALPlannerProps {
   projectId: string;
@@ -1209,16 +1210,11 @@ export default function MEALPlanner({
             Dibuat secara sistematis menggunakan Modul MEAL Builder Impactory.id — Rencana Berstandar Internasional (OECD-DAC/USAID)
           </div>
 
-          <script>
-            window.onload = function() {
-              window.print();
-            }
-          </script>
         </body>
       </html>
     `);
 
-    printWindow.document.close();
+    finalizePrintWindow(printWindow, { auto: true });
   };
 
   if (error) {

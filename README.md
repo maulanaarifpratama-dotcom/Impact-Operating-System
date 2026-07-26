@@ -45,7 +45,7 @@ npm run dev
 | `npm run lint`       | ESLint check           |
 | `npm run test`       | Vitest unit tests      |
 | `npm run test:e2e`   | Playwright E2E tests   |
-| `npx tsc --noEmit`   | TypeScript check       |
+| `npm run typecheck`  | TypeScript check       |
 
 ## Structure
 
@@ -119,7 +119,7 @@ npm run dev
 | `npm run lint`     | ESLint check        |
 | `npm run test`     | Vitest unit test    |
 | `npm run test:e2e` | Playwright E2E test |
-| `npx tsc --noEmit` | TypeScript check    |
+| `npm run typecheck` | TypeScript check    |
 
 ## Struktur
 

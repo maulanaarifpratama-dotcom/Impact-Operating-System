@@ -25,6 +25,7 @@ import {
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip } from 'recharts';
 import { getProjectCarbonSummary } from '@/lib/carbon/aggregation';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { finalizePrintWindow } from '@/lib/print/printWindow';
 
 
 interface SROICalculatorProps {
@@ -1207,15 +1208,12 @@ export default function SROICalculator({
             Diproduksi secara otomatis oleh modul SROI terintegrasi Impactory.id. &copy; 2026 Impactory.id. All rights reserved.
           </div>
 
-          <script>
-            window.onload = function() { window.print(); }
-          </script>
         </body>
       </html>
     `;
 
     printWindow.document.write(content);
-    printWindow.document.close();
+    finalizePrintWindow(printWindow, { auto: true });
   };
 
   // ---------------------------------------------------------------------------

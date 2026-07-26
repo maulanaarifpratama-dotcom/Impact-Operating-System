@@ -23,6 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { computeEvmVarianceFlag } from './evmVariance';
+import { appStylesheetTags, finalizePrintWindow } from '@/lib/print/printWindow';
 
 // Helper: Check if an item is a leaf item (has no children in the WBS tree)
 const isLeafItem = (item: WbsItem, allItems: WbsItem[]): boolean => {
@@ -1427,7 +1428,7 @@ export default function WBSBuilder({
       <html>
         <head>
           <title>WBS Report — Impactory.id</title>
-          <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+          ${appStylesheetTags()}
           <style>
             @media print {
               body { margin: 10mm; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -1495,7 +1496,7 @@ export default function WBSBuilder({
           </div>
 
           <div class="no-print fixed bottom-6 right-6">
-            <button onclick="window.print()" class="px-4 py-2 bg-emerald-600 text-white rounded font-bold shadow hover:bg-emerald-500 flex items-center gap-1.5">
+            <button data-print-trigger class="px-4 py-2 bg-emerald-600 text-white rounded font-bold shadow hover:bg-emerald-500 flex items-center gap-1.5">
               <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
               </svg>
@@ -1506,7 +1507,7 @@ export default function WBSBuilder({
       </html>
     `);
 
-    printWindow.document.close();
+    finalizePrintWindow(printWindow);
   };
 
   if (loading) {

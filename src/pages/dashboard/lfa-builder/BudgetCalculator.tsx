@@ -28,6 +28,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { appStylesheetTags, finalizePrintWindow } from '@/lib/print/printWindow';
 
 interface BudgetCalculatorProps {
   projectId: string;
@@ -1132,7 +1133,7 @@ export default function BudgetCalculator({
         <html>
         <head>
           <title>Rencana Anggaran Biaya (RAB) - ${projectData?.name || 'Program'}</title>
-          <script src="https://cdn.tailwindcss.com"></script>
+          ${appStylesheetTags()}
           <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
           <style>
             body { font-family: 'Inter', sans-serif; }
@@ -1250,7 +1251,7 @@ export default function BudgetCalculator({
           </div>
 
           <div class="no-print mt-10 text-center">
-            <button onclick="window.print()" class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-6 rounded shadow-lg text-xs tracking-wider uppercase">Cetak Rencana Anggaran</button>
+            <button data-print-trigger class="bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 px-6 rounded shadow-lg text-xs tracking-wider uppercase">Cetak Rencana Anggaran</button>
           </div>
 
           <div class="mt-16 text-center text-[10px] text-slate-400 border-t pt-4">
@@ -1267,7 +1268,7 @@ export default function BudgetCalculator({
         <html>
         <head>
           <title>Proposal Budget Matrix & Timeline (RAB) - ${projectData?.name || 'Program'}</title>
-          <script src="https://cdn.tailwindcss.com"></script>
+          ${appStylesheetTags()}
           <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
           <style>
             body { font-family: 'Inter', sans-serif; }
@@ -1511,7 +1512,7 @@ export default function BudgetCalculator({
           </div>
 
           <div class="no-print mt-12 text-center">
-            <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded shadow-lg text-xs tracking-wider uppercase">Cetak Dokumen Anggaran Lengkap</button>
+            <button data-print-trigger class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3 px-8 rounded shadow-lg text-xs tracking-wider uppercase">Cetak Dokumen Anggaran Lengkap</button>
           </div>
 
           <div class="mt-16 text-center text-[9px] text-slate-400 border-t pt-4">
@@ -1523,7 +1524,7 @@ export default function BudgetCalculator({
     }
 
     printWindow.document.write(printHtml);
-    printWindow.document.close();
+    finalizePrintWindow(printWindow);
   };
 
   const handleExportRealisasi = () => {
@@ -1543,7 +1544,7 @@ export default function BudgetCalculator({
       <html>
       <head>
         <title>Laporan Realisasi Anggaran & Varian - ${projectData?.name || 'Program'}</title>
-        <script src="https://cdn.tailwindcss.com"></script>
+        ${appStylesheetTags()}
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
         <style>
           body { font-family: 'Inter', sans-serif; }
@@ -1701,7 +1702,7 @@ export default function BudgetCalculator({
         </div>
 
         <div class="no-print mt-12 text-center">
-          <button onclick="window.print()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded shadow-lg text-xs tracking-wider uppercase">Cetak Laporan Realisasi</button>
+          <button data-print-trigger class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-6 rounded shadow-lg text-xs tracking-wider uppercase">Cetak Laporan Realisasi</button>
         </div>
 
         <div class="mt-16 text-center text-[9px] text-slate-400 border-t pt-2">
@@ -1712,7 +1713,7 @@ export default function BudgetCalculator({
     `;
 
     printWindow.document.write(printHtml);
-    printWindow.document.close();
+    finalizePrintWindow(printWindow);
   };
 
   if (error) {

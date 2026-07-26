@@ -20,9 +20,48 @@ answer **HTTP 401** when called with nothing but the public anon key. Before the
 fix they would have answered 400, having passed authentication and failed only on
 input validation.
 
-Two items remain open: the CSP flip (item 4) and the `LIMIT 1` multi-org policy
-bug (see the queue at the end). The sections below are kept as the record of what
-was wrong and why.
+The `LIMIT 1` multi-org policy bug and the CSP flip have since been closed too —
+see below. The sections after that are kept as the record of what was wrong and
+why.
+
+### CSP is now enforcing
+
+`vercel.json` serves `Content-Security-Policy` rather than the report-only
+variant. What had blocked it was the print/export pop-ups: a document opened with
+`window.open('')` inherits the opener's policy, and those templates pulled
+`cdn.tailwindcss.com` plus carried inline `<script>` blocks and
+`onclick="window.print()"` attributes — between them requiring a CDN whitelist,
+`'unsafe-eval'` and `'unsafe-inline'`, which is most of what a CSP is for.
+
+None of it was necessary. `src/lib/print/printWindow.ts` now supplies:
+
+- `appStylesheetTags()` — same-origin `<link>` tags copied from the live
+  document. Tailwind scans `./src/**/*.{ts,tsx}` and the print markup lives in
+  template literals inside those files, so every class it uses is already
+  compiled into the app's own stylesheet. Verified by grepping the built CSS for
+  classes that appear only in print templates. `.page-break` and `.avoid-break`
+  are not Tailwind utilities and were already declared inline.
+- `finalizePrintWindow(win, { auto })` — replaces `win.document.close()`,
+  attaching click handlers to `[data-print-trigger]` elements and auto-printing
+  where the old inline `window.onload` did. The opener drives the pop-up through
+  its Window handle, so the pop-up needs no script of its own.
+
+Four CDN references and seven inline-JS sites across `BudgetCalculator`,
+`WBSBuilder`, `MEALPlanner`, `SROICalculator` and `SROIStandalone` are gone.
+
+### `npx tsc --noEmit` was checking nothing
+
+Found while verifying the above. Root `tsconfig.json` has `"files": []` and only
+project `references`, so the command the README documented resolved to an empty
+project and exited 0 no matter what — a plain missing import went undetected.
+
+`npm run typecheck` (`tsc --noEmit -p tsconfig.app.json`) is now the real check,
+and the README points at it. It currently reports **441 pre-existing errors**,
+mostly `never` inference against the generated Supabase types plus a
+`size="xs"` variant the Button component does not declare. None were introduced
+here — the count is identical before and after this work. They are left alone
+deliberately; that is its own piece of work, not something to bundle into a
+security fix.
 
 ---
 

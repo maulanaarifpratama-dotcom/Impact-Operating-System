@@ -38,6 +38,7 @@ import {
   ArrowUpRight,
   Activity
 } from 'lucide-react';
+import { finalizePrintWindow } from '@/lib/print/printWindow';
 
 interface StandaloneOutcome {
   id: string;
@@ -523,17 +524,12 @@ export default function SROIStandalone() {
             Diproduksi oleh Impactory.id — Platform Manajemen Dampak Sosial & Sustainability Indonesia
           </div>
 
-          <script>
-            window.onload = function() {
-              window.print();
-            };
-          </script>
         </body>
       </html>
     `;
 
     printWindow.document.write(htmlContent);
-    printWindow.document.close();
+    finalizePrintWindow(printWindow, { auto: true });
   };
 
   const handleCopySummary = () => {
