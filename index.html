@@ -3,7 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- favicon.ico shipped in public/ but was never referenced; browsers found
+         it only by the /favicon.ico convention, and nothing offered an icon to
+         platforms that do not follow it. Both are declared now. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/og-image.png" />
     <title>Impactory.id — Platform AI untuk NGO, MEAL, SROI, dan Laporan Dampak</title>
     <meta name="description" content="Impactory.id membantu NGO merancang program, menyusun anggaran, memantau capaian MEAL, mengelola bukti, dan menghitung SROI dalam satu platform.">
     <meta name="author" content="Impactory" />
