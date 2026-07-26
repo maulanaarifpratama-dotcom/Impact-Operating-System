@@ -18,7 +18,7 @@ Built 100% through agentic vibe coding on **Google Antigravity** with **Gemini**
 | Routing    | React Router DOM v6                    |
 | Backend    | Supabase (PostgreSQL + Edge Functions) |
 | AI         | Azure OpenAI (RAG, drafting)            |
-| Auth       | Supabase Auth + Azure MSAL              |
+| Auth       | Supabase Auth (Google OAuth)            |
 | State      | TanStack React Query v5                |
 | Forms      | React Hook Form + Zod                  |
 | Deployment | Vercel                                  |
@@ -92,7 +92,7 @@ Dibangun 100% melalui agentic vibe coding di **Google Antigravity** dengan **Gem
 | Routing    | React Router DOM v6                    |
 | Backend    | Supabase (PostgreSQL + Edge Functions) |
 | AI         | Azure OpenAI (RAG, drafting)           |
-| Auth       | Supabase Auth + Azure MSAL             |
+| Auth       | Supabase Auth (Google OAuth)           |
 | State      | TanStack React Query v5                |
 | Forms      | React Hook Form + Zod                  |
 | Deployment | Vercel                                 |

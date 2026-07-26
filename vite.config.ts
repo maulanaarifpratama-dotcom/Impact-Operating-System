@@ -57,11 +57,7 @@ export default defineConfig(({ mode }) => ({
             // bundles them into that route's own chunk. Forcing a shared
             // "vendor-charts" chunk instead made the entry import it for a
             // single shared helper, pushing ~350 kB onto the landing page.
-            if (
-              id.includes("/@supabase/") ||
-              id.includes("/@tanstack/") ||
-              id.includes("/@azure/")
-            ) {
+            if (id.includes("/@supabase/") || id.includes("/@tanstack/")) {
               return "vendor-data";
             }
             if (id.includes("/lucide-react/")) {

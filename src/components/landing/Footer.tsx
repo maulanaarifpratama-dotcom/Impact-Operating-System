@@ -34,10 +34,10 @@ export function Footer({ lang = 'id' }: { lang?: 'id' | 'en' }) {
           <div>
             <h4 className="text-sm font-bold text-slate-200">{t.navbar.products}</h4>
             <ul className="mt-3 space-y-2 text-sm text-slate-400">
-              <li>Readiness Scorecard <span className="text-xs text-slate-500">· Baseline</span></li>
-              <li>Impact Library <span className="text-xs text-slate-500">· Asset Engine</span></li>
-              <li>Grant Pipeline <span className="text-xs text-slate-500">· Workflow</span></li>
-              <li>Grantwriter <span className="text-xs text-slate-500">· Proposal System</span></li>
+              <li>Readiness Scorecard <span className="text-xs text-slate-400">· Baseline</span></li>
+              <li>Impact Library <span className="text-xs text-slate-400">· Asset Engine</span></li>
+              <li>Grant Pipeline <span className="text-xs text-slate-400">· Workflow</span></li>
+              <li>Grantwriter <span className="text-xs text-slate-400">· Proposal System</span></li>
             </ul>
           </div>
           <div>
@@ -54,7 +54,7 @@ export function Footer({ lang = 'id' }: { lang?: 'id' | 'en' }) {
                     <s.icon className="h-4 w-4" />
                     <span>
                       <span className="font-semibold text-slate-300">{s.name}</span>{' '}
-                      <span className="text-slate-500">{s.label}</span>
+                      <span className="text-slate-400">{s.label}</span>
                     </span>
                   </a>
                 </li>
