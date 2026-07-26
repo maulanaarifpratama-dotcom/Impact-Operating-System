@@ -76,6 +76,16 @@ interface LfaMatrix {
   }>;
 }
 
+/**
+ * How long the first generation may take before a corrective retry is dropped.
+ *
+ * Supabase kills the worker with WORKER_RESOURCE_LIMIT when an invocation runs
+ * too long, and it does so without letting the function respond — so the caller
+ * gets a 546 rather than the partly-good matrix that had already been produced.
+ * Past this mark the first result is kept as-is instead.
+ */
+const RETRY_TIME_BUDGET_MS = 55_000;
+
 const SYSTEM_PROMPT = `You are an expert grant proposal writer for Indonesian foundations, NGOs, and social enterprises. You produce proposals that meet international donor standards (UN/OECD-DAC LFA, World Bank, USAID, EU).
 
 When given a wizard data payload, you MUST return JSON with this exact shape:
@@ -722,6 +732,10 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
+    // Used to decide whether there is still room for a second generation.
+    const startedAt = Date.now();
+    const elapsedMs = () => Date.now() - startedAt;
+
     const ctx = await authenticate(req);
     // Full LFA + proposal generation is the most expensive call in the product.
     await enforceRateLimit(ctx.supabaseAdmin, ctx.userId, {
@@ -971,50 +985,68 @@ Deno.serve(async (req: Request) => {
         ...(!semanticResult.isValid ? semanticResult.reasons : [])
       ];
       console.warn('[GW-VALIDATION] First output failed validation:', failures);
-      retryAttempted = true;
-      const retryPromptMessage = buildDynamicRetryPrompt(failures, programFacts, resolvedContext);
 
-      const retryRes = await chatJson<{
-        matrix: LfaMatrix;
-        proposal_markdown: string;
-        program_skeleton?: any;
-      }>({
-        messages: [
-          { role: 'system', content: systemPrompt },
-          {
-            role: 'user',
-            content: `Wizard Data Payload:\n${fenceUserPayload(userPayload)}\n\n${groundingPrompt}\n\n${retryPromptMessage}`,
-          },
-        ],
-        temperature: 0.3,
-        max_tokens: 16000,
-      });
-
-      if (retryRes?.data?.matrix && retryRes?.data?.proposal_markdown) {
-        const retryValidation = validateGrounding(retryRes.data.matrix, programFacts, resolvedContext, retryRes.data.proposal_markdown);
-        const retrySemantic = validateLFASemantics(retryRes.data.matrix);
-
-        if (retryValidation.isValid && retrySemantic.isValid) {
-          result.matrix = retryRes.data.matrix;
-          result.proposal_markdown = retryRes.data.proposal_markdown;
-          if (retryRes.data.program_skeleton) {
-            result.program_skeleton = retryRes.data.program_skeleton;
-          }
-          validationResult = retryValidation;
-          semanticResult = retrySemantic;
-        } else {
-          const retryFailures = [
-            ...(!retryValidation.isValid ? retryValidation.failures : []),
-            ...(!retrySemantic.isValid ? retrySemantic.reasons : [])
-          ];
-          console.error('[GW-VALIDATION] Retry output still failed validation:', retryFailures);
-          return errorResponse(
-            `VALIDATION_FAILED: Output failed validation after retry. Failures: ${retryFailures.join('; ')}`,
-            422
-          );
-        }
+      // A second full generation is the heaviest thing this function does, and
+      // running it straight after the first is what trips Supabase's
+      // WORKER_RESOURCE_LIMIT (HTTP 546) — the worker is killed outright, so
+      // nothing is returned and nothing is saved. Only spend that budget while
+      // there is room for it; otherwise keep the first result, which is usable
+      // even when imperfect, and let the operator regenerate from the UI.
+      if (elapsedMs() > RETRY_TIME_BUDGET_MS) {
+        console.warn(
+          `[GW-VALIDATION] Skipping retry — ${Math.round(elapsedMs() / 1000)}s already spent, ` +
+            'a second generation would exceed the worker budget. Keeping the first output.',
+        );
       } else {
-        return errorResponse('VALIDATION_FAILED: LLM returned invalid payload on retry.', 422);
+        retryAttempted = true;
+        const retryPromptMessage = buildDynamicRetryPrompt(failures, programFacts, resolvedContext);
+
+        const retryRes = await chatJson<{
+          matrix: LfaMatrix;
+          proposal_markdown: string;
+          program_skeleton?: any;
+        }>({
+          messages: [
+            { role: 'system', content: systemPrompt },
+            {
+              role: 'user',
+              content: `Wizard Data Payload:\n${fenceUserPayload(userPayload)}\n\n${groundingPrompt}\n\n${retryPromptMessage}`,
+            },
+          ],
+          temperature: 0.3,
+          max_tokens: 16000,
+        });
+
+        if (retryRes?.data?.matrix && retryRes?.data?.proposal_markdown) {
+          const retryValidation = validateGrounding(retryRes.data.matrix, programFacts, resolvedContext, retryRes.data.proposal_markdown);
+          const retrySemantic = validateLFASemantics(retryRes.data.matrix);
+
+          if (retryValidation.isValid && retrySemantic.isValid) {
+            result.matrix = retryRes.data.matrix;
+            result.proposal_markdown = retryRes.data.proposal_markdown;
+            if (retryRes.data.program_skeleton) {
+              result.program_skeleton = retryRes.data.program_skeleton;
+            }
+            validationResult = retryValidation;
+            semanticResult = retrySemantic;
+          } else {
+            const retryFailures = [
+              ...(!retryValidation.isValid ? retryValidation.failures : []),
+              ...(!retrySemantic.isValid ? retrySemantic.reasons : [])
+            ];
+            // Keep the first generation rather than discarding both. Throwing a
+            // 422 here meant the caller waited through two Azure round trips and
+            // received nothing at all — no matrix, no proposal — with the spend
+            // already incurred. An imperfect matrix the user can review and
+            // regenerate is worth more than an empty error.
+            console.error(
+              '[GW-VALIDATION] Retry still failed validation; keeping the first output for review:',
+              retryFailures,
+            );
+          }
+        } else {
+          console.error('[GW-VALIDATION] Retry returned an invalid payload; keeping the first output.');
+        }
       }
     }
 
