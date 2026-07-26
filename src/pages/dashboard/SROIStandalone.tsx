@@ -44,6 +44,10 @@ interface StandaloneOutcome {
   id: string;
   meal_item_id?: string | null;
   outcome_name: string;
+  // SVI Principle 1. The UI has always had a picker for this and the PDF export
+  // prints a column of it, but the interface never declared it — so the field
+  // rode along untyped. lfa_sroi_outcomes.stakeholder_group backs it.
+  stakeholder_group?: string | null;
   quantity: number;
   unit: string;
   proxy_value_idr: number;

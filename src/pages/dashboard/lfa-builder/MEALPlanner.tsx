@@ -2017,7 +2017,7 @@ export default function MEALPlanner({
                       <td className="py-3 pr-4">
                         <Textarea
                           id={`meal-escalation-${acc.id}`}
-                          aria-label={`Prosedur eskalasi keluhan ${acc.mechanism_name || 'MEAL'}`}
+                          aria-label={`Prosedur eskalasi keluhan ${acc.mechanism || 'MEAL'}`}
                           value={acc.escalation_procedure || ''}
                           onChange={(e) => {
                             const val = e.target.value;
