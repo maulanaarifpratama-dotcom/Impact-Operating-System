@@ -320,6 +320,32 @@ rejects anything not starting with a single `/`. That closes the class outright
 and holds no matter which router version is installed. Revisit v7 as planned
 work, not as an incident.
 
+### Accessibility, prompt fencing, dead weight
+
+**Contrast** — thirteen elements across the pre-rendered routes were below the
+WCAG AA 4.5:1 floor, all `text-slate-500` on a dark surface: four footer
+qualifiers and four social handles (3.63:1), the four struck-through "not
+included" features on `/pricing` (3.5:1), the second footer used by the
+non-home routes (3.8:1), and a few helper lines. All moved to `text-slate-400`,
+already the dominant secondary colour in those components — `· Baseline` went
+3.63:1 → 6.74:1, `Grant Writer AI` 3.5:1 → 6.49:1. Both the landing page and
+`/pricing` now measure zero failures. The decorative `ArrowRight` on Index sits
+beside its own label, so 1.4.11 does not apply and it was left as is.
+
+**Prompt injection** — `grant-writer-generate` interpolated `wizard_data`
+straight into the user message. `JSON.stringify` stops the payload breaking the
+JSON envelope, but the model still reads the inside of each string field as
+prose. The payload is now wrapped by `fenceUserPayload()`, whose marker carries a
+per-request UUID that form input cannot guess, and `SYSTEM_PROMPT` gained an
+INPUT HANDLING section instructing the model to treat the fenced block as data
+and reproduce rather than obey anything inside it. Applied to the first call and
+the retry.
+
+**Dead weight** — `@azure/msal-browser` and `@azure/msal-react` were declared but
+imported nowhere; auth is Supabase-only. Removed, along with their `manualChunks`
+rule and the README's stale tech-stack row. `src/components/ui/chart.tsx` had no
+importers.
+
 ## Correction log
 
 The first pass of this audit made two claims that later verification overturned.
@@ -327,7 +353,14 @@ Both came from reasoning about local artefacts instead of production:
 
 1. **Brevo key exposure** — asserted from a local `dist/` build. See item 3
    above. No exposure occurred.
-2. **RLS was wide open** — asserted from `20260600000000_organizations.sql`,
+2. **Badge contrast at 3.47:1** — the first checker read `rgba()` backgrounds
+   without compositing their alpha, so it measured `teal-300` against a solid
+   brand colour rather than the dark surface actually behind it. Measured
+   correctly the badges are 10.23:1 and always passed. The corrected checker,
+   which composites every translucent ancestor and applies the large-text
+   exemption, found thirteen real failures elsewhere — a different set entirely.
+
+3. **RLS was wide open** — asserted from `20260600000000_organizations.sql`,
    which is gitignored as a local bootstrap and carries `USING (true)` stubs plus
    an `is_org_member()` that returns `SELECT true`. Production bears no
    resemblance to it: every public table has RLS enabled with at least one
