@@ -1,11 +1,16 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { handleCors, jsonResponse } from '../_shared/cors.ts';
+import { authenticate } from '../_shared/auth.ts';
 
 serve(async (req) => {
     const cors = handleCors(req);
     if (cors) return cors;
 
         try {
+              // This probe spends real Foundry tokens on every call, so it must
+              // not be reachable anonymously.
+              await authenticate(req);
+
               const endpoint = Deno.env.get('AZURE_FOUNDRY_ENDPOINT') || '';
               const apiKey = Deno.env.get('AZURE_FOUNDRY_API_KEY') || '';
               const chatDeployment = Deno.env.get('AZURE_FOUNDRY_CHAT_DEPLOYMENT') || Deno.env.get('AZURE_FOUNDRY_DEPLOYMENT') || '';
@@ -56,6 +61,6 @@ serve(async (req) => {
               return jsonResponse({
                         success: false,
                         configured: false,
-              }, 500);
+              }, (err as { status?: number })?.status ?? 500);
         }
 });

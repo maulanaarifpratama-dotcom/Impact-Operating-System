@@ -53,16 +53,12 @@ export async function authenticate(req: Request): Promise<AuthContext> {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
+  // SECURITY: never accept the project's anon key (or the service-role key) as a
+  // stand-in for an end-user session. The anon key is public by design — it ships
+  // in every frontend bundle — so treating it as "authenticated" would make every
+  // edge function callable by anyone on the internet. Only a real user JWT passes.
   const { data, error } = await supabase.auth.getUser(token);
   if (error || !data.user) {
-    if (token === supabaseAnonKey || token === serviceRoleKey) {
-      return {
-        userId: '00000000-0000-0000-0000-000000000000',
-        email: 'dev@impactory.id',
-        supabase: supabaseAdmin,
-        supabaseAdmin,
-      };
-    }
     throw new AuthError('Invalid or expired token');
   }
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
@@ -7,42 +7,70 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { AuthProvider } from '@/providers/AuthProvider';
 import { ProtectedRoute } from '@/components/auth/ProtectedRoute';
 import { ScrollToTop } from '@/components/ScrollToTop';
+
+// Public marketing routes stay eager. These are the pre-rendered entry points
+// (see scripts/prerender.js), so splitting them would trade static HTML for a
+// spinner on exactly the pages most visitors land on first.
 import Index from './pages/Index';
 import NotFound from './pages/NotFound';
-import Login from './pages/auth/Login';
-import Signup from './pages/auth/Signup';
-import AuthCallback from './pages/auth/Callback';
 import AboutPage from './pages/landing/AboutPage';
 import ContactPage from './pages/landing/ContactPage';
 import PricingPage from './pages/landing/PricingPage';
 import PrivacyPolicyPage from './pages/landing/PrivacyPolicyPage';
 import TermsPage from './pages/landing/TermsPage';
-import { DashboardLayout } from '@/components/dashboard/DashboardLayout';
-import DashboardHome from './pages/dashboard/DashboardHome';
-import ReadinessScorecard from './pages/dashboard/ReadinessScorecard';
-import MonthlyImpactReport from './pages/dashboard/MonthlyImpactReport';
-import ResourceAccessTracker from './pages/dashboard/ResourceAccessTracker';
-import DonorCRM from './pages/dashboard/DonorCRM';
-import ImpactDashboard from './pages/dashboard/ImpactDashboard';
-import GrantWriterIndex from './pages/dashboard/grant-writer/GrantWriterIndex';
-import GrantWriterWizard from './pages/dashboard/grant-writer/GrantWriterWizard';
-import GrantWriterProposal from './pages/dashboard/grant-writer/GrantWriterProposal';
-import GrantWriterQuickWizard from './pages/dashboard/grant-writer/GrantWriterQuickWizard';
-import GrantWriterRouteGuard from './pages/dashboard/grant-writer/GrantWriterRouteGuard';
-import ImpactoryLibrary from './pages/dashboard/products/ImpactoryLibrary';
-import Grantfinder from './pages/dashboard/products/Grantfinder';
-import ImpactoryAds from './pages/dashboard/products/ImpactoryAds';
-import Onboarding from './pages/auth/Onboarding';
-import AcceptInvite from './pages/auth/AcceptInvite';
-import Settings from './pages/dashboard/Settings';
-import MonthlyOperatingReview from './pages/dashboard/MonthlyOperatingReview';
-import LFABuilderIndex from './pages/dashboard/lfa-builder/LFABuilderIndex';
-import LFABuilderEditor from './pages/dashboard/lfa-builder/LFABuilderEditor';
-import SROIStandalone from './pages/dashboard/SROIStandalone';
-import EROIStandalone from './pages/dashboard/EROIStandalone';
-import BeneficiaryRegistry from './pages/dashboard/BeneficiaryRegistry';
 
+// Everything behind auth is code-split. The dashboard modules (WBS, Budget,
+// MEAL, SROI, PDF export, charts) are the bulk of the bundle and no anonymous
+// visitor needs a byte of them.
+const Login = lazy(() => import('./pages/auth/Login'));
+const Signup = lazy(() => import('./pages/auth/Signup'));
+const AuthCallback = lazy(() => import('./pages/auth/Callback'));
+const Onboarding = lazy(() => import('./pages/auth/Onboarding'));
+const AcceptInvite = lazy(() => import('./pages/auth/AcceptInvite'));
 
+const DashboardLayout = lazy(() =>
+  import('@/components/dashboard/DashboardLayout').then((m) => ({
+    default: m.DashboardLayout,
+  })),
+);
+
+const DashboardHome = lazy(() => import('./pages/dashboard/DashboardHome'));
+const ReadinessScorecard = lazy(() => import('./pages/dashboard/ReadinessScorecard'));
+const MonthlyImpactReport = lazy(() => import('./pages/dashboard/MonthlyImpactReport'));
+const ResourceAccessTracker = lazy(() => import('./pages/dashboard/ResourceAccessTracker'));
+const DonorCRM = lazy(() => import('./pages/dashboard/DonorCRM'));
+const ImpactDashboard = lazy(() => import('./pages/dashboard/ImpactDashboard'));
+const MonthlyOperatingReview = lazy(() => import('./pages/dashboard/MonthlyOperatingReview'));
+const Settings = lazy(() => import('./pages/dashboard/Settings'));
+const SROIStandalone = lazy(() => import('./pages/dashboard/SROIStandalone'));
+const EROIStandalone = lazy(() => import('./pages/dashboard/EROIStandalone'));
+const BeneficiaryRegistry = lazy(() => import('./pages/dashboard/BeneficiaryRegistry'));
+
+const GrantWriterIndex = lazy(() => import('./pages/dashboard/grant-writer/GrantWriterIndex'));
+const GrantWriterProposal = lazy(() => import('./pages/dashboard/grant-writer/GrantWriterProposal'));
+const GrantWriterRouteGuard = lazy(() => import('./pages/dashboard/grant-writer/GrantWriterRouteGuard'));
+
+const ImpactoryLibrary = lazy(() => import('./pages/dashboard/products/ImpactoryLibrary'));
+const Grantfinder = lazy(() => import('./pages/dashboard/products/Grantfinder'));
+const ImpactoryAds = lazy(() => import('./pages/dashboard/products/ImpactoryAds'));
+
+const LFABuilderIndex = lazy(() => import('./pages/dashboard/lfa-builder/LFABuilderIndex'));
+const LFABuilderEditor = lazy(() => import('./pages/dashboard/lfa-builder/LFABuilderEditor'));
+
+function RouteFallback() {
+  return (
+    <div
+      className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950"
+      role="status"
+      aria-live="polite"
+    >
+      <div className="flex flex-col items-center gap-3">
+        <div className="h-8 w-8 animate-spin rounded-full border-2 border-brand-green border-t-transparent" />
+        <span className="text-sm text-gray-500 dark:text-gray-400">Memuat…</span>
+      </div>
+    </div>
+  );
+}
 
 
 class DashboardErrorBoundary extends React.Component<
@@ -121,6 +149,7 @@ const App = () => (
           <TooltipProvider>
             <Toaster />
             <ScrollToTop />
+          <Suspense fallback={<RouteFallback />}>
           <Routes>
             {/* Public */}
             <Route path="/" element={<Index />} />
@@ -195,6 +224,7 @@ const App = () => (
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </Suspense>
         </TooltipProvider>
       </AuthProvider>
     </BrowserRouter>

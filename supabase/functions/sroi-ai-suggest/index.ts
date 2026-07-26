@@ -5,6 +5,7 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { authenticate } from '../_shared/auth.ts';
+import { enforceRateLimit, SUGGEST_LIMIT } from '../_shared/rateLimit.ts';
 import { chatJson } from '../_shared/foundry.ts';
 
 serve(async (req: Request) => {
@@ -14,8 +15,12 @@ serve(async (req: Request) => {
   let currentOperation = 'unknown';
 
   try {
-    // Authenticate caller
-    await authenticate(req);
+    // Authenticate caller, then bound spend.
+    const ctx = await authenticate(req);
+    await enforceRateLimit(ctx.supabaseAdmin, ctx.userId, {
+      bucket: 'sroi-ai-suggest',
+      ...SUGGEST_LIMIT,
+    });
 
     const body = await req.json();
     const { operation, payload } = body as {
@@ -264,8 +269,16 @@ Data: ${JSON.stringify(current_sroi_data || {})}`;
     
     const isTokenExhausted = err.message?.includes('finish_reason=length') || err.message?.includes('empty content');
     const isTimeout = err.message?.includes('timeout') || err.message?.includes('AbortError');
-    const httpStatus = (isTokenExhausted || isTimeout) ? 503 : 500;
-    const errorCode = isTokenExhausted ? 'UPSTREAM_TOKEN_EXHAUSTED' : (isTimeout ? 'UPSTREAM_TIMEOUT' : 'INTERNAL_ERROR');
+    // Auth (401) and rate-limit (429) errors carry their own status; never
+    // relabel them as an upstream/server fault.
+    const httpStatus = err?.status ?? ((isTokenExhausted || isTimeout) ? 503 : 500);
+    const errorCode = err?.status === 429
+      ? 'RATE_LIMITED'
+      : err?.status === 401
+        ? 'UNAUTHORIZED'
+        : isTokenExhausted
+          ? 'UPSTREAM_TOKEN_EXHAUSTED'
+          : (isTimeout ? 'UPSTREAM_TIMEOUT' : 'INTERNAL_ERROR');
 
     return new Response(JSON.stringify({
       error: err.message || 'Internal Server Error',

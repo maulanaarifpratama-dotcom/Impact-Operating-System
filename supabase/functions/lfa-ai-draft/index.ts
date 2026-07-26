@@ -3,7 +3,8 @@
 
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
-import { authenticate, AuthError } from '../_shared/auth.ts';
+import { authenticate } from '../_shared/auth.ts';
+import { enforceRateLimit, GENERATE_LIMIT } from '../_shared/rateLimit.ts';
 import { chatCompletion } from '../_shared/foundry.ts';
 
 serve(async (req: Request) => {
@@ -11,8 +12,13 @@ serve(async (req: Request) => {
   if (corsResponse) return corsResponse;
 
   try {
-    // Authenticate caller (ensures JWT session is valid)
-    await authenticate(req);
+    // Authenticate caller (ensures JWT session is valid), then bound spend.
+    // Full-document extraction is expensive, so it uses the tighter budget.
+    const ctx = await authenticate(req);
+    await enforceRateLimit(ctx.supabaseAdmin, ctx.userId, {
+      bucket: 'lfa-ai-draft',
+      ...GENERATE_LIMIT,
+    });
 
     const body = await req.json();
     const { proposal_text, project_name, sector } = body as {
@@ -122,7 +128,7 @@ ${proposal_text}`;
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err: any) {
-    const status = err instanceof AuthError ? err.status : 500;
+    const status = err?.status ?? 500;
     return new Response(JSON.stringify({ error: err.message || 'Internal Server Error' }), {
       status,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

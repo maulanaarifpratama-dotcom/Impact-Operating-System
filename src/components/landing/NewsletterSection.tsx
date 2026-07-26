@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { Mail, CheckCircle2, AlertCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 
 export function NewsletterSection() {
   const [email, setEmail] = useState('');
@@ -16,24 +17,16 @@ export function NewsletterSection() {
     setLoading(true);
     setStatus(null);
 
-    const brevoApiKey = import.meta.env.VITE_BREVO_API_KEY || '';
-
     try {
-      const response = await fetch('https://api.brevo.com/v3/contacts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'api-key': brevoApiKey
-        },
-        body: JSON.stringify({
-          email: email,
-          listIds: [2],
-          updateEnabled: true
-        })
+      // Subscription goes through an edge function: the Brevo API key stays
+      // server-side. Calling api.brevo.com from here would require a VITE_*
+      // variable, and Vite inlines those into the public bundle.
+      const { error } = await supabase.functions.invoke('newsletter-subscribe', {
+        body: { email: email.trim() },
       });
 
-      if (!response.ok) {
-        throw new Error('API request failed');
+      if (error) {
+        throw error;
       }
 
       setStatus({

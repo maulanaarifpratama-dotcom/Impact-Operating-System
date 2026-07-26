@@ -16,7 +16,8 @@
 // Frontend: replace the rule-based generator.ts call in GrantWriterWizard
 //           with: supabase.functions.invoke('grant-writer-generate', { body: { projectId } })
 
-import { authenticate, AuthError } from '../_shared/auth.ts';
+import { authenticate } from '../_shared/auth.ts';
+import { enforceRateLimit, GENERATE_LIMIT } from '../_shared/rateLimit.ts';
 import { chatJson, foundryEmbed } from '../_shared/foundry.ts';
 import { handleCors, jsonResponse, errorResponse } from '../_shared/cors.ts';
 import { resolveOntologyContext, buildGroundingPromptMessage, buildProgramFactsForPrompt, extractGroundingTerms, validateGrounding } from './ontology-resolver.ts';
@@ -701,6 +702,11 @@ Deno.serve(async (req: Request) => {
 
   try {
     const ctx = await authenticate(req);
+    // Full LFA + proposal generation is the most expensive call in the product.
+    await enforceRateLimit(ctx.supabaseAdmin, ctx.userId, {
+      bucket: 'grant-writer-generate',
+      ...GENERATE_LIMIT,
+    });
     const body = (await req.json()) as GenerateRequest;
     if (!body.projectId) return errorResponse('projectId is required');
 
@@ -1345,8 +1351,10 @@ Return JSON with this exact schema:
       }
     });
   } catch (err) {
-    if (err instanceof AuthError) {
-      return errorResponse(err.message, err.status);
+    // AuthError (401/403) and RateLimitError (429) both carry an explicit status.
+    const status = (err as { status?: number })?.status;
+    if (status) {
+      return errorResponse((err as Error).message, status);
     }
     console.error('grant-writer-generate error:', (err as Error).message || 'unknown error');
     return errorResponse((err as Error).message ?? 'Internal error', 500);

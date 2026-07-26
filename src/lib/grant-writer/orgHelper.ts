@@ -23,11 +23,14 @@ export async function ensureDefaultOrg(userId: string, fullName?: string | null)
     .insert({ name: baseName, slug, created_by: userId })
     .select('id')
     .single();
+  // Never fall back to "some other organization" here. Picking an arbitrary row
+  // would file this user's programs, budgets and beneficiary data under a tenant
+  // they do not belong to; the placeholder UUID is just as bad, since callers use
+  // the return value as a write target. Fail loudly instead — every other error
+  // path in this function already throws, so callers handle rejection.
   if (orgErr) {
-    console.warn('[ensureDefaultOrg] org create error, falling back:', orgErr.message);
-    const { data: anyOrg } = await supabase.from('organizations').select('id').limit(1).maybeSingle();
-    if (anyOrg?.id) return anyOrg.id;
-    return '00000000-0000-0000-0000-000000000000';
+    console.error('[ensureDefaultOrg] org create failed:', orgErr.message);
+    throw orgErr;
   }
 
   // 3. Self-membership as owner.

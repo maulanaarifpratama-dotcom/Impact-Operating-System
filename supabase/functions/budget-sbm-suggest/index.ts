@@ -4,6 +4,7 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { corsHeaders, handleCors } from '../_shared/cors.ts';
 import { authenticate } from '../_shared/auth.ts';
+import { enforceRateLimit, SUGGEST_LIMIT } from '../_shared/rateLimit.ts';
 import { chatJson } from '../_shared/foundry.ts';
 
 serve(async (req: Request) => {
@@ -11,8 +12,12 @@ serve(async (req: Request) => {
   if (corsResponse) return corsResponse;
 
   try {
-    // Authenticate caller (ensures JWT session is valid)
-    await authenticate(req);
+    // Authenticate caller (ensures JWT session is valid), then bound spend.
+    const ctx = await authenticate(req);
+    await enforceRateLimit(ctx.supabaseAdmin, ctx.userId, {
+      bucket: 'budget-sbm-suggest',
+      ...SUGGEST_LIMIT,
+    });
 
     const body = await req.json();
     const { item_name, category } = body as {
@@ -97,7 +102,7 @@ Kategori Biaya: ${category || 'Lainnya'}`;
   } catch (err: any) {
     console.error('Budget SBM suggestion error:', err);
     return new Response(JSON.stringify({ error: err.message || 'Internal Server Error' }), {
-      status: 500,
+      status: err?.status ?? 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
