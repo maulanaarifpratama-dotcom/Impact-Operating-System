@@ -18,6 +18,10 @@ const buttonVariants = cva(
       },
       size: {
         default: "h-10 px-4 py-2",
+        // Dense toolbars in the LFA modules already pass size="xs". Until now it
+        // was not declared here, so those 14 buttons silently fell back to
+        // "default" and rendered at h-10 — larger than the layout intends.
+        xs: "h-8 rounded-md px-2.5 text-xs",
         sm: "h-9 rounded-md px-3",
         lg: "h-11 rounded-md px-8",
         icon: "h-10 w-10",
