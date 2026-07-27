@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Megaphone, Sparkles, Wand2, AlertTriangle } from 'lucide-react';
+import { ArrowRight, Megaphone, Sparkles, Wand2, AlertTriangle, ChevronDown } from 'lucide-react';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -95,33 +100,6 @@ const TRUST_GUARDRAILS = [
     title: 'Editable Campaign',
     description:
       'Copy yang dihasilkan harus bisa diedit sesuai channel, audiens, dan konteks organisasi.',
-  },
-];
-
-const CAMPAIGN_DELIVERABLES = [
-  {
-    title: 'Campaign Brief',
-    description: 'Ringkasan masalah, audiens, CTA, target, dan channel.',
-  },
-  {
-    title: 'Ad Copy',
-    description: 'Varian copy untuk Meta, Google, TikTok, atau channel lain.',
-  },
-  {
-    title: 'Landing Page Copy',
-    description: 'Headline, problem, proof, CTA, FAQ, dan trust signal.',
-  },
-  {
-    title: 'WhatsApp Script',
-    description: 'Follow-up personal untuk donor, relawan, atau partner.',
-  },
-  {
-    title: 'Email Follow-up',
-    description: 'Thank-you note, update impact, dan ajakan lanjut.',
-  },
-  {
-    title: 'Canva Content Ideas',
-    description: 'Ide carousel, poster, story, dan visual campaign.',
   },
 ];
 
@@ -311,111 +289,6 @@ export default function ImpactoryAds() {
         </div>
       </Card>
 
-      <Card className="space-y-2 border-primary/15 bg-primary/5 p-5 shadow-card md:p-6">
-        <Badge variant="outline" className="border-primary/20 bg-background/70 text-primary">
-          Campaign workflow
-        </Badge>
-        <h2 className="text-xl font-semibold">Campaign bukan hanya copy iklan</h2>
-        <p className="max-w-4xl text-sm leading-relaxed text-muted-foreground">
-          Campaign yang kuat dimulai dari problem, audiens, bukti impact, CTA, dan follow-up.
-          Campaign Builder membantu menyusun draft campaign yang bisa direview, diedit, dan
-          dijalankan oleh operator.
-        </p>
-      </Card>
-
-      <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {TRUST_GUARDRAILS.map((item) => (
-          <Card key={item.title} className="space-y-2 p-4 shadow-card">
-            <Badge className="border-accent/30 bg-accent/10 text-accent hover:bg-accent/15">
-              {item.title}
-            </Badge>
-            <p className="text-xs leading-relaxed text-muted-foreground">{item.description}</p>
-          </Card>
-        ))}
-      </section>
-
-      <Card className="space-y-5 p-5 shadow-card md:p-6">
-        <div className="space-y-2">
-          <Badge variant="outline" className="border-accent/30 text-accent">
-            Campaign Formula
-          </Badge>
-          <div className="flex flex-wrap items-center gap-2 text-base font-semibold md:text-lg">
-            {CAMPAIGN_FORMULA_STEPS.map((step, index) => (
-              <div key={step.title} className="flex items-center gap-2">
-                <span>{step.title}</span>
-                {index < CAMPAIGN_FORMULA_STEPS.length - 1 && (
-                  <span className="text-muted-foreground">→</span>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-        <div className="grid gap-3 md:grid-cols-5">
-          {CAMPAIGN_FORMULA_STEPS.map((step) => (
-            <div key={step.title} className="rounded-xl border bg-card p-3">
-              <p className="text-sm font-semibold">{step.title}</p>
-              <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-                {step.description}
-              </p>
-            </div>
-          ))}
-        </div>
-        <p className="rounded-xl bg-muted/50 p-3 text-sm leading-relaxed text-muted-foreground">
-          Orang tidak bergerak karena organisasi butuh dana. Orang bergerak karena mereka
-          percaya tindakannya menghasilkan perubahan.
-        </p>
-      </Card>
-
-      <Card className="space-y-5 p-5 shadow-card md:p-6">
-        <div className="space-y-2">
-          <Badge variant="outline" className="border-primary/20 text-primary">
-            Roadmap workflow
-          </Badge>
-          <h2 className="text-xl font-semibold">Campaign yang lengkap biasanya butuh lebih dari satu copy</h2>
-          <p className="max-w-4xl text-sm leading-relaxed text-muted-foreground">
-            Output di bawah adalah arah pengembangan workflow dari brief campaign. Fitur saat ini
-            tetap fokus membuat varian copy platform dari brief yang Anda isi.
-          </p>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {CAMPAIGN_DELIVERABLES.map((item) => (
-            <div key={item.title} className="rounded-xl border bg-card p-4">
-              <p className="text-sm font-semibold">{item.title}</p>
-              <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-                {item.description}
-              </p>
-              <Badge variant="outline" className="mt-3 text-[10px]">
-                Dapat dikembangkan dari brief campaign
-              </Badge>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      <Card className="border-amber-500/25 bg-amber-500/5 p-5 shadow-card md:p-6">
-        <div className="grid gap-5 md:grid-cols-[1.1fr_1fr] md:items-start">
-          <div className="space-y-2">
-            <Badge variant="outline" className="border-amber-500/30 bg-background/70 text-amber-700">
-              Campaign Claim Safety
-            </Badge>
-            <h2 className="text-xl font-semibold">Campaign Claim Safety</h2>
-            <p className="text-sm leading-relaxed text-muted-foreground">
-              Campaign tidak boleh menjanjikan hasil yang tidak bisa dibuktikan. Angka impact,
-              biaya per penerima manfaat, cerita personal, dan klaim urgensi harus berasal dari
-              data organisasi atau sumber yang jelas.
-            </p>
-          </div>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            {CLAIM_SAFETY_RULES.map((rule) => (
-              <li key={rule} className="flex gap-2">
-                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-600" />
-                <span>{rule}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </Card>
-
       <div className="grid gap-6 lg:grid-cols-[360px_1fr]">
         <aside className="lg:sticky lg:top-4 lg:self-start">
           <Card className="space-y-5 p-5 shadow-card md:p-6">
@@ -586,6 +459,17 @@ export default function ImpactoryAds() {
                 </>
               )}
             </Button>
+
+            {/* The one thing worth saying at the moment of generating. The full
+                rules live in the guide below; repeating them all here would put
+                us back where we started. */}
+            <p className="flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0 text-amber-500" />
+              <span>
+                Hasilnya draft. Periksa setiap angka impact dan cerita penerima manfaat sebelum
+                dipublikasikan.
+              </span>
+            </p>
           </Card>
         </aside>
 
@@ -687,32 +571,107 @@ export default function ImpactoryAds() {
         </div>
       </div>
 
-      <Card className="space-y-5 p-5 shadow-card md:p-6">
-        <div className="space-y-2">
-          <Badge variant="outline" className="border-accent/30 text-accent">
-            Workflow connection
-          </Badge>
-          <h2 className="text-xl font-semibold">Dari Library dan Proposal ke Campaign</h2>
-          <p className="max-w-4xl text-sm leading-relaxed text-muted-foreground">
-            Campaign yang kuat tidak berdiri sendiri. Gunakan Impact Library sebagai sumber bukti,
-            Grantwriter sebagai sumber narasi program, dan Readiness Scorecard sebagai baseline
-            organisasi.
+      {/* Panduan — dilipat secara bawaan.
+          Sebelumnya sembilan belas kartu penjelasan berdiri di antara judul
+          halaman dan formulir, jadi pengguna harus menggulir hampir dua ribu
+          piksel sebelum bisa mengetik apa pun. Isinya bagus, tempatnya salah:
+          ini rujukan yang dibaca sekali, bukan langkah yang dilalui setiap
+          kali. */}
+      <Collapsible>
+        <Card className="p-4 shadow-card md:p-5">
+          <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 text-left">
+            <div className="space-y-0.5">
+              <h2 className="text-sm font-bold">Panduan menyusun campaign yang kuat</h2>
+              <p className="text-xs text-muted-foreground">
+                Formula lima langkah, prinsip draft, dan aturan klaim yang aman.
+              </p>
+            </div>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+          </CollapsibleTrigger>
+
+          <CollapsibleContent className="space-y-6 pt-5">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-1.5 text-sm font-bold">
+                {CAMPAIGN_FORMULA_STEPS.map((step, index) => (
+                  <span key={step.title} className="flex items-center gap-1.5">
+                    <span className="text-accent">{step.title}</span>
+                    {index < CAMPAIGN_FORMULA_STEPS.length - 1 && (
+                      <span className="text-muted-foreground/40">&rarr;</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+              <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                {CAMPAIGN_FORMULA_STEPS.map((step) => (
+                  <div key={step.title} className="text-xs leading-relaxed">
+                    <dt className="inline font-semibold text-foreground">{step.title}. </dt>
+                    <dd className="inline text-muted-foreground">{step.description}</dd>
+                  </div>
+                ))}
+              </dl>
+              <p className="border-l-2 border-accent/40 pl-3 text-xs italic leading-relaxed text-muted-foreground">
+                Orang tidak bergerak karena organisasi butuh dana. Orang bergerak karena mereka
+                percaya tindakannya menghasilkan perubahan.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                Prinsip output
+              </h3>
+              <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                {TRUST_GUARDRAILS.map((item) => (
+                  <div key={item.title} className="text-xs leading-relaxed">
+                    <dt className="inline font-semibold text-foreground">{item.title}. </dt>
+                    <dd className="inline text-muted-foreground">{item.description}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+
+            <div className="space-y-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+              <h3 className="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-500">
+                <AlertTriangle className="h-3.5 w-3.5" /> Aturan klaim
+              </h3>
+              <ul className="space-y-1">
+                {CLAIM_SAFETY_RULES.map((rule) => (
+                  <li key={rule} className="flex gap-2 text-xs leading-relaxed text-muted-foreground">
+                    <span className="text-amber-600">&bull;</span>
+                    <span>{rule}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Sumber bahan — dulu empat kartu penuh, sekarang empat tautan.
+          Isinya memang cuma tautan; kartu setinggi seratus piksel untuk satu
+          tautan hanya menambah jarak menuju hal berikutnya. */}
+      <Card className="space-y-3 p-4 shadow-card md:p-5">
+        <div className="space-y-0.5">
+          <h2 className="text-sm font-bold">Ambil bahan campaign dari modul lain</h2>
+          <p className="text-xs text-muted-foreground">
+            Impact Library untuk bukti, Grantwriter untuk narasi program, Grant Pipeline untuk
+            menyelaraskan dengan funder.
           </p>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="flex flex-wrap gap-2">
           {WORKFLOW_CONNECTIONS.map((item) => (
-            <Card key={item.title} className="flex flex-col p-4">
-              <h3 className="font-semibold">{item.title}</h3>
-              <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">
-                {item.description}
-              </p>
-              <Button asChild variant="outline" size="sm" className="mt-4 justify-between">
-                <Link to={item.href}>
-                  {item.cta}
-                  <ArrowRight className="h-3.5 w-3.5" />
-                </Link>
-              </Button>
-            </Card>
+            <Button
+              key={item.title}
+              asChild
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs"
+              title={item.description}
+            >
+              <Link to={item.href}>
+                {item.title}
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </Button>
           ))}
         </div>
       </Card>
