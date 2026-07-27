@@ -13,6 +13,7 @@ import {
   Download,
   CheckCircle2,
   CalendarDays,
+  Search,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -333,6 +334,7 @@ export default function LFABuilderIndex() {
   const { canDelete } = useOrgRole();
   const { isPaid } = usePlan();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
   const [bulkConfirmOpen, setBulkConfirmOpen] = useState(false);
   const [bulkDeleting, setBulkDeleting] = useState(false);
 
@@ -341,10 +343,30 @@ export default function LFABuilderIndex() {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
-  const allSelected = projects.length > 0 && projects.every((p) => selectedIds.includes(p.id));
+  const visibleProjects = searchQuery.trim()
+    ? projects.filter((p) => {
+        const q = searchQuery.trim().toLowerCase();
+        return (
+          p.name.toLowerCase().includes(q) ||
+          (p.sector ?? '').toLowerCase().includes(q) ||
+          (p.location ?? '').toLowerCase().includes(q)
+        );
+      })
+    : projects;
+
+  // Scoped to what is on screen, not to all 86 programmes. Selecting every
+  // hidden row while a search is active is how someone clears out a filter's
+  // worth of test data and takes a real programme with it.
+  const allSelected =
+    visibleProjects.length > 0 && visibleProjects.every((p) => selectedIds.includes(p.id));
 
   const toggleSelectAll = () => {
-    setSelectedIds(allSelected ? [] : projects.map((p) => p.id));
+    const visibleIds = visibleProjects.map((p) => p.id);
+    setSelectedIds((prev) =>
+      allSelected
+        ? prev.filter((id) => !visibleIds.includes(id))
+        : [...new Set([...prev, ...visibleIds])],
+    );
   };
 
   const executeBulkDelete = async () => {
@@ -619,18 +641,31 @@ export default function LFABuilderIndex() {
             <h2 className="text-lg font-bold tracking-tight">Program LFA Aktif</h2>
             <p className="text-xs text-muted-foreground">Logframe program organisasi Anda yang sedang berjalan.</p>
           </div>
-          {/* Grantwriter has had this since bulk delete landed; the LFA list only
-              ever offered per-card checkboxes, so clearing out a run of test
-              programmes meant ticking each one. */}
-          {canDelete && projects.length > 0 && (
+          {/* Search, then select-all. Grantwriter has had both since bulk delete
+              landed; the LFA list offered neither, so clearing a run of test
+              programmes out of 86 meant ticking each one by hand. */}
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          {projects.length > 0 && (
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari nama, sektor, atau lokasi..."
+                className="pl-9 text-sm"
+              />
+            </div>
+          )}
+          {canDelete && visibleProjects.length > 0 && (
             <div
               className="flex w-fit shrink-0 cursor-pointer select-none items-center gap-2 rounded-md border bg-card px-2.5 py-1.5 text-xs font-medium hover:bg-muted/50"
               onClick={toggleSelectAll}
             >
               <Checkbox checked={allSelected} onCheckedChange={toggleSelectAll} aria-label="Pilih semua program" />
-              <span>Pilih Semua</span>
+              <span>Pilih Semua{searchQuery.trim() ? ` (${visibleProjects.length})` : ''}</span>
             </div>
           )}
+          </div>
         </div>
 
         {loading ? (
@@ -687,8 +722,13 @@ export default function LFABuilderIndex() {
               </div>
             </div>
           )}
+          {visibleProjects.length === 0 ? (
+            <div className="rounded-lg border bg-card py-12 text-center text-sm text-muted-foreground">
+              Tidak ada program yang cocok dengan "{searchQuery}".
+            </div>
+          ) : (
           <div className="grid gap-4 md:grid-cols-2">
-            {projects.map((p) => {
+            {visibleProjects.map((p) => {
               const score = completenessMap[p.id] ?? 0;
               return (
                 <Card
@@ -801,6 +841,7 @@ export default function LFABuilderIndex() {
               );
             })}
           </div>
+          )}
           </>
         )}
       </div>
