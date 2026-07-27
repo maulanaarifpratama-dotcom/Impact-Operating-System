@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, BookOpen, Download, Filter, Search, ShieldAlert, Sparkles, TrendingUp, X, Loader2, MessageSquare, Send, Plus, Upload, CheckCircle2, AlertTriangle, AlertCircle, FileText } from 'lucide-react';
+import { ArrowRight, BookOpen, Filter, Search, ShieldAlert, Sparkles, X, Loader2, MessageSquare, Send, Plus, Upload, CheckCircle2, AlertTriangle, AlertCircle, FileText, ChevronDown } from 'lucide-react';
 import { Card } from '@/components/ui/card';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -102,32 +103,6 @@ const ASSET_CATEGORIES = [
   {
     name: 'Partnership Documents',
     description: 'MoU, deck partnership, pitch deck, dan dokumen kolaborasi.',
-  },
-];
-
-const WORKFLOW_CARDS = [
-  {
-    title: 'Grantwriter',
-    description: 'Gunakan profil organisasi, proposal lama, dan laporan impact sebagai bahan draft proposal.',
-    cta: 'Buka Grantwriter',
-    href: '/dashboard/grant-writer',
-  },
-  {
-    title: 'Campaign Builder',
-    description: 'Gunakan cerita, dokumentasi, dan data program untuk membangun campaign yang lebih kuat.',
-    cta: 'Bangun Campaign',
-    href: '/dashboard/impactory-ads',
-  },
-  {
-    title: 'Monthly Impact Report',
-    description: 'Gunakan data program dan dokumentasi untuk membuat laporan bulanan yang lebih konsisten.',
-    cta: 'Segera hadir',
-  },
-  {
-    title: 'Grant Pipeline',
-    description: 'Gunakan dokumen legal dan profil organisasi untuk mempercepat proses apply grant.',
-    cta: 'Lihat Grant Pipeline',
-    href: '/dashboard/grantfinder',
   },
 ];
 
@@ -449,34 +424,13 @@ export default function ImpactoryLibrary() {
     [libraryItems.length, featuredCount, hasProcessing],
   );
 
-  /**
-   * Deterministic mock "downloads" so the ranking is stable across renders.
-   * Featured items get a baseline boost so they trend higher.
-   */
-  const withDownloads = useMemo(
-    () =>
-      libraryItems.map((it) => {
-        if (typeof it.downloads === 'number' && it.downloads > 0) return it;
-        const seed = it.id.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-        const base = 120 + (seed % 880); // 120–999
-        const boost = it.featured ? 600 : 0;
-        return { ...it, downloads: base + boost };
-      }),
-    [libraryItems],
-  );
-
   const recommended = useMemo(
     () =>
-      withDownloads
+      libraryItems
         .filter((it) => it.featured)
         .sort((a, b) => b.year - a.year)
         .slice(0, 4),
-    [withDownloads],
-  );
-
-  const mostDownloaded = useMemo(
-    () => [...withDownloads].sort((a, b) => (b.downloads ?? 0) - (a.downloads ?? 0)).slice(0, 4),
-    [withDownloads],
+    [libraryItems],
   );
 
   const showHighlights = tab === 'all' && !hasActiveFilter;
@@ -559,13 +513,6 @@ export default function ImpactoryLibrary() {
             </TabsList>
           </Tabs>
         </div>
-      </Card>
-
-      <Card className="border-accent/30 bg-accent-soft/40 p-5 shadow-card">
-        <p className="text-sm leading-6 text-muted-foreground">
-          Dokumen lama bukan arsip mati. Dokumen lama adalah aset untuk proposal berikutnya, campaign berikutnya, dan
-          bukti impact berikutnya.
-        </p>
       </Card>
 
       {/* SECTION: Interactive AI Console (Q&A + Upload Ingestion Flow) */}
@@ -953,196 +900,60 @@ export default function ImpactoryLibrary() {
         </Tabs>
       </Card>
 
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-h4">Library Health / Asset Readiness</h2>
-          <p className="text-sm text-muted-foreground">
-            Baseline library membantu tim melihat aset mana yang siap dipakai dan mana yang perlu dilengkapi.
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {libraryHealth.map((item) => (
-            <Card key={item.label} className="p-5 shadow-card">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{item.label}</p>
-              <p className="mt-2 text-2xl font-semibold">{item.value}</p>
-              <p className="mt-2 text-xs text-muted-foreground">{item.helper}</p>
-            </Card>
-          ))}
-        </div>
-        {libraryItems.length === 0 && (
-          <Card className="flex flex-col gap-3 border-dashed p-6">
-            <div>
-              <h3 className="font-semibold">Library baseline belum dibuat</h3>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Mulai dengan mengelompokkan aset organisasi ke 12 kategori: legal, profil organisasi, proposal lama,
-                laporan impact, data program, cerita penerima manfaat, template, dan dokumen partnership.
-              </p>
-            </div>
-            <Button type="button" variant="outline" disabled className="w-fit">
-              Upload Asset — gunakan formulir di atas untuk mengunggah dokumen pertama Anda
-            </Button>
-          </Card>
-        )}
-      </section>
-
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-h4">Asset Categories</h2>
-          <p className="text-sm text-muted-foreground">
-            Mulai dengan mengelompokkan aset organisasi ke 12 kategori agar mudah ditemukan dan dipakai ulang.
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {ASSET_CATEGORIES.map((category) => (
-            <Card key={category.name} className="p-5 shadow-card">
-              <Badge variant="outline" className="text-[10px]">Asset</Badge>
-              <h3 className="mt-3 font-semibold">{category.name}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">{category.description}</p>
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <section className="space-y-3">
-        <div>
-          <h2 className="text-h4">Dipakai di seluruh sistem</h2>
-          <p className="text-sm text-muted-foreground">
-            Impact Library menjadi bahan baku untuk modul lain. Semakin rapi aset organisasi, semakin cepat proposal,
-            campaign, dan laporan bisa dibuat tanpa mulai dari nol.
-          </p>
-        </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {WORKFLOW_CARDS.map((card) => (
-            <Card key={card.title} className="flex h-full flex-col p-5 shadow-card">
-              <h3 className="font-semibold">{card.title}</h3>
-              <p className="mt-2 text-sm text-muted-foreground">{card.description}</p>
-              {card.href ? (
-                <Button asChild variant="outline" size="sm" className="mt-4 w-fit">
-                  <Link to={card.href}>
-                    {card.cta}
-                    <ArrowRight className="ml-2 h-3.5 w-3.5" />
-                  </Link>
-                </Button>
-              ) : (
-                <Button type="button" variant="outline" size="sm" disabled className="mt-4 w-fit">
-                  {card.cta}
-                </Button>
-              )}
-            </Card>
-          ))}
-        </div>
-      </section>
-
-      <Card className="border-amber-500/30 bg-amber-500/5 p-5 shadow-card">
-        <div className="flex gap-3">
-          <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
-          <div>
-            <h2 className="font-semibold">Data sensitif butuh perlindungan</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">
-              Dokumen NGO sering berisi data sensitif. Cerita penerima manfaat, foto anak, data keluarga, laporan
-              keuangan, dan dokumen legal harus dikelola dengan izin, akses terbatas, dan human review.
-            </p>
-            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-muted-foreground">
-              <li>Pastikan cerita dan foto penerima manfaat memiliki izin penggunaan.</li>
-              <li>Pisahkan dokumen publik, internal, dan sensitif.</li>
-              <li>Jangan gunakan data sensitif untuk proposal atau campaign tanpa review manusia.</li>
-            </ul>
-          </div>
-        </div>
+      {/* Library Health — was four full-size cards; the numbers are one
+          sentence, not four decisions. */}
+      <Card className="flex flex-wrap items-center gap-x-6 gap-y-2 p-4 shadow-card text-sm">
+        {libraryHealth.map((item, i) => (
+          <span key={item.label} className="flex items-baseline gap-1.5">
+            {i > 0 && <span className="mr-4 text-muted-foreground/30">·</span>}
+            <span className="font-semibold">{item.value}</span>
+            <span className="text-xs text-muted-foreground">{item.label.toLowerCase()}</span>
+          </span>
+        ))}
       </Card>
 
-      <section className="space-y-2">
-        <h2 className="text-h4">Referensi dan Template Siap Pakai</h2>
-        <p className="text-sm text-muted-foreground">
-          Gunakan referensi ini sebagai inspirasi, template, dan bahan awal untuk proposal, campaign, serta laporan
-          impact.
-        </p>
-      </section>
+      {libraryItems.length === 0 && (
+        <Card className="flex flex-col gap-3 border-dashed p-6">
+          <div>
+            <h3 className="font-semibold">Library baseline belum dibuat</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Mulai dengan mengelompokkan aset organisasi ke 12 kategori: legal, profil organisasi, proposal lama,
+              laporan impact, data program, cerita penerima manfaat, template, dan dokumen partnership.
+            </p>
+          </div>
+          <Button type="button" variant="outline" disabled className="w-fit">
+            Upload Asset — gunakan formulir di atas untuk mengunggah dokumen pertama Anda
+          </Button>
+        </Card>
+      )}
 
       {/* Tabs content (controlled by hero tabs) */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)}>
 
-        {showHighlights && (
-          <div className="mt-5 space-y-6">
-            {/* Direkomendasikan */}
-            <section className="space-y-3">
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <h2 className="flex items-center gap-2 text-h4">
-                    <Sparkles className="h-4 w-4 text-accent" />
-                    Direkomendasikan
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Pilihan editor untuk memperkuat proposal & program Anda.
-                  </p>
-                </div>
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                {recommended.map((it) => (
-                  <LibraryCard key={`rec-${it.id}`} item={it} onOpen={() => setActiveItem(it)} />
-                ))}
-              </div>
-            </section>
-
-            {/* Paling Diunduh */}
-            <section className="space-y-3">
-              <div className="flex items-end justify-between gap-3">
-                <div>
-                  <h2 className="flex items-center gap-2 text-lg font-semibold">
-                    <TrendingUp className="h-4 w-4 text-accent" />
-                    Paling Diunduh
-                  </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Item terlaris pekan ini berdasarkan unduhan & pembukaan.
-                  </p>
-                </div>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {mostDownloaded.map((it, idx) => (
-                  <Card
-                    key={`top-${it.id}`}
-                    className="group relative flex h-full flex-col gap-2 p-4 shadow-card transition-all hover:-translate-y-0.5 hover:border-accent/40 hover:shadow-elegant"
-                  >
-                    <div className="absolute right-3 top-3 inline-flex h-6 w-6 items-center justify-center rounded-full bg-accent/15 text-[11px] font-bold text-accent">
-                      {idx + 1}
-                    </div>
-                    <Badge variant="outline" className="w-fit text-[10px]">
-                      {KIND_LABEL[it.kind]}
-                    </Badge>
-                    <button
-                      type="button"
-                      onClick={() => setActiveItem(it)}
-                      className="line-clamp-2 pr-7 text-left text-sm font-semibold leading-snug hover:text-accent focus:outline-none"
-                    >
-                      {it.title}
-                    </button>
-                    <p className="line-clamp-1 text-xs text-muted-foreground">{it.source}</p>
-                    <div className="mt-auto flex items-center justify-between pt-1 text-xs">
-                      <span className="inline-flex items-center gap-1 font-medium text-accent">
-                        <Download className="h-3 w-3" />
-                        {(it.downloads ?? 0).toLocaleString('id-ID')}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setActiveItem(it)}
-                        className="text-xs font-medium text-muted-foreground hover:text-accent"
-                      >
-                        Lihat →
-                      </button>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-            </section>
-
-            <div className="flex items-center gap-3">
-              <div className="h-px flex-1 bg-border" />
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">
-                Jelajahi semua
-              </span>
-              <div className="h-px flex-1 bg-border" />
+        {/* "Paling Diunduh" used to sit here — a ranked grid of download
+            counts. The counts were `id.charCodeAt sum % 880`, a deterministic
+            fake computed client-side so the ranking wouldn't jump on every
+            render. Real numbers rendered as fact. There is no download
+            tracking behind this yet, so it is gone rather than reworded;
+            showing a plausible number for something unmeasured is worse than
+            showing nothing. */}
+        {showHighlights && recommended.length > 0 && (
+          <section className="mt-5 space-y-3">
+            <div>
+              <h2 className="flex items-center gap-2 text-sm font-bold">
+                <Sparkles className="h-3.5 w-3.5 text-accent" />
+                Direkomendasikan
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                Pilihan editor untuk memperkuat proposal & program Anda.
+              </p>
             </div>
-          </div>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {recommended.map((it) => (
+                <LibraryCard key={`rec-${it.id}`} item={it} onOpen={() => setActiveItem(it)} />
+              ))}
+            </div>
+          </section>
         )}
 
         {KINDS.map((k) => (
@@ -1239,25 +1050,90 @@ export default function ImpactoryLibrary() {
         ))}
       </Tabs>
 
-      <Card className="flex flex-col gap-3 p-5 shadow-card md:flex-row md:items-center md:justify-between">
+      {/* Panduan — collapsed by default, same pattern as Campaign Builder.
+          Asset Categories used to be twelve full-size cards; nine were empty
+          for any organisation with under nine documents, shown at the same
+          size as the ones that had content. This is reference material read
+          once, not a step walked every visit. */}
+      <Collapsible>
+        <Card className="p-4 shadow-card md:p-5">
+          <CollapsibleTrigger className="group flex w-full items-center justify-between gap-3 text-left">
+            <div className="space-y-0.5">
+              <h2 className="text-sm font-bold">Panduan mengelola aset organisasi</h2>
+              <p className="text-xs text-muted-foreground">
+                Kategori aset yang disarankan, dan aturan menangani data sensitif.
+              </p>
+            </div>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-180" />
+          </CollapsibleTrigger>
+
+          <CollapsibleContent className="space-y-6 pt-5">
+            <div className="space-y-2">
+              <h3 className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                12 kategori aset yang disarankan
+              </h3>
+              <dl className="grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+                {ASSET_CATEGORIES.map((category) => (
+                  <div key={category.name} className="text-xs leading-relaxed">
+                    <dt className="inline font-semibold text-foreground">{category.name}. </dt>
+                    <dd className="inline text-muted-foreground">{category.description}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+
+            <div className="space-y-2 rounded-xl border border-amber-500/25 bg-amber-500/5 p-4">
+              <h3 className="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-500">
+                <ShieldAlert className="h-3.5 w-3.5" /> Data sensitif butuh perlindungan
+              </h3>
+              <p className="text-xs leading-relaxed text-muted-foreground">
+                Dokumen NGO sering berisi data sensitif. Cerita penerima manfaat, foto anak, data keluarga, laporan
+                keuangan, dan dokumen legal harus dikelola dengan izin, akses terbatas, dan human review.
+              </p>
+              <ul className="space-y-1">
+                {[
+                  'Pastikan cerita dan foto penerima manfaat memiliki izin penggunaan.',
+                  'Pisahkan dokumen publik, internal, dan sensitif.',
+                  'Jangan gunakan data sensitif untuk proposal atau campaign tanpa review manusia.',
+                ].map((rule) => (
+                  <li key={rule} className="flex gap-2 text-xs leading-relaxed text-muted-foreground">
+                    <span className="text-amber-600">&bull;</span>
+                    <span>{rule}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      {/* Was four full cards (Grantwriter, Campaign Builder, Monthly Impact
+          Report, Grant Pipeline) plus this footer repeating the same three
+          links. The disabled "Upload Asset — segera hadir" button below also
+          contradicted the working upload tab in the AI console above — fixed
+          by dropping it rather than explaining it. */}
+      <Card className="flex flex-col gap-3 p-4 shadow-card md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="font-semibold">Bangun asset engine organisasi</h2>
-          <p className="text-sm text-muted-foreground">
-            Hubungkan library dengan proposal, campaign, dan dashboard kerja NGO Growth OS.
+          <h2 className="text-sm font-bold">Pakai asset ini di modul lain</h2>
+          <p className="text-xs text-muted-foreground">
+            Grantwriter untuk proposal, Campaign Builder untuk campaign, Grant Pipeline untuk menyelaraskan funder.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link to="/dashboard">Kembali ke Dashboard</Link>
+          <Button asChild variant="outline" size="sm" className="gap-1.5 text-xs">
+            <Link to="/dashboard/grant-writer">
+              Grantwriter <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </Button>
-          <Button asChild variant="outline">
-            <Link to="/dashboard/grant-writer">Buat Proposal dengan Grantwriter</Link>
+          <Button asChild variant="outline" size="sm" className="gap-1.5 text-xs">
+            <Link to="/dashboard/impactory-ads">
+              Campaign Builder <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </Button>
-          <Button asChild variant="outline">
-            <Link to="/dashboard/impactory-ads">Bangun Campaign</Link>
-          </Button>
-          <Button type="button" variant="outline" disabled>
-            Upload Asset — segera hadir
+          <Button asChild variant="outline" size="sm" className="gap-1.5 text-xs">
+            <Link to="/dashboard/grantfinder">
+              Grant Pipeline <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </Button>
         </div>
       </Card>
