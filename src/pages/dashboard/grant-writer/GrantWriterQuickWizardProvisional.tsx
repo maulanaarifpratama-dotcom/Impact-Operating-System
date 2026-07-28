@@ -1567,23 +1567,92 @@ export default function GrantWriterQuickWizardProvisional() {
 
 
         /**
-         * A thin payload proceeds. It carries whatever the canonical mapper
-         * derived from what the author actually typed — the goal and purpose rows
-         * are emitted unconditionally from their own title and geography — so a
-         * sparse logframe is a thin logframe, not a wrong one, and the reasoning
-         * model that runs next is what fills it out.
+         * When the engine derived no outputs or activities, scaffold them from
+         * what the author actually typed instead of leaving the matrix with only
+         * a goal and a purpose row.
          *
-         * What must not come back is the previous fallback: a hardcoded solar
-         * water-filtration programme in Sumba, complete with its own outputs,
-         * activities and a committee of 4,500 villagers, written into the
-         * logframe of anyone whose story did not expand. Low quality is a
-         * tradeoff worth making; asserting facts the author never wrote is not
-         * the same thing, and this product exists to refuse it.
+         * Two things this is not. It is not the old fallback — a hardcoded solar
+         * water-filtration programme in Sumba, with its own outputs, activities
+         * and a committee of 4,500 villagers, written into the logframe of anyone
+         * whose story did not expand. And it is not an assertion: every row here
+         * is either the author's own words or an explicitly labelled placeholder,
+         * with indicators, verification and assumptions left empty so the editor
+         * marks them as needing input rather than pretending they are answered.
          *
-         * The review card still tells the author their input was sparse; it reads
-         * `hasCanonicalStructure`, which is computed independently of this write.
+         * The point is that the author lands in a logframe they can edit, which
+         * is what the reasoning model then replaces wholesale once it returns.
          */
-        const entriesToCache = rawEntries;
+        const hasDerivedStructure = rawEntries.some(
+          (e: { level?: string }) => e.level === 'output' || e.level === 'activity',
+        );
+
+        const newId = () =>
+          typeof crypto !== 'undefined' && crypto.randomUUID
+            ? crypto.randomUUID()
+            : `e0000000-0000-4000-a000-${Date.now().toString().padStart(12, '0')}`;
+
+        const scaffoldRows = () => {
+          const orgIdForRows = effectiveCanonicalPayload.organization_id;
+          const place = (label: string) => `[Lengkapi] ${label}`;
+          const title = proposedTitle?.trim() || 'program ini';
+          const loc = geography?.trim();
+          const rows: Record<string, unknown>[] = [];
+
+          /**
+           * mapCanonicalProposalToRawEntries returns an empty array outright when
+           * the payload has no outcomes, so a thin run has no goal and no purpose
+           * either — not just no outputs. Build the whole spine in that case.
+           */
+          let goalId = rawEntries.find((e: { level?: string }) => e.level === 'goal')?.id as string | undefined;
+          if (!goalId) {
+            goalId = newId();
+            rows.push({
+              id: goalId, project_id: targetProjectId, org_id: orgIdForRows, parent_id: null,
+              code: 'GOAL-1', level: 'goal', sequence: 1,
+              description: place(`Dampak jangka panjang yang ingin dicapai lewat "${title}"`),
+              indicator: null, means_of_verification: null, assumption: null,
+            });
+          }
+
+          let purposeId = rawEntries.find((e: { level?: string }) => e.level === 'purpose')?.id as string | undefined;
+          if (!purposeId) {
+            purposeId = newId();
+            rows.push({
+              id: purposeId, project_id: targetProjectId, org_id: orgIdForRows, parent_id: goalId,
+              code: 'OUTCOME-1', level: 'purpose', sequence: 2,
+              description: place(
+                `Perubahan yang dialami penerima manfaat${loc ? ` di ${loc}` : ''} selama program berjalan`,
+              ),
+              indicator: null, means_of_verification: null, assumption: null,
+            });
+          }
+
+          const outputId = newId();
+          rows.push({
+            id: outputId, project_id: targetProjectId, org_id: orgIdForRows, parent_id: purposeId,
+            code: 'OUT-1', level: 'output', sequence: 10,
+            description: place(`Hasil konkret yang akan dihasilkan program "${title}"`),
+            indicator: null, means_of_verification: null, assumption: null,
+          });
+
+          ['Persiapan dan pendataan awal',
+           'Pelaksanaan kegiatan utama',
+           'Pendampingan dan penguatan kapasitas'].forEach((label, i) => {
+            rows.push({
+              id: newId(), project_id: targetProjectId, org_id: orgIdForRows, parent_id: outputId,
+              code: `ACT-1.${i + 1}`, level: 'activity', sequence: 11 + i,
+              description: place(label),
+              indicator: null, means_of_verification: null, assumption: null,
+              responsible_party: null,
+            });
+          });
+
+          return rows;
+        };
+
+        const entriesToCache = hasDerivedStructure
+          ? rawEntries
+          : [...rawEntries, ...scaffoldRows()];
 
         // Guarantee immediate local caching before network/DB calls
         try {
