@@ -39,7 +39,12 @@ One chain, each step derived from the one before it rather than re-entered by ha
 | 5 | **MEAL** | Indicators with baseline, target, collection frequency, data source, disaggregation |
 | 6 | **SROI** | Stakeholder models and financial proxies — see the note below |
 
-Materialization runs as a single transactional Postgres RPC (`materialize_grantwriter_document`), so the chain either lands whole or not at all.
+Two materialization paths, worth knowing apart:
+
+- **Quick Wizard → approve** writes the logframe only, through `materialize_lfa_matrix_transactional`. Steps 1–2. Approval is blocked outright when no logframe structure could be derived, rather than filling the matrix with something invented.
+- **Proposal page → "Materialisasikan Program Workspace"** runs `materialize_grantwriter_document`, a single transactional Postgres RPC that lands steps 2–5 together — LFA, WBS, Budget and MEAL — or none of them.
+
+So a Quick Wizard run gives you the logframe; the Proposal page is what populates the work breakdown, budget and MEAL plan alongside it.
 
 **On SROI.** The design-stage chain deliberately stops at MEAL. Computing an SROI ratio requires field data that does not exist before a program runs, so the product surfaces the model and the inputs it still needs rather than a number. A ratio displayed here would be fabricated, and inviting a donor to act on a fabricated one is the failure mode this is built to avoid.
 
@@ -145,11 +150,11 @@ scripts/            # Build, prerender, ontology generation, demo seeding
 
 11 Playwright E2E specs and 31 Vitest files. Tenant isolation is asserted against the REST API with a real user token rather than through the UI, because [the UI is not the boundary](tests/e2e/tenant-isolation.spec.ts) — anyone can open devtools and call the same endpoints. What holds the line is RLS.
 
-Being straight about the current state, since you may run these yourself: `npm run typecheck` is **clean**, and **38 unit tests fail** (410 pass). `npm run build` passes — Vite does not typecheck, so a green build proves nothing about types, which is why the first number is worth stating separately.
+Being straight about the current state, since you may run these yourself: `npm run typecheck` is **clean**, and **35 unit tests fail** (413 pass). `npm run build` passes — Vite does not typecheck, so a green build proves nothing about types, which is why the first number is worth stating separately.
 
 Getting to zero took three passes and was worth more than the count suggests. Several modules imported type names that do not exist, and an unresolvable import makes TypeScript abandon the file — so an entire subsystem was never being checked at all. Clearing that exposed real defects rather than noise: a property read that was always `undefined`, a generated field emitted in the wrong shape, a negative-control assertion that asserted nothing, actor roles outside their own vocabulary, a cast that renamed a valid severity to one that does not exist, a `NOT NULL` column missing from an upsert whose failure was swallowed by a `catch`, a button variant that was never declared so the selected item rendered unhighlighted, and two test suites that believed they ran without a query cache because React Query v5 silently ignores the old option name.
 
-The 38 test failures are one root cause, and the shape of it matters more than the count. Of 27 regression fixtures, 7 pass and 20 fail, and **every** failure is a missing expected candidate — no failure of evidence integrity, offset validity, determinism, or the mutation-killer suite. Precision is intact and recall is incomplete: the engine does not invent a mapping it cannot support, it misses some it should have found. That is a quality ceiling on the ontology matching, not a correctness hazard, and it is the next piece of work rather than a surprise.
+The 35 remaining failures are one root cause, and the shape of it matters more than the count. Of 27 regression fixtures, 7 pass and 20 fail, and **every** failure is a missing expected candidate — no failure of evidence integrity, offset validity, determinism, or the mutation-killer suite. Precision is intact and recall is incomplete: the engine does not invent a mapping it cannot support, it misses some it should have found. That is a quality ceiling on the ontology matching, not a correctness hazard, and it is the next piece of work rather than a surprise.
 
 ## Security posture
 
@@ -203,7 +208,12 @@ Satu rantai, setiap langkah diturunkan dari langkah sebelumnya, bukan diisi ulan
 | 5 | **MEAL** | Indikator dengan baseline, target, frekuensi, sumber data, disagregasi |
 | 6 | **SROI** | Model stakeholder dan proxy finansial — lihat catatan di bawah |
 
-Materialisasi berjalan sebagai satu RPC Postgres transaksional (`materialize_grantwriter_document`), jadi rantainya terbentuk utuh atau tidak sama sekali.
+Ada dua jalur materialisasi, dan perbedaannya penting:
+
+- **Quick Wizard → setujui** hanya menulis logframe, lewat `materialize_lfa_matrix_transactional`. Langkah 1–2. Persetujuan diblokir langsung kalau struktur logframe tidak bisa diturunkan, bukan mengisi matriks dengan sesuatu yang dikarang.
+- **Halaman Proposal → "Materialisasikan Program Workspace"** menjalankan `materialize_grantwriter_document`, satu RPC Postgres transaksional yang membentuk langkah 2–5 sekaligus — LFA, WBS, Budget, dan MEAL — atau tidak sama sekali.
+
+Jadi Quick Wizard memberi Anda logframe-nya; halaman Proposal yang mengisi work breakdown, anggaran, dan rencana MEAL di sampingnya.
 
 **Tentang SROI.** Rantai tahap desain sengaja berhenti di MEAL. Menghitung rasio SROI butuh data lapangan yang belum ada sebelum program berjalan, sehingga produk ini menampilkan modelnya dan input yang masih dibutuhkan — bukan angkanya. Rasio yang ditampilkan di titik ini akan menjadi angka karangan, dan mengajak donor mengambil keputusan atas angka karangan justru kegagalan yang ingin dicegah platform ini.
 
@@ -229,11 +239,11 @@ Hanya dua variabel dibutuhkan untuk boot: `VITE_SUPABASE_URL` dan `VITE_SUPABASE
 
 11 spesifikasi E2E Playwright dan 31 berkas Vitest. Isolasi tenant diuji langsung terhadap REST API dengan token pengguna nyata, bukan lewat UI, karena [UI bukan batas keamanannya](tests/e2e/tenant-isolation.spec.ts) — siapa pun bisa membuka devtools dan memanggil endpoint yang sama. Yang menahan garis itu adalah RLS.
 
-Terus terang soal kondisi sekarang, karena Anda mungkin menjalankannya sendiri: `npm run typecheck` **bersih**, dan **38 unit test gagal** (410 lolos). `npm run build` lolos — Vite tidak melakukan typecheck, jadi build hijau tidak membuktikan apa pun soal tipe, dan itulah sebabnya angka pertama disebut terpisah.
+Terus terang soal kondisi sekarang, karena Anda mungkin menjalankannya sendiri: `npm run typecheck` **bersih**, dan **35 unit test gagal** (413 lolos). `npm run build` lolos — Vite tidak melakukan typecheck, jadi build hijau tidak membuktikan apa pun soal tipe, dan itulah sebabnya angka pertama disebut terpisah.
 
 Mencapai nol butuh tiga penyisiran, dan nilainya lebih dari sekadar angka. Beberapa modul mengimpor nama tipe yang tidak ada — dan impor yang tidak resolve membuat TypeScript melepas seluruh file, sehingga satu subsistem selama ini tidak pernah diperiksa sama sekali. Membereskannya membongkar cacat nyata, bukan noise: pembacaan properti yang selalu `undefined`, satu field generated dengan bentuk salah, asersi negative control yang tidak mengasersi apa pun, peran aktor di luar kosakatanya sendiri, cast yang mengganti nama severity valid menjadi nilai yang tidak ada, kolom `NOT NULL` yang hilang dari upsert dan kegagalannya ditelan `catch`, varian tombol yang tidak pernah dideklarasikan sehingga item terpilih tampil tanpa penanda, serta dua suite test yang mengira berjalan tanpa cache karena React Query v5 mengabaikan nama opsi lamanya secara diam-diam.
 
-38 kegagalan test berasal dari satu akar penyebab, dan bentuknya lebih penting dari jumlahnya. Dari 27 fixture regresi, 7 lolos dan 20 gagal — dan **seluruh** kegagalan berupa kandidat yang seharusnya ketemu tapi terlewat. Tidak ada kegagalan integritas bukti, validitas offset, determinisme, maupun mutation-killer. Presisi utuh, recall bolong: mesinnya tidak mengarang pemetaan yang tak bisa ia dukung, ia hanya melewatkan sebagian yang seharusnya tertangkap. Itu batas kualitas pencocokan ontologi, bukan bahaya kebenaran, dan itu pekerjaan berikutnya — bukan kejutan.
+35 kegagalan yang tersisa berasal dari satu akar penyebab, dan bentuknya lebih penting dari jumlahnya. Dari 27 fixture regresi, 7 lolos dan 20 gagal — dan **seluruh** kegagalan berupa kandidat yang seharusnya ketemu tapi terlewat. Tidak ada kegagalan integritas bukti, validitas offset, determinisme, maupun mutation-killer. Presisi utuh, recall bolong: mesinnya tidak mengarang pemetaan yang tak bisa ia dukung, ia hanya melewatkan sebagian yang seharusnya tertangkap. Itu batas kualitas pencocokan ontologi, bukan bahaya kebenaran, dan itu pekerjaan berikutnya — bukan kejutan.
 
 ## Postur keamanan
 
