@@ -29,6 +29,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { appStylesheetTags, finalizePrintWindow } from '@/lib/print/printWindow';
+import { numericOrNull } from '@/lib/utils';
 
 interface BudgetCalculatorProps {
   projectId: string;
@@ -557,7 +558,7 @@ export default function BudgetCalculator({
         const itemToSave = budgetItemsRef.current.find(i => i.id === itemId);
         if (!itemToSave) return;
 
-        const actualVal = itemToSave.actual_amount_idr !== undefined && itemToSave.actual_amount_idr !== null && itemToSave.actual_amount_idr !== '' ? Number(itemToSave.actual_amount_idr) : null;
+        const actualVal = numericOrNull(itemToSave.actual_amount_idr);
         
         // Compute unit converted rate again if unit was modified before sending to DB
         let finalUnitPrice = Number(itemToSave.unit_price_idr) || 0;

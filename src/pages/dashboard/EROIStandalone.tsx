@@ -9,6 +9,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { numericOrNull } from '@/lib/utils';
 import {
   Leaf,
   ArrowRight,
@@ -150,13 +151,13 @@ export default function EROIStandalone() {
     for (const item of tableData) {
       if (item.carbon_factor == null) continue;
 
-      const qty = item.carbon_quantity;
-      if (qty == null || qty === '' || isNaN(Number(qty))) {
+      const qty = numericOrNull(item.carbon_quantity);
+      if (qty === null) {
         missingQtyCount++;
         continue;
       }
 
-      const impact = Number(item.carbon_factor) * Number(qty);
+      const impact = Number(item.carbon_factor) * qty;
 
       total += impact;
       if (impact < 0) reduction += Math.abs(impact);
