@@ -433,6 +433,12 @@ export default function SROICalculator({
           dropoff: registryRef.current.dropoff_pct_per_year,
           gross_value_idr: 0,
           present_value_idr: 0,
+          // Provenance for the registry-linked proxy has not been supplied at
+          // this point. Null says so; omitting the keys just left the row short
+          // of its own type.
+          proxy_source: null,
+          proxy_citation: null,
+          proxy_category: null,
           mode: curConfig?.mode ?? 'simple',
           sort_order: curOutcomes.length,
           is_registry_linked: true
@@ -678,6 +684,11 @@ export default function SROICalculator({
         displacement_pct: registryRef.current.displacement_pct,
         dropoff_pct_per_year: registryRef.current.dropoff_pct_per_year,
         dropoff: registryRef.current.dropoff_pct_per_year,
+        // Recomputed by the calculator on the next pass; seeded at zero rather
+        // than left absent, which is what the type asks for.
+        gross_value_idr: 0,
+        present_value_idr: 0,
+        mode: config?.mode ?? 'simple',
         is_registry_linked: true,
         sort_order: outcomes.length
       };

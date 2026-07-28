@@ -1482,8 +1482,10 @@ export default function MonthlyOperatingReview() {
                   Selesai Review / Buat Baru
                 </Button>
               )}
+              {/* mutate(undefined): the mutation's variables are optional, but
+                  React Query v5 still types the first argument as positional. */}
               <Button
-                onClick={() => saveMutation.mutate()}
+                onClick={() => saveMutation.mutate(undefined)}
                 disabled={saveMutation.isPending}
                 className="h-10 bg-accent text-accent-foreground px-5 font-semibold text-xs"
               >

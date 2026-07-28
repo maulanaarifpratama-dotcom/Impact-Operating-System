@@ -8,6 +8,7 @@ import type {
   DeterministicMissingResult,
   GuardrailWarning,
   ManualReviewState,
+  MissingInformationResolutionItem,
   RecommendationItem,
   ApprovedSessionSnapshot,
   BlueprintItem
@@ -160,7 +161,9 @@ export function createPage2Payload(
     });
   }
 
-  const missingInformation = scoringResult.missingInformation.map(m => {
+  // Annotated so the priority ternary narrows to 'critical' | 'recommended'
+  // instead of widening to string.
+  const missingInformation: MissingInformationResolutionItem[] = scoringResult.missingInformation.map(m => {
     const blocking = inferBlockingFromMissCode(m);
     return {
       id: m,

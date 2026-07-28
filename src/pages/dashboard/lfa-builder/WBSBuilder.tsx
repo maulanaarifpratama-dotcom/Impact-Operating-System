@@ -24,6 +24,9 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { computeEvmVarianceFlag } from './evmVariance';
 import { appStylesheetTags, finalizePrintWindow } from '@/lib/print/printWindow';
+import type { Database } from '@/integrations/supabase/database.generated';
+
+type WbsClaimInsert = Database['public']['Tables']['wbs_completion_claims']['Insert'];
 
 // Helper: Check if an item is a leaf item (has no children in the WBS tree)
 const isLeafItem = (item: WbsItem, allItems: WbsItem[]): boolean => {
@@ -753,19 +756,28 @@ export default function WBSBuilder({
 
         if (updateErr) throw updateErr;
       } else {
-        // Create fresh claim
-        // Note: Client does NOT send claimed_by; database trigger handle_wbs_completion_claim_audit enforces auth.uid() server-side
+        /**
+         * Create fresh claim.
+         *
+         * claimed_by is deliberately absent: handle_wbs_completion_claim_audit
+         * forces it to auth.uid() on insert and raises when there is no
+         * authenticated context, so the server owns who claimed what and a
+         * client cannot file a claim under another person's name. The generated
+         * row type cannot express "a trigger fills this", which is why the cast
+         * below stands in place of a value.
+         */
+        const claimRow: Omit<WbsClaimInsert, 'claimed_by'> = {
+          org_id: orgId,
+          lfa_project_id: projectId,
+          wbs_item_id: activeTrackingItem.id,
+          claim_note: claimNote,
+          claimed_progress: claimedProgress,
+          status: 'submitted',
+          submitted_at: new Date().toISOString(),
+        };
         const { data: newClaim, error: insertErr } = await supabase
           .from('wbs_completion_claims')
-          .insert({
-            org_id: orgId,
-            lfa_project_id: projectId,
-            wbs_item_id: activeTrackingItem.id,
-            claim_note: claimNote,
-            claimed_progress: claimedProgress,
-            status: 'submitted',
-            submitted_at: new Date().toISOString(),
-          })
+          .insert(claimRow as WbsClaimInsert)
           .select()
           .single();
 

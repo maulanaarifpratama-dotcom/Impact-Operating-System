@@ -213,10 +213,21 @@ export interface ApprovedPage2Snapshot {
   adapterValidationIssues?: AdapterValidationIssue[];
 }
 
+/**
+ * Shape of the fixtures below, which are adapter *input* rather than output.
+ *
+ * `adaptProvisionalResponse` derives `rawCanonicalPayload` itself, by deep
+ * cloning and freezing whatever it was handed, so a fixture cannot supply one:
+ * it is the record of what arrived, not a field of it. Annotating these as
+ * `ProvisionalDomainResponse` claimed they were already adapted and left four
+ * type errors saying a property was missing that nothing should have provided.
+ */
+type ProvisionalFixture = Omit<ProvisionalDomainResponse, 'rawCanonicalPayload'>;
+
 // -----------------------------------------------------------------
 // FIXTURE 1: High Confidence
 // -----------------------------------------------------------------
-const FIXTURE_HIGH_CONFIDENCE: ProvisionalDomainResponse = {
+const FIXTURE_HIGH_CONFIDENCE: ProvisionalFixture = {
   contractVersion: '1.2',
   contractStatus: 'provisional_against_v1_2',
   engineVersion: 'det-engine-v1.0',
@@ -451,7 +462,7 @@ const FIXTURE_HIGH_CONFIDENCE: ProvisionalDomainResponse = {
 // -----------------------------------------------------------------
 // FIXTURE 2: Sector Ambiguity
 // -----------------------------------------------------------------
-const FIXTURE_SECTOR_AMBIGUITY: ProvisionalDomainResponse = {
+const FIXTURE_SECTOR_AMBIGUITY: ProvisionalFixture = {
   contractVersion: '1.2',
   contractStatus: 'provisional_against_v1_2',
   engineVersion: 'det-engine-v1.0',
@@ -577,7 +588,7 @@ const FIXTURE_SECTOR_AMBIGUITY: ProvisionalDomainResponse = {
 // -----------------------------------------------------------------
 // FIXTURE 3: Actor Role Distinction
 // -----------------------------------------------------------------
-const FIXTURE_ACTOR_ROLE_DISTINCTION: ProvisionalDomainResponse = {
+const FIXTURE_ACTOR_ROLE_DISTINCTION: ProvisionalFixture = {
   contractVersion: '1.2',
   contractStatus: 'provisional_against_v1_2',
   engineVersion: 'det-engine-v1.0',
@@ -707,7 +718,7 @@ const FIXTURE_ACTOR_ROLE_DISTINCTION: ProvisionalDomainResponse = {
 // -----------------------------------------------------------------
 // FIXTURE 4: Scope Too Broad
 // -----------------------------------------------------------------
-const FIXTURE_SCOPE_TOO_BROAD: ProvisionalDomainResponse = {
+const FIXTURE_SCOPE_TOO_BROAD: ProvisionalFixture = {
   contractVersion: '1.2',
   contractStatus: 'provisional_against_v1_2',
   engineVersion: 'det-engine-v1.0',
@@ -809,7 +820,7 @@ const FIXTURE_SCOPE_TOO_BROAD: ProvisionalDomainResponse = {
 };
 
 // Expose a clean, secure map of fixtures to avoid direct individual constant imports
-export const PROVISIONAL_FIXTURES: Record<string, ProvisionalDomainResponse> = {
+export const PROVISIONAL_FIXTURES: Record<string, ProvisionalFixture> = {
   'FIX-DEV-HC-1': FIXTURE_HIGH_CONFIDENCE,
   'FIX-DEV-SA-2': FIXTURE_SECTOR_AMBIGUITY,
   'FIX-DEV-AR-3': FIXTURE_ACTOR_ROLE_DISTINCTION,
