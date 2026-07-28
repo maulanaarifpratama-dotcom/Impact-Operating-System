@@ -280,11 +280,18 @@ export default function Index() {
                 {/* Primary Mockup Display Frame */}
                 <div className="relative group w-full max-w-[480px] aspect-[4/3] rounded-2xl overflow-hidden border border-brand-accent/30 shadow-2xl bg-brand-surface-deeper hover:border-brand-accent/50 transition-all duration-500 hover:-translate-y-1">
                   <div className="absolute inset-0 bg-gradient-to-tr from-brand-accent/10 to-transparent pointer-events-none z-10" />
-                  <img
-                    src="/hero-visual.png"
-                    alt="Impactory NGO Growth Operating System"
-                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
-                  />
+                  {/* Square source, cropped to 4:3 by object-cover. WebP for the
+                      97% of browsers that take it; the JPEG is the fallback. */}
+                  <picture>
+                    <source srcSet="/hero-visual.webp" type="image/webp" />
+                    <img
+                      src="/hero-visual.jpg"
+                      alt="Impactory NGO Growth Operating System"
+                      width={960}
+                      height={960}
+                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-[1.04]"
+                    />
+                  </picture>
                 </div>
               </div>
             </div>
