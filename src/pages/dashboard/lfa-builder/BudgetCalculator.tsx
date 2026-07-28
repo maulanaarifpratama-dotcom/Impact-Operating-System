@@ -160,12 +160,21 @@ export default function BudgetCalculator({
         if (proj.linked_grant_id) {
            const { data: prop } = await supabase
              .from('gw_projects')
-             .select('budget_idr')
+             .select('budget_idr, wizard_data, metadata')
              .eq('id', proj.linked_grant_id)
              .maybeSingle();
            if (prop) {
-             setProposalBudget(prop.budget_idr);
+             const targetBgt = Number(prop.budget_idr) ||
+                               Number((prop.wizard_data as any)?.budgetIdr) ||
+                               Number((prop.metadata as any)?.total_budget_idr) ||
+                               null;
+             if (targetBgt) {
+               setProposalBudget(targetBgt);
+             }
            }
+        }
+        if (proj.target_budget_idr) {
+          setProposalBudget(Number(proj.target_budget_idr));
         }
       }
 
@@ -1788,7 +1797,24 @@ export default function BudgetCalculator({
                 : "bg-emerald-50/40 border-emerald-200 dark:bg-emerald-950/10 dark:border-emerald-900/40"
           }`}>
             <div className="space-y-1.5">
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pagu Proposal vs Itemized RAB</h3>
+              <div className="flex items-center gap-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pagu Proposal vs Itemized RAB</h3>
+                {budgetItems.length > 0 && budgetItems.every(i => Number(i.unit_price_idr || 0) === 0) && (
+                  <Badge variant="outline" className="text-[10px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300">
+                    ⏳ SCAFOLD_UNPRICED
+                  </Badge>
+                )}
+                {budgetItems.some(i => Number(i.unit_price_idr || 0) > 0) && budgetItems.some(i => Number(i.unit_price_idr || 0) === 0) && (
+                  <Badge variant="outline" className="text-[10px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300">
+                    🟡 PARTIALLY_PRICED
+                  </Badge>
+                )}
+                {budgetItems.length > 0 && budgetItems.every(i => Number(i.unit_price_idr || 0) > 0) && (
+                  <Badge variant="secondary" className="text-[10px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300">
+                    ✅ FULLY_PRICED
+                  </Badge>
+                )}
+              </div>
               <div className="flex flex-wrap items-center gap-4 text-sm font-semibold">
                 <div>
                   <span className="text-xs text-muted-foreground block font-normal">Target Dana Proposal (Pagu):</span>
@@ -1829,7 +1855,8 @@ export default function BudgetCalculator({
               }`}>
                 {totalIDR === proposalBudget && "RAB telah dialokasikan penuh"}
                 {totalIDR < proposalBudget && totalIDR > 0 && "RAB masih berupa draf sebagian — Sisa anggaran belum dialokasikan"}
-                {totalIDR === 0 && "RAB masih berupa draf kosong — Sisa anggaran belum dialokasikan"}
+                {totalIDR === 0 && budgetItems.length > 0 && `💡 Draf struktur RAB (${budgetItems.length} item) telah terbentuk dari proposal. Harga satuan belum diterapkan (Pending SBM Pricing).`}
+                {totalIDR === 0 && budgetItems.length === 0 && "RAB masih berupa draf kosong — Sisa anggaran belum dialokasikan"}
                 {totalIDR > proposalBudget && `RAB melebihi target anggaran sebesar Rp ${(totalIDR - proposalBudget).toLocaleString('id-ID')}`}
               </p>
             </div>

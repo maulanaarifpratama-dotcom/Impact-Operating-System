@@ -125,9 +125,12 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
       physicalPct = Math.round(sumProgress / totalLevel2Count);
     }
 
-    // B. Financial Progress (Realisasi / Anggaran)
+    // B. Financial Progress (Realisasi / Anggaran & Pricing Status Model)
     let totalAnggaran = 0;
     let totalRealisasi = 0;
+    let pricedItemsCount = 0;
+    const totalBudgetItemsCount = budgetItems.length;
+
     budgetItems.forEach((item: any) => {
       const volume = Number(item.volume ?? 1);
       const unitPrice = Number(item.unit_price_idr ?? 0);
@@ -135,7 +138,16 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
       const itemRealisasi = Number(item.actual_amount_idr ?? 0);
       totalAnggaran += itemBudget;
       totalRealisasi += itemRealisasi;
+      if (unitPrice > 0) pricedItemsCount++;
     });
+
+    const coveragePct = totalBudgetItemsCount > 0 ? Math.round((pricedItemsCount / totalBudgetItemsCount) * 100) : 0;
+    let pricingStatusModel: 'NO_ITEMS' | 'SCAFOLD_UNPRICED' | 'PARTIALLY_PRICED' | 'FULLY_PRICED' = 'NO_ITEMS';
+    if (totalBudgetItemsCount > 0) {
+      if (pricedItemsCount === 0) pricingStatusModel = 'SCAFOLD_UNPRICED';
+      else if (pricedItemsCount < totalBudgetItemsCount) pricingStatusModel = 'PARTIALLY_PRICED';
+      else pricingStatusModel = 'FULLY_PRICED';
+    }
 
     let financialPct: number | null = null;
     if (totalAnggaran > 0) {
@@ -175,6 +187,10 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
       financialPct,
       totalOutputCount,
       resultsPct,
+      totalBudgetItemsCount,
+      pricedItemsCount,
+      coveragePct,
+      pricingStatusModel,
     };
   }, [wbsItems, budgetItems, mealItems, mealEntries]);
 
@@ -420,35 +436,50 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
                     <DollarSign className="h-4 w-4 text-emerald-500" />
                     Progress Keuangan
                   </span>
-                  <Badge variant="secondary" className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-400">
-                    Realisasi Anggaran
-                  </Badge>
+                  {metrics.pricingStatusModel === 'SCAFOLD_UNPRICED' ? (
+                    <Badge variant="outline" className="text-[10px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300">
+                      ⏳ Pending SBM Pricing
+                    </Badge>
+                  ) : metrics.pricingStatusModel === 'PARTIALLY_PRICED' ? (
+                    <Badge variant="outline" className="text-[10px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300">
+                      🟡 {metrics.coveragePct}% Priced
+                    </Badge>
+                  ) : (
+                    <Badge variant="secondary" className="text-[10px] font-extrabold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-400">
+                      Realisasi Anggaran
+                    </Badge>
+                  )}
                 </div>
 
                 <div className="space-y-2">
                   <div className="flex items-baseline justify-between">
                     <span className="text-3xl font-black text-slate-900 dark:text-white">
-                      {effectivePct.f !== null ? `${effectivePct.f}%` : 'N/A'}
+                      {effectivePct.f !== null ? `${effectivePct.f}%` : metrics.pricingStatusModel === 'SCAFOLD_UNPRICED' ? '0%' : 'N/A'}
                     </span>
                     <span className="text-[11px] font-semibold text-slate-400">
-                      Burn Rate
+                      {metrics.pricingStatusModel === 'SCAFOLD_UNPRICED' ? 'Coverage: 0%' : 'Burn Rate'}
                     </span>
                   </div>
                   <Progress
-                    value={Math.min(100, effectivePct.f ?? 0)}
+                    value={metrics.pricingStatusModel === 'SCAFOLD_UNPRICED' ? 0 : Math.min(100, effectivePct.f ?? 0)}
                     className={`h-2 bg-slate-200 dark:bg-slate-800 ${
                       (effectivePct.f ?? 0) > 100 ? '[&>div]:bg-amber-500' : '[&>div]:bg-emerald-500'
                     }`}
                   />
                 </div>
 
-                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center text-[11px] text-slate-500">
-                  <span>Realisasi vs Total</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-300 truncate max-w-[140px]" title={`${formatIDR(metrics.totalRealisasi)} / ${formatIDR(metrics.totalAnggaran)}`}>
-                    {metrics.totalAnggaran > 0
-                      ? `${formatIDR(metrics.totalRealisasi)}`
-                      : 'Belum diset'}
-                  </span>
+                <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1">
+                  <div className="flex justify-between items-center text-[11px] text-slate-500">
+                    <span>{metrics.pricingStatusModel === 'SCAFOLD_UNPRICED' ? 'RAB Terhitung' : 'Realisasi vs Total'}</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-300 truncate max-w-[140px]" title={`${formatIDR(metrics.totalRealisasi)} / ${formatIDR(metrics.totalAnggaran)}`}>
+                      {formatIDR(metrics.totalAnggaran)}
+                    </span>
+                  </div>
+                  {metrics.pricingStatusModel === 'SCAFOLD_UNPRICED' && (
+                    <p className="text-[10px] text-amber-700 dark:text-amber-400 font-medium leading-tight pt-0.5">
+                      💡 {metrics.totalBudgetItemsCount} item anggaran telah terbentuk. Harga satuan belum diterapkan (Pending SBM).
+                    </p>
+                  )}
                 </div>
               </div>
 
