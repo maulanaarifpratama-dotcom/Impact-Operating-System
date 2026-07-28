@@ -54,6 +54,43 @@ WHERE lfa_project_id = '08fc1b53-9bf9-4de2-921f-597ce44d8263'
 ORDER BY created_at DESC
 LIMIT 10;
 
+-- 4b. THE DECIDING QUERY. Is the deployed function the one in this repo?
+--
+--     Reasoning that led here: only one place in the repo's migration sets
+--     blocked_stage 'budget_state_check' with INVALID_BUDGET_TASK_REFERENCE, and
+--     it is guarded by a count over EXISTING lfa_budget_items for
+--     v_lfa_project_id. Service role confirms that project has 0 budget items,
+--     and the failure response reports that same variable as the project id — so
+--     with the source as written in this repo the count is 0 and the branch
+--     cannot be reached. It was reached. The most likely explanation is that the
+--     live function differs from the file, which is exactly the trap the July
+--     2026 audit documents for anything whose definition lives outside the repo.
+--
+--     Repo migration 20260721123000 has: body length 97683, four occurrences of
+--     INVALID_BUDGET_TASK_REFERENCE, three of budget_state_check. If the numbers
+--     below differ, the deployed function is a different version and the fix is a
+--     redeploy, not a code change.
+SELECT
+  length(p.prosrc)                                                            AS live_body_length,
+  (SELECT count(*) FROM regexp_matches(p.prosrc, 'INVALID_BUDGET_TASK_REFERENCE', 'g')) AS invalid_budget_occurrences,
+  (SELECT count(*) FROM regexp_matches(p.prosrc, 'budget_state_check', 'g'))   AS budget_state_check_occurrences
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND p.proname = 'materialize_grantwriter_document';
+
+-- 4c. If 4b shows a mismatch, this prints the live budget check so it can be read
+--     directly instead of inferred.
+SELECT substring(
+         p.prosrc
+         FROM greatest(position('budget_state_check' IN p.prosrc) - 1000, 1)
+         FOR 1400
+       ) AS live_budget_check_region
+FROM pg_proc p
+JOIN pg_namespace n ON n.oid = p.pronamespace
+WHERE n.nspname = 'public'
+  AND p.proname = 'materialize_grantwriter_document';
+
 -- 5. Whether any project is in this state, not just this one. This is the query
 --    that decides the shape of the fix: a non-empty result means the block is a
 --    recurring data condition and the RPC should clear a dangling reference and
