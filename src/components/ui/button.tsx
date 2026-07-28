@@ -15,6 +15,11 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
+        // The Monthly Impact Report marks the selected history period with
+        // variant="accent". It was never declared, so cva matched nothing and the
+        // selected period rendered identically to the unselected ones — the
+        // highlight was simply absent. Same failure the xs size note describes.
+        accent: "bg-accent text-accent-foreground hover:bg-accent/90",
       },
       size: {
         default: "h-10 px-4 py-2",

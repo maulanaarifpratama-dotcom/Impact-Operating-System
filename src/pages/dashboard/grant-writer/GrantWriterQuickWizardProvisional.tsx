@@ -45,6 +45,7 @@ import type { Page1Input, CanonicalProposalPayloadV2 } from '@/lib/grant-writer/
 import { mapCanonicalProposalToRawEntries } from '@/lib/lfa/readAdapter';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
 import { toJson } from '@/integrations/supabase/json';
+import { numericOrNull } from '@/lib/utils';
 
 export interface CanonicalFacts {
   proposedTitle: string;
@@ -354,15 +355,17 @@ function buildLiveDomainResponse(
     confidence: s.confidenceBand || 'high',
     confidenceScore: s.confidenceScore || 0.85,
     explanation: preventDuplicateLocation(s.explanation || `Rekomendasi sektor berdasarkan analisis input program "${input.programTitle}".`, cleanLoc),
+    // No span, no evidence. The fallback here used to invent one pointing at the
+    // program title with no character offsets — a synthetic span, which is the
+    // one thing the engine's own fixture runner asserts against ("no synthetic
+    // evidence"), and which could not satisfy EvidenceSpan anyway. The field is
+    // optional; leaving it absent is the honest answer and nothing reads it.
     evidence: s.evidenceSpans?.[0] ? {
       sourceField: s.evidenceSpans[0].sourceField,
       text: s.evidenceSpans[0].matchedText,
       startOffset: s.evidenceSpans[0].startOffset,
       endOffset: s.evidenceSpans[0].endOffset,
-    } : {
-      sourceField: 'programTitle',
-      text: input.programTitle || input.beneficiaryDescription,
-    }
+    } : undefined
   }));
 
   const interventions: MappingRecommendation[] = detPayload.interventions.map(i => ({
@@ -410,7 +413,10 @@ function buildLiveDomainResponse(
     {
       id: 'ACT-BENEFICIARY-01',
       actorName: primaryActor,
-      role: 'target_beneficiary',
+      // Canonical vocabulary, per the ActorRole union and the validRoles set in
+      // normalizeActorRole. 'target_beneficiary' was in neither, so the adapter
+      // would drop the role and raise VAL-ACTOR-ROLE on it.
+      role: 'beneficiary',
       level: 'primary',
       confidence: 'high',
       confidenceScore: 0.9,
@@ -419,7 +425,9 @@ function buildLiveDomainResponse(
     {
       id: 'ACT-IMPLEMENTER-01',
       actorName: `Fasilitator & Pendamping (${cleanLoc})`,
-      role: 'implementing_partner',
+      // 'implementing_partner' was likewise outside the union; a facilitator
+      // delivering the programme is an intermediary.
+      role: 'intermediary',
       level: 'secondary',
       confidence: 'medium',
       confidenceScore: 0.8,
@@ -507,7 +515,20 @@ function buildLiveDomainResponse(
     id: m.id,
     question: m.question,
     priority: m.priority,
-    resolutionState: m.state === 'unresolved' ? 'unresolved' : 'resolved_accepted',
+    /**
+     * Two parallel vocabularies, mapped rather than flattened. The engine says
+     * 'unresolved' | 'resolved' | 'accepted_unknown'; the contract says
+     * 'unresolved' | 'answered_with_evidence' | 'answered_with_assertion'.
+     *
+     * This used to collapse both answered states into an invented
+     * 'resolved_accepted', which threw away the distinction between an author
+     * who supplied the fact and one who accepted it as unknown — the evidence
+     * versus assertion line the whole review step exists to draw.
+     */
+    resolutionState:
+      m.state === 'resolved' ? 'answered_with_evidence'
+      : m.state === 'accepted_unknown' ? 'answered_with_assertion'
+      : 'unresolved',
     blocking: m.blocking,
     requiredForApproval: m.requiredForApproval,
   })) || [];
@@ -523,7 +544,11 @@ function buildLiveDomainResponse(
   const warnings = detPayload.warnings?.map(w => ({
     id: w.id,
     code: w.code,
-    severity: w.severity as 'blocking' | 'important' | 'info',
+    // No cast: GuardrailWarning.severity and MappingWarning.severity are the
+    // same union. The old assertion renamed 'informational' to a non-existent
+    // 'info' and dropped 'needs_review' entirely, so it took a correctly typed
+    // value and mislabelled it.
+    severity: w.severity,
     message: w.message
   })) || [];
 
@@ -533,6 +558,12 @@ function buildLiveDomainResponse(
     engineVersion: 'det-engine-v2.0',
     registryVersions: { sector: '1.0', actor: '1.0' },
     createdAt: new Date().toISOString(),
+    // Provenance for a live run rather than a dev fixture. 'live-engine' is the
+    // sentinel the wizard already uses for selectedFixtureId; these three were
+    // simply never filled in, leaving the response short of its own contract.
+    sourceFixtureId: 'live-engine',
+    scenarioPurpose: 'Live deterministic engine run',
+    rawCanonicalPayload: detPayload.rawCanonicalPayload,
     sectors,
     interventions,
     sdgs,
@@ -582,9 +613,15 @@ interface SavedWizardData {
   donorStandard?: string;
   programStory?: string;
   
-  currentFlowPage?: 'page1' | 'processing' | 'page2' | 'approved';
+  // 'materializing' is a real page the wizard sits on while the workspace is
+  // being written, and it was already being saved here — the union just never
+  // listed it.
+  currentFlowPage?: 'page1' | 'processing' | 'page2' | 'materializing' | 'approved';
   selectedFixtureId?: string;
   domainResponse?: ProvisionalDomainResponse;
+  // Written on save and read back on resume, so a reload does not lose the
+  // canonical hierarchy and force a regeneration.
+  canonicalPayload?: CanonicalProposalPayloadV2;
   acceptedSectors?: string[];
   acceptedInterventions?: string[];
   acceptedSdgs?: number[];
@@ -1150,7 +1187,7 @@ export default function GrantWriterQuickWizardProvisional() {
             beneficiaryDescription: beneficiaryDescription.trim(),
             beneficiary_description: beneficiaryDescription.trim(),
             beneficiaryCount: numericBeneficiaries,
-            beneficiaryValue: numericBeneficiaries,
+            beneficiaryCountValue: numericBeneficiaries,
             beneficiary_count: numericBeneficiaries,
             beneficiaryUnit: 'orang',
             fundingAmount: numericBudget,
@@ -1397,7 +1434,9 @@ export default function GrantWriterQuickWizardProvisional() {
     // Compose Approved Page 2 Snapshot
     const snapshot: ApprovedPage2Snapshot = {
       programFacts: {
-        proposedTitle,
+        // The contract field is programTitle; proposedTitle is the local state
+        // holding it, so the shorthand was writing an unknown key.
+        programTitle: proposedTitle,
         geography: geographyUnknown ? 'unknown' : geography,
         geographyLevel: derivedGeoLevel,
         geographyStatus: derivedGeoStatus,
@@ -1477,10 +1516,13 @@ export default function GrantWriterQuickWizardProvisional() {
       programTitle: proposedTitle.trim() || 'Clean Water Access Program, Sumba',
       program_title: proposedTitle.trim() || 'Clean Water Access Program, Sumba',
       location: geography.trim() || 'Sumba Barat',
-      durationMonths: parseInt(durationMonths) || 12,
+      // These three are `number | ''` form state, so parseInt was being handed a
+      // number and relying on coercion. numericOrNull reads the same state
+      // honestly; Math.trunc keeps parseInt's integer semantics.
+      durationMonths: Math.trunc(numericOrNull(durationMonths) ?? 12) || 12,
       beneficiaryDescription: beneficiaryDescription.trim() || 'Rural households',
-      beneficiaryCount: parseInt(beneficiaryCount) || 4500,
-      fundingAmount: parseInt(budgetIdr) || 750000000,
+      beneficiaryCount: Math.trunc(numericOrNull(beneficiaryCount) ?? 4500) || 4500,
+      fundingAmount: Math.trunc(numericOrNull(budgetIdr) ?? 750000000) || 750000000,
       programStory: programStory.trim() || proposedTitle
     }).proposal;
 
@@ -1638,11 +1680,24 @@ export default function GrantWriterQuickWizardProvisional() {
 
         // 3. Upsert GW Project so Edge Function can load it without 404
         try {
+          /**
+           * gw_projects.created_by is NOT NULL, and this upsert was omitting it.
+           * On the update half of an upsert that goes unnoticed, but the first
+           * write for a project is an insert — which the database rejects, and
+           * the catch below turns into a console warning nobody sees. The result
+           * is a materialised workspace whose Edge Function then 404s on a row
+           * that was never created.
+           */
+          const { data: authData } = await supabase.auth.getUser();
+          const createdBy = authData?.user?.id;
+          if (!createdBy) throw new Error('No authenticated user; cannot own gw_projects row.');
+
           await supabase
             .from('gw_projects')
             .upsert({
               id: targetProjectId,
               organization_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
+              created_by: createdBy,
               title: effectiveCanonicalPayload.metadata?.title || proposedTitle || 'Clean Water Access Program, Sumba',
               summary: proposedTitle,
               status: 'generating',
