@@ -125,9 +125,11 @@ export function GrantWriterChat({
         setMessages(
           (data ?? []).map((m) => ({
             id: m.id,
-            role: m.role,
+            // Constrained text columns, so the generated row type says string.
+            // Same boundary cast the tool_name line below already uses.
+            role: m.role as ChatMessageData['role'],
             content: m.content,
-            status: m.status,
+            status: m.status as ChatMessageData['status'],
             createdAt: m.created_at,
             tools:
               m.tool_name && m.tool_input

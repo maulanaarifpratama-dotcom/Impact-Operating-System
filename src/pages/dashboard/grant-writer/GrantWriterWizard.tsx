@@ -115,7 +115,10 @@ export default function GrantWriterWizard() {
 
         if (cancelled) return;
         if (eData) {
-          setLfaEntries(eData);
+          // level is a constrained text column, so the generated row type says
+          // string while LfaEntry narrows it. Same cast LFABuilderEditor uses
+          // for this read.
+          setLfaEntries(eData as LfaEntry[]);
         }
       }
     })();

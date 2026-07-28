@@ -52,7 +52,9 @@ const createTestQueryClient = () => new QueryClient({
   defaultOptions: {
     queries: {
       retry: false,
-      cacheTime: 0,
+      // gcTime in React Query v5; cacheTime was silently ignored, so these
+      // tests were not actually running without a cache.
+      gcTime: 0,
       staleTime: 0,
     },
   },

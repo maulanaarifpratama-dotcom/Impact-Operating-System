@@ -97,7 +97,9 @@ describe('Provisional Adapter Spec v1.2 Tests', () => {
     const adapted = adaptProvisionalResponse(rawWithExtra);
     expect(adapted.passthrough).toBeDefined();
     expect(adapted.passthrough?.someExtraSecretKey).toBe('highlySecretValue');
-    expect(adapted.passthrough?.anotherCustomConfig?.nested).toBe(true);
+    // passthrough is Record<string, unknown> by design — it carries keys the
+    // contract does not know about — so reading two levels down needs a shape.
+    expect((adapted.passthrough?.anotherCustomConfig as { nested?: boolean } | undefined)?.nested).toBe(true);
   });
 
   test('safety: rawCanonicalPayload is preserved, complete, and unmutated', () => {

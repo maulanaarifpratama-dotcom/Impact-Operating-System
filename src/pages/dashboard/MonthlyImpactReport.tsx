@@ -279,7 +279,10 @@ export default function MonthlyImpactReport() {
         .eq('lfa_project_id', selectedLfaProjectId)
         .order('sort_order', { ascending: true });
       if (error) throw error;
-      return data || [];
+      // lfa_level is a constrained text column, so the generated row type says
+      // string while MealItem narrows it. Casting here types every downstream
+      // use rather than one call site.
+      return (data || []) as MealItem[];
     },
     enabled: !!selectedLfaProjectId,
   });

@@ -5,13 +5,16 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import GrantWriterQuickWizard from './GrantWriterQuickWizard';
 import { suggestTitleFromStory } from './GrantWriterQuickWizardProvisional';
 import { PROVISIONAL_FIXTURES, adaptProvisionalResponse } from '@/lib/grant-writer/provisionalAdapter';
+import type { ApprovedPage2Snapshot } from '@/lib/grant-writer/provisionalAdapter';
 
 const { mockSupabaseFrom, mockSupabaseInvoke, toastMock, navigateMock, writeCalls } = vi.hoisted(() => ({
   mockSupabaseFrom: vi.fn(),
   mockSupabaseInvoke: vi.fn(),
   toastMock: vi.fn(),
   navigateMock: vi.fn(),
-  writeCalls: [] as Array<{ table: string; type: 'insert' | 'update' | 'delete'; data?: unknown }>,
+  // 'upsert' was missing although the mock below records it — the materializer
+  // reaches gw_projects and lfa_projects that way.
+  writeCalls: [] as Array<{ table: string; type: 'insert' | 'update' | 'delete' | 'upsert'; data?: unknown }>,
 }));
 
 vi.mock('react-router-dom', async () => {
@@ -45,11 +48,22 @@ vi.mock('@/integrations/supabase/client', () => ({
 }));
 
 // Setup QueryClient
+/**
+ * writeCalls records `data` as unknown, because the mock accepts whatever the
+ * component sends. These assertions look inside wizard_data, so the shape is
+ * stated once here instead of casting at every call site.
+ */
+function wizardDataOf(call: { data?: unknown } | undefined): Record<string, unknown> {
+  return (call?.data as { wizard_data?: Record<string, unknown> } | undefined)?.wizard_data ?? {};
+}
+
 const createTestQueryClient = () => new QueryClient({
   defaultOptions: {
     queries: {
       retry: false,
-      cacheTime: 0,
+      // gcTime in React Query v5; cacheTime was silently ignored, so these
+      // tests were not actually running without a cache.
+      gcTime: 0,
       staleTime: 0,
     },
   },
@@ -303,7 +317,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     });
 
     // The approval button is enabled because missing information is non-blocking
-    const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i });
+    const approveBtn = screen.getByRole<HTMLButtonElement>('button', { name: /Setujui Blueprint/i });
     expect(approveBtn.disabled).toBe(false);
 
     // Approve the blueprint
@@ -353,7 +367,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     });
 
     // Click Setujui Blueprint & Lanjutkan
-    const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i });
+    const approveBtn = screen.getByRole<HTMLButtonElement>('button', { name: /Setujui Blueprint/i });
     fireEvent.click(approveBtn);
 
     // Verify materialization screen is displayed first
@@ -480,7 +494,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     await waitFor(() => {
       expect(writeCalls.length).toBe(1);
       expect(writeCalls[0].table).toBe('gw_projects');
-      expect(writeCalls[0].data.wizard_data.proposedTitle).toBe('Judul Draft Keren');
+      expect(wizardDataOf(writeCalls[0]).proposedTitle).toBe('Judul Draft Keren');
       expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
         title: 'Draft Disimpan',
       }));
@@ -606,7 +620,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
         expect(screen.getByText(/AI Menyarankan Informasi Tambahan/i)).toBeTruthy();
       });
 
-      const approveBtn = screen.getByRole('button', { name: /Setujui Blueprint/i });
+      const approveBtn = screen.getByRole<HTMLButtonElement>('button', { name: /Setujui Blueprint/i });
       expect(approveBtn.disabled).toBe(false);
 
       // Klik Setujui Blueprint
@@ -631,13 +645,15 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
       await waitFor(() => {
         const lastCall = writeCalls.find(call => call.table === 'gw_projects');
         expect(lastCall).toBeDefined();
-        const wizardData = lastCall!.data.wizard_data;
+        const wizardData = wizardDataOf(lastCall);
         expect(wizardData.approvedSnapshot).toBeDefined();
 
-        const snapshot = wizardData.approvedSnapshot;
+        // Asserted against the real contract type rather than a hand-written
+        // shape, so a change to ApprovedPage2Snapshot surfaces here.
+        const snapshot = wizardData.approvedSnapshot as ApprovedPage2Snapshot;
         // 1. Lossless raw canonical payload preservation
         expect(snapshot.rawCanonicalPayload).toBeDefined();
-        expect(snapshot.rawCanonicalPayload.contractVersion).toBe('1.2');
+        expect(snapshot.rawCanonicalPayload?.contractVersion).toBe('1.2');
 
         // 2. No synthetic geography level inference
         expect(snapshot.programFacts.geographyLevel).toBeUndefined();
