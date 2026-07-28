@@ -160,7 +160,8 @@ Six operational dimensions for NGOs: **G**rant & Resource Access · **R**eadines
 
 ## Submission
 
-🏆 Google Cloud Gen AI Academy APAC Edition — Cohort 2 (Top 68/1500+)
+🏆 **Google Cloud Gen AI Academy APAC Edition — Cohort 2**
+Ranked **68 of 101 finalists**, shortlisted from **1,500+ participants**.
 
 ---
 ---
@@ -239,4 +240,5 @@ Enam dimensi operasional NGO: **G**rant & Resource Access · **R**eadiness & Bas
 
 ## Submission
 
-🏆 Google Cloud Gen AI Academy APAC Edition — Cohort 2 (Top 68/1500+)
+🏆 **Google Cloud Gen AI Academy APAC Edition — Cohort 2**
+Ranked **68 of 101 finalists**, shortlisted from **1,500+ participants**.

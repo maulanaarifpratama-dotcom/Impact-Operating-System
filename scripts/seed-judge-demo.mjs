@@ -39,7 +39,7 @@ const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const JUDGE_EMAIL = process.env.JUDGE_EMAIL ?? '';
 const JUDGE_PASSWORD = process.env.JUDGE_PASSWORD ?? '';
 const ORG_NAME = process.env.JUDGE_ORG_NAME ?? 'Impactory Demo Org (Hackathon Review)';
-const APP_URL = (process.env.JUDGE_APP_URL ?? 'https://impactory.vercel.app').replace(/\/+$/, '');
+const APP_URL = (process.env.JUDGE_APP_URL ?? 'https://impactory.id').replace(/\/+$/, '');
 const RESET = process.argv.includes('--reset');
 
 /**

@@ -107,7 +107,7 @@ defer indefinitely.
 ### 3. Vercel project
 
 - **Project:** `impactory`
-- **Production domain:** `impactory.vercel.app` (and `impactory.id` once DNS is wired)
+- **Production domain:** `impactory.id` (`impactory.vercel.app` still resolves as the Vercel default)
 - **Linked repo:** `maulanaarifpratama-dotcom/impactory`, branch `main`
 - **Auto-deploy:** every push to `main` triggers a new build.
 
