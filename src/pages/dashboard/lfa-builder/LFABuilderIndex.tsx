@@ -47,6 +47,7 @@ import { usePlan } from '@/hooks/usePlan';
 import { UpgradeNotice } from '@/components/dashboard/UpgradeNotice';
 import { Checkbox } from '@/components/ui/checkbox';
 import { LfaProject, LfaEntry, AiActivity } from './types';
+import { toJson } from '@/integrations/supabase/json';
 
 export default function LFABuilderIndex() {
   const { user, profile } = useAuth();
@@ -302,7 +303,7 @@ export default function LFABuilderIndex() {
       if (entriesToInsert.length > 0) {
         const { error: rpcErr } = await supabase.rpc('materialize_lfa_matrix_transactional', {
           p_project_id: project.id,
-          p_entries: entriesToInsert
+          p_entries: toJson(entriesToInsert)
         });
         if (rpcErr) throw rpcErr;
       }

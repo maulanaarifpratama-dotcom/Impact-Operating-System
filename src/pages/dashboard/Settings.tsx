@@ -33,6 +33,7 @@ import {
   ShieldAlert,
   Mail
 } from 'lucide-react';
+import { fromJson } from '@/integrations/supabase/json';
 
 function initials(name?: string | null, email?: string | null) {
   const src = (name || email || '?').trim();
@@ -661,7 +662,7 @@ export default function Settings() {
                   </div>
                   <div className="space-y-1">
                     <span className="text-slate-500 font-medium">Tenant Domain AD</span>
-                    <p className="font-bold text-slate-700">{onedriveIntegration.metadata?.tenant || 'bisabaikorid.onmicrosoft.com'}</p>
+                    <p className="font-bold text-slate-700">{fromJson<{ tenant?: string }>(onedriveIntegration.metadata)?.tenant || 'bisabaikorid.onmicrosoft.com'}</p>
                   </div>
                 </div>
               )}

@@ -33,6 +33,7 @@ import {
   CheckCircle,
   TrendingDown
 } from 'lucide-react';
+import { toJson } from '@/integrations/supabase/json';
 
 interface PlanPriority {
   priority: string;
@@ -536,11 +537,11 @@ export default function MonthlyOperatingReview() {
         performance_notes: performanceNotes,
         people_notes: peopleNotes,
         risk_notes: riskNotes,
-        plan_priorities: priorities,
-        decisions: decisions,
+        plan_priorities: toJson(priorities),
+        decisions: toJson(decisions),
         next_mor_date: nextMorDate || null,
         // Fitur 4 Columns:
-        adaptive_notes: adaptiveNotes,
+        adaptive_notes: toJson(adaptiveNotes),
         learning_what_worked: learningWhatWorked,
         learning_what_didnt: learningWhatDidnt,
         learning_recommendations: learningRecommendations,

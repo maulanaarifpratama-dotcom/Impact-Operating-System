@@ -33,6 +33,7 @@ import { LibraryReferencesSidebar } from '@/components/grant-writer/LibraryRefer
 import { DocumentChatPanel } from '@/components/shared/DocumentChatPanel';
 import { useAuth } from '@/providers/AuthProvider';
 import { renderQuickProposalMarkdown } from '@/lib/grant-writer/quickGenerator';
+import { toJson } from '@/integrations/supabase/json';
 
 
 export default function GrantWriterQuickWizardLegacy() {
@@ -264,7 +265,7 @@ export default function GrantWriterQuickWizardLegacy() {
           organization_id: project.organization_id,
           generated_by: user.id,
           version: nextVersion,
-          matrix: { mode: 'quick' } as unknown as Record<string, unknown>,
+          matrix: toJson({ mode: 'quick' }),
           proposal_markdown: markdown,
           model: 'manual_fallback_quick',
           donor_standard: 'un_oecd_dac',

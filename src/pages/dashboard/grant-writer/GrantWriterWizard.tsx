@@ -33,6 +33,7 @@ import { DocumentChatPanel } from '@/components/shared/DocumentChatPanel';
 import { LfaProject, LfaEntry } from '../lfa-builder/types';
 import { generateLfaMatrix, renderProposalMarkdown } from '@/lib/grant-writer/generator';
 import { useAuth } from '@/providers/AuthProvider';
+import { toJson } from '@/integrations/supabase/json';
 
 export default function GrantWriterWizard() {
   const { user } = useAuth();
@@ -467,7 +468,7 @@ export default function GrantWriterWizard() {
           organization_id: project.organization_id,
           generated_by: user.id,
           version: nextVersion,
-          matrix: matrix as unknown as Record<string, unknown>,
+          matrix: toJson(matrix),
           proposal_markdown: markdown,
           model: 'manual_fallback',
           donor_standard: data.context?.donorStandard || 'un_oecd_dac',

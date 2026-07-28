@@ -44,6 +44,7 @@ import { assembleCanonicalProposalV2 } from '@/lib/grant-writer/deterministic/as
 import type { Page1Input, CanonicalProposalPayloadV2 } from '@/lib/grant-writer/deterministic/types';
 import { mapCanonicalProposalToRawEntries } from '@/lib/lfa/readAdapter';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
+import { toJson } from '@/integrations/supabase/json';
 
 export interface CanonicalFacts {
   proposedTitle: string;
@@ -1062,7 +1063,7 @@ export default function GrantWriterQuickWizardProvisional() {
 
       const { error } = await supabase
         .from('gw_projects')
-        .update({ wizard_data: wizardData })
+        .update({ wizard_data: toJson(wizardData) })
         .eq('id', projectId);
 
       if (error) throw error;
@@ -1645,10 +1646,10 @@ export default function GrantWriterQuickWizardProvisional() {
               title: effectiveCanonicalPayload.metadata?.title || proposedTitle || 'Clean Water Access Program, Sumba',
               summary: proposedTitle,
               status: 'generating',
-              wizard_data: {
+              wizard_data: toJson({
                 lfa_project_id: targetProjectId,
                 canonicalPayload: effectiveCanonicalPayload
-              },
+              }),
               updated_at: new Date().toISOString()
             });
         } catch (gwErr) {
