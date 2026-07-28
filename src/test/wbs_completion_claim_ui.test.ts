@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import type { WbsCompletionClaim, WbsCompletionEvidence, WbsClaimStatus } from '../pages/dashboard/lfa-builder/types';
+import type { WbsCompletionClaim, WbsCompletionEvidence, WbsCompletionClaimStatus } from '../pages/dashboard/lfa-builder/types';
 
 // Pure logic helpers matching WBSBuilder implementation
-function getClaimBadgeStyle(status: WbsClaimStatus): string {
+function getClaimBadgeStyle(status: WbsCompletionClaimStatus): string {
   switch (status) {
     case 'verified':
       return 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800';
@@ -19,7 +19,7 @@ function getClaimBadgeStyle(status: WbsClaimStatus): string {
   }
 }
 
-function getClaimLabel(status: WbsClaimStatus): string {
+function getClaimLabel(status: WbsCompletionClaimStatus): string {
   switch (status) {
     case 'verified':
       return 'Terverifikasi (MEAL)';

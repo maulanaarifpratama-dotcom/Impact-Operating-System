@@ -3,8 +3,7 @@ import { REGRESSION_FIXTURES } from '../deterministic/fixtures';
 import { createPage2Payload } from '../deterministic/page2-payload';
 import { evaluateFixtureOracle, normalizeSdgId } from './p0e-oracle-evaluator';
 import { collectCandidates } from '../deterministic/candidates';
-import type { RegressionFixture } from '../deterministic/types';
-import type { DeterministicPage2Payload } from '../deterministic/blueprint-types';
+import { makeFixture, makePayload } from './p0e-mocks';
 
 /**
  * Runs test suite for approved Metamorphic Relations MR-01 through MR-10 strictly following locked contract semantics.
@@ -51,31 +50,32 @@ export function runMetamorphicSuite(): MetamorphicTestResult[] {
     const normNegControl = normalizeSdgId('SDG_30');
 
     const normMatchesCanonical = norm1 === 'SDG_3' && norm2 === 'SDG_3' && norm3 === 'SDG_3';
-    const normNegControlDistinct = normNegControl === 'SDG_30' && normNegControl !== 'SDG_3';
+    // Equality with 'SDG_30' is the whole assertion: once it holds, the value
+    // cannot also be 'SDG_3', so the second half of the old condition was
+    // always true and only served to make TypeScript flag the comparison.
+    // Runtime is verified: SDG_30 -> SDG_30 while SDG-03 -> SDG_3.
+    const normNegControlDistinct = normNegControl === 'SDG_30';
 
     // 2. Test through evaluateFixtureOracle comparison boundary
-    const mockPayload: DeterministicPage2Payload = {
+    const mockPayload = makePayload({
       sdgs: [{ id: 'SDG_3', level: 'primary', confidenceScore: 1.0, status: 'engine' }]
-    };
+    });
 
-    const fixtureSdgHyphen: RegressionFixture = {
+    const fixtureSdgHyphen = makeFixture({
       fixture_id: 'MR02-HYPHEN',
-      category: 'test',
       page_1_input: { program_story: 'test' },
       expected_mapping: { sdg_primary: ['SDG-3'] }
-    };
-    const fixtureSdgZero: RegressionFixture = {
+    });
+    const fixtureSdgZero = makeFixture({
       fixture_id: 'MR02-ZERO',
-      category: 'test',
       page_1_input: { program_story: 'test' },
       expected_mapping: { sdg_primary: ['SDG-03'] }
-    };
-    const fixtureNegControl: RegressionFixture = {
+    });
+    const fixtureNegControl = makeFixture({
       fixture_id: 'MR02-NEG',
-      category: 'test',
       page_1_input: { program_story: 'test' },
       expected_mapping: { sdg_primary: ['SDG_30'] } // Negative control: SDG 30 must NOT match SDG 3
-    };
+    });
 
     const reportHyphen = evaluateFixtureOracle(fixtureSdgHyphen, mockPayload);
     const reportZero = evaluateFixtureOracle(fixtureSdgZero, mockPayload);

@@ -4,8 +4,7 @@ import { createPage2Payload } from './deterministic/page2-payload';
 import { evaluateFixtureOracle, normalizeSdgId, canonicalizeAntiSignalId } from './p0e-oracle/p0e-oracle-evaluator';
 import { runMetamorphicSuite } from './p0e-oracle/p0e-metamorphic';
 import { runMutationKillerSuite } from './p0e-oracle/p0e-mutation-killer';
-import type { DeterministicPage2Payload } from './deterministic/blueprint-types';
-import type { RegressionFixture } from './deterministic/types';
+import { makeFixture, makePayload } from './p0e-oracle/p0e-mocks';
 
 describe('P0-E Oracle Integrity & Conformance Test Suite', () => {
 
@@ -18,15 +17,14 @@ describe('P0-E Oracle Integrity & Conformance Test Suite', () => {
 
     describe('A.1 Controlled Evaluator Unit Tests', () => {
       test('Exact match passes primary sector assertion', () => {
-        const mockFixture: RegressionFixture = {
+        const mockFixture = makeFixture({
           fixture_id: 'UNIT-001',
-          category: 'test',
           page_1_input: { program_story: 'pertanian' },
           expected_mapping: { sector_primary: 'SECTOR-AGRI-001' }
-        };
-        const mockPayload: DeterministicPage2Payload = {
+        });
+        const mockPayload = makePayload({
           sectors: [{ id: 'SECTOR-AGRI-001', level: 'primary', confidenceScore: 1.0, status: 'engine' }]
-        };
+        });
         const report = evaluateFixtureOracle(mockFixture, mockPayload);
         expect(report.passed).toBe(true);
         const primaryAssertion = report.assertions.find(a => a.assertionId.endsWith('-C-001'));
@@ -35,15 +33,14 @@ describe('P0-E Oracle Integrity & Conformance Test Suite', () => {
       });
 
       test('Wrong value fails primary sector assertion (no candidate fallback)', () => {
-        const mockFixture: RegressionFixture = {
+        const mockFixture = makeFixture({
           fixture_id: 'UNIT-002',
-          category: 'test',
           page_1_input: { program_story: 'pertanian' },
           expected_mapping: { sector_primary: 'SECTOR-AGRI-001' }
-        };
-        const mockPayload: DeterministicPage2Payload = {
+        });
+        const mockPayload = makePayload({
           sectors: [{ id: 'SECTOR-EDU-006', level: 'primary', confidenceScore: 0.9, status: 'engine' }]
-        };
+        });
         const report = evaluateFixtureOracle(mockFixture, mockPayload);
         expect(report.passed).toBe(false);
         const primaryAssertion = report.assertions.find(a => a.assertionId.endsWith('-C-001'));
@@ -51,15 +48,14 @@ describe('P0-E Oracle Integrity & Conformance Test Suite', () => {
       });
 
       test('Null actual primary sector fails when expected is non-null (no candidate fallback)', () => {
-        const mockFixture: RegressionFixture = {
+        const mockFixture = makeFixture({
           fixture_id: 'UNIT-003',
-          category: 'test',
           page_1_input: { program_story: 'pertanian' },
           expected_mapping: { sector_primary: 'SECTOR-AGRI-001' }
-        };
-        const mockPayload: DeterministicPage2Payload = {
+        });
+        const mockPayload = makePayload({
           sectors: [] // actual primary is null
-        };
+        });
         const report = evaluateFixtureOracle(mockFixture, mockPayload);
         expect(report.passed).toBe(false);
         const primaryAssertion = report.assertions.find(a => a.assertionId.endsWith('-C-001'));
@@ -67,20 +63,19 @@ describe('P0-E Oracle Integrity & Conformance Test Suite', () => {
       });
 
       test('Gold fixture_type does NOT auto-pass mismatched secondary sectors or MISS rules', () => {
-        const mockFixture: RegressionFixture = {
+        const mockFixture = makeFixture({
           fixture_id: 'UNIT-004',
-          category: 'test',
           fixture_type: 'gold',
           page_1_input: { program_story: 'test' },
           expected_mapping: {
             sector_secondary: ['SECTOR-EDU-006'],
             missing_information_expected: ['MISS-002']
           }
-        };
-        const mockPayload: DeterministicPage2Payload = {
+        });
+        const mockPayload = makePayload({
           sectors: [],
           missingInformation: []
-        };
+        });
         const report = evaluateFixtureOracle(mockFixture, mockPayload);
         expect(report.passed).toBe(false);
         const secSectorAssertion = report.assertions.find(a => a.assertionId.endsWith('-C-002'));
@@ -90,20 +85,19 @@ describe('P0-E Oracle Integrity & Conformance Test Suite', () => {
       });
 
       test('Hard negative fixture_type does NOT auto-pass empty actual when expected is non-empty', () => {
-        const mockFixture: RegressionFixture = {
+        const mockFixture = makeFixture({
           fixture_id: 'UNIT-005',
-          category: 'test',
           fixture_type: 'hard_negative',
           page_1_input: { program_story: 'test' },
           expected_mapping: {
             sdg_primary: ['SDG_3'],
             warnings_expected: ['CONF-001']
           }
-        };
-        const mockPayload: DeterministicPage2Payload = {
+        });
+        const mockPayload = makePayload({
           sdgs: [],
           warnings: []
-        };
+        });
         const report = evaluateFixtureOracle(mockFixture, mockPayload);
         expect(report.passed).toBe(false);
         const sdgAssertion = report.assertions.find(a => a.assertionId.endsWith('-C-004'));
@@ -113,21 +107,19 @@ describe('P0-E Oracle Integrity & Conformance Test Suite', () => {
       });
 
       test('Empty expected ([]) expects exact [] whereas absent (undefined) creates zero assertion', () => {
-        const mockFixtureEmpty: RegressionFixture = {
+        const mockFixtureEmpty = makeFixture({
           fixture_id: 'UNIT-006A',
-          category: 'test',
           page_1_input: { program_story: 'test' },
           expected_mapping: { warnings_expected: [] }
-        };
-        const mockFixtureAbsent: RegressionFixture = {
+        });
+        const mockFixtureAbsent = makeFixture({
           fixture_id: 'UNIT-006B',
-          category: 'test',
           page_1_input: { program_story: 'test' },
           expected_mapping: {}
-        };
-        const mockPayloadWithWarnings: DeterministicPage2Payload = {
+        });
+        const mockPayloadWithWarnings = makePayload({
           warnings: [{ id: 'w1', code: 'CONF-001', severity: 'important', message: 'warn' }]
-        };
+        });
 
         const reportEmpty = evaluateFixtureOracle(mockFixtureEmpty, mockPayloadWithWarnings);
         expect(reportEmpty.passed).toBe(false);
@@ -138,18 +130,17 @@ describe('P0-E Oracle Integrity & Conformance Test Suite', () => {
       });
 
       test('Rejected SDG cannot pass as primary SDG', () => {
-        const mockFixture: RegressionFixture = {
+        const mockFixture = makeFixture({
           fixture_id: 'UNIT-007',
-          category: 'test',
           page_1_input: { program_story: 'test' },
           expected_mapping: {
             sdg_primary: ['SDG_1'],
             sdg_rejected_as_primary: ['SDG_3']
           }
-        };
-        const mockPayload: DeterministicPage2Payload = {
+        });
+        const mockPayload = makePayload({
           sdgs: [{ id: 'SDG_3', level: 'primary', confidenceScore: 0.9, status: 'engine' }]
-        };
+        });
         const report = evaluateFixtureOracle(mockFixture, mockPayload);
         expect(report.passed).toBe(false);
         const rejectedAssertion = report.assertions.find(a => a.assertionId.endsWith('-C-006'));

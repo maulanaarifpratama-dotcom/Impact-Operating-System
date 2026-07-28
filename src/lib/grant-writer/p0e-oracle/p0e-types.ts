@@ -1,6 +1,3 @@
-import type { RegressionFixture } from '../deterministic/types';
-import type { Page2ProvisionalPayload } from '../deterministic/blueprint-types';
-
 export interface AssertionResult {
   assertionId: string;
   stage: 'P0_B' | 'P0_C' | 'P0_D' | 'CROSS_STAGE';

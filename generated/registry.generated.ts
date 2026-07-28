@@ -10,10 +10,10 @@ import type {
   InterventionArchetype,
   OutcomeFamily,
   OutputFamily,
-  SectorTaxonomy,
-  TargetActor,
+  Sector,
+  Actor,
   ProblemFamily
-} from '../../src/lib/grant-writer/deterministic/types';
+} from '../src/lib/grant-writer/deterministic/types';
 
 export const ONTOLOGY_METADATA = {
   version: "0.1.0",
@@ -22,7 +22,7 @@ export const ONTOLOGY_METADATA = {
   sourceTrace: "100% YAML-derived (ontology/*.yaml)"
 };
 
-export const SECTORS: SectorTaxonomy[] = [
+export const SECTORS: Sector[] = [
   {
     "id": "SECTOR-AGRI-001",
     "name": "panen",
@@ -1298,9 +1298,7 @@ export const OUTCOME_FAMILIES: OutcomeFamily[] = [
     "anti_signals": [
       "klaim % naik tanpa baseline (HN-57)"
     ],
-    "minimum_evidence": [
-      "catatan penjualan/pendapatan + baseline musim setara (IND-MSME-REV-001 logic)"
-    ],
+    "minimum_evidence": "catatan penjualan/pendapatan + baseline musim setara (IND-MSME-REV-001 logic)",
     "likely_sectors": [
       "SECTOR-LIVELIHOOD-002",
       "SECTOR-AGRI-001",
@@ -2512,7 +2510,7 @@ export const OUTCOME_FAMILIES: OutcomeFamily[] = [
     ]
   }
 ];
-export const ACTORS: TargetActor[] = [
+export const ACTORS: Actor[] = [
   {
     "id": "ACT-001",
     "name": "petani kecil",

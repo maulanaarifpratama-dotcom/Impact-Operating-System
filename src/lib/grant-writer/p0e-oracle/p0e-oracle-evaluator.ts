@@ -1,4 +1,4 @@
-import type { RegressionFixture } from '../deterministic/types';
+import type { Fixture } from '../deterministic/types';
 import type { DeterministicPage2Payload } from '../deterministic/blueprint-types';
 import type { AssertionResult, FixtureOracleReport } from './p0e-types';
 import { collectCandidates } from '../deterministic/candidates';
@@ -35,7 +35,7 @@ function areSetsEqual(a: string[], b: string[]): boolean {
  * Evaluates a single fixture against its actual pipeline payload strictly following P0-E-MINIMAL-MANIFEST-V1.
  */
 export function evaluateFixtureOracle(
-  fixture: RegressionFixture,
+  fixture: Fixture,
   actualPayload: DeterministicPage2Payload,
   customCandidates?: any[]
 ): FixtureOracleReport {

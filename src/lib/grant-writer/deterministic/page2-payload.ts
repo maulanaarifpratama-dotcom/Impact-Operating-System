@@ -115,7 +115,10 @@ export function createPage2Payload(
     const isPrimary = scoringResult.primarySector === s.id;
     const isSecondary = scoringResult.secondarySectors.includes(s.id);
     const level: RecommendationItem['level'] = isPrimary ? 'primary' : isSecondary ? 'secondary' : 'rejected';
-    return toRecommendation(s.id, s.label ?? s.name, level, scoringResult.confidenceScore, allCandidates);
+    // Sector carries `name`, never `label`. The old `s.label ?? s.name` was
+    // dead on the left side — no registry row has that key — and only looked
+    // live because the registry's broken import path left SECTORS untyped.
+    return toRecommendation(s.id, s.name, level, scoringResult.confidenceScore, allCandidates);
   });
 
   const interventionIds = new Set<string>([...scoringResult.primaryInterventions, ...scoringResult.supportingInterventions]);

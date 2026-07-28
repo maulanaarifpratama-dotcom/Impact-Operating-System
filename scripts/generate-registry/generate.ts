@@ -102,7 +102,12 @@ const outcomeFamilies = rawOF.map((ofItem: any) => {
     object_of_change_ids: ofItem.object_of_change_ids || [],
     negative_signals: ofItem.negative_signals || [],
     anti_signals: ofItem.anti_signals || [],
-    minimum_evidence: ofItem.minimum_evidence || "",
+    // The corpus writes this as a string for 65 of 66 families and a
+    // single-element list for one. OutcomeFamily.minimum_evidence is a string,
+    // so flatten rather than emit a shape the type does not allow.
+    minimum_evidence: Array.isArray(ofItem.minimum_evidence)
+      ? ofItem.minimum_evidence.join('; ')
+      : (ofItem.minimum_evidence || ""),
     likely_sectors: likelySectors,
     likely_archetypes: ofItem.likely_archetypes || [],
     indicator_family_ids: ofItem.indicator_family_ids || [],
@@ -216,10 +221,10 @@ import type {
   InterventionArchetype,
   OutcomeFamily,
   OutputFamily,
-  SectorTaxonomy,
-  TargetActor,
+  Sector,
+  Actor,
   ProblemFamily
-} from '../../src/lib/grant-writer/deterministic/types';
+} from '../src/lib/grant-writer/deterministic/types';
 
 export const ONTOLOGY_METADATA = {
   version: "0.1.0",
@@ -228,10 +233,10 @@ export const ONTOLOGY_METADATA = {
   sourceTrace: "100% YAML-derived (ontology/*.yaml)"
 };
 
-export const SECTORS: SectorTaxonomy[] = ${JSON.stringify(sectors, null, 2)};
+export const SECTORS: Sector[] = ${JSON.stringify(sectors, null, 2)};
 export const PROBLEM_FAMILIES: ProblemFamily[] = ${JSON.stringify(problemFamilies, null, 2)};
 export const OUTCOME_FAMILIES: OutcomeFamily[] = ${JSON.stringify(outcomeFamilies, null, 2)};
-export const ACTORS: TargetActor[] = ${JSON.stringify(actors, null, 2)};
+export const ACTORS: Actor[] = ${JSON.stringify(actors, null, 2)};
 export const INTERVENTION_ARCHETYPES: InterventionArchetype[] = ${JSON.stringify(archetypes, null, 2)};
 export const INDICATOR_FAMILIES = ${JSON.stringify(rawInd, null, 2)};
 export const OUTPUT_FAMILIES: OutputFamily[] = [];
