@@ -183,10 +183,40 @@ export function assembleCanonicalProposalV2(
     issues.push(`Found ${duplicateIds} duplicate node IDs.`);
   }
 
+  /**
+   * A story with too few ontology signals expands to nothing. That is the
+   * common case, not a rare one, and it used to leave `status: 'FAIL'` with an
+   * empty `issues` array — a verdict the interface could not explain and the
+   * author could not act on. Say which level came back empty, so the answer is
+   * "add what you are missing" rather than "it failed".
+   */
+  if (fullOutcomes.length === 0) {
+    issues.push(
+      'No outcome could be derived from the program story. Describe the change ' +
+        'you expect for the beneficiaries — not only the activities you plan to run.',
+    );
+  } else if (allOutputIds.size === 0) {
+    issues.push(
+      'Outcomes were derived but no outputs. State what the program will deliver ' +
+        'that produces those outcomes.',
+    );
+  } else if (allActivityIds.size === 0) {
+    issues.push(
+      'Outputs were derived but no activities. Describe the concrete work behind ' +
+        'each deliverable.',
+    );
+  }
+
   // Determine overall status
   let status: 'PASS' | 'WARNING' | 'FAIL' = 'PASS';
   if (duplicateIds > 0 || orphanOutputs > 0 || orphanActivities > 0 || bqsResult.total_score < 70) {
     status = 'FAIL';
+    if (bqsResult.total_score < 70 && issues.length === 0) {
+      issues.push(
+        `Blueprint quality score ${bqsResult.total_score} is below the 70 threshold. ` +
+          'The hierarchy is structurally sound but too thin to build a proposal on.',
+      );
+    }
   } else if (bqsResult.total_score < 88) {
     status = 'WARNING';
   }
