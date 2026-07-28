@@ -1,20 +1,15 @@
-import GrantWriterQuickWizardLegacy from './GrantWriterQuickWizardLegacy';
 import GrantWriterQuickWizardProvisional from './GrantWriterQuickWizardProvisional';
 
-export function GrantWriterQuickWizardSelector({
-  isDevelopment = true,
-  useLegacy = false,
-}: {
-  isDevelopment?: boolean;
-  useLegacy?: boolean;
-}) {
-  if (useLegacy || isDevelopment === false) {
-    return <GrantWriterQuickWizardLegacy />;
-  }
-  return <GrantWriterQuickWizardProvisional />;
-}
-
+/**
+ * RC-9B.2 cutover: the 27.5k Brain canonical Quick Proposal renders in every
+ * environment.
+ *
+ * There used to be a `GrantWriterQuickWizardSelector` here that could fall back
+ * to a pre-cutover wizard. Nothing reached it: the route guard imports the
+ * default export below, which has returned the canonical wizard unconditionally
+ * since the cutover, so the only caller left was the test that covered the
+ * fallback. The legacy component and the selector are gone.
+ */
 export default function GrantWriterQuickWizard() {
-  // RC-9B.2 Cutover: Render 27.5k Brain Canonical Quick Proposal in all environments (prod + dev)
   return <GrantWriterQuickWizardProvisional />;
 }

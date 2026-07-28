@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { fireEvent, render, screen, waitFor, act } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import GrantWriterQuickWizard, { GrantWriterQuickWizardSelector } from './GrantWriterQuickWizard';
+import GrantWriterQuickWizard from './GrantWriterQuickWizard';
 import { suggestTitleFromStory } from './GrantWriterQuickWizardProvisional';
 import { PROVISIONAL_FIXTURES, adaptProvisionalResponse } from '@/lib/grant-writer/provisionalAdapter';
 
@@ -147,7 +147,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <GrantWriterQuickWizardSelector isDevelopment={true} />
+        <GrantWriterQuickWizard />
       </QueryClientProvider>
     );
 
@@ -170,7 +170,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <GrantWriterQuickWizardSelector isDevelopment={true} />
+        <GrantWriterQuickWizard />
       </QueryClientProvider>
     );
 
@@ -198,7 +198,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <GrantWriterQuickWizardSelector isDevelopment={true} />
+        <GrantWriterQuickWizard />
       </QueryClientProvider>
     );
 
@@ -232,7 +232,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <GrantWriterQuickWizardSelector isDevelopment={true} />
+        <GrantWriterQuickWizard />
       </QueryClientProvider>
     );
 
@@ -293,7 +293,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <GrantWriterQuickWizardSelector isDevelopment={true} />
+        <GrantWriterQuickWizard />
       </QueryClientProvider>
     );
 
@@ -322,7 +322,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <GrantWriterQuickWizardSelector isDevelopment={true} />
+        <GrantWriterQuickWizard />
       </QueryClientProvider>
     );
 
@@ -373,7 +373,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <GrantWriterQuickWizardSelector isDevelopment={true} />
+        <GrantWriterQuickWizard />
       </QueryClientProvider>
     );
 
@@ -417,7 +417,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <GrantWriterQuickWizardSelector isDevelopment={true} />
+        <GrantWriterQuickWizard />
       </QueryClientProvider>
     );
 
@@ -461,7 +461,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <GrantWriterQuickWizardSelector isDevelopment={true} />
+        <GrantWriterQuickWizard />
       </QueryClientProvider>
     );
 
@@ -494,7 +494,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     const { unmount } = render(
       <QueryClientProvider client={queryClient}>
-        <GrantWriterQuickWizardSelector isDevelopment={true} />
+        <GrantWriterQuickWizard />
       </QueryClientProvider>
     );
 
@@ -517,7 +517,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
     render(
       <QueryClientProvider client={queryClient}>
-        <GrantWriterQuickWizardSelector isDevelopment={true} />
+        <GrantWriterQuickWizard />
       </QueryClientProvider>
     );
 
@@ -536,200 +536,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
     });
   });
 
-  describe('Legacy Production Fallback Flow', () => {
-
-    test('Production build selects legacy component and does not display development provisional disclosure', async () => {
-      installSupabaseScenario();
-      const queryClient = createTestQueryClient();
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <GrantWriterQuickWizardSelector isDevelopment={false} />
-        </QueryClientProvider>
-      );
-
-      await waitFor(() => {
-        expect(screen.getAllByText('Info Organisasi', { exact: false }).length).toBeGreaterThan(0);
-      });
-
-      // Assert development features are hidden
-      expect(screen.queryByText('Development Fixture Simulator')).toBeNull();
-      expect(screen.queryByText('Development Preview — bukan hasil analisis aktual')).toBeNull();
-      expect(screen.queryByText('Fokus Program yang Direkomendasikan')).toBeNull();
-    });
-
-    test('Legacy generation triggers Edge Function and navigates only on success', async () => {
-      installSupabaseScenario();
-      const queryClient = createTestQueryClient();
-
-      // Mock successful edge function call
-      mockSupabaseInvoke.mockImplementation(async (name) => {
-        if (name === 'grant-writer-generate') {
-          return {
-            data: {
-              error: null,
-              document: { id: 'doc-456', content: '# Generated Proposal' },
-              version: '1.0',
-            },
-            error: null,
-          };
-        }
-        if (name === 'grant-writer-rag-references') {
-          return {
-            data: {
-              chunks: [],
-              hasDocuments: true,
-            },
-            error: null,
-          };
-        }
-        return { data: null, error: null };
-      });
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <GrantWriterQuickWizardSelector isDevelopment={false} />
-        </QueryClientProvider>
-      );
-
-      await waitFor(() => {
-        expect(screen.getAllByText('Info Organisasi', { exact: false }).length).toBeGreaterThan(0);
-      });
-
-      // Navigate to step 4 (Generate)
-      fireEvent.click(screen.getByText('Lanjut')); // step 2
-      await waitFor(() => {
-        expect(screen.getAllByText('Deskripsi Program', { exact: false }).length).toBeGreaterThan(0);
-      });
-
-      fireEvent.click(screen.getByText('Lanjut')); // step 3
-      await waitFor(() => {
-        expect(screen.getAllByText('Target & Anggaran', { exact: false }).length).toBeGreaterThan(0);
-      });
-
-      fireEvent.click(screen.getByText('Lanjut')); // step 4
-      await waitFor(() => {
-        expect(screen.getAllByText('Buat Proposal (AI)', { exact: false }).length).toBeGreaterThan(0);
-      });
-
-      // Trigger AI proposal generation
-      const generateBtn = screen.getByText('Buat Proposal (AI)', { exact: false });
-      fireEvent.click(generateBtn);
-
-      await waitFor(() => {
-        expect(mockSupabaseInvoke).toHaveBeenCalledWith(
-          'grant-writer-generate',
-          expect.objectContaining({
-            body: expect.objectContaining({
-              projectId: 'gw-project-1',
-            }),
-          })
-        );
-        expect(navigateMock).toHaveBeenCalledWith('/dashboard/grant-writer/gw-project-1/proposal');
-      });
-    });
-
-    test('Legacy generation failure shows error toast and does not navigate', async () => {
-      installSupabaseScenario();
-      const queryClient = createTestQueryClient();
-
-      // Mock failed edge function call
-      mockSupabaseInvoke.mockImplementation(async (name) => {
-        if (name === 'grant-writer-generate') {
-          return {
-            data: null,
-            error: { message: 'Azure OpenAI endpoint unavailable' },
-          };
-        }
-        if (name === 'grant-writer-rag-references') {
-          return {
-            data: {
-              chunks: [],
-              hasDocuments: true,
-            },
-            error: null,
-          };
-        }
-        return { data: null, error: null };
-      });
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <GrantWriterQuickWizardSelector isDevelopment={false} />
-        </QueryClientProvider>
-      );
-
-      await waitFor(() => {
-        expect(screen.getAllByText('Info Organisasi', { exact: false }).length).toBeGreaterThan(0);
-      });
-
-      // Navigate to step 4 (Generate)
-      fireEvent.click(screen.getByText('Lanjut')); // step 2
-      await waitFor(() => {
-        expect(screen.getAllByText('Deskripsi Program', { exact: false }).length).toBeGreaterThan(0);
-      });
-
-      fireEvent.click(screen.getByText('Lanjut')); // step 3
-      await waitFor(() => {
-        expect(screen.getAllByText('Target & Anggaran', { exact: false }).length).toBeGreaterThan(0);
-      });
-
-      fireEvent.click(screen.getByText('Lanjut')); // step 4
-      await waitFor(() => {
-        expect(screen.getAllByText('Buat Proposal (AI)', { exact: false }).length).toBeGreaterThan(0);
-      });
-
-      // Trigger AI proposal generation
-      const generateBtn = screen.getByText('Buat Proposal (AI)', { exact: false });
-      fireEvent.click(generateBtn);
-
-      await waitFor(() => {
-        expect(mockSupabaseInvoke).toHaveBeenCalled();
-        expect(toastMock).toHaveBeenCalledWith(expect.objectContaining({
-          title: 'Gagal membuat proposal dengan AI',
-          variant: 'destructive',
-        }));
-        // Verify no false navigate success
-        expect(navigateMock).not.toHaveBeenCalled();
-      });
-    });
-  });
-
   describe('Quick Wizard Selector and Default Export Compatibility', () => {
-    test('Selector with isDevelopment: true renders provisional component', async () => {
-      installSupabaseScenario();
-      const queryClient = createTestQueryClient();
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <GrantWriterQuickWizardSelector isDevelopment={true} />
-        </QueryClientProvider>
-      );
-
-      // Verify that the development provisional view is selected on load
-      await waitFor(() => {
-        expect(screen.getByText('Yayasan Tani Hijau')).toBeTruthy();
-      });
-      expect(screen.getByText('Program Blueprint Studio')).toBeTruthy();
-    });
-
-    test('Selector with isDevelopment: false renders legacy component', async () => {
-      installSupabaseScenario();
-      const queryClient = createTestQueryClient();
-
-      render(
-        <QueryClientProvider client={queryClient}>
-          <GrantWriterQuickWizardSelector isDevelopment={false} />
-        </QueryClientProvider>
-      );
-
-      // Verify that the legacy 4-step wizard is selected on load
-      await waitFor(() => {
-        expect(screen.getAllByText('Info Organisasi', { exact: false }).length).toBeGreaterThan(0);
-      });
-      expect(screen.queryByText('Deterministic Context Engine (Live Active)')).toBeNull();
-    });
-
     test('Default export renders 27.5k Brain canonical quick wizard in production and development', async () => {
       installSupabaseScenario();
       const queryClient = createTestQueryClient();
@@ -790,7 +597,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
       render(
         <QueryClientProvider client={queryClient}>
-          <GrantWriterQuickWizardSelector isDevelopment={true} />
+          <GrantWriterQuickWizard />
         </QueryClientProvider>
       );
 
@@ -861,7 +668,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
       render(
         <QueryClientProvider client={queryClient}>
-          <GrantWriterQuickWizardSelector isDevelopment={true} />
+          <GrantWriterQuickWizard />
         </QueryClientProvider>
       );
 
@@ -896,7 +703,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
       render(
         <QueryClientProvider client={queryClient}>
-          <GrantWriterQuickWizardSelector isDevelopment={true} />
+          <GrantWriterQuickWizard />
         </QueryClientProvider>
       );
 
@@ -947,7 +754,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
         render(
           <QueryClientProvider client={queryClient}>
-            <GrantWriterQuickWizardSelector isDevelopment={true} />
+            <GrantWriterQuickWizard />
           </QueryClientProvider>
         );
 
@@ -1038,7 +845,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
         render(
           <QueryClientProvider client={queryClient}>
-            <GrantWriterQuickWizardSelector isDevelopment={true} />
+            <GrantWriterQuickWizard />
           </QueryClientProvider>
         );
 
@@ -1079,7 +886,7 @@ describe('GrantWriterQuickWizard Integration Test Suite', () => {
 
       render(
         <QueryClientProvider client={queryClient}>
-          <GrantWriterQuickWizardSelector isDevelopment={true} />
+          <GrantWriterQuickWizard />
         </QueryClientProvider>
       );
 
