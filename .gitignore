@@ -32,6 +32,8 @@ test-results/
 .env
 .env.*
 !.env.example
+!.env.e2e.example
+!.env.judge.example
 
 # Local scratch scripts
 scratch/
