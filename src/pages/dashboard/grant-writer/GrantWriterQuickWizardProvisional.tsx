@@ -1566,76 +1566,26 @@ export default function GrantWriterQuickWizardProvisional() {
         const rawEntries = mapCanonicalProposalToRawEntries(effectiveCanonicalPayload);
         const hasOutputsOrActivities = rawEntries && rawEntries.some((e: any) => e.level === 'output' || e.level === 'activity');
 
-        const groundedFallbackEntries = [
-          {
-            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000001',
-            project_id: targetProjectId,
-            org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
-            code: 'GOAL-1',
-            level: 'goal',
-            description: proposedTitle ? `Peningkatan Dampak: ${proposedTitle}` : 'Peningkatan Akses Air Bersih & Sanitasi Layak',
-            indicator: `Mengurangi risiko penyakit akibat air dan beban hidup masyarakat sasaran di ${geography || 'daerah target'}`,
-            means_of_verification: 'Laporan Monitoring Kesehatan & Survei Dampak Masyarakat',
-            assumption: 'Dukungan pemangku kepentingan lokal dan kondisi lingkungan yang stabil',
-            sequence: 1
-          },
-          {
-            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000002',
-            project_id: targetProjectId,
-            org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
-            code: 'OUTCOME-1',
-            level: 'purpose',
-            description: programStory ? programStory.slice(0, 250) : `Penyediaan pasokan air bersih dan keberlanjutan fasilitas bagi ${beneficiaryDescription || 'penerima manfaat'} di ${geography || 'lokasi target'}`,
-            indicator: `Tersedianya air minum bersih bagi ${beneficiaryCount || '4.500'} ${beneficiaryDescription || 'warga sasaran'}`,
-            means_of_verification: 'Survei Rumah Tangga & Catatan Distribusi Air Komite',
-            assumption: 'Partisipasi aktif warga desa dan pengurus komite lokal',
-            sequence: 2
-          },
-          {
-            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000003',
-            project_id: targetProjectId,
-            org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
-            code: 'OUTPUT-1.1',
-            level: 'output',
-            description: `Pembangunan dan pengoperasian unit hub filtrasi air bertenaga surya serta jaringan distribusi di ${geography || 'desa target'}`,
-            indicator: 'Fasilitas filtrasi air dan jaringan distribusi terpasang serta berfungsi 100%',
-            means_of_verification: 'Berita Acara Serah Terima (BAST) & Laporan Verifikasi Fisik',
-            assumption: 'Izin lokasi dan ketersediaan lahan fasilitas berjalan sesuai rencana',
-            sequence: 3
-          },
-          {
-            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000004',
-            project_id: targetProjectId,
-            org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
-            code: 'ACT-1.1.1',
-            level: 'activity',
-            description: `Survei teknis lapangan, analisis kualitas air baku, dan penetapan titik hub filtrasi di ${geography || 'lokasi sasaran'}`,
-            responsible_party: 'Tim Teknis & Fasilitator Lapangan',
-            sequence: 4
-          },
-          {
-            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000005',
-            project_id: targetProjectId,
-            org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
-            code: 'ACT-1.1.2',
-            level: 'activity',
-            description: 'Pengadaan komponen filtrasi surya, pekerjaan konstruksi fisik, dan pemasangan pipa distribusi',
-            responsible_party: 'Tim Kontraktor/Teknisi & Komite Komunitas',
-            sequence: 5
-          },
-          {
-            id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : 'e0000000-0000-4000-a000-000000000006',
-            project_id: targetProjectId,
-            org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
-            code: 'ACT-1.1.3',
-            level: 'activity',
-            description: `Pembentukan, pelatihan teknis operasional, dan pendampingan komite kelola air minum untuk ${beneficiaryCount || '4.500'} penerima manfaat`,
-            responsible_party: 'Pengurus Komite Air Desa',
-            sequence: 6
-          }
-        ];
 
-        const entriesToCache = hasOutputsOrActivities ? rawEntries : groundedFallbackEntries;
+        /**
+         * No fabricated stand-in. This used to fall back to a hardcoded
+         * solar water-filtration programme in Sumba whenever the canonical
+         * payload carried no outputs or activities — which is exactly what a
+         * thin programme story produces, so the common case wrote a plausible
+         * programme the author never described into their own logframe.
+         *
+         * The assembler already reports this: an empty hierarchy scores BQS 20
+         * and fails its own validation gate. Surfacing that, with the retry the
+         * error card offers, is the honest answer.
+         */
+        if (!hasOutputsOrActivities) {
+          throw new Error(
+            'Cerita program belum cukup untuk menurunkan output dan aktivitas. ' +
+            'Jelaskan perubahan yang Anda harapkan pada penerima manfaat, bukan hanya kegiatan yang akan dijalankan, lalu coba lagi.'
+          );
+        }
+
+        const entriesToCache = rawEntries;
 
         // Guarantee immediate local caching before network/DB calls
         try {
@@ -1733,11 +1683,30 @@ export default function GrantWriterQuickWizardProvisional() {
             }
           });
 
+          /**
+           * This call is what produces the real logframe. It runs the reasoning
+           * model and then materialize_lfa_matrix_transactional, which deletes
+           * the canonical placeholder rows written above and replaces them with
+           * a goal statement, indicators, means of verification and assumptions.
+           *
+           * A warning was not enough. Without it succeeding the project keeps
+           * those placeholders — a goal that is only the programme title, every
+           * indicator null — while the wizard reported success and moved on. Fail
+           * loudly instead; the error card already offers a retry.
+           */
           if (fnRes?.error) {
-            console.warn('⚠️ GrantWriter generation edge function warning:', fnRes.error);
+            throw new Error(
+              `Generasi logframe AI gagal: ${fnRes.error.message ?? String(fnRes.error)}. ` +
+              'Matriks belum diisi. Silakan coba lagi.'
+            );
           }
         } catch (fnErr) {
-          console.warn('⚠️ Edge function invocation exception:', fnErr);
+          const detail = fnErr instanceof Error ? fnErr.message : String(fnErr);
+          throw new Error(
+            detail.startsWith('Generasi logframe AI gagal')
+              ? detail
+              : `Generasi logframe AI tidak dapat dihubungi: ${detail}. Matriks belum diisi. Silakan coba lagi.`
+          );
         }
 
         // Query materialized entries from PostgreSQL or local cache
@@ -2601,6 +2570,14 @@ export default function GrantWriterQuickWizardProvisional() {
                 <Button
                   type="button"
                   onClick={handleApproveBlueprint}
+                  /**
+                   * The card above already says "Persetujuan Diblokir" when no
+                   * logframe structure was derived, and this button already
+                   * styles a disabled state — but the prop itself was missing, so
+                   * approval went through and materialisation ran on an empty
+                   * hierarchy. RC-9B.5 asserts this exact flag.
+                   */
+                  disabled={!hasCanonicalStructure || isSaving}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs h-10 px-5 shadow-xs transition-all disabled:opacity-50"
                   data-testid="approve-blueprint-btn"
                 >

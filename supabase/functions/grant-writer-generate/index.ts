@@ -1375,7 +1375,17 @@ Return JSON with this exact schema:
         }
       }
     } catch (matErr) {
-      console.warn('LFA entry materialization warning:', (matErr as Error).message);
+      /**
+       * Writing the matrix is the point of this function, so its failure is the
+       * function's failure. This used to be a console.warn, which meant the RPC
+       * throw above was swallowed and a 200 went back to the caller: the wizard
+       * saw success, navigated to the workspace, and left the author with the
+       * placeholder rows it had written before calling us — a goal that is only
+       * the programme title and no indicators at all.
+       */
+      const detail = matErr instanceof Error ? matErr.message : String(matErr);
+      console.error('LFA entry materialization failed:', detail);
+      throw new Error(`LFA matrix materialization failed: ${detail}`);
     }
 
     // 6. Mark project completed
