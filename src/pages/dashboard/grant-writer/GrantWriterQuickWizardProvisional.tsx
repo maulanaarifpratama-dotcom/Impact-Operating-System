@@ -1608,7 +1608,7 @@ export default function GrantWriterQuickWizardProvisional() {
             goalId = newId();
             rows.push({
               id: goalId, project_id: targetProjectId, org_id: orgIdForRows, parent_id: null,
-              code: 'GOAL-1', level: 'goal', sequence: 1,
+              level: 'goal', sequence: 1,
               description: place(`Dampak jangka panjang yang ingin dicapai lewat "${title}"`),
               indicator: null, means_of_verification: null, assumption: null,
             });
@@ -1619,7 +1619,7 @@ export default function GrantWriterQuickWizardProvisional() {
             purposeId = newId();
             rows.push({
               id: purposeId, project_id: targetProjectId, org_id: orgIdForRows, parent_id: goalId,
-              code: 'OUTCOME-1', level: 'purpose', sequence: 2,
+              level: 'purpose', sequence: 2,
               description: place(
                 `Perubahan yang dialami penerima manfaat${loc ? ` di ${loc}` : ''} selama program berjalan`,
               ),
@@ -1630,7 +1630,7 @@ export default function GrantWriterQuickWizardProvisional() {
           const outputId = newId();
           rows.push({
             id: outputId, project_id: targetProjectId, org_id: orgIdForRows, parent_id: purposeId,
-            code: 'OUT-1', level: 'output', sequence: 10,
+            level: 'output', sequence: 10,
             description: place(`Hasil konkret yang akan dihasilkan program "${title}"`),
             indicator: null, means_of_verification: null, assumption: null,
           });
@@ -1640,7 +1640,7 @@ export default function GrantWriterQuickWizardProvisional() {
            'Pendampingan dan penguatan kapasitas'].forEach((label, i) => {
             rows.push({
               id: newId(), project_id: targetProjectId, org_id: orgIdForRows, parent_id: outputId,
-              code: `ACT-1.${i + 1}`, level: 'activity', sequence: 11 + i,
+              level: 'activity', sequence: 11 + i,
               description: place(label),
               indicator: null, means_of_verification: null, assumption: null,
               responsible_party: null,

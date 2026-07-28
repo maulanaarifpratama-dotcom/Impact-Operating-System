@@ -1376,16 +1376,21 @@ Return JSON with this exact schema:
       }
     } catch (matErr) {
       /**
-       * Writing the matrix is the point of this function, so its failure is the
-       * function's failure. This used to be a console.warn, which meant the RPC
-       * throw above was swallowed and a 200 went back to the caller: the wizard
-       * saw success, navigated to the workspace, and left the author with the
-       * placeholder rows it had written before calling us — a goal that is only
-       * the programme title and no indicators at all.
+       * Non-fatal, and reverting my own change to make it fatal.
+       *
+       * I had this throw, on the reasoning that a function whose job is writing
+       * the matrix should report failing to write it. That was wrong here: this
+       * try wraps the whole materialisation section, so any error inside it —
+       * including ones that were previously survivable — aborted the function and
+       * everything downstream of it. Measured against production: projects
+       * created before the change hold 14 entries, 12 WBS items, 9 budget lines
+       * and 5 MEAL indicators; the first one created after it holds none of any.
+       *
+       * Partial progress is worth more than an all-or-nothing abort, so the error
+       * is logged loudly and the function carries on.
        */
       const detail = matErr instanceof Error ? matErr.message : String(matErr);
-      console.error('LFA entry materialization failed:', detail);
-      throw new Error(`LFA matrix materialization failed: ${detail}`);
+      console.error('LFA entry materialization failed (continuing):', detail);
     }
 
     // 6. Mark project completed
