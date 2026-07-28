@@ -145,7 +145,11 @@ scripts/            # Build, prerender, ontology generation, demo seeding
 
 11 Playwright E2E specs and 31 Vitest files. Tenant isolation is asserted against the REST API with a real user token rather than through the UI, because [the UI is not the boundary](tests/e2e/tenant-isolation.spec.ts) — anyone can open devtools and call the same endpoints. What holds the line is RLS.
 
-Being straight about the current state, since you may run these yourself: `main` carries **61 pre-existing `tsc` errors and 38 failing unit tests** (415 pass). `npm run build` passes — Vite does not typecheck, so a green build proves nothing about types. These are tracked, concentrated in the Grant Writer canonical-payload area, and none of them block the demo chain above.
+Being straight about the current state, since you may run these yourself: `main` carries **36 `tsc` errors and 38 failing unit tests** (415 pass). `npm run build` passes — Vite does not typecheck, so a green build proves nothing about types.
+
+The type errors were 61 until a sweep found that several modules imported type names that do not exist, which makes TypeScript abandon the file: an entire subsystem was never being checked. Resolving those imports uncovered three real defects — a property read that was always `undefined`, a generated field emitted in the wrong shape, and a negative-control assertion that asserted nothing. The remaining 36 are concentrated in the Grant Writer canonical-payload path.
+
+The 38 test failures are one root cause, and the shape of it matters more than the count. Of 27 regression fixtures, 7 pass and 20 fail, and **every** failure is a missing expected candidate — no failure of evidence integrity, offset validity, determinism, or the mutation-killer suite. Precision is intact and recall is incomplete: the engine does not invent a mapping it cannot support, it misses some it should have found. That is a quality ceiling on the ontology matching, not a correctness hazard, and it is the next piece of work rather than a surprise.
 
 ## Security posture
 
@@ -225,7 +229,11 @@ Hanya dua variabel dibutuhkan untuk boot: `VITE_SUPABASE_URL` dan `VITE_SUPABASE
 
 11 spesifikasi E2E Playwright dan 31 berkas Vitest. Isolasi tenant diuji langsung terhadap REST API dengan token pengguna nyata, bukan lewat UI, karena [UI bukan batas keamanannya](tests/e2e/tenant-isolation.spec.ts) — siapa pun bisa membuka devtools dan memanggil endpoint yang sama. Yang menahan garis itu adalah RLS.
 
-Terus terang soal kondisi sekarang, karena Anda mungkin menjalankannya sendiri: `main` membawa **61 error `tsc` dan 38 unit test gagal** yang sudah ada sebelumnya (415 lolos). `npm run build` lolos — Vite tidak melakukan typecheck, jadi build hijau tidak membuktikan apa pun soal tipe. Semuanya terlacak, terkonsentrasi di area canonical payload Grant Writer, dan tidak ada yang memblokir rantai demo di atas.
+Terus terang soal kondisi sekarang, karena Anda mungkin menjalankannya sendiri: `main` membawa **36 error `tsc` dan 38 unit test gagal** (415 lolos). `npm run build` lolos — Vite tidak melakukan typecheck, jadi build hijau tidak membuktikan apa pun soal tipe.
+
+Error tipe tadinya 61, sampai satu penyisiran menemukan beberapa modul mengimpor nama tipe yang tidak ada — dan impor yang tidak resolve membuat TypeScript melepas seluruh file, sehingga satu subsistem selama ini tidak pernah diperiksa. Membereskannya membongkar tiga cacat nyata: pembacaan properti yang selalu `undefined`, satu field generated dengan bentuk salah, dan asersi negative control yang tidak mengasersi apa pun. Sisa 36 terkonsentrasi di jalur canonical payload Grant Writer.
+
+38 kegagalan test berasal dari satu akar penyebab, dan bentuknya lebih penting dari jumlahnya. Dari 27 fixture regresi, 7 lolos dan 20 gagal — dan **seluruh** kegagalan berupa kandidat yang seharusnya ketemu tapi terlewat. Tidak ada kegagalan integritas bukti, validitas offset, determinisme, maupun mutation-killer. Presisi utuh, recall bolong: mesinnya tidak mengarang pemetaan yang tak bisa ia dukung, ia hanya melewatkan sebagian yang seharusnya tertangkap. Itu batas kualitas pencocokan ontologi, bukan bahaya kebenaran, dan itu pekerjaan berikutnya — bukan kejutan.
 
 ## Postur keamanan
 
