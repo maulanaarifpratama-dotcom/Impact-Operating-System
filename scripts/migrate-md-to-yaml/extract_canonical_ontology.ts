@@ -23,9 +23,14 @@ function toYAML(obj: any, indent = 0): string {
   } else if (typeof obj === 'object' && obj !== null) {
     const keys = Object.keys(obj);
     if (keys.length === 0) return '{}';
-    return keys.map((key, idx) => {
+    return keys.map((key) => {
       const val = obj[key];
-      const prefix = idx === 0 ? '' : spaces;
+      // Every key carries its own indentation. Dropping it for the first key
+      // only works when the object is rendered inline after a "- ", and the
+      // array branch above already handles that case with trimStart(). Without
+      // this, the first key of a nested mapping landed at column 0 and the
+      // result would not parse — which is what happened to manifest.yaml.
+      const prefix = spaces;
       if (Array.isArray(val)) {
         if (val.length === 0) return `${prefix}${key}: []`;
         return `${prefix}${key}:\n${toYAML(val, indent + 2)}`;
