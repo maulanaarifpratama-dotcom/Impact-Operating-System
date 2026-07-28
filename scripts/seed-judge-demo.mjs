@@ -38,10 +38,15 @@ const ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY ?? '';
 const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
 const JUDGE_EMAIL = process.env.JUDGE_EMAIL ?? '';
 const JUDGE_PASSWORD = process.env.JUDGE_PASSWORD ?? '';
-const ORG_NAME = process.env.JUDGE_ORG_NAME ?? 'Yayasan Demo Juri Impactory';
+const ORG_NAME = process.env.JUDGE_ORG_NAME ?? 'Impactory Demo Org (Hackathon Review)';
+const APP_URL = (process.env.JUDGE_APP_URL ?? 'https://impactory.vercel.app').replace(/\/+$/, '');
 const RESET = process.argv.includes('--reset');
 
-const PROJECT_TITLE = 'Desa Digital Kopi Garut (Demo Juri)';
+/**
+ * The programme name stays Indonesian — it is real product content, not a
+ * placeholder. Only the parenthetical marks it as the review fixture.
+ */
+const PROJECT_TITLE = 'Desa Digital Kopi Garut (Review Demo)';
 
 /** Refuse to run rather than create a weak account someone forgets to delete. */
 function preflight() {
@@ -599,20 +604,72 @@ async function main() {
   const { projectId, documentId, version } = await seedProgram(token, orgId, userId);
   await materialize(token, documentId, version);
 
+  printHandoff(projectId);
+}
+
+/**
+ * Print the block the organiser pastes into the submission form. It contains
+ * the password on purpose: handing over access is the whole point, and the
+ * operator already knows it — they set it in .env.judge. What matters is that
+ * it goes to a private channel and never into the repository.
+ */
+function printHandoff(projectId) {
+  const line = '  ' + '-'.repeat(66);
   console.log(
     [
       '',
-      '  Judge workspace ready.',
+      '  Judge workspace ready. Copy the block below into the hackathon',
+      '  submission form, or send it through the organisers\' private channel.',
       '',
-      `    Organization : ${ORG_NAME}`,
-      `    Role         : owner (scoped to this organization only)`,
-      `    Email        : ${JUDGE_EMAIL}`,
-      `    Password     : (the JUDGE_PASSWORD you set — not printed here)`,
-      `    Program      : /dashboard/lfa-builder  ->  ${PROJECT_TITLE}`,
-      `    Project id   : ${projectId}`,
+      '  This output contains a password. Do not screenshot it, paste it into',
+      '  the repository or README, or leave it visible while screen sharing.',
       '',
-      '  Hand these to judges over the submission form or another private channel.',
-      '  Do not put them in the repository, the README, or the demo video.',
+      line,
+      '  IMPACTORY — REVIEWER ACCESS',
+      '',
+      `  URL       : ${APP_URL}/login`,
+      `  Email     : ${JUDGE_EMAIL}`,
+      `  Password  : ${JUDGE_PASSWORD}`,
+      '',
+      '  On the login page, choose the "Password" tab (the default is a',
+      '  passwordless magic link, which would send mail to an inbox you do',
+      '  not control).',
+      '',
+      '  You sign in as owner of a demo organisation prepared for review. It',
+      '  is pre-loaded with one complete programme so nothing has to be built',
+      '  from scratch. Suggested 5-minute path:',
+      '',
+      '    1. Grant Writer  — AI-drafted proposal and canonical logframe',
+      '    2. LFA Builder   — goal, purpose, outcomes, outputs + indicators',
+      `                       open "${PROJECT_TITLE}"`,
+      '    3. WBS           — work breakdown, dependencies, critical path',
+      '    4. Budget        — cost lines linked to tasks, priced against the',
+      '                       Indonesian government SBM 2026 standard',
+      '    5. MEAL          — indicators with baseline, target, frequency,',
+      '                       disaggregation',
+      '',
+      '  A note on language. Module names in the sidebar are English, so you',
+      '  can navigate without help. Action buttons inside a page are',
+      '  Indonesian; these are the ones the path above needs:',
+      '',
+      '    Masuk                     Sign in',
+      '    Mulai dari Nol            Start from scratch',
+      '    Buat Program              Create programme',
+      '    Simpan                    Save',
+      '    Materialisasikan Sekarang Materialise now',
+      '    Buka Program Workspace    Open programme workspace',
+      '',
+      '  The programme content itself is Indonesian by design, not for want of',
+      '  translation: Impactory serves Indonesian civil society organisations,',
+      '  and the logframe wording is tuned to how local donors read it. The',
+      '  public marketing pages carry an English/Indonesian toggle.',
+      '',
+      '  SROI is deliberately left as an unvalidated draft. At design stage',
+      '  there is no field data, so any ratio shown would be fabricated. The',
+      '  model and the inputs it still needs are visible instead.',
+      line,
+      '',
+      `  Project id: ${projectId}`,
       '',
     ].join('\n'),
   );

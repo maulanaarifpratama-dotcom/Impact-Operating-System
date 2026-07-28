@@ -1,111 +1,125 @@
-# Akses Juri Hackathon
+# Reviewer Access
 
-Cara memberi juri akun berisi data contoh yang lengkap, tanpa menaruh satu pun
-kredensial di repositori publik.
+How to give hackathon judges a working account with real data in it, without
+putting a single credential in this public repository.
 
-## Ringkasan keputusan
+## Decisions at a glance
 
-| Pertanyaan | Jawaban |
+| Question | Answer |
 |---|---|
-| Juri masuk sebagai apa? | `owner` dari **satu organisasi demo** khusus |
-| Apakah ada admin platform? | Tidak ada, dan itu memang disengaja |
-| Di mana kredensialnya disimpan? | `.env.judge` (gitignored), **tidak pernah** di-commit |
-| Bagaimana juri menerimanya? | Lewat formulir submission hackathon / kanal privat |
-| Datanya dari mana? | `scripts/seed-judge-demo.mjs` |
+| What does the reviewer sign in as? | `owner` of **one dedicated demo organisation** |
+| Is there a platform-wide admin? | No, and that is deliberate |
+| Where do the credentials live? | `.env.judge`, gitignored, **never** committed |
+| How does the reviewer receive them? | Submission form, or the organisers' private channel |
+| Where does the sample data come from? | `scripts/seed-judge-demo.mjs` |
 
-## Mengapa `owner` satu organisasi, bukan admin platform
+## Why `owner` of one organisation, not a platform admin
 
-Impactory tidak punya super-admin global. Otoritas selalu terikat pada satu
-organisasi dan ditegakkan oleh Row Level Security di database, bukan oleh UI —
-lihat [tenant-isolation.spec.ts](../tests/e2e/tenant-isolation.spec.ts).
+Impactory has no global super-admin. Authority is always scoped to a single
+organisation and enforced by Row Level Security in the database rather than by
+the interface — see [tenant-isolation.spec.ts](../tests/e2e/tenant-isolation.spec.ts).
 
-Menjadikan juri `owner` sebuah organisasi demo memberi mereka **semua**
-kewenangan yang layak dinilai: membuat, mengedit, menghapus, mengundang
-anggota, mengelola organisasi. Yang tidak mereka dapat hanyalah data tenant
-lain — dan itu bukan sesuatu yang perlu dinilai.
+Making the reviewer `owner` of a demo organisation gives them **every**
+capability worth evaluating: create, edit, delete, invite members, manage the
+organisation. The only thing withheld is other tenants' data, which is not
+something a reviewer needs.
 
-Kalau kita justru membuat "admin platform" demi penjurian, kita menyerahkan
-seluruh data organisasi lain kepada orang luar untuk memperagakan fitur yang
-sudah tercakup oleh kepemilikan organisasi. Itu menukar keamanan dengan nol
-manfaat penilaian.
+Minting a "platform admin" for judging would hand a stranger every
+organisation's records in order to demonstrate features that organisation
+ownership already covers. That trades away real security for no evaluation
+benefit.
 
-## Yang tidak boleh dilakukan
+## What must not happen
 
-Repositori ini publik. Tiga hal berikut akan membocorkan akses secara permanen,
-karena riwayat Git tetap menyimpannya meski file-nya dihapus kemudian:
+This repository is public. Each of the following leaks access permanently,
+because Git history retains it even after the file is deleted:
 
-- **Jangan** menulis email + password juri di `README.md` atau dokumen mana pun
-  di dalam repo.
-- **Jangan** menaruhnya sebagai nilai default di berkas e2e. Test membaca
-  kredensial dari `.env.e2e` yang gitignored — pertahankan pola itu.
-- **Jangan** menampilkannya di video demo atau tangkapan layar.
+- **Do not** write the reviewer email and password into `README.md` or any
+  document inside the repo.
+- **Do not** set them as defaults in the e2e suite. Those tests read
+  credentials from a gitignored `.env.e2e` — keep that pattern.
+- **Do not** show them in the demo video or in screenshots.
 
-Kalau kredensial pernah ter-commit, memutar ulang password saja tidak cukup:
-service role key yang ikut bocor harus di-rotate dari Supabase Dashboard.
+If a credential is ever committed, rotating the password is not enough: any
+service role key exposed alongside it must be rotated from the Supabase
+Dashboard.
 
-## Menyiapkan akun
+## Preparing the account
 
 ```bash
 cp .env.judge.example .env.judge
 ```
 
-Isi `.env.judge`. Untuk password, pakai yang acak:
+Fill in `.env.judge`. For the password, generate a random one:
 
 ```bash
 node -e "console.log(require('crypto').randomBytes(18).toString('base64url'))"
 ```
 
-Lalu jalankan seed:
+Then run the seed:
 
 ```bash
 node scripts/seed-judge-demo.mjs
 ```
 
-Script akan menolak jalan bila password kurang dari 16 karakter atau mudah
-ditebak. Script aman dijalankan berulang: fixture lama dihapus dulu, jadi
-workspace juri selalu bersih.
+The script refuses to run if the password is shorter than 16 characters or
+looks guessable, and makes no network call until those checks pass. It is safe
+to re-run: the previous fixture is removed first, so the reviewer workspace is
+always clean.
 
-## Yang akan dilihat juri
+## Handing access to reviewers
 
-Seed memakai RPC `materialize_grantwriter_document` — jalur yang sama persis
-dengan yang dipakai pengguna asli — sehingga datanya konsisten, bukan baris
-yang ditempel manual ke sepuluh tabel.
+The script finishes by printing a ready-to-paste block — URL, email, password,
+and a five-minute walkthrough written for someone who has never seen the
+product. Paste it into the "notes for judges" field on the submission form, or
+send it through whatever private channel the organisers provide.
 
-Program contoh: **Desa Digital Kopi Garut**, digitalisasi rantai pasok kopi
-bersama 300 petani muda di Jawa Barat, anggaran Rp 2,5 miliar, 24 bulan.
+That output contains a password, so do not screenshot it or leave it on screen
+while sharing.
 
-Rantai yang terbentuk:
+Two details in the block that reviewers otherwise get wrong:
 
-1. **Grant Writer** — proposal dan matriks LFA kanonis
-2. **LFA Builder** — goal, purpose, outcomes, outputs berikut indikatornya
-3. **WBS** — struktur kerja bertingkat dengan dependensi dan jalur kritis
-4. **Budget** — item anggaran yang tertaut ke tugas, mengacu SBM 2026
-5. **MEAL** — indikator dengan baseline, target, frekuensi, dan disagregasi
+- They must choose the **Password** tab on the login page. The default is a
+  passwordless magic link, which sends mail to an inbox they do not control.
+- **Language.** Sidebar module names are English, so navigation needs no help.
+  Action buttons inside a page are Indonesian, so the block lists the six an
+  international reviewer actually has to click. The programme content is
+  Indonesian on purpose — Impactory serves Indonesian civil society
+  organisations and the logframe wording is tuned to how local donors read it.
+  Only the public marketing pages carry an English/Indonesian toggle; the
+  dashboard does not. Saying this up front stops a reviewer from reading real
+  product content as an untranslated placeholder, and stops them hunting for a
+  language switch that is not there.
 
-SROI sengaja berhenti sebagai draf yang menunggu validasi. Di tahap desain
-belum ada data lapangan, sehingga rasio SROI apa pun yang ditampilkan di sini
-akan menjadi angka karangan. Yang diperlihatkan adalah modelnya dan input yang
-masih dibutuhkan — itu justru poin metodologis yang layak dinilai.
+## What reviewers will see
 
-## Menyerahkan kredensial ke juri
+The seed drives `materialize_grantwriter_document`, the same RPC a real user
+triggers, so the data is internally consistent rather than rows pasted into ten
+tables by hand.
 
-Tempatkan di kolom "catatan untuk juri" pada formulir submission, atau kirim
-lewat kanal privat panitia. Sertakan:
+Sample programme: **Desa Digital Kopi Garut** — digitalising the coffee supply
+chain with 300 young farmers in West Java, IDR 2.5 billion over 24 months.
 
-```
-URL      : https://impactory.vercel.app/login
-Email    : (isi JUDGE_EMAIL Anda)
-Password : (isi JUDGE_PASSWORD Anda)
-Masuk    : pilih tab "Password" di halaman login
-Program  : Dashboard > LFA Builder > "Desa Digital Kopi Garut (Demo Juri)"
-```
+The chain it produces:
 
-## Setelah penjurian selesai
+1. **Grant Writer** — proposal and canonical logframe matrix
+2. **LFA Builder** — goal, purpose, outcomes, outputs with their indicators
+3. **WBS** — tiered work breakdown with dependencies and critical path
+4. **Budget** — cost lines linked to tasks, priced against Indonesia's
+   government SBM 2026 standard
+5. **MEAL** — indicators with baseline, target, frequency and disaggregation
+
+SROI deliberately stops as an unvalidated draft. There is no field data at
+design stage, so any SROI ratio displayed here would be an invented number.
+What is shown is the model and the inputs still required — which is the
+methodological point worth evaluating.
+
+## After judging
 
 ```bash
 node scripts/seed-judge-demo.mjs --reset
 ```
 
-Perintah itu menghapus data contoh tetapi membiarkan akunnya. Untuk menutup
-akses sepenuhnya, hapus user tersebut dari Supabase Dashboard >
-Authentication > Users, lalu hapus organisasi demonya.
+That removes the sample data but keeps the account. To close access entirely,
+delete the user from Supabase Dashboard > Authentication > Users, then delete
+the demo organisation.
