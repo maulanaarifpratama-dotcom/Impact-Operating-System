@@ -18,6 +18,7 @@ import ContactPage from './pages/landing/ContactPage';
 import PricingPage from './pages/landing/PricingPage';
 import PrivacyPolicyPage from './pages/landing/PrivacyPolicyPage';
 import TermsPage from './pages/landing/TermsPage';
+import Berdaya from './pages/Berdaya';
 
 // Everything behind auth is code-split. The dashboard modules (WBS, Budget,
 // MEAL, SROI, PDF export, charts) are the bulk of the bundle and no anonymous
@@ -158,6 +159,7 @@ const App = () => (
             <Route path="/pricing" element={<PricingPage />} />
             <Route path="/privacy" element={<PrivacyPolicyPage />} />
             <Route path="/terms" element={<TermsPage />} />
+            <Route path="/berdaya" element={<Berdaya />} />
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
