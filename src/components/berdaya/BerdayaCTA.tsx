@@ -1,11 +1,11 @@
 import React from 'react';
-import { ArrowRight, Sparkles, ShieldCheck, HeartHandshake } from 'lucide-react';
+import { ArrowRight, Sparkles, ShieldCheck, HeartHandshake, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { LYNK_URL } from './BerdayaHero';
+import { LYNK_EBOOK_URL, LYNK_PAKET_URL } from './BerdayaHero';
 
 export const BerdayaCTA: React.FC = () => {
   return (
-    <section className="py-20 bg-gradient-to-b from-[#0A1D25] via-[#0D2530] to-[#07161E] relative overflow-hidden">
+    <section className="py-24 bg-gradient-to-b from-[#0A1D25] via-[#0D2530] to-[#07161E] relative overflow-hidden">
       {/* Background Decorative Blur */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-teal-500/15 rounded-full blur-[160px] pointer-events-none" />
 
@@ -19,18 +19,25 @@ export const BerdayaCTA: React.FC = () => {
           </div>
 
           <h2 className="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-tight max-w-3xl mx-auto bg-gradient-to-r from-white via-slate-100 to-teal-200 bg-clip-text text-transparent">
-            Siap Memperkuat Dampak & Akses Pendanaan Organisasi Anda?
+            Siap Memperkuat Fondasi System & Akses Pendanaan Anda?
           </h2>
 
           <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">
-            Dapatkan Paket Berdaya sekarang di Lynk. Nikmati kemudahan pengelolaan program berstandar donor internasional sekaligus berkontribusi dalam Wakaf Masjid Ar-Rustendi.
+            Dapatkan Buku Playbook & Paket Berdaya sekarang di Lynk. Bangun fondasi sistemik organisasi sekaligus berkontribusi dalam Wakaf Masjid Ar-Rustendi.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
-            <a href={LYNK_URL} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
-              <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-bold text-lg px-10 py-7 rounded-xl shadow-xl shadow-teal-500/30 group transition-all duration-300 hover:scale-105">
-                <span>Dapatkan Paket Berdaya di Lynk</span>
+            <a href={LYNK_PAKET_URL} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
+              <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-bold text-lg px-8 py-7 rounded-xl shadow-xl shadow-teal-500/30 group transition-all duration-300 hover:scale-105">
+                <span>Beli Paket Berdaya Complete</span>
                 <ArrowRight className="ml-2 w-6 h-6 group-hover:translate-x-1 transition-transform" />
+              </Button>
+            </a>
+
+            <a href={LYNK_EBOOK_URL} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
+              <Button size="lg" variant="outline" className="w-full sm:w-auto border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-lg px-8 py-7 rounded-xl transition-all duration-300">
+                <BookOpen className="mr-2 w-5 h-5" />
+                <span>Beli Ebook Only</span>
               </Button>
             </a>
           </div>

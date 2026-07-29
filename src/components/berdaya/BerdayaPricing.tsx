@@ -1,7 +1,7 @@
 import React from 'react';
 import { Check, Sparkles, ArrowRight, ShieldCheck, HeartHandshake, Zap } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { LYNK_URL } from './BerdayaHero';
+import { LYNK_EBOOK_URL, LYNK_PAKET_URL } from './BerdayaHero';
 
 export const BerdayaPricing: React.FC = () => {
   return (
@@ -105,7 +105,7 @@ export const BerdayaPricing: React.FC = () => {
                 </div>
 
                 <div className="space-y-3">
-                  <a href={LYNK_URL} target="_blank" rel="noopener noreferrer" className="block w-full">
+                  <a href={LYNK_PAKET_URL} target="_blank" rel="noopener noreferrer" className="block w-full">
                     <Button size="lg" className="w-full bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-bold text-base py-6 rounded-xl shadow-lg shadow-teal-500/25 group transition-all duration-300 hover:scale-105">
                       <span>Beli via Lynk Sekarang</span>
                       <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />

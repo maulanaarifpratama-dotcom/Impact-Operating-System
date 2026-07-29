@@ -1,6 +1,6 @@
 import React from 'react';
 import { Layers, Link2, Sparkles, CheckCircle, ArrowRight, ShieldCheck, BookOpen, Cpu, XCircle } from 'lucide-react';
-import { LYNK_URL } from './BerdayaHero';
+import { LYNK_PAKET_URL } from './BerdayaHero';
 import { Button } from '@/components/ui/button';
 
 export const BerdayaEkosistemHub: React.FC = () => {
@@ -135,7 +135,7 @@ export const BerdayaEkosistemHub: React.FC = () => {
 
         {/* Call to Action */}
         <div className="mt-12 text-center">
-          <a href={LYNK_URL} target="_blank" rel="noopener noreferrer">
+          <a href={LYNK_PAKET_URL} target="_blank" rel="noopener noreferrer">
             <Button size="lg" className="bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-bold text-base px-8 py-6 rounded-xl shadow-xl shadow-teal-500/20 group transition-all duration-300 hover:scale-105">
               <span>Mulai Bangun Fondasi Sistem Sekarang</span>
               <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
