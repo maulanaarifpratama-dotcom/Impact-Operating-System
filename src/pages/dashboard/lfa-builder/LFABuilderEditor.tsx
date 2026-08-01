@@ -1914,6 +1914,38 @@ export default function LFABuilderEditor() {
         </div>
       )}
 
+      {/* STICKY BOTTOM ACTION BAR */}
+      <div className="sticky bottom-0 z-20 -mx-2 -mb-2 mt-6 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-3 md:px-6 shadow-lg flex items-center justify-between no-print rounded-b-xl">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          {saving ? (
+            <span className="flex items-center gap-1.5 font-medium text-amber-600">
+              <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-600" /> Menyimpan draf...
+            </span>
+          ) : lastSaved ? (
+            <span className="flex items-center gap-1.5 font-medium text-emerald-600 dark:text-emerald-400">
+              <Check className="h-3.5 w-3.5 font-bold" /> Tersimpan {lastSaved.toLocaleTimeString('id-ID')}
+            </span>
+          ) : (
+            <span>Autosave aktif</span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={pdfLoading}>
+            {pdfLoading ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Download className="mr-1.5 h-3.5 w-3.5" />}
+            Export PDF
+          </Button>
+          <Button
+            size="sm"
+            className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium"
+            onClick={handleExportToGrantwriter}
+            disabled={exportingToGrantwriter}
+          >
+            {exportingToGrantwriter ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+            Generate Proposal &rarr;
+          </Button>
+        </div>
+      </div>
+
       {/* Delete Entry Confirm Dialog */}
       <ConfirmDialog
         open={!!deleteEntryTarget}

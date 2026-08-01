@@ -1170,17 +1170,17 @@ export default function MonthlyImpactReport() {
         </div>
       </Card>
 
-      {/* Footer Navigation bar */}
-      <Card className="no-print flex flex-col gap-3 p-5 shadow-card md:flex-row md:items-center md:justify-between md:p-6">
+      {/* STICKY BOTTOM ACTION BAR */}
+      <Card className="no-print sticky bottom-0 z-20 flex flex-col gap-3 p-3.5 md:px-6 shadow-lg bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-t md:flex-row md:items-center md:justify-between border-slate-200 dark:border-slate-800">
         <div>
-          <h2 className="text-xl font-semibold">Progres terus berlanjut</h2>
-          <p className="text-sm text-muted-foreground">Kembali ke dashboard utama atau simpan dokumen ke arsip pusat di Impact Library.</p>
+          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">Progres Operasional Terus Berlanjut</h2>
+          <p className="text-xs text-muted-foreground">Kembali ke dashboard utama atau simpan dokumen ke arsip pusat di Impact Library.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" className="h-9 text-xs">
+          <Button asChild variant="outline" size="sm" className="h-8 text-xs">
             <Link to="/dashboard">Kembali ke Dashboard</Link>
           </Button>
-          <Button asChild className="h-9 text-xs">
+          <Button asChild size="sm" className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white">
             <Link to="/dashboard/impactory-library">Buka Impact Library</Link>
           </Button>
         </div>

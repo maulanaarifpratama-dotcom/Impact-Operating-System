@@ -1371,6 +1371,36 @@ export default function GrantWriterProposal() {
               />
             </CardContent>
           </Card>
+
+          {/* STICKY BOTTOM ACTION BAR */}
+          <div className="sticky bottom-0 z-20 -mx-2 -mb-2 mt-6 bg-white/95 dark:bg-slate-950/95 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 p-3 md:px-6 shadow-lg flex items-center justify-between no-print rounded-b-xl">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300 text-xs">
+                Proposal Draf · Versi {doc.version}
+              </Badge>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={handleDownload}>
+                <Download className="mr-1.5 h-3.5 w-3.5" /> Markdown
+              </Button>
+              <Button variant="default" size="sm" onClick={handlePrintPdf}>
+                <Printer className="mr-1.5 h-3.5 w-3.5" /> Unduh PDF
+              </Button>
+              <Button
+                size="sm"
+                className="bg-indigo-600 text-white hover:bg-indigo-700"
+                disabled={materializing}
+                onClick={handleMaterializeRequest}
+              >
+                {materializing ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                ) : (
+                  <Play className="h-3.5 w-3.5 fill-current mr-1" />
+                )}
+                {completed ? 'Buka Program Workspace' : 'Materialisasikan LFA'}
+              </Button>
+            </div>
+          </div>
         </>
       )}
     </div>
