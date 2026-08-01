@@ -1756,6 +1756,32 @@ export default function GrantWriterQuickWizardProvisional() {
           const createdBy = authData?.user?.id;
           if (!createdBy) throw new Error('No authenticated user; cannot own gw_projects row.');
 
+          /**
+           * Preserve `_mode: 'quick'` — it is the only thing keeping the two
+           * wizards out of each other's way.
+           *
+           * GrantWriterIndex stamps `wizard_data._mode = 'quick'` when it creates
+           * the project. GrantWriterRouteGuard reads that flag to decide which
+           * wizard to render, and GrantWriterWizard reads it to bounce back if it
+           * is rendered for a quick project. This upsert used to replace
+           * wizard_data wholesale with `{ lfa_project_id, canonicalPayload }`,
+           * dropping the flag — so the moment a quick project finished
+           * materializing, the guard stopped recognising it as quick and sent the
+           * author into the professional wizard instead. Verified in production:
+           * every project whose wizard_data is the canonical shape has no _mode,
+           * while an unmaterialized quick project still carries it.
+           *
+           * Merge rather than overwrite, so any key a later step depends on
+           * survives materialization too.
+           */
+          const { data: existingProject } = await supabase
+            .from('gw_projects')
+            .select('wizard_data')
+            .eq('id', targetProjectId)
+            .maybeSingle();
+
+          const existingWizardData = (existingProject?.wizard_data ?? {}) as Record<string, unknown>;
+
           await supabase
             .from('gw_projects')
             .upsert({
@@ -1766,6 +1792,8 @@ export default function GrantWriterQuickWizardProvisional() {
               summary: proposedTitle,
               status: 'generating',
               wizard_data: toJson({
+                ...existingWizardData,
+                _mode: 'quick',
                 lfa_project_id: targetProjectId,
                 canonicalPayload: effectiveCanonicalPayload
               }),
