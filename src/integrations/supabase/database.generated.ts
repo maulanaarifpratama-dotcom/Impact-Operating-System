@@ -1948,9 +1948,11 @@ export type Database = {
           name: string
           notes: string | null
           org_id: string
+          owner_id: string | null
           parent_id: string | null
           pic: string | null
           progress_percent: number
+          reviewer_id: string | null
           sort_order: number | null
           source_task_id: string | null
           start_month: number | null
@@ -1981,9 +1983,11 @@ export type Database = {
           name: string
           notes?: string | null
           org_id: string
+          owner_id?: string | null
           parent_id?: string | null
           pic?: string | null
           progress_percent?: number
+          reviewer_id?: string | null
           sort_order?: number | null
           source_task_id?: string | null
           start_month?: number | null
@@ -2014,9 +2018,11 @@ export type Database = {
           name?: string
           notes?: string | null
           org_id?: string
+          owner_id?: string | null
           parent_id?: string | null
           pic?: string | null
           progress_percent?: number
+          reviewer_id?: string | null
           sort_order?: number | null
           source_task_id?: string | null
           start_month?: number | null

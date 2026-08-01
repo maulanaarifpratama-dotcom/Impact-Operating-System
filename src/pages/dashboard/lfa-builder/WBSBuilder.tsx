@@ -246,6 +246,42 @@ export default function WBSBuilder({
   const [reviewNote, setReviewNote] = useState('');
   const [submittingReview, setSubmittingReview] = useState(false);
 
+  // Organization Members State for Owner & Reviewer Assignment (Sprint 2)
+  const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; full_name: string; email: string }>>([]);
+
+  const loadOrgMembers = useCallback(async () => {
+    if (!orgId) return;
+    try {
+      const { data: members, error: memErr } = await supabase
+        .from('organization_members')
+        .select('user_id')
+        .eq('organization_id', orgId);
+
+      if (memErr) throw memErr;
+      if (!members || members.length === 0) return;
+
+      const userIds = members.map((m) => m.user_id).filter(Boolean);
+      if (userIds.length === 0) return;
+
+      const { data: profiles, error: profErr } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+
+      if (!profErr && profiles) {
+        setOrgMembers(
+          profiles.map((p) => ({
+            user_id: p.id,
+            full_name: p.full_name || p.email || 'Anggota Tim',
+            email: p.email || '',
+          }))
+        );
+      }
+    } catch (err) {
+      console.warn('[WBSBuilder] Error loading org members for ownership:', err);
+    }
+  }, [orgId]);
+
 
   // AI Suggestion Dialog States
   const [aiSuggestOpen, setAiSuggestOpen] = useState(false);
@@ -545,6 +581,7 @@ export default function WBSBuilder({
     try {
       void loadBudgetTotals();
       void loadClaimsAndEvidence();
+      void loadOrgMembers();
 
       const { data, error: wbsError } = await supabase
         .from('lfa_wbs_items')
@@ -1709,13 +1746,15 @@ export default function WBSBuilder({
         {/* LEFT COLUMN (60%): Interactive Tree Sheet */}
         <div className="lg:col-span-3 border-r divide-y overflow-x-auto min-w-0 max-h-[600px] overflow-y-auto">
           {/* Row Headers */}
-          <div className="flex bg-slate-50 dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-500 py-3 px-4 min-w-[850px] gap-2">
+          <div className="flex bg-slate-50 dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-500 py-3 px-4 min-w-[980px] gap-2">
             <div className="flex-1 min-w-[280px]">Deskripsi WBS Tree</div>
             <div className="w-16 text-center shrink-0">Progres</div>
             <div className="w-24 text-center shrink-0">Status</div>
             <div className="w-14 text-center shrink-0">Bulan</div>
             <div className="w-14 text-center shrink-0">Mgg/Hari</div>
             <div className="w-20 text-left shrink-0">PIC</div>
+            <div className="w-24 text-left shrink-0">Owner</div>
+            <div className="w-24 text-left shrink-0">Reviewer</div>
             {globalMode === 'professional' && <div className="w-20 text-left shrink-0">Metode</div>}
             <div className="w-8 shrink-0"></div>
           </div>
@@ -2160,6 +2199,60 @@ export default function WBSBuilder({
                           }}
                           className="text-[10px] w-full bg-transparent border-b border-transparent hover:border-slate-200 dark:hover:border-slate-800 focus:outline-none py-0.5 font-normal truncate"
                         />
+                      )}
+                    </div>
+
+                    {/* Owner column (Sprint 2) */}
+                    <div className="w-24">
+                      {item.level === 2 ? (
+                        <select
+                          value={item.owner_id || ''}
+                          data-testid="wbs-owner-select"
+                          onChange={(e) => {
+                            const val = e.target.value || null;
+                            const updated = { ...item, owner_id: val };
+                            updateItemLocally(updated);
+                            triggerAutosave(updated);
+                          }}
+                          className="text-[10px] w-full border bg-transparent rounded px-1 h-6 focus:outline-none dark:border-slate-800 truncate"
+                          title="Pelaksana Utama / Activity Owner"
+                        >
+                          <option value="">-- Owner --</option>
+                          {orgMembers.map((m) => (
+                            <option key={m.user_id} value={m.user_id}>
+                              {m.full_name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">-</span>
+                      )}
+                    </div>
+
+                    {/* Reviewer column (Sprint 2) */}
+                    <div className="w-24">
+                      {item.level === 2 ? (
+                        <select
+                          value={item.reviewer_id || ''}
+                          data-testid="wbs-reviewer-select"
+                          onChange={(e) => {
+                            const val = e.target.value || null;
+                            const updated = { ...item, reviewer_id: val };
+                            updateItemLocally(updated);
+                            triggerAutosave(updated);
+                          }}
+                          className="text-[10px] w-full border bg-transparent rounded px-1 h-6 focus:outline-none dark:border-slate-800 truncate"
+                          title="Peninjau / Reviewer (Sign-off)"
+                        >
+                          <option value="">-- Reviewer --</option>
+                          {orgMembers.map((m) => (
+                            <option key={m.user_id} value={m.user_id}>
+                              {m.full_name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground">-</span>
                       )}
                     </div>
 

@@ -50,6 +50,8 @@ export interface WbsItem {
   id: string;
   lfa_project_id: string;
   lfa_entry_id?: string | null;
+  owner_id?: string | null;
+  reviewer_id?: string | null;
   org_id: string;
   level: 1 | 2 | 3 | 4;
   parent_id: string | null;
