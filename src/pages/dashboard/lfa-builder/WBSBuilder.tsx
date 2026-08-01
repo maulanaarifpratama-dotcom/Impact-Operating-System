@@ -4,7 +4,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/providers/AuthProvider';
 import {
   WbsItem, WbsStatus, LfaEntry, LfaProject,
-  WbsCompletionClaim, WbsCompletionEvidence, WbsCompletionClaimStatus, WbsEvidenceType
+  WbsCompletionClaim, WbsCompletionEvidence, WbsCompletionClaimStatus, WbsEvidenceType,
+  WbsFinancialStatus, WbsBlockerCategory
 } from './types';
 import { CARBON_FACTORS_INDONESIA } from '@/data/carbon-factors-indonesia';
 import {
