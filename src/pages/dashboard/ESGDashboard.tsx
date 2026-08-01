@@ -4,9 +4,11 @@ import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ExecutiveOverviewCards } from '@/components/esg/ExecutiveOverviewCards';
+import { ExecutiveSummaryCard } from '@/components/esg/ExecutiveSummaryCard';
+import { OverviewCharts } from '@/components/esg/OverviewCharts';
 import { EnvironmentTab } from '@/components/esg/EnvironmentTab';
 import { SocialTab } from '@/components/esg/SocialTab';
 import { GovernanceTab } from '@/components/esg/GovernanceTab';
@@ -24,20 +26,26 @@ export default function ESGDashboard() {
 
   useEffect(() => {
     async function loadData() {
-      if (!user?.id) return;
       setLoading(true);
 
       try {
-        // Fetch Organization membership
-        const { data: member } = await supabase
-          .from('organization_members')
-          .select('organization_id, organizations(id, name)')
-          .eq('user_id', user.id)
-          .limit(1)
-          .maybeSingle();
+        const userId = user?.id;
+        let orgId = 'demo-org';
+        let orgName = 'Organisasi Impactory';
 
-        const orgId = member?.organization_id || 'demo-org';
-        const orgName = (member?.organizations as any)?.name || 'Organisasi Impactory';
+        if (userId) {
+          const { data: member } = await supabase
+            .from('organization_members')
+            .select('organization_id, organizations(id, name)')
+            .eq('user_id', userId)
+            .limit(1)
+            .maybeSingle();
+
+          if (member?.organization_id) {
+            orgId = member.organization_id;
+            orgName = (member.organizations as any)?.name || orgName;
+          }
+        }
 
         setOrgInfo({ id: orgId, name: orgName });
 
@@ -111,7 +119,7 @@ export default function ESGDashboard() {
           </TabsTrigger>
         </TabsList>
 
-        {/* TAB 1: OVERVIEW */}
+        {/* TAB 1: OVERVIEW (EXECUTIVE DASHBOARD ONLY) */}
         <TabsContent value="overview" className="space-y-6">
           {loading || !esgData ? (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-pulse">
@@ -121,52 +129,45 @@ export default function ESGDashboard() {
             </div>
           ) : (
             <>
+              {/* SECTION 1: 4 HERO CARDS ONLY */}
               <ExecutiveOverviewCards data={esgData} />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
-                <EnvironmentTab data={esgData.environment} />
-                <SocialTab data={esgData.social} />
-              </div>
+
+              {/* SECTION 2: EXECUTIVE SUMMARY CARD */}
+              <ExecutiveSummaryCard data={esgData} />
+
+              {/* SECTION 3: HIGH LEVEL VISUAL SUMMARY */}
+              <OverviewCharts data={esgData} />
             </>
           )}
         </TabsContent>
 
-        {/* TAB 2: ENVIRONMENT */}
+        {/* TAB 2: ENVIRONMENT (OWN DOMAIN CONTENT ONLY) */}
         <TabsContent value="environment" className="space-y-6">
           {esgData && <EnvironmentTab data={esgData.environment} />}
         </TabsContent>
 
-        {/* TAB 3: SOCIAL */}
+        {/* TAB 3: SOCIAL (OWN DOMAIN CONTENT ONLY) */}
         <TabsContent value="social" className="space-y-6">
           {esgData && <SocialTab data={esgData.social} />}
         </TabsContent>
 
-        {/* TAB 4: GOVERNANCE */}
+        {/* TAB 4: GOVERNANCE (OWN DOMAIN CONTENT ONLY) */}
         <TabsContent value="governance" className="space-y-6">
           {esgData && <GovernanceTab data={esgData.governance} />}
         </TabsContent>
 
-        {/* TAB 5: SDGS MATRIX */}
+        {/* TAB 5: SDGS MATRIX (OWN DOMAIN CONTENT ONLY) */}
         <TabsContent value="sdgs" className="space-y-6">
           {esgData && <SDGTab data={esgData.sdgs} />}
         </TabsContent>
       </Tabs>
 
       {/* SUMMARY NOTE & GOVERNANCE GUARANTEE */}
-      <Card className="bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            <Shield className="w-4 h-4 text-emerald-600" />
-            Jaminan Integritas Data ESG (ADR-0002 Compliant)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-xs text-slate-600 dark:text-slate-400 space-y-1">
-          <p>
-            • Seluruh metrik Lingkungan, Sosial, dan Tata Kelola bersifat <strong>Read-Only</strong> dan dihimpun dari fondasi kanonis LFA, WBS, Budget, dan MEAL.
-          </p>
-          <p>
-            • Dashboard ESG ini <strong>tidak menciptakan aktivitas, hasil, atau anggaran paralel</strong> untuk menjamin kepatuhan mutlak terhadap arsitektur Impactory.
-          </p>
-        </CardContent>
+      <Card className="bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 p-4">
+        <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-slate-300">
+          <Shield className="w-4 h-4 text-emerald-600 shrink-0" />
+          <span>Jaminan Integritas Data ESG (ADR-0002 & ADR-0003 Compliant): Seluruh metrik bersifat Read-Only dan teragregasi otomatis dari LFA, WBS, RAB, MEAL, dan Beneficiaries.</span>
+        </div>
       </Card>
     </div>
   );
