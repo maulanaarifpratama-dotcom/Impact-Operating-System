@@ -9,23 +9,18 @@ import { useAuth } from '@/providers/AuthProvider';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { numericOrNull } from '@/lib/utils';
 import {
   Leaf,
   ArrowRight,
   AlertTriangle,
   Building2,
-  Calendar,
-  Layers,
   Trees as TreesIcon,
   TrendingDown,
   TrendingUp,
   Info,
-  Activity,
-  ArrowUpRight,
-  ExternalLink,
   Loader2
 } from 'lucide-react';
+import { calculateCarbonSummary } from '@/lib/carbon';
 
 interface SummaryMetrics {
   total: number;
@@ -133,53 +128,25 @@ export default function EROIStandalone() {
     enabled: !!orgId
   });
 
-  // --- COMPUTE SUMMARY (NO EXTRA QUERY) ---
+  // --- COMPUTE SUMMARY USING SHARED CARBON ENGINE ---
   const summary = useMemo<SummaryMetrics>(() => {
     if (!tableData) {
       return { total: 0, reduction: 0, emission: 0, trees: 0, count: 0, missingQtyCount: 0, scope1: 0, scope2: 0, scope3: 0, unassignedScopeCount: 0 };
     }
 
-    let total = 0;
-    let reduction = 0;
-    let emission = 0;
-    let missingQtyCount = 0;
-    let scope1 = 0;
-    let scope2 = 0;
-    let scope3 = 0;
-    let unassignedScopeCount = 0;
-
-    for (const item of tableData) {
-      if (item.carbon_factor == null) continue;
-
-      const qty = numericOrNull(item.carbon_quantity);
-      if (qty === null) {
-        missingQtyCount++;
-        continue;
-      }
-
-      const impact = Number(item.carbon_factor) * qty;
-
-      total += impact;
-      if (impact < 0) reduction += Math.abs(impact);
-      else emission += impact;
-
-      if (item.carbon_scope === 'scope_1') scope1 += impact;
-      else if (item.carbon_scope === 'scope_2') scope2 += impact;
-      else if (item.carbon_scope === 'scope_3') scope3 += impact;
-      else unassignedScopeCount++;
-    }
+    const calculated = calculateCarbonSummary(tableData);
 
     return {
-      total,
-      reduction,
-      emission,
-      trees: Math.abs(total) / 5,
+      total: calculated.net_impact_kg,
+      reduction: calculated.gross_reduction_kg,
+      emission: calculated.gross_emission_kg,
+      trees: calculated.trees_equivalent,
       count: tableData.length,
-      missingQtyCount,
-      scope1,
-      scope2,
-      scope3,
-      unassignedScopeCount
+      missingQtyCount: calculated.missing_quantity_count,
+      scope1: calculated.scope_breakdown.scope1_kg,
+      scope2: calculated.scope_breakdown.scope2_kg,
+      scope3: calculated.scope_breakdown.scope3_kg,
+      unassignedScopeCount: calculated.scope_breakdown.unassigned_count
     };
   }, [tableData]);
 
