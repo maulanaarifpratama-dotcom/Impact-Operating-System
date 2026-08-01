@@ -37,11 +37,21 @@ jobs:
 
       - name: Deploy all edge functions
         run: |
-          set -euo pipefail
+          set -uo pipefail
           cd supabase/functions
           # Iterate over every function directory except _shared.
           # _shared is imported via relative paths and ships with each
           # function bundle, so it does not need its own deploy.
+          #
+          # This loop used to run under `set -e`, which aborted the whole step on
+          # the first failing function. Because the loop is alphabetical, one
+          # broken function silently prevented every function after it from
+          # deploying at all — a `grantfinder-search` bundling failure left the
+          # twelve functions from `lfa-ai-draft` onward on their previous
+          # versions, with nothing in the log saying so. Deploy every function
+          # that can deploy, then fail the job with the full list, so a single
+          # broken bundle is visible without also being a blocker.
+          failed=""
           for dir in */ ; do
             name="${dir%/}"
             if [ "$name" = "_shared" ]; then
@@ -49,10 +59,21 @@ jobs:
               continue
             fi
             echo "::group::Deploying $name"
-            supabase functions deploy "$name" \
-              --project-ref "$SUPABASE_PROJECT_ID"
+            if supabase functions deploy "$name" --project-ref "$SUPABASE_PROJECT_ID"; then
+              echo "Deployed $name"
+            else
+              echo "::error title=Edge function deploy failed::$name"
+              failed="$failed $name"
+            fi
             echo "::endgroup::"
           done
+
+          if [ -n "$failed" ]; then
+            echo "### Failed to deploy:$failed" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
+            echo "Failed to deploy:$failed"
+            exit 1
+          fi
+          echo "All edge functions deployed."
 
       - name: Summary
         if: always()
