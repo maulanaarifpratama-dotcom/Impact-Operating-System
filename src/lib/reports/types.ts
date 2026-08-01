@@ -1,9 +1,15 @@
 // src/lib/reports/types.ts
 import { ESGSummaryPayload } from '@/lib/esg/types';
 
-export type ReportTemplateType = 'GRI' | 'SEOJK' | 'SDG' | 'EXECUTIVE';
+export type ReportTemplateType = 'GRI' | 'SEOJK' | 'SDG' | 'EXECUTIVE' | 'SEOJK_16_2021' | 'SDG_MATRIX' | 'EXECUTIVE_BRIEF';
 
 export interface UnifiedReportPayload {
+  metadata?: {
+    generated_at: string;
+    template_type: ReportTemplateType;
+    period: string;
+    compiler_version: string;
+  };
   organization: {
     id: string;
     name: string;
@@ -14,23 +20,24 @@ export interface UnifiedReportPayload {
     name?: string;
     goal_statement?: string;
     purpose_statement?: string;
+    total_budget_idr?: number;
   };
-  execution_summary: {
+  execution_summary?: {
     total_wbs_activities: number;
     completed_activities: number;
     completion_rate_percentage: number;
     evidence_verification_rate: number;
   };
-  financial_summary: {
+  financial_summary?: {
     total_planned_budget_idr: number;
     total_actual_spend_idr: number;
     budget_realization_percentage: number;
   };
-  performance_results: {
+  performance_results?: {
     total_indicators_tracked: number;
     average_target_achievement_percentage: number;
   };
-  social_impact: {
+  social_impact?: {
     total_beneficiaries: number;
     female_percentage: number;
     youth_percentage: number;
@@ -38,7 +45,7 @@ export interface UnifiedReportPayload {
     social_value_generated_idr: number;
     sroi_ratio: number;
   };
-  environmental_impact: {
+  environmental_impact?: {
     gross_emissions_kg: number;
     gross_reductions_kg: number;
     net_impact_co2e_kg: number;
@@ -62,8 +69,5 @@ export interface ReportSnapshotRecord {
   report_type: ReportTemplateType;
   report_period: string;
   snapshot_json: UnifiedReportPayload;
-  pdf_storage_url?: string | null;
-  docx_storage_url?: string | null;
-  created_by?: string | null;
   created_at: string;
 }

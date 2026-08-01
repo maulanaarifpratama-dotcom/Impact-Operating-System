@@ -156,27 +156,27 @@ export default function BudgetCalculator({
         .eq('id', projectId)
         .maybeSingle();
        if (proj) {
-        setProject(proj as LfaProject);
-        if (proj.linked_grant_id) {
-           const { data: prop } = await supabase
-             .from('gw_projects')
-             .select('budget_idr, wizard_data, metadata')
-             .eq('id', proj.linked_grant_id)
-             .maybeSingle();
-           if (prop) {
-             const targetBgt = Number(prop.budget_idr) ||
-                               Number((prop.wizard_data as any)?.budgetIdr) ||
-                               Number((prop.metadata as any)?.total_budget_idr) ||
-                               null;
-             if (targetBgt) {
-               setProposalBudget(targetBgt);
-             }
-           }
-        }
-        if (proj.target_budget_idr) {
-          setProposalBudget(Number(proj.target_budget_idr));
-        }
-      }
+        setProject(proj as LfaProject);         if (proj.linked_grant_id) {
+            const { data: prop } = await supabase
+              .from('gw_projects' as any)
+              .select('budget_idr, wizard_data, metadata')
+              .eq('id', proj.linked_grant_id)
+              .maybeSingle();
+            if (prop) {
+              const p = prop as any;
+              const targetBgt = Number(p.budget_idr) ||
+                                Number((p.wizard_data as any)?.budgetIdr) ||
+                                Number((p.metadata as any)?.total_budget_idr) ||
+                                null;
+              if (targetBgt) {
+                setProposalBudget(targetBgt);
+              }
+            }
+         }
+         if ((proj as any).target_budget_idr) {
+           setProposalBudget(Number((proj as any).target_budget_idr));
+         }
+       }  
 
       // 2. Fetch Level 2 WBS Activities (Fallback to Level 1 if none exist)
       let { data: wbs, error: wbsErr } = await supabase

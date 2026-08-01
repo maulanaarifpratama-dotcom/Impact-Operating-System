@@ -57,7 +57,7 @@ export default function SustainabilityReports() {
       const compiledPayload = await compileSustainabilityReport(orgInfo.id, undefined, selectedTemplate);
 
       // 2. Save immutable snapshot into esg_report_snapshots
-      const snapshot = await saveReportSnapshot(orgInfo.id, compiledPayload, selectedTemplate);
+      const snapshot = await saveReportSnapshot(orgInfo.id, selectedTemplate, compiledPayload);
 
       if (snapshot) {
         setCurrentSnapshot(snapshot);

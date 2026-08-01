@@ -1,19 +1,17 @@
 // src/lib/reports/snapshot.ts
 import { supabase } from '@/integrations/supabase/client';
 import { UnifiedReportPayload, ReportSnapshotRecord, ReportTemplateType } from './types';
-import { REPORT_TEMPLATES } from './templates';
 
 /**
- * Saves a compiled report payload as an immutable snapshot in Supabase `esg_report_snapshots`.
+ * Saves an immutable snapshot of a compiled Sustainability Report to Supabase.
  */
 export async function saveReportSnapshot(
   orgId: string,
-  payload: UnifiedReportPayload,
-  templateType: ReportTemplateType = 'GRI',
-  period: string = '2026'
-): Promise<ReportSnapshotRecord | null> {
-  const templateMeta = REPORT_TEMPLATES[templateType] || REPORT_TEMPLATES.GRI;
-  const reportTitle = `${templateMeta.title} - ${payload.organization.name} (${period})`;
+  templateType: ReportTemplateType,
+  payload: UnifiedReportPayload
+): Promise<ReportSnapshotRecord> {
+  const period = payload.metadata.period;
+  const reportTitle = `Laporan Keberlanjutan ${templateType} - ${period}`;
 
   try {
     const { data, error } = await supabase
@@ -23,7 +21,7 @@ export async function saveReportSnapshot(
         report_title: reportTitle,
         report_type: templateType,
         report_period: period,
-        snapshot_json: payload,
+        snapshot_json: payload as any,
       })
       .select()
       .single();
@@ -41,7 +39,7 @@ export async function saveReportSnapshot(
       };
     }
 
-    return data as ReportSnapshotRecord;
+    return data as unknown as ReportSnapshotRecord;
   } catch (err) {
     console.error('Snapshot Storage Exception:', err);
     return {
@@ -68,7 +66,7 @@ export async function getOrgReportSnapshots(orgId: string): Promise<ReportSnapsh
       .order('created_at', { ascending: false });
 
     if (error || !data) return [];
-    return data as ReportSnapshotRecord[];
+    return data as unknown as ReportSnapshotRecord[];
   } catch (err) {
     console.warn('Could not fetch report snapshots:', err);
     return [];
