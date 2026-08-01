@@ -1781,6 +1781,16 @@ export default function GrantWriterQuickWizardProvisional() {
             .maybeSingle();
 
           const existingWizardData = (existingProject?.wizard_data ?? {}) as Record<string, unknown>;
+          const approvedBudgetIdrRaw = snapshot?.programFacts?.budgetIdr;
+          const approvedBudgetIdr =
+            typeof approvedBudgetIdrRaw === 'number'
+              ? approvedBudgetIdrRaw
+              : (typeof approvedBudgetIdrRaw === 'string' && approvedBudgetIdrRaw.trim() !== '' && approvedBudgetIdrRaw !== 'unknown' && approvedBudgetIdrRaw !== 'unentered'
+                  ? Number(approvedBudgetIdrRaw)
+                  : null);
+          const effectiveBudgetIdr = Number.isFinite(approvedBudgetIdr as number) && (approvedBudgetIdr as number) > 0
+            ? (approvedBudgetIdr as number)
+            : (typeof budgetIdr === 'number' && budgetIdr > 0 ? budgetIdr : null);
 
           await supabase
             .from('gw_projects')
@@ -1791,10 +1801,12 @@ export default function GrantWriterQuickWizardProvisional() {
               title: effectiveCanonicalPayload.metadata?.title || proposedTitle || 'Clean Water Access Program, Sumba',
               summary: proposedTitle,
               status: 'generating',
+              budget_idr: effectiveBudgetIdr,
               wizard_data: toJson({
                 ...existingWizardData,
                 _mode: 'quick',
                 lfa_project_id: targetProjectId,
+                ...(effectiveBudgetIdr !== null ? { budgetIdr: effectiveBudgetIdr } : {}),
                 canonicalPayload: effectiveCanonicalPayload
               }),
               updated_at: new Date().toISOString()
@@ -1819,7 +1831,7 @@ export default function GrantWriterQuickWizardProvisional() {
                 acceptedInterventions,
                 acceptedSdgs,
                 acceptedActorRoles,
-                programFacts: snapshot?.programFacts || []
+                programFacts: snapshot?.programFacts || {}
               },
               beneficiaryCount: effectiveCanonicalPayload.metadata?.beneficiary_count || 4500
             }

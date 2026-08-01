@@ -1422,11 +1422,44 @@ Return JSON with this exact schema:
       console.error('LFA entry materialization failed (continuing):', detail);
     }
 
-    // 6. Mark project completed
-    await ctx.supabase
+    // 6. Mark project completed and normalize canonical budget fields for downstream modules
+    const normalizedBudgetIdr =
+      typeof finalBudgetIdr === 'number' && Number.isFinite(finalBudgetIdr) && finalBudgetIdr > 0
+        ? finalBudgetIdr
+        : (typeof project.budget_idr === 'number' && Number.isFinite(project.budget_idr) && project.budget_idr > 0
+            ? project.budget_idr
+            : null);
+
+    const mergedWizardData = {
+      ...(project.wizard_data as Record<string, unknown> || {}),
+      ...(normalizedBudgetIdr !== null ? { budgetIdr: normalizedBudgetIdr } : {}),
+    };
+
+    const mergedMetadata = {
+      ...(project.metadata as Record<string, unknown> || {}),
+      ...(normalizedBudgetIdr !== null ? { total_budget_idr: normalizedBudgetIdr } : {}),
+    };
+
+    const baseCompletionUpdate = {
+      status: 'completed',
+      budget_idr: normalizedBudgetIdr,
+      wizard_data: mergedWizardData,
+    };
+
+    const withMetadataAttempt = await ctx.supabase
       .from('gw_projects')
-      .update({ status: 'completed' })
+      .update({
+        ...baseCompletionUpdate,
+        metadata: mergedMetadata,
+      } as any)
       .eq('id', body.projectId);
+
+    if (withMetadataAttempt.error && String(withMetadataAttempt.error.message || '').includes("'metadata' column")) {
+      await ctx.supabase
+        .from('gw_projects')
+        .update(baseCompletionUpdate as any)
+        .eq('id', body.projectId);
+    }
 
     // 7. Log to ai_generations (use admin client to bypass RLS for audit logging)
     try {

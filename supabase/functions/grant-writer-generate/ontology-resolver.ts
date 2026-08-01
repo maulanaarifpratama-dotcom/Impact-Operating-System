@@ -195,6 +195,8 @@ export function buildProgramFactsForPrompt(input: any): ProgramFacts {
   const project = input?.project || {};
   const wizardData = input?.wizard_data || {};
   const wizardContext = wizardData?.context || {};
+  const canonicalPayload = wizardData?.canonicalPayload || {};
+  const canonicalMeta = canonicalPayload?.metadata || {};
 
   /**
    * The wizard encodes "the author did not tell us" as the literal strings
@@ -233,7 +235,19 @@ export function buildProgramFactsForPrompt(input: any): ProgramFacts {
     durationMonths = Number(rawDuration);
   }
 
-  const rawBudget = pFacts.budgetIdr ?? project.budget_idr ?? wizardContext.budgetIdr;
+  const rawBudget =
+    pFacts.budgetIdr
+    ?? pFacts.budget_idr
+    ?? pFacts.fundingAmount
+    ?? pFacts.funding_amount
+    ?? project.budget_idr
+    ?? wizardData.budgetIdr
+    ?? wizardData.budget_idr
+    ?? wizardContext.budgetIdr
+    ?? canonicalMeta.budgetIdr
+    ?? canonicalMeta.budget_idr
+    ?? canonicalMeta.fundingAmount
+    ?? canonicalMeta.funding_amount;
   let budgetIdr: number | null = null;
   if (rawBudget !== undefined && rawBudget !== null && rawBudget !== '' && Number(rawBudget) > 0) {
     budgetIdr = Number(rawBudget);

@@ -25,6 +25,8 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { computeEvmVarianceFlag } from './evmVariance';
 import { appStylesheetTags, finalizePrintWindow } from '@/lib/print/printWindow';
+import { resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
+import { evaluateMirrorBudgetModel } from '@/lib/budget/mirrorBudgetModel';
 import type { Database } from '@/integrations/supabase/database.generated';
 
 type WbsClaimInsert = Database['public']['Tables']['wbs_completion_claims']['Insert'];
@@ -197,6 +199,7 @@ export default function WBSBuilder({
   const [globalMode, setGlobalMode] = useState<'simple' | 'professional'>('simple');
   const [budgetTotals, setBudgetTotals] = useState<Record<string, number>>({});
   const [rawBudgetItems, setRawBudgetItems] = useState<RawBudgetItem[]>([]);
+  const [targetBudget, setTargetBudget] = useState<number | null>(null);
   const [carbonMode, setCarbonMode] = useState(false);
 
   // Dynamic Row Heights tracking for auto-height text wrapping alignment
@@ -416,7 +419,7 @@ export default function WBSBuilder({
         const totals: Record<string, number> = {};
         data.forEach((item) => {
           if (item && item.wbs_item_id) {
-            const vol = Number(item.volume) || 1;
+            const vol = Number(item.volume) || 0;
             const price = Number(item.unit_price_idr) || 0;
             totals[item.wbs_item_id] = (totals[item.wbs_item_id] || 0) + (vol * price);
           }
@@ -427,6 +430,15 @@ export default function WBSBuilder({
       console.error('Failed to load budget totals:', err);
     }
   };
+
+  const loadTargetBudget = useCallback(async () => {
+    try {
+      const resolved = await resolveTargetBudgetForLfaProject(supabase as any, projectId);
+      setTargetBudget(resolved);
+    } catch (err) {
+      console.warn('[WBSBuilder] Failed to load target budget reference:', err);
+    }
+  }, [projectId]);
 
   // Helper: Get all descendant WBS item IDs (including the item itself)
   const getSubtreeWbsIds = (itemId: string): string[] => {
@@ -462,7 +474,7 @@ export default function WBSBuilder({
     let hasRealization = false;
 
     linkedItems.forEach((b) => {
-      const vol = Number(b.volume) || 1;
+      const vol = Number(b.volume) || 0;
       const price = Number(b.unit_price_idr) || 0;
       plannedTotal += vol * price;
 
@@ -491,6 +503,18 @@ export default function WBSBuilder({
     const allWbsIds = wbsItems.map((i) => i.id);
     return computeBudgetRollup(allWbsIds);
   }, [wbsItems, rawBudgetItems]);
+
+  const detailedBudget = programBudgetRollup.plannedTotal;
+  const mirror = evaluateMirrorBudgetModel({
+    targetBudget,
+    detailedBudget,
+    budgetRowCount: programBudgetRollup.itemCount,
+  });
+  const hasTargetBudget = mirror.hasTargetBudget;
+  const coveragePercent = mirror.coveragePct;
+  const gapAmount = mirror.gapBudget;
+  const hasBudgetRows = mirror.hasBudgetRows;
+  const wbsBudgetStatus = mirror.statusLabel;
 
   // Load Claims and Evidence (WBS-P1A-3B)
   const loadClaimsAndEvidence = async () => {
@@ -749,8 +773,9 @@ export default function WBSBuilder({
   useEffect(() => {
     if (projectId && orgId) {
       void loadWbsItems();
+      void loadTargetBudget();
     }
-  }, [projectId, orgId]);
+  }, [projectId, orgId, loadTargetBudget]);
 
   // Claim Submission & Revision Handlers (WBS-P1A-3B)
   const handleOpenClaimDialog = (item: WbsItem, existing?: WbsCompletionClaim) => {
@@ -1690,55 +1715,61 @@ export default function WBSBuilder({
         </div>
       </div>
 
-      {/* PROGRAM-LEVEL BUDGET ROLL-UP SUMMARY */}
+      {/* PROGRAM-LEVEL MIRROR BUDGET SUMMARY */}
       <div className="flex flex-wrap items-center justify-between gap-4 p-3 px-4 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg text-xs shadow-sm">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1.5 font-bold text-slate-800 dark:text-slate-100">
-            <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-            <span>Total Anggaran Program:</span>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 flex-1 min-w-[260px]">
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Target Budget</span>
             <span className="text-emerald-700 dark:text-emerald-300 font-extrabold text-sm">
-              {formatBudgetBadge(programBudgetRollup.plannedTotal)}
+              {hasTargetBudget ? formatBudgetBadge(targetBudget as number) : 'Belum tersedia'}
             </span>
           </div>
-          
-          <span className="text-slate-300 dark:text-slate-700">|</span>
-
-          <div className="flex items-center gap-2">
-            <span className="text-slate-600 dark:text-slate-400 font-medium">Realisasi:</span>
-            {programBudgetRollup.hasRealization ? (
-              <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                {formatBudgetBadge(programBudgetRollup.realizedTotal || 0)}
-                {programBudgetRollup.burnPercent !== null && (
-                  <Badge variant="outline" className="text-[10px] bg-emerald-100 text-emerald-800 border-emerald-300">
-                    Burn {programBudgetRollup.burnPercent}%
-                  </Badge>
-                )}
-              </span>
-            ) : (
-              <Badge variant="secondary" className="text-[10px] bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border">
-                Belum ada data realisasi
-              </Badge>
-            )}
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Detailed Budget</span>
+            <span className="text-slate-800 dark:text-slate-100 font-extrabold text-sm">
+              {hasBudgetRows ? formatBudgetBadge(detailedBudget) : 'Belum dibuat'}
+            </span>
           </div>
-
-          <span className="text-slate-300 dark:text-slate-700">|</span>
-
-          <span className="text-slate-500 text-[11px]">
-            {programBudgetRollup.itemCount} item anggaran
-          </span>
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Coverage</span>
+            <span className="text-slate-800 dark:text-slate-100 font-extrabold text-sm">
+              {hasTargetBudget
+                ? `${coveragePercent.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`
+                : '0%'}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 block">Gap</span>
+            <span className={`font-extrabold text-sm ${(gapAmount ?? 0) < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-amber-700 dark:text-amber-400'}`}>
+              {gapAmount === null ? 'Belum diketahui' : formatBudgetBadge(Math.abs(gapAmount))}
+            </span>
+          </div>
         </div>
 
-        {onNavigateToBudget && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onNavigateToBudget()}
-            className="h-7 text-[11px] gap-1.5 text-emerald-700 hover:text-emerald-800 border-emerald-300 hover:bg-emerald-100/50"
-          >
-            <ExternalLink className="h-3 w-3" />
-            Lihat Rincian Anggaran
-          </Button>
-        )}
+        <div className="flex flex-col items-start md:items-end gap-2">
+          <Badge data-testid="mirror-state-badge" variant="outline" className="text-[10px] bg-white/80 dark:bg-slate-900/70">
+            {mirror.state.replace('_', ' ')}
+          </Badge>
+          <Badge variant="outline" className="text-[10px] bg-white/80 dark:bg-slate-900/70">
+            {wbsBudgetStatus}
+          </Badge>
+          <div className="flex items-center gap-2">
+            <span className="text-slate-500 text-[11px]">
+              {programBudgetRollup.itemCount} item anggaran
+            </span>
+            {onNavigateToBudget && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => onNavigateToBudget()}
+                className="h-7 text-[11px] gap-1.5 text-emerald-700 hover:text-emerald-800 border-emerald-300 hover:bg-emerald-100/50"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Lihat Rincian Anggaran
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* CORE WORKSPACE GRID */}

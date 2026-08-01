@@ -30,6 +30,8 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { appStylesheetTags, finalizePrintWindow } from '@/lib/print/printWindow';
 import { numericOrNull } from '@/lib/utils';
+import { resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
+import { evaluateMirrorBudgetModel } from '@/lib/budget/mirrorBudgetModel';
 
 interface BudgetCalculatorProps {
   projectId: string;
@@ -156,26 +158,8 @@ export default function BudgetCalculator({
         .eq('id', projectId)
         .maybeSingle();
        if (proj) {
-        setProject(proj as LfaProject);         if (proj.linked_grant_id) {
-            const { data: prop } = await supabase
-              .from('gw_projects' as any)
-              .select('budget_idr, wizard_data, metadata')
-              .eq('id', proj.linked_grant_id)
-              .maybeSingle();
-            if (prop) {
-              const p = prop as any;
-              const targetBgt = Number(p.budget_idr) ||
-                                Number((p.wizard_data as any)?.budgetIdr) ||
-                                Number((p.metadata as any)?.total_budget_idr) ||
-                                null;
-              if (targetBgt) {
-                setProposalBudget(targetBgt);
-              }
-            }
-         }
-         if ((proj as any).target_budget_idr) {
-           setProposalBudget(Number((proj as any).target_budget_idr));
-         }
+        setProject(proj as LfaProject);
+        setProposalBudget(await resolveTargetBudgetForLfaProject(supabase as any, projectId));
        }  
 
       // 2. Fetch Level 2 WBS Activities (Fallback to Level 1 if none exist)
@@ -212,173 +196,8 @@ export default function BudgetCalculator({
       if (bgtErr) throw bgtErr;
       let items = (bgt || []) as BudgetItem[];
 
-      // SPRINT 3: DETECT PROPOSAL AND GENERATE BUDGET SKELETON IF EMPTY
-      if (items.length === 0 && activities.length > 0) {
-        let linkedProposal = null;
-        if (proj?.linked_grant_id) {
-          const { data: prop } = await supabase
-            .from('gw_projects')
-            .select('*')
-            .eq('id', proj.linked_grant_id)
-            .maybeSingle();
-          linkedProposal = prop;
-        }
-
-        if (!linkedProposal && orgId) {
-          const { data: props } = await supabase
-            .from('gw_projects')
-            .select('*')
-            .eq('organization_id', orgId)
-            .order('updated_at', { ascending: false })
-            .limit(1);
-          if (props && props.length > 0) {
-            linkedProposal = props[0];
-          }
-        }
-
-        if (linkedProposal) {
-          const province = proj?.location || linkedProposal.geography || 'DKI Jakarta';
-          const personnelMul = INKINDO_PROVINCE_MULTIPLIERS[province] || 1.0;
-          const directMul = INKINDO_DIRECT_COST_MULTIPLIERS[province] || 1.0;
-          const ngoFactor = 0.7; // default NGO Mode is active (70% rate discount)
-
-          const skeletonItems: any[] = [];
-          let sortOrder = 0;
-
-          const inferMethodFromName = (name: string): 'Workshop' | 'FGD' | 'Survey' | 'Pelatihan' | 'Pendampingan' | 'Rapat' | 'Lainnya' => {
-            const lower = name.toLowerCase();
-            if (lower.includes('workshop') || lower.includes('lokakarya')) return 'Workshop';
-            if (lower.includes('fgd') || lower.includes('focus group') || lower.includes('diskusi terfokus')) return 'FGD';
-            if (lower.includes('survey') || lower.includes('survei') || lower.includes('riset') || lower.includes('penelitian') || lower.includes('monitoring') || lower.includes('evaluasi')) return 'Survey';
-            if (lower.includes('pelatihan') || lower.includes('training') || lower.includes('kapasitas') || lower.includes('capacity')) return 'Pelatihan';
-            if (lower.includes('pendampingan') || lower.includes('mentoring') || lower.includes('coaching')) return 'Pendampingan';
-            if (lower.includes('rapat') || lower.includes('meeting') || lower.includes('koordinasi')) return 'Rapat';
-            return 'Lainnya';
-          };
-
-          activities.forEach((act) => {
-            const method = act.method || inferMethodFromName(act.name);
-            let templates: Array<{ name: string; category: string; unit: string; volume: number; price: number }> = [];
-
-            if (method === 'Pelatihan' || method === 'Pendampingan') {
-              templates = [
-                { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 2, price: 750000 },
-                { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 25, price: 117000 },
-                { name: 'Hotel Bintang 3', category: 'Akomodasi', unit: 'Hari', volume: 1, price: 750000 },
-                { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 25, price: 150000 }
-              ];
-            } else if (method === 'Survey') {
-              templates = [
-                { name: 'Petugas Lapangan', category: 'Honorarium', unit: 'Hari', volume: 5, price: 250000 },
-                { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 5, price: 150000 },
-                { name: 'Uang Harian Dalam Kota', category: 'Transport', unit: 'Hari', volume: 5, price: 380000 }
-              ];
-            } else if (method === 'Workshop') {
-              templates = [
-                { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 1, price: 750000 },
-                { name: 'Modul/Materi Pelatihan', category: 'ATK', unit: 'Paket', volume: 15, price: 50000 },
-                { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 15, price: 117000 }
-              ];
-            } else if (method === 'FGD') {
-              templates = [
-                { name: 'Fasilitator', category: 'Honorarium', unit: 'Hari', volume: 1, price: 750000 },
-                { name: 'Makan + 2 Snack', category: 'Konsumsi', unit: 'Orang', volume: 10, price: 117000 },
-                { name: 'Transport Dalam Kota', category: 'Transport', unit: 'Orang', volume: 10, price: 150000 }
-              ];
-            } else {
-              templates = [
-                { name: 'Makan Siang', category: 'Konsumsi', unit: 'Orang', volume: 8, price: 60000 },
-                { name: 'Snack', category: 'Konsumsi', unit: 'Orang', volume: 8, price: 30000 }
-              ];
-            }
-
-            templates.forEach((tpl) => {
-              let finalPrice = tpl.price;
-              if (tpl.category === 'Honorarium') {
-                finalPrice = Math.round(tpl.price * personnelMul * ngoFactor);
-              } else {
-                finalPrice = Math.round(tpl.price * directMul);
-              }
-
-              skeletonItems.push({
-                lfa_project_id: projectId,
-                org_id: orgId,
-                wbs_item_id: act.id,
-                activity_name: act.name,
-                category: tpl.category,
-                cost_category: tpl.category === 'Honorarium' ? 'Personnel & Consultants' : 'Direct Operational Costs',
-                item_name: tpl.name,
-                volume: tpl.volume,
-                unit: tpl.unit,
-                unit_price_idr: finalPrice,
-                funding_source: 'grant',
-                justification: `[AUTO_GENERATED] Berdasarkan metode ${method} untuk aktivitas: ${act.name}`,
-                needs_donor_approval: false,
-                sort_order: sortOrder++,
-                mode: globalMode
-              });
-            });
-          });
-
-          if (skeletonItems.length > 0) {
-            const { data: inserted, error: insertErr } = await supabase
-              .from('lfa_budget_items')
-              .insert(skeletonItems)
-              .select('*');
-
-            if (insertErr) throw insertErr;
-            if (inserted) {
-              items = inserted as BudgetItem[];
-              toast({
-                title: 'Draf Anggaran Otomatis Disusun! 📋✨',
-                description: `Berhasil menyusun draf rincian anggaran awal dari proposal "${linkedProposal.title}" menggunakan SBM & INKINDO 2026.`,
-              });
-            }
-          }
-        } else {
-          toast({
-            title: 'Aktivitas Diimpor dari WBS 📋',
-            description: 'Aktivitas diimpor dari WBS kamu. Tambahkan item biaya per aktivitas.',
-          });
-        }
-      }
-
-      // Ensure every Level 2 WBS activity has at least 1 budget line item
-      if (activities.length > 0) {
-        const missingActivities = activities.filter(
-          (act) => !items.some((b) => b.wbs_item_id === act.id)
-        );
-
-        if (missingActivities.length > 0) {
-          let currentMaxOrder = items.length;
-          const defaultEmptyItems = missingActivities.map((act, idx) => ({
-            lfa_project_id: projectId,
-            org_id: orgId,
-            wbs_item_id: act.id,
-            activity_name: act.name || 'Aktivitas WBS',
-            item_name: 'Rincian anggaran belum diisi',
-            category: 'Operasional',
-            cost_category: 'Direct Operational Costs',
-            volume: 0,
-            unit: 'Paket',
-            unit_price_idr: 0,
-            funding_source: 'grant',
-            justification: 'Belum diisi',
-            needs_donor_approval: false,
-            sort_order: currentMaxOrder + idx,
-            mode: globalMode
-          }));
-
-          const { data: newInserted, error: missingErr } = await supabase
-            .from('lfa_budget_items')
-            .insert(defaultEmptyItems)
-            .select('*');
-
-          if (!missingErr && newInserted) {
-            items = [...items, ...(newInserted as BudgetItem[])];
-          }
-        }
-      }
+      // Read-only loading: do not auto-generate or auto-insert rows on tab open.
+      // Hidden writes here cause cross-tab parity drift (WBS vs Budget).
 
       setBudgetItems(items);
 
@@ -504,6 +323,46 @@ export default function BudgetCalculator({
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleGenerateDraftBudget = async () => {
+    if (wbsActivities.length === 0) {
+      toast({
+        title: 'Belum ada aktivitas WBS',
+        description: 'Lengkapi aktivitas WBS terlebih dahulu agar draf anggaran dapat dibuat.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (budgetItems.length === 0) {
+      await loadData();
+      toast({
+        title: 'Generate Draft Budget diproses',
+        description: 'Sistem mencoba menyusun draf anggaran awal dari aktivitas dan proposal budget.'
+      });
+      return;
+    }
+
+    setIsHelperOpen(true);
+    toast({
+      title: 'Lanjutkan penyusunan draf',
+      description: 'Struktur item sudah ada. Lengkapi harga unit dengan Budget Helper atau edit manual.'
+    });
+  };
+
+  const handleAddManualQuick = async () => {
+    const firstActivity = wbsActivities[0];
+    if (!firstActivity) {
+      toast({
+        title: 'Tidak ada aktivitas',
+        description: 'Tambahkan aktivitas di WBS terlebih dahulu.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    await handleAddItem(firstActivity.id, firstActivity.name || 'Aktivitas WBS');
   };
 
   // Handle Input Edits with Autosave Debounce
@@ -1013,6 +872,28 @@ export default function BudgetCalculator({
   const durationMonths = projectData?.duration_months || programDurationMonths || 12;
   const totalIDR = budgetItems.reduce((acc, i) => acc + ((Number(i.volume) || 0) * (Number(i.unit_price_idr) || 0)), 0);
   const totalUSD = totalIDR / (exchangeRate || 16000);
+
+  // Mirror Budget Model (UX layer): Target Budget + Detailed Budget + Coverage + Gap
+  const detailedBudgetIDR = totalIDR;
+  const hasBudgetRows = budgetItems.length > 0;
+  const allRowsUnpriced = hasBudgetRows && budgetItems.every((i) => Number(i.unit_price_idr || 0) === 0);
+  const partiallyPriced = hasBudgetRows
+    && budgetItems.some((i) => Number(i.unit_price_idr || 0) > 0)
+    && budgetItems.some((i) => Number(i.unit_price_idr || 0) === 0);
+  const fullyPriced = hasBudgetRows && budgetItems.every((i) => Number(i.unit_price_idr || 0) > 0);
+
+  const mirror = evaluateMirrorBudgetModel({
+    targetBudget: proposalBudget,
+    detailedBudget: detailedBudgetIDR,
+    budgetRowCount: budgetItems.length,
+  });
+  const hasTargetBudget = mirror.hasTargetBudget;
+  const coveragePct = mirror.coveragePct;
+  const gapBudgetIDR = mirror.gapBudget;
+  const mirrorBudgetState = mirror.state;
+  const mirrorBudgetStatus = mirror.statusLabel;
+  const showDraftActions = mirror.showDraftActions;
+  const showContinueAction = mirror.showContinueAction;
 
   // Realization Metrics
   const totalRealisasiIDR = budgetItems.reduce((acc, i) => acc + (Number(i.actual_amount_idr) || 0), 0);
@@ -1788,96 +1669,114 @@ export default function BudgetCalculator({
           </div>
         </div>
 
-        {proposalBudget !== null && (
-          <div className={`p-5 rounded-xl border mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-all duration-300 ${
-            totalIDR > proposalBudget 
-              ? "bg-rose-50/50 border-rose-200 dark:bg-rose-950/10 dark:border-rose-900/50" 
-              : totalIDR < proposalBudget
-                ? "bg-amber-50/40 border-amber-200 dark:bg-amber-950/10 dark:border-amber-900/40"
-                : "bg-emerald-50/40 border-emerald-200 dark:bg-emerald-950/10 dark:border-emerald-900/40"
-          }`}>
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-2">
-                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pagu Proposal vs Itemized RAB</h3>
-                {budgetItems.length > 0 && budgetItems.every(i => Number(i.unit_price_idr || 0) === 0) && (
-                  <Badge variant="outline" className="text-[10px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300">
-                    ⏳ SCAFOLD_UNPRICED
-                  </Badge>
+        <div className={`p-5 rounded-xl border mb-5 transition-all duration-300 ${
+          !hasTargetBudget
+            ? 'bg-slate-50/60 border-slate-200 dark:bg-slate-900/30 dark:border-slate-800'
+            : detailedBudgetIDR > (proposalBudget as number)
+              ? 'bg-rose-50/50 border-rose-200 dark:bg-rose-950/10 dark:border-rose-900/50'
+              : detailedBudgetIDR === 0
+                ? 'bg-amber-50/40 border-amber-200 dark:bg-amber-950/10 dark:border-amber-900/40'
+                : 'bg-emerald-50/40 border-emerald-200 dark:bg-emerald-950/10 dark:border-emerald-900/40'
+        }`}>
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div className="space-y-2 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Mirror Budget Model</h3>
+                {mirrorBudgetState === 'STATE_A' && (
+                  <Badge data-testid="mirror-state-badge" variant="outline" className="text-[10px] font-bold text-slate-700 bg-slate-50 dark:bg-slate-900/50 border-slate-300">STATE A</Badge>
                 )}
-                {budgetItems.some(i => Number(i.unit_price_idr || 0) > 0) && budgetItems.some(i => Number(i.unit_price_idr || 0) === 0) && (
-                  <Badge variant="outline" className="text-[10px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300">
-                    🟡 PARTIALLY_PRICED
-                  </Badge>
+                {mirrorBudgetState === 'STATE_B' && (
+                  <Badge data-testid="mirror-state-badge" variant="outline" className="text-[10px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300">STATE B</Badge>
                 )}
-                {budgetItems.length > 0 && budgetItems.every(i => Number(i.unit_price_idr || 0) > 0) && (
-                  <Badge variant="secondary" className="text-[10px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300">
-                    ✅ FULLY_PRICED
-                  </Badge>
+                {mirrorBudgetState === 'STATE_C' && (
+                  <Badge data-testid="mirror-state-badge" variant="outline" className="text-[10px] font-bold text-blue-700 bg-blue-50 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300">STATE C</Badge>
                 )}
-              </div>
-              <div className="flex flex-wrap items-center gap-4 text-sm font-semibold">
-                <div>
-                  <span className="text-xs text-muted-foreground block font-normal">Target Dana Proposal (Pagu):</span>
-                  <span className="text-slate-700 dark:text-slate-300 font-mono">Rp {proposalBudget.toLocaleString('id-ID')}</span>
-                </div>
-                <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
-                <div>
-                  <span className="text-xs text-muted-foreground block font-normal">RAB yang Sudah Dirinci:</span>
-                  <span className={`font-mono ${totalIDR > proposalBudget ? "text-rose-600 font-black" : "text-slate-700 dark:text-slate-300"}`}>Rp {totalIDR.toLocaleString('id-ID')}</span>
-                </div>
-                {totalIDR < proposalBudget && (
-                  <>
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
-                    <div>
-                      <span className="text-xs text-muted-foreground block font-normal">Belum Dialokasikan:</span>
-                      <span className="text-amber-700 dark:text-amber-400 font-mono">Rp {(proposalBudget - totalIDR).toLocaleString('id-ID')}</span>
-                    </div>
-                  </>
+                {mirrorBudgetState === 'STATE_D' && (
+                  <Badge data-testid="mirror-state-badge" variant="secondary" className="text-[10px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300">STATE D</Badge>
                 )}
-                {totalIDR > proposalBudget && (
-                  <>
-                    <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 hidden sm:block"></div>
-                    <div>
-                      <span className="text-xs text-rose-600 block font-normal">Kelebihan Anggaran (Over-Allocation):</span>
-                      <span className="text-rose-600 font-mono font-bold">Rp {(totalIDR - proposalBudget).toLocaleString('id-ID')}</span>
-                    </div>
-                  </>
+                {allRowsUnpriced && (
+                  <Badge variant="outline" className="text-[10px] font-bold text-amber-700 bg-amber-50 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300">UNPRICED</Badge>
+                )}
+                {partiallyPriced && (
+                  <Badge variant="outline" className="text-[10px] font-bold text-blue-700 bg-blue-50 dark:bg-blue-950/60 dark:text-blue-300 border-blue-300">PARTIAL</Badge>
+                )}
+                {fullyPriced && (
+                  <Badge variant="secondary" className="text-[10px] font-bold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/60 dark:text-emerald-300">FULLY_PRICED</Badge>
                 )}
               </div>
-              
-              {/* Dynamic message explaining variance */}
-              <p className={`text-xs font-semibold mt-1 ${
-                totalIDR > proposalBudget
-                  ? "text-rose-600 dark:text-rose-400 flex items-center gap-1"
-                  : totalIDR < proposalBudget
-                    ? "text-amber-700 dark:text-amber-400"
-                    : "text-emerald-700 dark:text-emerald-400"
-              }`}>
-                {totalIDR === proposalBudget && "RAB telah dialokasikan penuh"}
-                {totalIDR < proposalBudget && totalIDR > 0 && "RAB masih berupa draf sebagian — Sisa anggaran belum dialokasikan"}
-                {totalIDR === 0 && budgetItems.length > 0 && `💡 Draf struktur RAB (${budgetItems.length} item) telah terbentuk dari proposal. Harga satuan belum diterapkan (Pending SBM Pricing).`}
-                {totalIDR === 0 && budgetItems.length === 0 && "RAB masih berupa draf kosong — Sisa anggaran belum dialokasikan"}
-                {totalIDR > proposalBudget && `RAB melebihi target anggaran sebesar Rp ${(totalIDR - proposalBudget).toLocaleString('id-ID')}`}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-sm">
+                <div>
+                  <span className="text-xs text-muted-foreground block font-normal">Target Budget</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-mono font-semibold">
+                    {hasTargetBudget ? `Rp ${(proposalBudget as number).toLocaleString('id-ID')}` : 'Belum tersedia'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground block font-normal">Detailed Budget</span>
+                  <span className={`font-mono font-semibold ${hasTargetBudget && detailedBudgetIDR > (proposalBudget as number) ? 'text-rose-600 font-black' : 'text-slate-700 dark:text-slate-300'}`}>
+                    {hasBudgetRows ? `Rp ${detailedBudgetIDR.toLocaleString('id-ID')}` : 'Belum dibuat'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground block font-normal">Coverage</span>
+                  <span className="text-slate-700 dark:text-slate-300 font-mono font-semibold">
+                    {hasTargetBudget
+                      ? `${coveragePct.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`
+                      : '0,00%'}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-xs text-muted-foreground block font-normal">Gap (Belum dialokasikan)</span>
+                  <span className={`font-mono font-semibold ${(gapBudgetIDR ?? 0) < 0 ? 'text-rose-600' : 'text-amber-700 dark:text-amber-400'}`}>
+                    {gapBudgetIDR === null ? 'Belum diketahui' : `Rp ${Math.abs(gapBudgetIDR).toLocaleString('id-ID')}`}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-xs font-semibold mt-1 text-slate-600 dark:text-slate-300">
+                {mirrorBudgetStatus}
               </p>
+
+              {(showDraftActions || showContinueAction) && (
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                  {showDraftActions && (
+                    <>
+                      <Button size="sm" onClick={() => { void handleGenerateDraftBudget(); }} className="text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white">
+                        ⚡ Generate Draft Budget
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => { void handleAddManualQuick(); }} className="text-xs font-bold">
+                        Tambah Manual
+                      </Button>
+                    </>
+                  )}
+                  {showContinueAction && (
+                    <Button size="sm" variant="outline" onClick={() => setIsHelperOpen(true)} className="text-xs font-bold border-blue-300 text-blue-700 hover:bg-blue-50">
+                      Lanjutkan Penyusunan Anggaran
+                    </Button>
+                  )}
+                </div>
+              )}
             </div>
-            
-            {/* Visual Variance Progress Bar */}
-            <div className="w-full md:w-48 space-y-1">
-              <span className="text-[10px] text-muted-foreground block">Kelengkapan RAB (Rasio Alokasi Pagu)</span>
+
+            <div className="w-full lg:w-56 space-y-1">
+              <span className="text-[10px] text-muted-foreground block">Coverage terhadap Target Budget</span>
               <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 rounded-full overflow-hidden">
-                <div 
+                <div
                   className={`h-full rounded-full transition-all duration-500 ${
-                    totalIDR > proposalBudget ? "bg-rose-500 animate-pulse" : totalIDR === proposalBudget ? "bg-emerald-500" : "bg-amber-500"
+                    !hasTargetBudget ? 'bg-slate-400' : coveragePct > 100 ? 'bg-rose-500 animate-pulse' : coveragePct === 100 ? 'bg-emerald-500' : 'bg-amber-500'
                   }`}
-                  style={{ width: `${Math.min(100, proposalBudget > 0 ? (totalIDR / proposalBudget) * 100 : 0)}%` }}
+                  style={{ width: `${Math.min(100, Math.max(0, coveragePct))}%` }}
                 ></div>
               </div>
               <span className="text-[10px] text-muted-foreground block text-right font-mono font-bold">
-                {proposalBudget > 0 ? ((totalIDR / proposalBudget) * 100).toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}%
+                {hasTargetBudget
+                  ? coveragePct.toLocaleString('id-ID', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                  : '0,00'}%
               </span>
             </div>
           </div>
-        )}
+        </div>
 
         {/* Dynamic Metric Cards at top (depending on active tab) */}
         {activeTab === 'rencana' ? (
