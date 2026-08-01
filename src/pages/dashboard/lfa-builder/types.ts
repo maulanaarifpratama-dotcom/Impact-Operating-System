@@ -113,6 +113,12 @@ export interface BudgetItem {
   updated_at?: string;
 }
 
+export type MealIndicatorType = 'cumulative_number' | 'snapshot_percentage' | 'ratio' | 'index_score' | 'monetary_value';
+
+export type MealAggregationMethod = 'sum' | 'latest' | 'average' | 'max';
+
+export type MealVerificationState = 'draft' | 'submitted' | 'verified' | 'rejected';
+
 export interface MealItem {
   id: string;
   lfa_project_id: string;
@@ -120,6 +126,11 @@ export interface MealItem {
   org_id: string;
   lfa_level: 'goal' | 'purpose' | 'output';
   indicator_text: string;
+  indicator_type?: MealIndicatorType | null;
+  aggregation_method?: MealAggregationMethod | null;
+  unit_type?: string | null;
+  verification_state?: MealVerificationState | null;
+  assigned_user?: string | null;
   target_value?: number | null;
   target_unit?: string | null;
   collection_method?: string | null;
@@ -151,6 +162,11 @@ export interface MealTrackingEntry {
   evidence_source_type?: 'manual_url' | 'onedrive' | 'other' | null;
   evidence_url?: string | null;
   evidence_note?: string | null;
+  wbs_evidence_id?: string | null;
+  verification_state?: MealVerificationState | null;
+  verified_by?: string | null;
+  verified_at?: string | null;
+  verification_notes?: string | null;
   onedrive_drive_id?: string | null;
   onedrive_item_id?: string | null;
   onedrive_web_url?: string | null;

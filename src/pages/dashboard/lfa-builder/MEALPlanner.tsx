@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/providers/AuthProvider';
-import { MealItem, MealLearningQuestion, MealAccountability, LfaProject, LfaEntry, MealTrackingEntry, WbsItem } from './types';
+import { MealItem, MealLearningQuestion, MealAccountability, LfaProject, LfaEntry, MealTrackingEntry, WbsItem, MealIndicatorType, MealAggregationMethod, MealVerificationState } from './types';
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
   AlertTriangle, HelpCircle, CheckCircle2, Award, ClipboardCheck, Info, FileText,
@@ -255,6 +255,62 @@ export default function MEALPlanner({
       avgPercent,
     };
   }, [wbsItems, mealItems]);
+
+  // Aggregation Engine (Sprint 4 PART B)
+  const calculateAggregatedValue = useCallback((mealItem: MealItem, entries: MealTrackingEntry[]) => {
+    const itemEntries = entries.filter((e) => e.meal_item_id === mealItem.id);
+    if (itemEntries.length === 0) {
+      return {
+        aggregatedValue: mealItem.baseline ?? 0,
+        progressPercent: 0,
+        entryCount: 0,
+        formattedValue: (mealItem.baseline ?? 0).toLocaleString('id-ID'),
+      };
+    }
+
+    const type: MealIndicatorType = mealItem.indicator_type || 'cumulative_number';
+    const method: MealAggregationMethod = mealItem.aggregation_method || (
+      type === 'snapshot_percentage' || type === 'ratio' ? 'latest' :
+      type === 'index_score' ? 'average' : 'sum'
+    );
+
+    const sorted = [...itemEntries].sort(
+      (a, b) => new Date(a.recorded_date).getTime() - new Date(b.recorded_date).getTime()
+    );
+
+    let aggVal = 0;
+    if (method === 'sum') {
+      aggVal = sorted.reduce((acc, curr) => acc + (curr.recorded_value || 0), 0);
+    } else if (method === 'latest') {
+      aggVal = sorted[sorted.length - 1]?.recorded_value ?? 0;
+    } else if (method === 'average') {
+      const sum = sorted.reduce((acc, curr) => acc + (curr.recorded_value || 0), 0);
+      aggVal = Math.round((sum / sorted.length) * 10) / 10;
+    } else if (method === 'max') {
+      aggVal = Math.max(...sorted.map((e) => e.recorded_value || 0));
+    }
+
+    const target = mealItem.target_value || mealItem.endline_target || 100;
+    let progress = 0;
+    if (target > 0) {
+      if (type === 'snapshot_percentage' && target === 100) {
+        progress = Math.min(100, Math.max(0, Math.round(aggVal)));
+      } else {
+        progress = Math.min(100, Math.max(0, Math.round((aggVal / target) * 100)));
+      }
+    }
+
+    let formatted = aggVal.toLocaleString('id-ID');
+    if (type === 'snapshot_percentage') formatted = `${aggVal}%`;
+    if (type === 'monetary_value') formatted = `Rp ${aggVal.toLocaleString('id-ID')}`;
+
+    return {
+      aggregatedValue: aggVal,
+      progressPercent: progress,
+      entryCount: sorted.length,
+      formattedValue: formatted,
+    };
+  }, []);
 
   useEffect(() => {
     if (projectId) {

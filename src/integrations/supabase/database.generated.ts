@@ -1468,6 +1468,8 @@ export type Database = {
       }
       lfa_meal_items: {
         Row: {
+          aggregation_method: string | null
+          assigned_user: string | null
           baseline: number | null
           collection_method: string | null
           collection_tool: string | null
@@ -1478,6 +1480,7 @@ export type Database = {
           frequency: string | null
           id: string
           indicator_text: string
+          indicator_type: string | null
           lfa_level: string
           lfa_project_id: string
           midline_target: number | null
@@ -1490,10 +1493,14 @@ export type Database = {
           status: string | null
           target_unit: string | null
           target_value: number | null
+          unit_type: string | null
           updated_at: string | null
+          verification_state: string | null
           wbs_item_id: string | null
         }
         Insert: {
+          aggregation_method?: string | null
+          assigned_user?: string | null
           baseline?: number | null
           collection_method?: string | null
           collection_tool?: string | null
@@ -1504,6 +1511,7 @@ export type Database = {
           frequency?: string | null
           id?: string
           indicator_text: string
+          indicator_type?: string | null
           lfa_level: string
           lfa_project_id: string
           midline_target?: number | null
@@ -1516,10 +1524,14 @@ export type Database = {
           status?: string | null
           target_unit?: string | null
           target_value?: number | null
+          unit_type?: string | null
           updated_at?: string | null
+          verification_state?: string | null
           wbs_item_id?: string | null
         }
         Update: {
+          aggregation_method?: string | null
+          assigned_user?: string | null
           baseline?: number | null
           collection_method?: string | null
           collection_tool?: string | null
@@ -1530,6 +1542,7 @@ export type Database = {
           frequency?: string | null
           id?: string
           indicator_text?: string
+          indicator_type?: string | null
           lfa_level?: string
           lfa_project_id?: string
           midline_target?: number | null
@@ -1542,7 +1555,9 @@ export type Database = {
           status?: string | null
           target_unit?: string | null
           target_value?: number | null
+          unit_type?: string | null
           updated_at?: string | null
+          verification_state?: string | null
           wbs_item_id?: string | null
         }
         Relationships: [
@@ -1634,6 +1649,11 @@ export type Database = {
           recorded_date: string
           recorded_value: number
           updated_at: string | null
+          verification_notes: string | null
+          verification_state: string | null
+          verified_at: string | null
+          verified_by: string | null
+          wbs_evidence_id: string | null
         }
         Insert: {
           created_at?: string | null
@@ -1652,6 +1672,11 @@ export type Database = {
           recorded_date?: string
           recorded_value: number
           updated_at?: string | null
+          verification_notes?: string | null
+          verification_state?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+          wbs_evidence_id?: string | null
         }
         Update: {
           created_at?: string | null
@@ -1670,6 +1695,11 @@ export type Database = {
           recorded_date?: string
           recorded_value?: number
           updated_at?: string | null
+          verification_notes?: string | null
+          verification_state?: string | null
+          verified_at?: string | null
+          verified_by?: string | null
+          wbs_evidence_id?: string | null
         }
         Relationships: [
           {
