@@ -6,7 +6,8 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { LfaSroiConfig, LfaSroiOutcome, MealItem } from './types';
+import { LfaSroiConfig, LfaSroiOutcome, MealItem, MealTrackingEntry } from './types';
+import { calculateMealAggregatedValue } from './mealAggregator';
 import { SROI_PROXIES_INDONESIA, SROI_SECTORS, SroiProxyItem } from '@/data/sroi-proxies-indonesia';
 import { Slider } from '@/components/ui/slider';
 import { Button } from '@/components/ui/button';
@@ -51,6 +52,8 @@ export default function SROICalculator({
   const [syncing, setSyncing] = useState(false);
   const [proposalBudget, setProposalBudget] = useState<number | null>(null);
   const [itemizedBudget, setItemizedBudget] = useState<number | null>(null);
+  const [mealItems, setMealItems] = useState<MealItem[]>([]);
+  const [mealEntries, setMealEntries] = useState<MealTrackingEntry[]>([]);
 
   // Local states for virtual registry-linked outcome
   const [registryProxyValueIdr, setRegistryProxyValueIdr] = useState(0);
@@ -162,6 +165,19 @@ export default function SROICalculator({
         const sum = budgetItems.reduce((acc, item) => acc + ((Number(item.volume) || 0) * (Number(item.unit_price_idr) || 0)), 0);
         setItemizedBudget(sum);
       }
+
+      // Fetch MEAL items & tracking entries for real-time achievement sync
+      const { data: mItems } = await supabase
+        .from('lfa_meal_items')
+        .select('*')
+        .eq('lfa_project_id', projectId);
+      if (mItems) setMealItems(mItems as MealItem[]);
+
+      const { data: mEntries } = await supabase
+        .from('lfa_meal_tracking_entries')
+        .select('*')
+        .eq('lfa_project_id', projectId);
+      if (mEntries) setMealEntries(mEntries as MealTrackingEntry[]);
 
       // 1. Fetch config
       const { data: configData, error: configErr } = await supabase
@@ -369,8 +385,24 @@ export default function SROICalculator({
   // ---------------------------------------------------------------------------
   // SROI Calculations (Strict Deterministic)
   // ---------------------------------------------------------------------------
-  const calculateOutcomeValues = (outcome: LfaSroiOutcome, discountRate: number) => {
-    const gross = (outcome?.quantity ?? 0) * (outcome?.proxy_value_idr ?? 0);
+  const calculateOutcomeValues = (
+    outcome: LfaSroiOutcome,
+    discountRate: number,
+    mItems: MealItem[] = mealItems,
+    mEntries: MealTrackingEntry[] = mealEntries
+  ) => {
+    let effectiveQuantity = outcome?.quantity ?? 0;
+
+    // PART A, B, C: Dynamic Real-time MEAL Achievement Sync with Verification Awareness
+    if (outcome.meal_item_id) {
+      const linkedMeal = mItems.find((m) => m.id === outcome.meal_item_id);
+      if (linkedMeal) {
+        const aggRes = calculateMealAggregatedValue(linkedMeal, mEntries);
+        effectiveQuantity = aggRes.aggregatedValue;
+      }
+    }
+
+    const gross = effectiveQuantity * (outcome?.proxy_value_idr ?? 0);
     
     const net = gross 
       * ((outcome?.attribution_pct ?? 0) / 100) 
@@ -387,7 +419,8 @@ export default function SROICalculator({
 
     return {
       gross_value: gross,
-      present_value: presentValueTotal
+      present_value: presentValueTotal,
+      effectiveQuantity
     };
   };
 
