@@ -43,6 +43,7 @@ import { createPage2Payload } from '@/lib/grant-writer/deterministic';
 import { assembleCanonicalProposalV2 } from '@/lib/grant-writer/deterministic/assemble-canonical-proposal-v2';
 import type { Page1Input, CanonicalProposalPayloadV2 } from '@/lib/grant-writer/deterministic/types';
 import { mapCanonicalProposalToRawEntries } from '@/lib/lfa/readAdapter';
+import { stripRegistryCodes } from '@/lib/lfa/indicatorUtils';
 import { ensureDefaultOrg } from '@/lib/grant-writer/orgHelper';
 import { toJson } from '@/integrations/supabase/json';
 import { numericOrNull } from '@/lib/utils';
@@ -1650,9 +1651,42 @@ export default function GrantWriterQuickWizardProvisional() {
           return rows;
         };
 
-        const entriesToCache = hasDerivedStructure
+        /**
+         * Scrub internal registry ids out of every column a human reads before
+         * the rows reach the matrix.
+         *
+         * The ontology grounding message hands the reasoning model codes like
+         * `IND-001` alongside each candidate name, and it echoes them back into
+         * indicator statements — "Prevalensi stunting (IND-001)", "IND 01
+         * Cakupan Posyandu". The grounding message now forbids that explicitly,
+         * but a prompt rule is a nudge and this is the boundary where the
+         * matrix is written, so it is enforced deterministically here too.
+         */
+        const READABLE_COLUMNS = [
+          'description',
+          'indicator',
+          'means_of_verification',
+          'assumption',
+          'responsible_party',
+        ] as const;
+
+        const sanitizeEntry = (entry: Record<string, unknown>) => {
+          const cleaned: Record<string, unknown> = { ...entry };
+          for (const column of READABLE_COLUMNS) {
+            const value = cleaned[column];
+            if (typeof value === 'string' && value.length > 0) {
+              // Keep null distinguishable from empty: a column that held only a
+              // code becomes null so the editor still flags it as needing input.
+              cleaned[column] = stripRegistryCodes(value) || null;
+            }
+          }
+          return cleaned;
+        };
+
+        const entriesToCache = (hasDerivedStructure
           ? rawEntries
-          : [...rawEntries, ...scaffoldRows()];
+          : [...rawEntries, ...scaffoldRows()]
+        ).map(sanitizeEntry);
 
         // Guarantee immediate local caching before network/DB calls
         try {
@@ -1662,37 +1696,50 @@ export default function GrantWriterQuickWizardProvisional() {
           console.warn('[Materializer] localStorage set error:', e);
         }
 
-        // 1. Direct materialization of canonical LFA entries to DB
-        try {
-          console.log(`[Materializer] Upserting ${entriesToCache.length} canonical LFA entries for project ${targetProjectId}...`);
-          const { error: rawUpsertErr } = await supabase
-            .from('lfa_entries')
-            .upsert(entriesToCache as any);
-          if (rawUpsertErr) {
-            console.warn('[Materializer] Direct entriesToCache upsert warning:', rawUpsertErr.message);
-          }
-        } catch (dbErr) {
-          console.warn('[Materializer] DB upsert lfa_entries exception:', dbErr);
+        /**
+         * 1. Upsert the LFA project FIRST.
+         *
+         * lfa_entries.project_id is `NOT NULL REFERENCES lfa_projects(id)`, so
+         * writing entries before their parent row exists is rejected outright
+         * with 23503 ("Key is not present in table lfa_projects"). This used to
+         * run second, and the entries upsert above it swallowed the violation
+         * into a console.warn — leaving a project row with an empty logframe
+         * while the flow reported success. Order is load-bearing here: the
+         * parent must land before the children, and a failure to create it is
+         * fatal because nothing downstream can be written without it.
+         */
+        const { error: projUpsertErr } = await supabase
+          .from('lfa_projects')
+          .upsert({
+            id: targetProjectId,
+            org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
+            name: effectiveCanonicalPayload.metadata?.title || proposedTitle || 'Clean Water Access Program, Sumba',
+            location: effectiveCanonicalPayload.metadata?.geography || geography || 'Sumba Barat',
+            duration_months: effectiveCanonicalPayload.metadata?.duration_months || 12,
+            beneficiary_count: effectiveCanonicalPayload.metadata?.beneficiary_count || 4500,
+            beneficiary_description: proposedTitle || 'Clean Water Access Program, Sumba',
+            status: 'ACTIVE',
+            linked_grant_id: projectId || null,
+            updated_at: new Date().toISOString()
+          });
+
+        if (projUpsertErr) {
+          throw new Error(
+            `Gagal menyimpan proyek LFA (${projUpsertErr.code || 'unknown'}): ${projUpsertErr.message}. ` +
+            'Matriks LFA tidak dapat ditulis tanpa baris proyek induk.'
+          );
         }
 
-        // 2. Upsert LFA Project
-        try {
-          await supabase
-            .from('lfa_projects')
-            .upsert({
-              id: targetProjectId,
-              org_id: effectiveCanonicalPayload.organization_id || '00000000-0000-4000-a000-000000000000',
-              name: effectiveCanonicalPayload.metadata?.title || proposedTitle || 'Clean Water Access Program, Sumba',
-              location: effectiveCanonicalPayload.metadata?.geography || geography || 'Sumba Barat',
-              duration_months: effectiveCanonicalPayload.metadata?.duration_months || 12,
-              beneficiary_count: effectiveCanonicalPayload.metadata?.beneficiary_count || 4500,
-              beneficiary_description: proposedTitle || 'Clean Water Access Program, Sumba',
-              status: 'ACTIVE',
-              linked_grant_id: projectId || null,
-              updated_at: new Date().toISOString()
-            });
-        } catch (projErr) {
-          console.warn('[Materializer] DB upsert lfa_projects exception:', projErr);
+        // 2. Materialize canonical LFA entries now that the parent row exists.
+        console.log(`[Materializer] Upserting ${entriesToCache.length} canonical LFA entries for project ${targetProjectId}...`);
+        const { error: rawUpsertErr } = await supabase
+          .from('lfa_entries')
+          .upsert(entriesToCache as any);
+
+        if (rawUpsertErr) {
+          throw new Error(
+            `Gagal menulis ${entriesToCache.length} baris matriks LFA (${rawUpsertErr.code || 'unknown'}): ${rawUpsertErr.message}.`
+          );
         }
 
         // 3. Upsert GW Project so Edge Function can load it without 404
@@ -1787,8 +1834,16 @@ export default function GrantWriterQuickWizardProvisional() {
           console.warn('[Materializer] DB select lfa_entries exception:', fetchErr);
         }
 
-        if (dbEntries.length === 0) {
-          console.log('Using local cached entries for target project:', targetProjectId);
+        /**
+         * The local cache is a rendering fallback, not evidence of a write. It
+         * used to feed the "Terverifikasi: N Outcome … telah tersimpan" toast,
+         * so a materialization that persisted nothing still announced its own
+         * success with counts taken from memory. Track which source we are
+         * reading from and word the confirmation accordingly.
+         */
+        const entriesArePersisted = dbEntries.length > 0;
+        if (!entriesArePersisted) {
+          console.warn('[Materializer] DB returned no entries; falling back to local cache for display only:', targetProjectId);
           dbEntries = entriesToCache;
         }
 
@@ -1814,8 +1869,12 @@ export default function GrantWriterQuickWizardProvisional() {
         setMaterializationStage('complete');
 
         toast({
-          title: '✅ Workspace & Kerangka Program Disiapkan',
-          description: `Terverifikasi: ${actualOutcomes} Outcome, ${actualOutputs} Output, ${actualActivities} Aktivitas, dan ${actualIndicators} Indikator telah tersimpan. Membuka LFA Matrix Studio...`,
+          title: entriesArePersisted
+            ? '✅ Workspace & Kerangka Program Disiapkan'
+            : '⚠️ Kerangka Program Belum Terverifikasi di Database',
+          description: entriesArePersisted
+            ? `Terverifikasi: ${actualOutcomes} Outcome, ${actualOutputs} Output, ${actualActivities} Aktivitas, dan ${actualIndicators} Indikator telah tersimpan. Membuka LFA Matrix Studio...`
+            : `Menampilkan ${actualOutcomes} Outcome, ${actualOutputs} Output, ${actualActivities} Aktivitas dari cache lokal — belum terbaca di database. Periksa kembali matriks sebelum melanjutkan.`,
         });
 
         // Navigate to LFABuilderEditor with targetProjectId

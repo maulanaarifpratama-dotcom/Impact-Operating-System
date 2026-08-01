@@ -418,7 +418,10 @@ export function resolveOntologyContext(raw: RawOntologyContext): ResolvedOntolog
     }).map((ind) => ({
       family_id: ind.id,
       name: ind.name,
-      definition: `Indikator ${ind.domain} (${ind.code})`
+      // The registry code is already carried by family_id. Repeating it inside
+      // the human-readable definition put "IND-001" in front of the model twice
+      // per row and it echoed the codes back into indicator statements.
+      definition: `Indikator ${ind.domain}`
     }));
 
     return {
@@ -597,6 +600,20 @@ TERMS GROUNDING WAJIB:
 ${requiredGroundingTerms.length > 0 ? requiredGroundingTerms.map((term) => `- ${term}`).join('\n') : '- Tidak ada term khusus'}
 
 GROUNDING ONTOLOGI:
+
+KODE REGISTRI ADALAH REFERENSI INTERNAL — DILARANG DITULIS DI OUTPUT.
+Setiap baris di bawah diawali kode internal seperti IND-001, OF-..., OPF-...,
+SECTOR-..., PF-..., atau ACT-.... Kode itu hanya untuk membantu Anda memilih
+rujukan yang tepat. Gunakan MAKNA dan NAMA-nya, lalu tulis ulang dengan kalimat
+program yang konkret.
+
+DILARANG menyalin, mengutip, atau menyisipkan kode tersebut ke dalam teks apa
+pun yang dibaca manusia — termasuk statement, indicator, mov, target, baseline,
+assumption, judul, dan narasi proposal. Contoh yang SALAH: "IND-001: Persentase
+balita terpantau", "Prevalensi stunting (IND-001)", "IND 01 Cakupan Posyandu".
+Contoh yang BENAR: "Persentase balita 0-59 bulan yang pertumbuhannya dipantau
+setiap bulan di Posyandu".
+
 Sektor:
 ${sectorText}
 
