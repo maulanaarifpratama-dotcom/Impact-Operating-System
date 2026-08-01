@@ -4,3 +4,4 @@ export * from './types';
 export * from './compiler';
 export * from './templates';
 export * from './snapshot';
+export * from './exporters';

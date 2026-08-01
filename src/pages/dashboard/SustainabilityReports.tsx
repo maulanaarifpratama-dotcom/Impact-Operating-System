@@ -6,11 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { FileText, Sparkles, History, CheckCircle2, ShieldCheck, Download, Loader2, RefreshCw } from 'lucide-react';
+import { FileText, Sparkles, History, CheckCircle2, Download, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { compileSustainabilityReport } from '@/lib/reports/compiler';
 import { saveReportSnapshot, getOrgReportSnapshots } from '@/lib/reports/snapshot';
+import { exportReportToPDF, exportReportToDOCX } from '@/lib/reports/exporters';
 import { REPORT_TEMPLATES } from '@/lib/reports/templates';
-import { ReportTemplateType, ReportSnapshotRecord, UnifiedReportPayload } from '@/lib/reports/types';
+import { ReportTemplateType, ReportSnapshotRecord } from '@/lib/reports/types';
 import { formatCurrency } from '@/lib/carbon/formatters';
 
 export default function SustainabilityReports() {
@@ -67,6 +68,16 @@ export default function SustainabilityReports() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDownloadPDF = () => {
+    if (!currentSnapshot) return;
+    exportReportToPDF(currentSnapshot.snapshot_json, currentSnapshot.report_type);
+  };
+
+  const handleDownloadDOCX = () => {
+    if (!currentSnapshot) return;
+    exportReportToDOCX(currentSnapshot.snapshot_json, currentSnapshot.report_type);
   };
 
   const activeMeta = REPORT_TEMPLATES[selectedTemplate];
@@ -141,10 +152,10 @@ export default function SustainabilityReports() {
           </CardContent>
         </Card>
 
-        {/* COMPILED SNAPSHOT PREVIEW */}
+        {/* COMPILED SNAPSHOT PREVIEW & DOWNLOAD ACTIONS */}
         <Card className="lg:col-span-2 bg-white dark:bg-slate-900 shadow-sm border">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <div>
                 <CardTitle className="text-base font-semibold">Hasil Kompilasi Snapshot Terakhir</CardTitle>
                 <CardDescription className="text-xs">
@@ -152,7 +163,7 @@ export default function SustainabilityReports() {
                 </CardDescription>
               </div>
               {currentSnapshot && (
-                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300">
+                <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 self-start sm:self-auto">
                   <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Immutable Snapshot Saved
                 </Badge>
               )}
@@ -196,6 +207,25 @@ export default function SustainabilityReports() {
                     "{currentSnapshot.snapshot_json.ai_narratives?.executive_statement}"
                   </p>
                 </div>
+
+                {/* DOWNLOAD BUTTONS ROW */}
+                <div className="pt-2 border-t flex flex-wrap items-center gap-3">
+                  <Button
+                    size="sm"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                    onClick={handleDownloadPDF}
+                  >
+                    <Download className="w-4 h-4 mr-2" /> Download PDF
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-200 font-medium"
+                    onClick={handleDownloadDOCX}
+                  >
+                    <FileSpreadsheet className="w-4 h-4 mr-2 text-blue-600" /> Download DOCX
+                  </Button>
+                </div>
               </div>
             )}
           </CardContent>
@@ -226,9 +256,24 @@ export default function SustainabilityReports() {
                       Waktu Pembuatan: {new Date(snap.created_at).toLocaleString('id-ID')} | Periode: {snap.report_period}
                     </div>
                   </div>
-                  <Badge variant="outline" className="text-[10px]">
-                    {snap.report_type}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs h-8 px-2 text-emerald-700 hover:bg-emerald-50"
+                      onClick={() => exportReportToPDF(snap.snapshot_json, snap.report_type)}
+                    >
+                      <Download className="w-3.5 h-3.5 mr-1" /> PDF
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-xs h-8 px-2 text-blue-700 hover:bg-blue-50"
+                      onClick={() => exportReportToDOCX(snap.snapshot_json, snap.report_type)}
+                    >
+                      <FileSpreadsheet className="w-3.5 h-3.5 mr-1" /> DOCX
+                    </Button>
+                  </div>
                 </div>
               ))}
             </div>
