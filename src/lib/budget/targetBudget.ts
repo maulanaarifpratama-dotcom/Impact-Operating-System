@@ -41,6 +41,31 @@ type RuntimeGwProject = {
   wizard_data?: Record<string, unknown> | null;
 };
 
+async function findLinkedGwProject(
+  supabase: SupabaseClient,
+  lfaProjectId: string,
+  linkedGrantId?: string | null,
+): Promise<RuntimeGwProject | null> {
+  if (linkedGrantId) {
+    const { data } = await supabase
+      .from('gw_projects' as any)
+      .select('id, budget_idr, wizard_data')
+      .eq('id', linkedGrantId)
+      .maybeSingle();
+    if (data) return data as RuntimeGwProject;
+  }
+
+  const { data } = await supabase
+    .from('gw_projects' as any)
+    .select('id, budget_idr, wizard_data, updated_at')
+    .eq('wizard_data->>lfa_project_id', lfaProjectId)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return (data as RuntimeGwProject | null) ?? null;
+}
+
 async function loadCurrentDocumentBudgetIdr(
   supabase: SupabaseClient,
   gwProjectId: string,
@@ -72,28 +97,8 @@ export async function resolveTargetBudgetForLfaProject(
 
   if (!proj) return null;
 
-  let gwProject: RuntimeGwProject | null = null;
   const linkedGrantId = (proj as any).linked_grant_id as string | null | undefined;
-
-  if (linkedGrantId) {
-    const { data } = await supabase
-      .from('gw_projects' as any)
-      .select('id, budget_idr, wizard_data')
-      .eq('id', linkedGrantId)
-      .maybeSingle();
-    gwProject = (data as RuntimeGwProject | null) ?? null;
-  }
-
-  if (!gwProject) {
-    const { data } = await supabase
-      .from('gw_projects' as any)
-      .select('id, budget_idr, wizard_data, updated_at')
-      .eq('wizard_data->>lfa_project_id', lfaProjectId)
-      .order('updated_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    gwProject = (data as RuntimeGwProject | null) ?? null;
-  }
+  const gwProject = await findLinkedGwProject(supabase, lfaProjectId, linkedGrantId);
 
   const documentMetaBudgetIdr = gwProject?.id
     ? await loadCurrentDocumentBudgetIdr(supabase, gwProject.id)
@@ -105,4 +110,54 @@ export async function resolveTargetBudgetForLfaProject(
     documentMetaBudgetIdr,
     lfaProjectTargetBudgetIdr: (proj as any).target_budget_idr,
   });
+}
+
+export async function persistTargetBudgetForLfaProject(
+  supabase: SupabaseClient,
+  lfaProjectId: string,
+  targetBudgetIdr: number,
+): Promise<number> {
+  const normalized = toPositiveNumber(targetBudgetIdr);
+  if (!normalized) {
+    throw new Error('Target budget harus lebih besar dari 0.');
+  }
+
+  const { data: proj, error: projError } = await supabase
+    .from('lfa_projects')
+    .select('id, linked_grant_id')
+    .eq('id', lfaProjectId)
+    .maybeSingle();
+
+  if (projError) throw projError;
+  if (!proj) {
+    throw new Error('Proyek LFA tidak ditemukan.');
+  }
+
+  const { error: lfaUpdateError } = await supabase
+    .from('lfa_projects')
+    .update({ target_budget_idr: normalized } as any)
+    .eq('id', lfaProjectId);
+
+  if (lfaUpdateError) throw lfaUpdateError;
+
+  const linkedGrantId = (proj as any).linked_grant_id as string | null | undefined;
+  const gwProject = await findLinkedGwProject(supabase, lfaProjectId, linkedGrantId);
+  if (gwProject?.id) {
+    const currentWizardData = (gwProject.wizard_data ?? {}) as Record<string, unknown>;
+    const { error: gwUpdateError } = await supabase
+      .from('gw_projects' as any)
+      .update({
+        budget_idr: normalized,
+        wizard_data: {
+          ...currentWizardData,
+          budgetIdr: normalized,
+          lfa_project_id: currentWizardData.lfa_project_id || lfaProjectId,
+        },
+      })
+      .eq('id', gwProject.id);
+
+    if (gwUpdateError) throw gwUpdateError;
+  }
+
+  return normalized;
 }

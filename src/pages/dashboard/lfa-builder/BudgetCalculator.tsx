@@ -30,7 +30,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { appStylesheetTags, finalizePrintWindow } from '@/lib/print/printWindow';
 import { numericOrNull } from '@/lib/utils';
-import { resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
+import { persistTargetBudgetForLfaProject, resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 import { evaluateMirrorBudgetModel } from '@/lib/budget/mirrorBudgetModel';
 
 interface BudgetCalculatorProps {
@@ -59,6 +59,9 @@ export default function BudgetCalculator({
   const [activeTab, setActiveTab] = useState<'rencana' | 'realisasi'>('rencana');
   const [projectData, setProject] = useState<LfaProject | null>(null);
   const [proposalBudget, setProposalBudget] = useState<number | null>(null);
+  const [targetBudgetDialogOpen, setTargetBudgetDialogOpen] = useState(false);
+  const [targetBudgetInput, setTargetBudgetInput] = useState('');
+  const [savingTargetBudget, setSavingTargetBudget] = useState(false);
 
   // Exchange rate state
   const [exchangeRate, setExchangeRate] = useState<number>(16000);
@@ -363,6 +366,45 @@ export default function BudgetCalculator({
     }
 
     await handleAddItem(firstActivity.id, firstActivity.name || 'Aktivitas WBS');
+  };
+
+  const openTargetBudgetDialog = () => {
+    setTargetBudgetInput(proposalBudget ? String(Math.round(proposalBudget)) : '');
+    setTargetBudgetDialogOpen(true);
+  };
+
+  const handleSaveTargetBudget = async () => {
+    const normalized = Number(String(targetBudgetInput).replace(/[^0-9]/g, ''));
+    if (!Number.isFinite(normalized) || normalized <= 0) {
+      toast({
+        title: 'Target budget tidak valid',
+        description: 'Isi nominal lebih besar dari 0.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSavingTargetBudget(true);
+    try {
+      const saved = await persistTargetBudgetForLfaProject(supabase as any, projectId, normalized);
+      setProposalBudget(saved);
+      setTargetBudgetDialogOpen(false);
+      toast({
+        title: 'Target budget tersimpan',
+        description: `Target budget program diperbarui ke Rp ${saved.toLocaleString('id-ID')}.`,
+      });
+      await loadData();
+      if (onBudgetChanged) onBudgetChanged();
+    } catch (err: any) {
+      console.error('[BudgetCalculator] Failed to persist target budget:', err);
+      toast({
+        title: 'Gagal menyimpan target budget',
+        description: err?.message || 'Terjadi kesalahan saat menyimpan target budget.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingTargetBudget(false);
+    }
   };
 
   // Handle Input Edits with Autosave Debounce
@@ -1682,6 +1724,14 @@ export default function BudgetCalculator({
             <div className="space-y-2 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Mirror Budget Model</h3>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={openTargetBudgetDialog}
+                  className="h-6 px-2 text-[10px] font-bold"
+                >
+                  {hasTargetBudget ? 'Edit Program Budget' : 'Set Budget'}
+                </Button>
                 {mirrorBudgetState === 'STATE_A' && (
                   <Badge data-testid="mirror-state-badge" variant="outline" className="text-[10px] font-bold text-slate-700 bg-slate-50 dark:bg-slate-900/50 border-slate-300">STATE A</Badge>
                 )}
@@ -2938,6 +2988,36 @@ export default function BudgetCalculator({
                 Terapkan Standar SBM
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={targetBudgetDialogOpen} onOpenChange={setTargetBudgetDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{hasTargetBudget ? 'Edit Program Budget' : 'Set Target Budget'}</DialogTitle>
+            <DialogDescription>
+              Target budget ini menjadi acuan yang sama untuk WBS dan Budget Tab.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="budget-tab-target-budget-input">Target Budget (IDR)</Label>
+            <Input
+              id="budget-tab-target-budget-input"
+              inputMode="numeric"
+              placeholder="contoh: 500000000"
+              value={targetBudgetInput}
+              onChange={(e) => setTargetBudgetInput(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTargetBudgetDialogOpen(false)} disabled={savingTargetBudget}>
+              Batal
+            </Button>
+            <Button onClick={() => { void handleSaveTargetBudget(); }} disabled={savingTargetBudget}>
+              {savingTargetBudget ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Simpan Budget
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

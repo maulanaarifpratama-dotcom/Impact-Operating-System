@@ -25,7 +25,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { computeEvmVarianceFlag } from './evmVariance';
 import { appStylesheetTags, finalizePrintWindow } from '@/lib/print/printWindow';
-import { resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
+import { persistTargetBudgetForLfaProject, resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 import { evaluateMirrorBudgetModel } from '@/lib/budget/mirrorBudgetModel';
 import type { Database } from '@/integrations/supabase/database.generated';
 
@@ -200,6 +200,9 @@ export default function WBSBuilder({
   const [budgetTotals, setBudgetTotals] = useState<Record<string, number>>({});
   const [rawBudgetItems, setRawBudgetItems] = useState<RawBudgetItem[]>([]);
   const [targetBudget, setTargetBudget] = useState<number | null>(null);
+  const [targetBudgetDialogOpen, setTargetBudgetDialogOpen] = useState(false);
+  const [targetBudgetInput, setTargetBudgetInput] = useState('');
+  const [savingTargetBudget, setSavingTargetBudget] = useState(false);
   const [carbonMode, setCarbonMode] = useState(false);
 
   // Dynamic Row Heights tracking for auto-height text wrapping alignment
@@ -439,6 +442,44 @@ export default function WBSBuilder({
       console.warn('[WBSBuilder] Failed to load target budget reference:', err);
     }
   }, [projectId]);
+
+  const openTargetBudgetDialog = useCallback(() => {
+    setTargetBudgetInput(targetBudget ? String(Math.round(targetBudget)) : '');
+    setTargetBudgetDialogOpen(true);
+  }, [targetBudget]);
+
+  const handleSaveTargetBudget = useCallback(async () => {
+    const normalized = Number(String(targetBudgetInput).replace(/[^0-9]/g, ''));
+    if (!Number.isFinite(normalized) || normalized <= 0) {
+      toast({
+        title: 'Target budget tidak valid',
+        description: 'Isi nominal lebih besar dari 0.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSavingTargetBudget(true);
+    try {
+      const saved = await persistTargetBudgetForLfaProject(supabase as any, projectId, normalized);
+      setTargetBudget(saved);
+      setTargetBudgetDialogOpen(false);
+      toast({
+        title: 'Target budget tersimpan',
+        description: `Target budget program diperbarui ke ${formatBudgetBadge(saved)}.`,
+      });
+      if (onWbsSaved) onWbsSaved();
+    } catch (err: any) {
+      console.error('[WBSBuilder] Failed to persist target budget:', err);
+      toast({
+        title: 'Gagal menyimpan target budget',
+        description: err?.message || 'Terjadi kesalahan saat menyimpan target budget.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingTargetBudget(false);
+    }
+  }, [targetBudgetInput, toast, projectId, onWbsSaved]);
 
   // Helper: Get all descendant WBS item IDs (including the item itself)
   const getSubtreeWbsIds = (itemId: string): string[] => {
@@ -1757,6 +1798,15 @@ export default function WBSBuilder({
             <span className="text-slate-500 text-[11px]">
               {programBudgetRollup.itemCount} item anggaran
             </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={openTargetBudgetDialog}
+              className="h-7 text-[11px] gap-1.5 text-slate-700 border-slate-300 hover:bg-slate-100"
+            >
+              <Wallet className="h-3 w-3" />
+              {hasTargetBudget ? 'Edit Program Budget' : 'Set Budget'}
+            </Button>
             {onNavigateToBudget && (
               <Button
                 variant="outline"
@@ -2877,6 +2927,41 @@ export default function WBSBuilder({
                 Terapkan Rekomendasi
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={targetBudgetDialogOpen} onOpenChange={setTargetBudgetDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{hasTargetBudget ? 'Edit Program Budget' : 'Set Target Budget'}</DialogTitle>
+            <DialogDescription>
+              Target budget dipakai bersama oleh WBS dan Budget Tab sebagai acuan Coverage dan Gap.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2">
+            <Label htmlFor="wbs-target-budget-input">Target Budget (IDR)</Label>
+            <Input
+              id="wbs-target-budget-input"
+              inputMode="numeric"
+              placeholder="contoh: 500000000"
+              value={targetBudgetInput}
+              onChange={(e) => setTargetBudgetInput(e.target.value)}
+            />
+            <p className="text-[11px] text-muted-foreground">
+              Setelah disimpan, STATE, Coverage, dan Gap akan dihitung ulang otomatis.
+            </p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTargetBudgetDialogOpen(false)} disabled={savingTargetBudget}>
+              Batal
+            </Button>
+            <Button onClick={() => { void handleSaveTargetBudget(); }} disabled={savingTargetBudget}>
+              {savingTargetBudget ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Simpan Budget
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
