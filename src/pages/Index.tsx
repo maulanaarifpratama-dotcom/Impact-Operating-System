@@ -442,226 +442,73 @@ export default function Index() {
         </section>
 
         {/* =========================================================================
-            MODULES SECTION: Modern 10-module grid
+            MODULES SECTION: Modern Balanced Bento Grid (Optimized for Mobile & Info Density)
             ========================================================================= */}
-        <section id="modules" className="py-20 md:py-28 bg-brand-surface-alt border-b border-brand-accent/10">
+        <section id="modules" className="py-16 md:py-24 bg-brand-surface-alt border-b border-brand-accent/10">
           <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="max-w-3xl mx-auto text-center">
-              <Badge variant="outline" className="mb-4 border-brand-accent/40 bg-brand-accent/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
+              <Badge variant="outline" className="mb-3 border-brand-accent/40 bg-brand-accent/15 text-teal-300 font-semibold uppercase tracking-wider text-[11px] px-3 py-1 rounded-full">
                 {t.modules.badge}
               </Badge>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-extrabold tracking-tight text-white leading-tight">
                 {t.modules.heading}
               </h2>
-              <p className="mt-4 text-slate-400 text-sm sm:text-base">
+              <p className="mt-3 text-slate-400 text-xs sm:text-sm md:text-base leading-relaxed">
                 {t.modules.subheading}
               </p>
             </div>
 
-            <div className="mt-16 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 auto-rows-fr">
+            <div className="mt-10 md:mt-14 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
               {t.modules.cards.map((module, idx) => {
                 const Icon = resolveModuleIcon(idx);
                 
-                let gridSpan = "col-span-1";
-                if (module.size === "hero") {
-                  gridSpan = "col-span-1 md:col-span-2 lg:col-span-2 lg:row-span-2";
-                } else if (module.size === "wide") {
-                  gridSpan = "col-span-1 md:col-span-2 lg:col-span-2";
-                } else if (module.size === "full") {
-                  gridSpan = "col-span-1 md:col-span-2 lg:col-span-3";
-                }
-
-                // Render dynamic card style and structure based on Bento size
-                let cardElement;
-                if (module.size === "hero") {
-                  cardElement = (
-                    <Card 
-                      className="premium-glass-card relative overflow-hidden flex h-full flex-col p-8 rounded-3xl group text-left bg-gradient-to-br from-[#0D3040] to-[#0F4A3C]"
-                    >
-                      <div 
-                        className="absolute inset-0 opacity-15 pointer-events-none" 
-                        style={{ 
-                          backgroundImage: 'radial-gradient(circle, rgba(var(--brand-accent-rgb), 0.3) 1.5px, transparent 1.5px)', 
-                          backgroundSize: '24px 24px' 
-                        }} 
-                      />
-                      <div className="absolute -right-12 -bottom-12 w-48 h-48 bg-teal-500/10 rounded-full blur-[80px] pointer-events-none group-hover:bg-teal-500/20 transition-all duration-500" />
-                      
-                      <div className="flex items-start justify-between gap-4 relative z-10">
-                        <div className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-teal-400/20 text-teal-300 border border-teal-400/30 transition-transform duration-500 group-hover:scale-110 shadow-lg shadow-teal-500/10">
-                          <Icon className="h-7 w-7" />
-                        </div>
-                        <ArrowRight className="h-5 w-5 text-teal-300/70 transition-all duration-300 group-hover:translate-x-1.5 group-hover:text-teal-300" />
-                      </div>
-                      
-                      <div className="relative z-10 flex-1 flex flex-col justify-between mt-8">
-                        <div>
-                          <h3 className="text-xl md:text-2xl font-extrabold text-white group-hover:text-teal-200 transition-colors leading-tight">
-                            {module.title}
-                          </h3>
-                          <p className="mt-4 text-slate-200 text-sm md:text-base leading-relaxed font-normal max-w-xl">
-                            {module.description}
-                          </p>
-                        </div>
-                        <div className="mt-8">
-                          <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-teal-500 to-brand-accent text-white font-bold text-sm rounded-xl transition-all duration-300 shadow-lg shadow-teal-500/20 hover:shadow-teal-500/30 group-hover:translate-x-0.5">
-                            {module.cta}
-                            <ArrowRight className="h-4 w-4" />
-                          </span>
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                } else if (module.size === "full") {
-                  cardElement = (
-                    <Card 
-                      className="premium-glass-card relative overflow-hidden flex h-full flex-col p-8 rounded-3xl group bg-gradient-to-r from-[#0D3040] to-brand-surface-card"
-                    >
-                      <div className="absolute inset-0 bg-gradient-to-r from-teal-500/5 via-transparent to-teal-500/5 opacity-50 pointer-events-none group-hover:opacity-75 transition-opacity" />
-                      <div className="absolute -right-24 -bottom-24 w-60 h-60 bg-teal-500/10 rounded-full blur-[100px] pointer-events-none group-hover:bg-teal-500/15 transition-colors duration-500" />
-                      
-                      <div className="flex flex-col lg:flex-row gap-8 items-stretch relative z-10 w-full h-full">
-                        {/* Left Column: Core content */}
-                        <div className="flex-1 flex flex-col justify-between gap-5 text-left">
-                          <div>
-                            <div className="flex items-center gap-2.5">
-                              <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-teal-500/15 text-teal-300 border border-teal-500/30 transition-transform duration-300 group-hover:scale-105 shadow-inner">
-                                <Icon className="h-5.5 w-5.5" />
-                              </div>
-                              <Badge variant="outline" className="border-teal-400/40 bg-teal-400/15 text-teal-300 font-bold px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider">
-                                {lang === 'id' ? 'Teknologi AI' : 'AI-Powered'}
-                              </Badge>
-                            </div>
-                            
-                            <h3 className="mt-5 text-xl md:text-2xl font-extrabold text-white group-hover:text-teal-300 transition-colors leading-tight">
-                              {module.title}
-                            </h3>
-                            
-                            <p className="mt-3 text-slate-300 text-sm md:text-base leading-relaxed font-normal max-w-xl">
-                              {module.description}
-                            </p>
-                          </div>
-                          
-                          <span className="inline-flex items-center gap-1.5 text-sm font-bold text-teal-400 transition-colors group-hover:text-teal-300">
-                            {module.cta}
-                            <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" />
-                          </span>
-                        </div>
-
-                        {/* Right Column: Dynamic core capabilities list */}
-                        <div className="lg:w-[320px] flex flex-col justify-center gap-3.5 bg-white/[0.02] border border-white/5 rounded-2xl p-6 shrink-0 text-left">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 block border-b border-white/5 pb-1">
-                            {lang === 'id' ? 'Kemampuan Kunci' : 'Core Capabilities'}
-                          </span>
-                          {(lang === 'id' 
-                            ? ["Proposal Generator", "Audit-Ready RAG", "Draf Laporan Otomatis", "SROI Synthesis"]
-                            : ["Proposal Generator", "Audit-Ready RAG", "Automated Report Drafting", "SROI Synthesis"]
-                          ).map((tag, tIdx) => (
-                            <div key={tIdx} className="flex items-center gap-2.5 text-xs text-slate-300 font-medium py-1 px-1 rounded-lg transition-colors hover:text-white">
-                              <div className="h-2 w-2 rounded-full bg-teal-400 shrink-0 shadow-glow" />
-                              <span>{tag}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </Card>
-                  );
-                } else if (module.size === "wide") {
-                  cardElement = (
-                    <Card 
-                      className="premium-glass-card relative overflow-hidden flex h-full flex-col p-6 rounded-2xl group text-left"
-                    >
-                      <div 
-                        className="absolute inset-0 opacity-10 pointer-events-none" 
-                        style={{ 
-                          backgroundImage: 'radial-gradient(circle, rgba(var(--brand-accent-rgb), 0.2) 1px, transparent 1px)', 
-                          backgroundSize: '16px 16px' 
-                        }} 
-                      />
-                      <div className="absolute -right-6 -bottom-6 w-28 h-24 bg-teal-500/5 rounded-full blur-xl group-hover:bg-teal-500/10 transition-colors duration-500" />
-                      
-                      <div className="flex items-start justify-between gap-3 relative z-10">
-                        <div className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-teal-500/15 text-teal-400 border border-teal-500/30 transition-transform duration-300 group-hover:scale-105">
-                          <Icon className="h-5.5 w-5.5" />
-                        </div>
-                        <ArrowRight className="h-4.5 w-4.5 text-slate-400 transition-transform duration-300 group-hover:translate-x-1 group-hover:text-teal-400" />
-                      </div>
-                      
-                      <div className="relative z-10 flex-1 flex flex-col justify-between mt-6">
-                        <div>
-                          <h3 className="text-lg font-extrabold text-white group-hover:text-teal-300 transition-colors leading-snug">
-                            {module.title}
-                          </h3>
-                          <p className="mt-3 text-slate-300 text-sm leading-relaxed font-normal">
-                            {module.description}
-                          </p>
-                        </div>
-                        <span className="mt-6 text-sm font-bold text-teal-400 transition-colors group-hover:text-teal-300 flex items-center gap-1.5">
-                          {module.cta}
-                          <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                        </span>
-                      </div>
-                    </Card>
-                  );
-                } else {
-                  cardElement = (
-                    <Card 
-                      className="premium-glass-card relative overflow-hidden flex h-full flex-col p-5 rounded-2xl group text-left"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="flex items-center gap-2.5">
-                          <div className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-teal-500/10 text-teal-400 border border-teal-500/20 transition-transform duration-300 group-hover:scale-105">
-                            <Icon className="h-4.5 w-4.5" />
-                          </div>
-                          {module.badge && (
-                            <Badge 
-                              variant="outline" 
-                              className={`font-bold px-2 py-0.5 rounded-md text-[9px] uppercase tracking-wider whitespace-nowrap ${
-                                module.badgeVariant === 'w' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' :
-                                module.badgeVariant === 't' ? 'border-amber-500/30 bg-amber-500/10 text-amber-400' :
-                                'border-indigo-500/30 bg-indigo-500/10 text-indigo-300'
-                              }`}
-                            >
-                              {module.badge}
-                            </Badge>
-                          )}
-                        </div>
-                        <ArrowRight className="h-4 w-4 text-slate-500 transition-transform duration-300 group-hover:translate-x-1 group-hover:text-teal-400" />
-                      </div>
-                      
-                      <div className="flex-1 flex flex-col justify-between mt-5">
-                        <div>
-                          <h3 className="text-sm sm:text-base font-extrabold text-slate-100 group-hover:text-teal-300 transition-colors leading-snug">
-                            {module.title}
-                          </h3>
-                          <p className="mt-2.5 text-xs sm:text-sm text-slate-400 leading-relaxed font-normal line-clamp-5">
-                            {module.description}
-                          </p>
-                        </div>
-                        <span className="mt-5 text-xs sm:text-sm font-bold text-teal-400 transition-colors group-hover:text-teal-300 block">
-                          {module.cta}
-                        </span>
-                      </div>
-                    </Card>
-                  );
-                }
-
-                if (module.href) {
-                  return (
-                    <Link
-                      key={idx}
-                      to={module.href}
-                      className={`group block rounded-2xl focus:outline-none transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] h-full ${gridSpan}`}
-                    >
-                      {cardElement}
-                    </Link>
-                  );
-                }
-
                 return (
-                  <div key={idx} className={`opacity-80 transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] h-full ${gridSpan}`}>
-                    {cardElement}
-                  </div>
+                  <Link
+                    key={idx}
+                    to={module.href || "#"}
+                    className="group block rounded-2xl focus:outline-none transition-all duration-300 hover:-translate-y-1 h-full"
+                  >
+                    <Card 
+                      className="premium-glass-card relative overflow-hidden flex h-full flex-col p-5 sm:p-6 rounded-2xl text-left border border-white/10 hover:border-brand-accent/40 transition-all duration-300 bg-brand-surface-card/60 backdrop-blur-md"
+                    >
+                      <div className="flex items-start justify-between gap-2.5 mb-3">
+                        <div className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-teal-500/15 text-teal-300 border border-teal-500/30 transition-transform duration-300 group-hover:scale-105 shrink-0">
+                          <Icon className="h-5 w-5" />
+                        </div>
+                        {module.badge && (
+                          <Badge 
+                            variant="outline" 
+                            className={`font-bold px-2 py-0.5 rounded-md text-[9px] uppercase tracking-wider whitespace-nowrap ${
+                              module.badgeVariant === 'w' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' :
+                              module.badgeVariant === 't' ? 'border-amber-500/30 bg-amber-500/10 text-amber-400' :
+                              module.badgeVariant === 'a' ? 'border-teal-400/40 bg-teal-400/15 text-teal-200' :
+                              'border-indigo-500/30 bg-indigo-500/10 text-indigo-300'
+                            }`}
+                          >
+                            {module.badge}
+                          </Badge>
+                        )}
+                      </div>
+                      
+                      <div className="flex-1 flex flex-col justify-between">
+                        <div>
+                          <h3 className="text-base sm:text-lg font-extrabold text-white group-hover:text-teal-300 transition-colors leading-snug">
+                            {module.title}
+                          </h3>
+                          <p className="mt-2 text-xs sm:text-sm text-slate-300 leading-relaxed font-normal">
+                            {module.description}
+                          </p>
+                        </div>
+                        
+                        <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between">
+                          <span className="text-xs font-bold text-teal-400 transition-colors group-hover:text-teal-300 flex items-center gap-1">
+                            {module.cta}
+                          </span>
+                          <ArrowRight className="h-4 w-4 text-teal-400 transition-transform duration-300 group-hover:translate-x-1" />
+                        </div>
+                      </div>
+                    </Card>
+                  </Link>
                 );
               })}
             </div>

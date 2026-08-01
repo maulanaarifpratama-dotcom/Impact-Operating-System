@@ -64,7 +64,7 @@ export interface HomepageTranslation {
       size?: "small" | "wide" | "hero" | "full";
       variant?: "default" | "highlight" | "hero" | "ai";
       badge?: string;
-      badgeVariant?: "w" | "t" | "h";
+      badgeVariant?: "w" | "t" | "h" | "a";
     }>;
   };
   evidenceAndReporting: {
@@ -113,8 +113,8 @@ export interface HomepageTranslation {
 export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
   id: {
     meta: {
-      title: "Impactory.id — Platform AI untuk NGO, MEAL, SROI, dan Laporan Dampak",
-      description: "Impactory.id membantu NGO merancang program, menyusun anggaran, memantau capaian MEAL, mengelola bukti, dan menghitung SROI dalam satu platform."
+      title: "Impactory.id — Platform Integrasi Siklus Program NGO, MEAL V2, SROI & ESG",
+      description: "Impactory.id mengelola seluruh siklus program NGO: Proposal → LFA → WBS Control Center → Budget → MEAL V2 → SROI V2 → ESG / E-ROI → Donor-ready Reporting."
     },
     navbar: {
       problem: "Masalah",
@@ -124,330 +124,258 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
       startScorecard: "Mulai Scorecard"
     },
     hero: {
-      badge: "NGO Growth Operating System",
+      badge: "Integrated Program Lifecycle System",
       hackathonBadge: "🏆 Top 101 dari 1.500+ Peserta — Google Cloud Gen AI Academy APAC Hackathon",
       hackathonBadgeShort: "Peringkat 68/101 Finalis — Gen AI APAC Hackathon",
-      headingText: "Rancang Program & Hitung SROI.",
-      headingHighlight: "Mudah & Terukur.",
-      subheading: "Platform AI untuk merancang program, menyusun anggaran, memantau capaian, mengelola bukti, dan menghitung nilai dampak sosial NGO.",
-      ctaPrimary: "Mulai buat program",
+      headingText: "Kelola Seluruh Siklus Program &",
+      headingHighlight: "Valuasi Dampak Berbasis Bukti.",
+      subheading: "Platform ekosistem terpadu NGO: Proposal → LFA → WBS Control Center → Budget → MEAL V2 → SROI V2 → ESG / E-ROI → Donor-ready Reporting.",
+      ctaPrimary: "Mulai Buat Program",
       ctaSecondary: "Lihat G.R.O.W.T.H. System",
-      trustBadge: "Civic Resource Hub untuk CSO Akar Rumput, dibangun dari pengalaman 20B+ budget digital marketing di NGO.",
+      trustBadge: "Civic Resource Hub untuk CSO Akar Rumput & NGO, dilengkapi Workflow Kepemilikan, Persetujuan, dan Bukti Terverifikasi.",
       floatingStat1: "72 Peluang Grant Aktif",
-      floatingStat2: "SDG-Aligned Pipeline",
-      floatingStat3: "AI Match: High Fit"
+      floatingStat2: "SDG & ESG Aligned Pipeline",
+      floatingStat3: "Real-time MEAL & SROI Sync"
     },
     problem: {
       badge: "Masalah",
-      heading: "NGO bukan miskin tools. NGO sering kali miskin sistem.",
-      description: "Canva Pro sudah ada. Google Ads Grant sudah aktif. Workspace sudah dipakai. Tapi civil society resource access belum terpetakan, proposal masih mulai dari nol, donor masih tercecer, laporan impact dibuat saat diminta, dan campaign sering dimulai dari panik.",
-      highlight: "Tools adalah bahan bakar. Sistem adalah mesin."
+      heading: "NGO bukan miskin tools. NGO sering kali miskin sistem terintegrasi.",
+      description: "Proposal masih diketik dari nol, aktivitas WBS terpisah dari anggaran, bukti MEAL tercecer di chat, persetujuan klaim manual, dan laporan dampak baru disusun saat donor meminta.",
+      highlight: "Tools adalah komponen. Sistem terintegrasi adalah mesin eksekusi."
     },
     growth: {
       badge: "Framework",
       heading: "G.R.O.W.T.H. System",
-      subheading: "Enam dimensi terstruktur untuk membangun operational excellence, akuntabilitas data, dan keberlanjutan dampak NGO.",
+      subheading: "Enam dimensi terstruktur untuk membangun operasional terintegrasi, akuntabilitas data, dan keberlanjutan dampak NGO.",
       cards: [
         {
           letter: "G",
           title: "Grant & Resource Access",
-          description: "Temukan pendanaan baru dan buka akses sumber daya digital organisasi secara terpusat.",
-          modules: ["Resource Access Tracker", "Grant Pipeline", "Grantwriter"]
+          description: "Temukan pendanaan baru, akselerasi draf proposal, dan buka akses sumber daya digital organisasi secara terpusat.",
+          modules: ["Grant Pipeline", "AI Proposal Generator", "Resource Tracker"]
         },
         {
           letter: "R",
           title: "Readiness & Baseline",
-          description: "Ukur kesiapan digital organisasi, kelola hak akses tim, dan petakan baseline profil secara sistematis.",
+          description: "Ukur kesiapan operasional, kelola hak akses tim (RLS), dan petakan baseline profil organisasi secara sistematis.",
           modules: ["Readiness Scorecard", "Guided Onboarding", "Google OAuth & Team RLS"]
         },
         {
           letter: "O",
-          title: "Operating Program",
-          description: "Rancang kerangka logis, aktivitas kerja, dan anggaran program secara presisi.",
-          modules: ["LFA Builder", "WBS Builder", "Budget Calculator"]
+          title: "Operating Program & WBS Control Center",
+          description: "Rancang LFA, kelola WBS Control Center, alur klaim & approval, serta kalkulasi anggaran terhubung otomatis.",
+          modules: ["LFA Builder", "WBS Control Center", "Budget Calculator"]
         },
         {
           letter: "W",
-          title: "Work Evidence & Proof",
-          description: "Catat capaian indikator, simpan bukti pelaksanaan program langsung di cloud, dan kelola data penerima manfaat secara terstruktur.",
-          modules: ["MEAL Tracker", "OneDrive Evidence Sync", "Impact Library", "Beneficiary Registry"]
+          title: "Work Evidence & Verification",
+          description: "Simpan bukti kegiatan terverifikasi di cloud, kelola registry penerima manfaat, dan jembatani bukti ke indikator MEAL.",
+          modules: ["MEAL Evidence Bridge", "OneDrive Evidence Sync", "Beneficiary Registry"]
         },
         {
           letter: "T",
-          title: "Tracking & Monitoring",
-          description: "Rencanakan indikator pemantauan, pantau capaian program secara real-time melalui dashboard, dan hasilkan laporan berkala tanpa rekap manual.",
-          modules: ["MEAL Planner", "Impact Dashboard", "Monthly Report", "Operating Review"]
+          title: "Tracking & Control Engine",
+          description: "Pantau agregasi indikator output/outcome/impact real-time, lacak hambatan (bottleneck), dan jalankan review bulanan.",
+          modules: ["MEAL V2 Aggregation", "Program Health Summary", "Monthly Operating Review"]
         },
         {
           letter: "H",
-          title: "High-Impact Reporting",
-          description: "Kalkulasikan nilai dampak sosial dan lingkungan program, hasilkan executive summary dan insight dashboard, serta draf proposal berbasis data dengan AI.",
-          modules: ["SROI Calculator", "E-ROI Carbon", "Monthly Impact Report", "AI Assist Writer"]
+          title: "High-Impact & ESG Reporting",
+          description: "Kuantifikasikan nilai dampak berbasis bukti (SROI V2), emisi lingkungan (E-ROI ESG), dan ekspor laporan siap donor.",
+          modules: ["SROI V2 Evidence Valuation", "E-ROI Carbon Tracker", "Donor-ready Reporting"]
         }
       ]
     },
     workflow: {
       badge: "Alur Kerja Utama",
       heading: "Satu Alur Kerja Terintegrasi dari Hulu ke Hilir",
-      subheading: "Kelola seluruh program NGO Anda dengan standar internasional dalam 6 langkah mudah.",
+      subheading: "Kelola siklus lengkap program NGO Anda dengan kepatuhan dan akuntabilitas standar donor internasional.",
       steps: [
         {
-          title: "Rancang Program",
-          desc: "Desain Logical Framework Approach (LFA Matrix) dan Work Breakdown Structure (WBS) sesuai hierarki vertikal NORAD & EuropeAid.",
-          module: "LFA Builder & WBS Builder"
+          title: "Proposal & Design",
+          desc: "Susun draf proposal dengan AI dan desain kerangka logis (LFA Matrix) yang selaras dengan hierarki NORAD & EuropeAid.",
+          module: "Grantwriter & LFA Builder"
         },
         {
-          title: "Susun Anggaran",
-          desc: "Kalkulasi anggaran kegiatan terintegrasi langsung dengan aktivitas WBS dan referensi SBM 2026 secara otomatis.",
+          title: "WBS Control Center",
+          desc: "Tetapkan penanggung jawab (ownership), reviewer, klaim, persetujuan (approval), dan deteksi hambatan operasional.",
+          module: "WBS Control Center"
+        },
+        {
+          title: "Budget & Financial Status",
+          desc: "Kalkulasi anggaran berbasis kegiatan WBS dengan acuan SBM 2026 dan pantau variance anggaran secara otomatis.",
           module: "Budget Calculator"
         },
         {
-          title: "Pantau Capaian",
-          desc: "Tentukan indikator keberhasilan program sesuai standar MEAL DPro dan catat realisasi capaian dalam satu tab.",
-          module: "MEAL Planner & Tracker"
+          title: "MEAL V2 & Verification",
+          desc: "Agregasi indikator output, outcome, & impact dengan workflow verifikasi dan bridge bukti fisik di cloud.",
+          module: "MEAL V2 Engine"
         },
         {
-          title: "Kelola Bukti",
-          desc: "Simpan dokumentasi dan bukti pelaksanaan program langsung di cloud yang aman.",
-          module: "OneDrive Sync & Library"
+          title: "Evidence-Backed SROI",
+          desc: "Valuasi dampak sosial otomatis tersinkronisasi dari MEAL V2 dengan 4 penyesuaian SVI, skor keyakinan, dan jejak audit.",
+          module: "SROI V2 Valuation"
         },
         {
-          title: "Hitung Dampak",
-          desc: "Kuantifikasikan nilai dampak program sosial Anda menggunakan 4 adjustment standar Social Value International (SVI).",
-          module: "SROI Calculator"
-        },
-        {
-          title: "Siapkan Laporan",
-          desc: "Kompilasikan semua data capaian, anggaran, dan bukti dampak menjadi draf proposal & laporan matang.",
-          module: "AI Assist Writer"
+          title: "Donor-Ready Reporting",
+          desc: "Kompilasikan capaian terverifikasi, alokasi anggaran, dan bukti dampak menjadi laporan dan proposal siap donor.",
+          module: "Reporting & AI Assist"
         }
       ]
     },
     modules: {
-      badge: "Modul Kerja Terintegrasi",
-      heading: "Modul Lengkap untuk NGO Indonesia Modern",
-      subheading: "Solusi end-to-end yang dirancang khusus untuk memperkuat kapasitas organisasi masyarakat sipil di Indonesia.",
+      badge: "Modul Ekosistem Terintegrasi",
+      heading: "Kapabilitas Utama Platform Impactory",
+      subheading: "Rangkaian modul yang saling terhubung untuk mengawal program dari fase gagasan hingga pelaporan donor.",
       cards: [
         {
-          title: "Guided Onboarding",
-          description: "Mulai perjalanan digitalisasi organisasi dengan setup profil dan pemetaan aset terpadu sesuai standar G.R.O.W.T.H.",
-          cta: "Mulai Onboarding",
-          href: "/onboarding",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "LFA Builder",
-          description: "Desain matriks Logical Framework Approach komprehensif berbasis norma NORAD & EuropeAid, menghubungkan tujuan, output, aktivitas, dan asumsi program secara terstruktur.",
-          cta: "Buka LFA Builder",
+          title: "WBS Control Center",
+          description: "Pusat kendali operasional program: kelola penanggung jawab kegiatan (ownership), reviewer, pengajuan klaim, approval workflow, bukti lapangan, status keuangan, dan deteksi otomatis hambatan (bottleneck).",
+          cta: "Buka Control Center",
           href: "/dashboard/lfa-builder",
-          size: "hero",
-          variant: "hero"
+          badge: "Control Center",
+          badgeVariant: "a"
         },
         {
-          title: "WBS Builder",
-          description: "Pecah aktivitas program menjadi paket kerja terstruktur dengan Gantt chart otomatis, estimasi durasi AI, dan sinkronisasi anggaran.",
-          cta: "Desain Aktivitas",
+          title: "MEAL V2 Engine",
+          description: "Mesin pemantauan & evaluasi tingkat lanjut: dukung tipe indikator kuantitatif/kualitatif, agregasi otomatis, workflow verifikasi data, dan bridge bukti langsung dari lapangan.",
+          cta: "Kelola MEAL V2",
           href: "/dashboard/lfa-builder",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "Budget Calculator",
-          description: "Kalkulasi anggaran operasional & kegiatan dengan auto-populate langsung dari WBS, referensi SBM 2026, dan deteksi otomatis deviasi anggaran (variance flag).",
-          cta: "Kalkulasi Anggaran",
-          href: "/dashboard/lfa-builder",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "MEAL Planner",
-          description: "Rumuskan indikator, baseline, target, dan metode pengumpulan data pemantauan program sesuai kerangka kerja MEAL DPro secara terstandar.",
-          cta: "Rencanakan MEAL",
-          href: "/dashboard/lfa-builder",
-          size: "wide",
-          variant: "highlight"
-        },
-        {
-          title: "MEAL Tracker",
-          description: "Catat dan telusuri capaian aktual indikator secara real-time, lengkap dengan catatan verifikasi dan bukti lapangan.",
-          cta: "Telusuri Capaian",
-          href: "/dashboard/lfa-builder",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "LFA Builder (SROI Terintegrasi)",
-          description: "Hitung nilai Social Return on Investment secara otomatis dari indikator MEAL DPro dan anggaran LFA yang tersimpan, lengkap dengan 4 adjustment standar SVI.",
-          cta: "Lihat SROI Terintegrasi",
-          href: "/dashboard/lfa-builder",
-          size: "wide",
-          variant: "highlight"
-        },
-        {
-          title: "SROI Calculator Standalone",
-          description: "Hitung rasio SROI dengan 4 penyesuaian SVI (attribution, deadweight, displacement, drop-off), analisis sensitivitas 3 skenario, breakdown stakeholder group, dan ekspor laporan PDF siap donor.",
-          cta: "Gunakan SROI Mandiri",
-          href: "/dashboard/sroi",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "Impact Library",
-          description: "Ubah dokumen, proposal, dan laporan lama menjadi knowledge base AI yang dapat digunakan kembali untuk insight dan penulisan otomatis.",
-          cta: "Buka Library",
-          href: "/dashboard/impactory-library",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "OneDrive Evidence Sync",
-          description: "Sinkronisasi bukti kegiatan secara otomatis ke folder cloud Microsoft OneDrive untuk menjaga transparansi dan akuntabilitas data program.",
-          cta: "Kelola Bukti Dampak",
-          href: "/dashboard/impactory-library",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "AI Assist (RAG & Copilot)",
-          description: "Gunakan AI berbasis knowledge internal organisasi untuk menghasilkan executive summary dampak, insight dari dashboard, proposal, laporan, dan materi kampanye secara cepat dan konsisten.",
-          cta: "Buka AI Assist",
-          href: "/dashboard/impactory-library",
-          size: "full",
-          variant: "ai"
-        },
-        {
-          title: "Impact Dashboard",
-          description: "Transparansi capaian program, statistik donasi, serta Program Health Summary 3 dimensi (implementasi, keuangan, hasil) dengan deteksi otomatis variance progress WBS vs realisasi anggaran.",
-          cta: "Buka Dashboard",
-          href: "/dashboard/impact",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "Monthly Impact Report",
-          description: "Kompilasikan laporan dampak bulanan sebagai proof system yang terverifikasi untuk donor dan funder secara otomatis.",
-          cta: "Buat Laporan",
-          href: "/dashboard/monthly-report",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "Beneficiary Registry",
-          description: "Database penerima manfaat per program dengan mode sederhana dan profesional. Rekam data demografis, kelompok rentan, dan consent PDP. Export CSV/PDF siap untuk pelaporan donor.",
-          cta: "Buka Registry",
-          href: "/dashboard/beneficiary",
-          size: "small",
-          variant: "default",
-          badge: "Work Evidence",
-          badgeVariant: "w"
-        },
-        {
-          title: "E-ROI Carbon Tracker",
-          description: "Ukur dan laporkan dampak lingkungan program dengan breakdown Scope 1, Scope 2, dan Scope 3 sesuai GHG Protocol, menggunakan faktor emisi terverifikasi IPCC 2019 dan PLN Indonesia 2023. Terintegrasi ke SROI dan Grant Writer.",
-          cta: "Buka E-ROI",
-          href: "/dashboard/eroi",
-          size: "small",
-          variant: "default",
-          badge: "High-Impact",
-          badgeVariant: "h"
-        },
-        {
-          title: "Monthly Operating Review",
-          description: "Review bulanan kinerja program, capaian indikator MEAL, dan dokumentasi keputusan adaptif berbasis data lapangan. Fondasi akuntabilitas internal organisasi.",
-          cta: "Buka Review",
-          href: "/dashboard/operating-review",
-          size: "small",
-          variant: "default",
-          badge: "Tracking",
+          badge: "MEAL V2",
           badgeVariant: "t"
         },
         {
-          title: "Keamanan & Kolaborasi Tim",
-          description: "Sign-in instan dengan Google OAuth, kelola peran organisasi (Owner, Admin, Member), dan undang tim secara aman melalui token link unik terproteksi Row Level Security (RLS).",
-          cta: "Kelola Akses Tim",
-          href: "/dashboard/settings",
-          size: "small",
-          variant: "default",
-          badge: "Keamanan",
+          title: "SROI V2 Evidence Valuation",
+          description: "Valuasi dampak sosial berbasis bukti: sinkronisasi real-time dari data MEAL V2, 4 penyesuaian standar SVI (attribution, deadweight, displacement, drop-off), confidence scoring, dan alasan audit.",
+          cta: "Valuasi SROI V2",
+          href: "/dashboard/sroi",
+          badge: "SROI V2",
+          badgeVariant: "h"
+        },
+        {
+          title: "Budget & Financial Tracking",
+          description: "Kalkulasi anggaran terikat aktivitas WBS, acuan standar SBM 2026, pemantauan realisasi keuangan, dan deteksi otomatis deviasi (variance flag).",
+          cta: "Kelola Anggaran",
+          href: "/dashboard/lfa-builder",
+          badge: "Financials",
           badgeVariant: "w"
+        },
+        {
+          title: "ESG & E-ROI Carbon Tracker",
+          description: "Ukur dan laporkan jejak lingkungan program (Scope 1, 2, 3) berbasis GHG Protocol & IPCC 2019, yang terintegrasi langsung ke laporan SROI dan proposal donor.",
+          cta: "Buka E-ROI Carbon",
+          href: "/dashboard/eroi",
+          badge: "ESG / E-ROI",
+          badgeVariant: "h"
+        },
+        {
+          title: "Evidence Workflow & OneDrive Sync",
+          description: "Kelola dan verifikasi bukti fisik pelaksanaan program di cloud (Microsoft OneDrive) yang terhubung langsung dengan klaim WBS dan indikator MEAL.",
+          cta: "Kelola Bukti",
+          href: "/dashboard/impactory-library",
+          badge: "Evidence",
+          badgeVariant: "w"
+        },
+        {
+          title: "Donor-Ready Reporting",
+          description: "Hasilkan laporan dampak dan executive summary terverifikasi dengan hasil terukur, bukti fisik terlampir, dan akuntabilitas keuangan berbasis anggaran WBS.",
+          cta: "Buat Laporan Donor",
+          href: "/dashboard/monthly-report",
+          badge: "Reporting",
+          badgeVariant: "a"
+        },
+        {
+          title: "Beneficiary Registry & PDP",
+          description: "Database penerima manfaat per program dengan consent PDP, kelompok rentan, pencatatan demografis, dan ekspor data terproteksi.",
+          cta: "Buka Registry",
+          href: "/dashboard/beneficiary",
+          badge: "Registry",
+          badgeVariant: "w"
+        },
+        {
+          title: "Proposal & Grant Pipeline",
+          description: "Pusat penemuan peluang hibah, pemetaan kriteria donor, dan penyusunan draf proposal otomatis berbasis knowledge base organisasi.",
+          cta: "Cari Grant",
+          href: "/dashboard/grantfinder",
+          badge: "Proposals",
+          badgeVariant: "t"
         }
       ]
     },
     evidenceAndReporting: {
       badge: "Manajemen Bukti & Standardisasi Internasional",
-      heading: "Kepercayaan Lahir dari Bukti Fisik dan Keaslian Data",
-      description: "Impactory tidak hanya membantu Anda merancang program, tetapi juga memastikan kepatuhan akuntabilitas tingkat tinggi yang selaras dengan standar internasional: Social Value International (SROI), GHG Protocol (E-ROI Scope 1/2/3), MEAL DPro, dan logika vertikal NORAD/EuropeAid.",
+      heading: "Kepercayaan Lahir dari Bukti Fisik & Transparansi Workflow",
+      description: "Impactory memastikan setiap angka capaian dan nilai dampak didukung oleh alur kepemilikan, persetujuan berjenjang, dan bukti fisik terverifikasi yang selaras dengan standar SVI, GHG Protocol, MEAL DPro, dan logika NORAD/EuropeAid.",
       cards: [
         {
-          title: "Integrasi OneDrive",
-          description: "Kaitkan tautan dokumen pendukung seperti kuesioner, foto kegiatan, dan absensi di OneDrive langsung di samping laporan capaian MEAL Anda."
+          title: "Evidence Workflow & OneDrive Bridge",
+          description: "Tautkan bukti fisik (foto, absensi, dokumen) di cloud langsung pada klaim kegiatan WBS dan capaian indikator MEAL V2."
         },
         {
-          title: "AI Assist (RAG & Copilot)",
-          description: "Gunakan asisten AI berbasis pengetahuan internal Anda sendiri untuk mempercepat penulisan draf proposal, laporan dampak, dan pembuatan salinan kampanye digital."
+          title: "Ownership & Approval Workflow",
+          description: "Kejelasan peran penanggung jawab kegiatan, reviewer, dan alur persetujuan klaim berbasis Row Level Security (RLS) terproteksi."
         },
         {
-          title: "Selaras Standar Internasional",
-          description: "Kalkulasi dan kerangka kerja dirancang selaras dengan Social Value International (SROI 4-adjustment), GHG Protocol (E-ROI Scope 1/2/3), MEAL DPro, dan logika hirarkis NORAD/EuropeAid."
+          title: "Standardisasi Internasional",
+          description: "Selaras dengan Social Value International (SROI V2 4-adjustment), GHG Protocol (E-ROI ESG Scope 1/2/3), MEAL DPro, dan SBM 2026."
         }
       ]
     },
     trust: {
       badge: "Asas Kepercayaan",
-      heading: "Safe AI mempercepat draf. Manusia memastikan akurasi.",
+      heading: "AI Mempercepat Draf. Workflow & Manusia Memastikan Akurasi.",
       cards: [
         {
-          title: "Human Review Required",
-          description: "Proposal, data grant, klaim impact, dan cerita penerima manfaat wajib direview manusia."
+          title: "Human Approval Workflow",
+          description: "Proposal, klaim WBS, data keuangan, dan laporan dampak wajib melalui alur verifikasi & approval manusia."
         },
         {
-          title: "No Fabrication",
-          description: "Impactory tidak boleh mengarang deadline, eligibility, funding amount, atau angka impact."
+          title: "No Fabrication Doctrine",
+          description: "Sistem tidak mengarang angka impact, bukti kegiatan, atau kriteria donor. Semua angka berakar dari data MEAL & WBS."
         },
         {
-          title: "Document Trust",
-          description: "Dokumen NGO sering berisi data sensitif dan harus dikelola dengan izin serta akses terbatas."
+          title: "Evidence Provenance & RLS",
+          description: "Setiap klaim data memiliki jejak bukti fisik terlampir dan dilindungi oleh otorisasi keamanan Row Level Security."
         },
         {
-          title: "Confidence over Conviction",
-          description: "Rekomendasi harus menunjukkan tingkat keyakinan, bukan berpura-pura pasti."
+          title: "Confidence Scoring",
+          description: "Valuasi SROI dan kalkulasi dampak menyajikan skor keyakinan & alasan audit, bukan sekadar klaim sepihak."
         }
       ]
     },
     timeline90: {
       badge: "90-Day Plan",
-      heading: "Bangun sistem NGO, CSO, dan komunitas akar rumput Anda dalam 90 hari.",
+      heading: "Bangun sistem terintegrasi NGO & CSO Anda dalam 90 hari.",
       cta: "Mulai dari Readiness Scorecard",
       steps: [
-        { day: "Hari 1–15", phase: "Foundation Audit" },
-        { day: "Hari 16–30", phase: "Platform Registration" },
-        { day: "Hari 31–45", phase: "Tools Activation" },
-        { day: "Hari 46–60", phase: "Campaign System" },
-        { day: "Hari 61–75", phase: "Grant System" },
-        { day: "Hari 76–90", phase: "Dashboard & Scale" }
+        { day: "Hari 1–15", phase: "Foundation & Readiness Audit" },
+        { day: "Hari 16–30", phase: "WBS & Budget Control Setup" },
+        { day: "Hari 31–45", phase: "MEAL V2 & Evidence Activation" },
+        { day: "Hari 46–60", phase: "Ownership & Approval Workflow" },
+        { day: "Hari 61–75", phase: "SROI V2 & ESG Integration" },
+        { day: "Hari 76–90", phase: "Donor-ready Dashboard & Scale" }
       ]
     },
     founder: {
       badge: "Inisiatif Operator",
       heading: "Dibangun dari pengalaman operator.",
-      description: "Impactory.id dikembangkan sebagai inisiatif civic technology oleh Yayasan Rumah Pembangunan Berkelanjutan untuk memperkuat akses sumber daya, dokumentasi dampak, dan kapasitas kerja organisasi masyarakat sipil di Indonesia. Pengembangan awalnya didukung oleh pengalaman operator dari Immersia Konsultan Impact dalam mengelola 20B+ budget digital marketing lintas NGO, social impact, education, campaign growth, dan sistem kerja digital untuk organisasi sosial."
+      description: "Impactory.id dikembangkan sebagai inisiatif civic technology oleh Yayasan Rumah Pembangunan Berkelanjutan untuk memperkuat akses sumber daya, operasional terintegrasi, dan kapasitas kerja organisasi masyarakat sipil di Indonesia. Pengalaman operator mengelola 20B+ budget digital marketing lintas NGO mendasari arsitektur WBS Control Center, MEAL V2, dan SROI V2 ini."
     },
     finalCta: {
-      heading: "Mulai dari baseline. Bangun sistemnya.",
-      description: "Gunakan Readiness Scorecard sebagai titik awal, lalu rapikan Grant Pipeline, library, proposal workflow, campaign, impact documentation, dan laporan dampak untuk organisasi sosial.",
+      heading: "Mulai dari baseline. Integrasikan seluruh siklus program.",
+      description: "Gunakan Readiness Scorecard sebagai titik awal, lalu aktifkan WBS Control Center, MEAL V2, SROI V2, dan laporan siap donor untuk organisasi Anda.",
       ctaPrimary: "Mulai Readiness Scorecard",
-      ctaSecondary: "Lihat Grant Pipeline"
+      ctaSecondary: "Buka Grant Pipeline"
     },
     footer: {
-      tagline: "NGO Growth Operating System & Civic Technology Resource Hub.",
+      tagline: "Integrated Program Lifecycle System & Civic Technology Resource Hub.",
       rights: "Semua Hak Dilindungi."
     }
   },
   en: {
     meta: {
-      title: "Impactory.id — AI Platform for NGOs, MEAL, SROI, and Impact Reporting",
-      description: "Impactory.id helps NGOs design programs, manage budgets, track MEAL outcomes, organize evidence, and calculate SROI in one platform."
+      title: "Impactory.id — Integrated Program Lifecycle Platform for NGOs, MEAL V2, SROI & ESG",
+      description: "Impactory.id manages the complete NGO program lifecycle: Proposal → LFA → WBS Control Center → Budget → MEAL V2 → SROI V2 → ESG / E-ROI → Donor-ready Reporting."
     },
     navbar: {
       problem: "Problem",
@@ -457,324 +385,253 @@ export const homepageTranslations: Record<'id' | 'en', HomepageTranslation> = {
       startScorecard: "Start Scorecard"
     },
     hero: {
-      badge: "NGO Growth Operating System",
+      badge: "Integrated Program Lifecycle System",
       hackathonBadge: "🏆 Top 101 of 1,500+ Participants — Google Cloud Gen AI Academy APAC Hackathon",
       hackathonBadgeShort: "Ranked 68/101 Finalist — Gen AI APAC Hackathon",
-      headingText: "Design Programs & Measure SROI.",
-      headingHighlight: "Seamless & Scalable.",
-      subheading: "An AI-powered platform for NGOs to design programs, manage budgets, track outcomes, organize evidence, and calculate social impact value.",
-      ctaPrimary: "Start a program",
+      headingText: "Manage Entire Program Lifecycles &",
+      headingHighlight: "Valuate Evidence-Backed Impact.",
+      subheading: "An integrated ecosystem platform for NGOs: Proposal → LFA → WBS Control Center → Budget → MEAL V2 → SROI V2 → ESG / E-ROI → Donor-ready Reporting.",
+      ctaPrimary: "Start a Program",
       ctaSecondary: "Explore G.R.O.W.T.H. System",
-      trustBadge: "Civic Resource Hub for Grassroots CSOs, built from 20B+ digital marketing budget experience in NGOs.",
+      trustBadge: "Civic Resource Hub for Grassroots CSOs & NGOs, equipped with Ownership, Approval, and Verified Evidence Workflows.",
       floatingStat1: "72 Active Grant Opportunities",
-      floatingStat2: "SDG-Aligned Pipeline",
-      floatingStat3: "AI Match: High Fit"
+      floatingStat2: "SDG & ESG Aligned Pipeline",
+      floatingStat3: "Real-time MEAL & SROI Sync"
     },
     problem: {
       badge: "Problem",
-      heading: "NGOs are not short of tools. They are short of systems.",
-      description: "Canva Pro is set. Google Ads Grant is active. Workspaces are used. But civil society resource access remains unmapped, proposals start from scratch, donors are scattered, impact reports are compiled only on demand, and campaigns start out of panic.",
-      highlight: "Tools are the fuel. System is the engine."
+      heading: "NGOs are not short of tools. They are short of integrated systems.",
+      description: "Proposals start from scratch, WBS activities are disconnected from budgets, MEAL evidence is scattered in chat apps, claim approvals are manual, and impact reports are compiled only on demand.",
+      highlight: "Tools are individual components. An integrated system is the execution engine."
     },
     growth: {
       badge: "Framework",
       heading: "G.R.O.W.T.H. System",
-      subheading: "Six structured dimensions to construct operational excellence, data accountability, and impact sustainability for NGOs.",
+      subheading: "Six structured dimensions to construct integrated operations, data accountability, and sustainable impact for NGOs.",
       cards: [
         {
           letter: "G",
           title: "Grant & Resource Access",
-          description: "Discover new funding avenues and unlock digital resources centrally for your organization.",
-          modules: ["Resource Access Tracker", "Grant Pipeline", "Grantwriter"]
+          description: "Discover new funding avenues, accelerate proposal drafts, and unlock digital resources centrally.",
+          modules: ["Grant Pipeline", "AI Proposal Generator", "Resource Tracker"]
         },
         {
           letter: "R",
           title: "Readiness & Baseline",
-          description: "Assess digital readiness, manage team access permissions, and map operational profiles systematically.",
+          description: "Assess operational readiness, manage team access permissions (RLS), and map baseline profiles systematically.",
           modules: ["Readiness Scorecard", "Guided Onboarding", "Google OAuth & Team RLS"]
         },
         {
           letter: "O",
-          title: "Operating Program",
-          description: "Design standard logical frameworks, break down activities, and estimate budgets precisely.",
-          modules: ["LFA Builder", "WBS Builder", "Budget Calculator"]
+          title: "Operating Program & WBS Control Center",
+          description: "Design standard LFAs, operate WBS Control Centers, handle claims & approvals, and auto-populate budgets.",
+          modules: ["LFA Builder", "WBS Control Center", "Budget Calculator"]
         },
         {
           letter: "W",
-          title: "Work Evidence & Proof",
-          description: "Log indicator accomplishments, store program evidence directly in the cloud, and manage beneficiary data in a structured manner.",
-          modules: ["MEAL Tracker", "OneDrive Evidence Sync", "Impact Library", "Beneficiary Registry"]
+          title: "Work Evidence & Verification",
+          description: "Store verified activity evidence in the cloud, manage beneficiary registries, and bridge proof to MEAL indicators.",
+          modules: ["MEAL Evidence Bridge", "OneDrive Evidence Sync", "Beneficiary Registry"]
         },
         {
           letter: "T",
-          title: "Tracking & Monitoring",
-          description: "Plan monitoring indicators, track program progress in real-time through the dashboard, and generate periodic reports without manual compiling.",
-          modules: ["MEAL Planner", "Impact Dashboard", "Monthly Report", "Operating Review"]
+          title: "Tracking & Control Engine",
+          description: "Monitor real-time output/outcome/impact indicator aggregations, track bottlenecks, and run monthly reviews.",
+          modules: ["MEAL V2 Aggregation", "Program Health Summary", "Monthly Operating Review"]
         },
         {
           letter: "H",
-          title: "High-Impact Reporting",
-          description: "Calculate social and environmental impacts, generate executive summaries and dashboard insights, and draft data-driven proposals with AI.",
-          modules: ["SROI Calculator", "E-ROI Carbon", "Monthly Impact Report", "AI Assist Writer"]
+          title: "High-Impact & ESG Reporting",
+          description: "Quantify evidence-backed impact values (SROI V2), environmental footprints (E-ROI ESG), and export donor-ready reports.",
+          modules: ["SROI V2 Evidence Valuation", "E-ROI Carbon Tracker", "Donor-ready Reporting"]
         }
       ]
     },
     workflow: {
       badge: "Core Workflow",
       heading: "One Integrated End-to-End Workflow",
-      subheading: "Manage your entire NGO program with international standards in 6 simple steps.",
+      subheading: "Manage your entire NGO program lifecycle with international donor compliance and accountability.",
       steps: [
         {
-          title: "Design Programs",
-          desc: "Design your Logical Framework Approach (LFA Matrix) and Work Breakdown Structure (WBS) aligned with NORAD & EuropeAid hierarchy.",
-          module: "LFA Builder & WBS Builder"
+          title: "Proposal & Design",
+          desc: "Draft AI-assisted proposals and design Logical Frameworks (LFA) aligned with NORAD & EuropeAid hierarchy.",
+          module: "Grantwriter & LFA Builder"
         },
         {
-          title: "Budget",
-          desc: "Calculate activity-based budgets dynamically linked to your WBS actions and SBM 2026 references.",
+          title: "WBS Control Center",
+          desc: "Assign activity owners, reviewers, manage claims, approval workflows, and spot operational bottlenecks.",
+          module: "WBS Control Center"
+        },
+        {
+          title: "Budget & Financial Status",
+          desc: "Calculate activity-based budgets dynamically linked to WBS actions and SBM 2026 references with variance tracking.",
           module: "Budget Calculator"
         },
         {
-          title: "Track Outcomes",
-          desc: "Define program success indicators following MEAL DPro standards and record progress entries in one integrated tab.",
-          module: "MEAL Planner & Tracker"
+          title: "MEAL V2 & Verification",
+          desc: "Aggregate output, outcome, & impact indicators backed by verification workflows and cloud evidence bridges.",
+          module: "MEAL V2 Engine"
         },
         {
-          title: "Organize Evidence",
-          desc: "Store verification documentation and program files directly in secure cloud folders.",
-          module: "OneDrive Sync & Library"
+          title: "Evidence-Backed SROI",
+          desc: "Valuate social impact synchronized real-time from MEAL V2 using 4 SVI adjustments, confidence scores, and audit trails.",
+          module: "SROI V2 Valuation"
         },
         {
-          title: "Calculate Impact",
-          desc: "Quantify the social impact value of your program using Social Value International (SVI) 4-adjustment standards.",
-          module: "SROI Calculator"
-        },
-        {
-          title: "Prepare Reports",
-          desc: "Compile outcomes, budgets, and evidence data into polished drafts of proposals & reports.",
-          module: "AI Assist Writer"
+          title: "Donor-Ready Reporting",
+          desc: "Compile verified outcomes, budget allocations, and linked impact evidence into donor-ready reports and proposals.",
+          module: "Reporting & AI Assist"
         }
       ]
     },
     modules: {
-      badge: "Integrated Modules",
-      heading: "Full-Suite Modules for Modern NGOs",
-      subheading: "An end-to-end solution custom-designed to strengthen civil society capacity.",
+      badge: "Integrated Ecosystem Modules",
+      heading: "Core Capabilities of the Impactory Platform",
+      subheading: "Interconnected modules built to lead programs seamlessly from proposal ideas to donor reporting.",
       cards: [
         {
-          title: "Guided Onboarding",
-          description: "Begin your organization's digitalization journey with unified profile setup and asset mapping aligned with G.R.O.W.T.H. standards.",
-          cta: "Start Onboarding",
-          href: "/onboarding",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "LFA Builder",
-          description: "Design a comprehensive Logical Framework Approach matrix based on NORAD & EuropeAid norms, connecting objectives, outputs, activities, and assumptions.",
-          cta: "Open LFA Builder",
+          title: "WBS Control Center",
+          description: "Program management control center: activity ownership, reviewers, claim submissions, approval workflows, field evidence, financial status, and automated bottleneck detection.",
+          cta: "Open Control Center",
           href: "/dashboard/lfa-builder",
-          size: "hero",
-          variant: "hero"
+          badge: "Control Center",
+          badgeVariant: "a"
         },
         {
-          title: "WBS Builder",
-          description: "Deconstruct program activities into structured work packages with automated Gantt charts, AI duration estimation, and budget sync.",
-          cta: "Design Activities",
+          title: "MEAL V2 Engine",
+          description: "Advanced monitoring & evaluation engine: supports output/outcome/impact indicators, automated aggregation, verification workflows, and direct evidence bridging.",
+          cta: "Manage MEAL V2",
           href: "/dashboard/lfa-builder",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "Budget Calculator",
-          description: "Calculate operational & activity budgets auto-populated from WBS, SBM 2026 references, and automated budget variance flags.",
-          cta: "Calculate Budget",
-          href: "/dashboard/lfa-builder",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "MEAL Planner",
-          description: "Formulate monitoring indicators, baselines, targets, and data collection methods standardized to the MEAL DPro framework.",
-          cta: "Plan MEAL",
-          href: "/dashboard/lfa-builder",
-          size: "wide",
-          variant: "highlight"
-        },
-        {
-          title: "MEAL Tracker",
-          description: "Record and track real-time actual progress of indicators, complete with verification notes and field evidence.",
-          cta: "Track Outcomes",
-          href: "/dashboard/lfa-builder",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "Integrated SROI Calculator",
-          description: "Calculate Social Return on Investment values automatically from MEAL DPro indicators and LFA budgets, complete with 4 SVI standard adjustments.",
-          cta: "View Integrated SROI",
-          href: "/dashboard/lfa-builder",
-          size: "wide",
-          variant: "highlight"
-        },
-        {
-          title: "Standalone SROI Calculator",
-          description: "Calculate SROI ratios with 4 SVI adjustments (attribution, deadweight, displacement, drop-off), 3-scenario sensitivity analysis, stakeholder group breakdown, and donor-ready PDF exports.",
-          cta: "Use Standalone SROI",
-          href: "/dashboard/sroi",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "Impact Library",
-          description: "Turn old documents, proposals, and reports into an AI knowledge base reusable for insights and automated writing.",
-          cta: "Open Library",
-          href: "/dashboard/impactory-library",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "OneDrive Evidence Sync",
-          description: "Synchronize activity evidence automatically to Microsoft OneDrive cloud folders to maintain transparency and accountability of program data.",
-          cta: "Manage Evidence",
-          href: "/dashboard/impactory-library",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "AI Assist (RAG & Copilot)",
-          description: "Use AI based on private organizational knowledge to quickly and consistently generate impact executive summaries, dashboard insights, proposals, reports, and campaign copy.",
-          cta: "Open AI Assist",
-          href: "/dashboard/impactory-library",
-          size: "full",
-          variant: "ai"
-        },
-        {
-          title: "Impact Dashboard",
-          description: "Display program achievements, donation statistics, and 3-lens Program Health Summary (implementation, financial, outcomes) with automatic WBS progress vs budget variance flags.",
-          cta: "Open Dashboard",
-          href: "/dashboard/impact",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "Monthly Impact Report",
-          description: "Compile monthly impact reports as a verified proof system for donors and funders automatically.",
-          cta: "Create Report",
-          href: "/dashboard/monthly-report",
-          size: "small",
-          variant: "default"
-        },
-        {
-          title: "Beneficiary Registry",
-          description: "Database of beneficiaries per program with simple and professional modes. Record demographic data, vulnerable groups, and PDP consent. Export CSV/PDF ready for donor reporting.",
-          cta: "Open Registry",
-          href: "/dashboard/beneficiary",
-          size: "small",
-          variant: "default",
-          badge: "Work Evidence",
-          badgeVariant: "w"
-        },
-        {
-          title: "E-ROI Carbon Tracker",
-          description: "Measure and report program environmental impact with Scope 1, 2, and 3 breakdowns according to GHG Protocol, utilizing IPCC 2019 and PLN Indonesia 2023 emission factors. Integrated into SROI and Grant Writer.",
-          cta: "Open E-ROI",
-          href: "/dashboard/eroi",
-          size: "small",
-          variant: "default",
-          badge: "High-Impact",
-          badgeVariant: "h"
-        },
-        {
-          title: "Monthly Operating Review",
-          description: "Monthly review of program performance, MEAL indicator achievements, and documentation of adaptive decisions based on field data. Foundation of internal organizational accountability.",
-          cta: "Open Review",
-          href: "/dashboard/operating-review",
-          size: "small",
-          variant: "default",
-          badge: "Tracking",
+          badge: "MEAL V2",
           badgeVariant: "t"
         },
         {
-          title: "Team Collaboration & Security",
-          description: "Instant sign-in with Google OAuth, manage org roles (Owner, Admin, Member), and invite team members via secure token links protected by Row Level Security (RLS).",
-          cta: "Manage Team Access",
-          href: "/dashboard/settings",
-          size: "small",
-          variant: "default",
-          badge: "Security",
+          title: "SROI V2 Evidence Valuation",
+          description: "Evidence-backed impact valuation: real-time sync from MEAL V2, 4 SVI adjustments (attribution, deadweight, displacement, drop-off), confidence scoring, and audit rationale.",
+          cta: "Valuate SROI V2",
+          href: "/dashboard/sroi",
+          badge: "SROI V2",
+          badgeVariant: "h"
+        },
+        {
+          title: "Budget & Financial Tracking",
+          description: "Activity-based budget calculator linked directly to WBS items, SBM 2026 benchmarks, financial tracking, and variance flags.",
+          cta: "Manage Budget",
+          href: "/dashboard/lfa-builder",
+          badge: "Financials",
           badgeVariant: "w"
+        },
+        {
+          title: "ESG & E-ROI Carbon Tracker",
+          description: "Measure and report environmental footprints (Scope 1, 2, 3) following GHG Protocol & IPCC 2019, integrated into SROI and donor proposals.",
+          cta: "Open E-ROI Carbon",
+          href: "/dashboard/eroi",
+          badge: "ESG / E-ROI",
+          badgeVariant: "h"
+        },
+        {
+          title: "Evidence Workflow & OneDrive Sync",
+          description: "Manage and verify physical activity evidence in cloud folders (Microsoft OneDrive) directly attached to WBS claims and MEAL entries.",
+          cta: "Manage Evidence",
+          href: "/dashboard/impactory-library",
+          badge: "Evidence",
+          badgeVariant: "w"
+        },
+        {
+          title: "Donor-Ready Reporting",
+          description: "Generate verified impact reports and executive summaries with measured outcomes, linked physical evidence, and budget accountability.",
+          cta: "Create Donor Report",
+          href: "/dashboard/monthly-report",
+          badge: "Reporting",
+          badgeVariant: "a"
+        },
+        {
+          title: "Beneficiary Registry & PDP",
+          description: "Beneficiary database per program with PDP consent, vulnerable group categorization, demographic tracking, and protected export.",
+          cta: "Open Registry",
+          href: "/dashboard/beneficiary",
+          badge: "Registry",
+          badgeVariant: "w"
+        },
+        {
+          title: "Proposal & Grant Pipeline",
+          description: "Grant discovery hub, donor eligibility mapping, and automated proposal drafting grounded on organizational knowledge.",
+          cta: "Find Grants",
+          href: "/dashboard/grantfinder",
+          badge: "Proposals",
+          badgeVariant: "t"
         }
       ]
     },
     evidenceAndReporting: {
-      badge: "Evidence & International Standards",
-      heading: "Trust is Built on Physical Evidence & Verifiable Data",
-      description: "Impactory does not just help you design programs; it ensures high-level accountability aligned with international standards: Social Value International (SROI), GHG Protocol (E-ROI Scope 1/2/3), MEAL DPro, and NORAD/EuropeAid vertical logic.",
+      badge: "Evidence Management & International Standards",
+      heading: "Trust is Built on Physical Evidence & Workflow Transparency",
+      description: "Impactory ensures every outcome figure and impact value is backed by explicit ownership, tiered approval workflows, and verified evidence aligned with SVI, GHG Protocol, MEAL DPro, and NORAD/EuropeAid logic.",
       cards: [
         {
-          title: "OneDrive Sync Integration",
-          description: "Link evidence files (questionnaires, photos, sign-in sheets) from Microsoft OneDrive directly adjacent to your MEAL entries."
+          title: "Evidence Workflow & OneDrive Bridge",
+          description: "Attach cloud evidence files (photos, attendance sheets, sign-ins) directly adjacent to WBS activity claims and MEAL V2 entries."
         },
         {
-          title: "AI Assist (RAG & Copilot)",
-          description: "Leverage AI grounded on your private organizational history to speed up drafting proposals, reports, and copy."
+          title: "Ownership & Approval Workflow",
+          description: "Clear activity owner and reviewer roles with tiered claim approval workflows protected under Row Level Security (RLS)."
         },
         {
           title: "International Standards Alignment",
-          description: "Calculations and frameworks designed in alignment with Social Value International (SROI 4-adjustment), GHG Protocol (E-ROI Scope 1/2/3), MEAL DPro, and NORAD/EuropeAid vertical logic."
+          description: "Designed in alignment with Social Value International (SROI V2 4-adjustment), GHG Protocol (E-ROI ESG Scope 1/2/3), MEAL DPro, and SBM 2026."
         }
       ]
     },
     trust: {
       badge: "Trust Doctrine",
-      heading: "Safe AI accelerates drafts. Humans ensure absolute accuracy.",
+      heading: "AI Accelerates Drafts. Workflows & Humans Guarantee Accuracy.",
       cards: [
         {
-          title: "Human Review Required",
-          description: "Proposals, grant lists, impact claims, and case stories must be verified by human eyes."
+          title: "Human Approval Workflow",
+          description: "Proposals, WBS claims, financial entries, and impact reports must pass through human verification & approval workflows."
         },
         {
-          title: "No Fabrication",
-          description: "Impactory is designed strictly to avoid inventing deadlines, eligibility requirements, or impact numbers."
+          title: "No Fabrication Doctrine",
+          description: "The platform never invents impact figures, activity evidence, or donor criteria. All metrics root from MEAL & WBS data."
         },
         {
-          title: "Document Trust",
-          description: "NGO documents often house sensitive information and are protected under strict permission parameters."
+          title: "Evidence Provenance & RLS",
+          description: "Every data claim has attached physical evidence trails and is safeguarded under Row Level Security authorization."
         },
         {
-          title: "Confidence over Conviction",
-          description: "AI guidance highlights rating margins and confidence index scores instead of pretending to be absolute."
+          title: "Confidence Scoring",
+          description: "SROI valuations and impact calculations present confidence index scores and audit rationale rather than arbitrary assertions."
         }
       ]
     },
     timeline90: {
       badge: "90-Day Plan",
-      heading: "Construct your complete digital NGO operations workflow inside 90 days.",
+      heading: "Construct your integrated NGO digital operations workflow in 90 days.",
       cta: "Start from Readiness Scorecard",
       steps: [
-        { day: "Day 1–15", phase: "Foundation Audit" },
-        { day: "Day 16–30", phase: "Platform Registration" },
-        { day: "Day 31–45", phase: "Tools Activation" },
-        { day: "Day 46–60", phase: "Campaign System" },
-        { day: "Day 61–75", phase: "Grant System" },
-        { day: "Day 76–90", phase: "Dashboard & Scale" }
+        { day: "Day 1–15", phase: "Foundation & Readiness Audit" },
+        { day: "Day 16–30", phase: "WBS & Budget Control Setup" },
+        { day: "Day 31–45", phase: "MEAL V2 & Evidence Activation" },
+        { day: "Day 46–60", phase: "Ownership & Approval Workflow" },
+        { day: "Day 61–75", phase: "SROI V2 & ESG Integration" },
+        { day: "Day 76–90", phase: "Donor-ready Dashboard & Scale" }
       ]
     },
     founder: {
       badge: "Operator Initiative",
       heading: "Built from operators' real experiences.",
-      description: "Impactory.id was built as a civic technology project by Yayasan Rumah Pembangunan Berkelanjutan to strengthen resource access, documentation, and digital capacity across civil society in Indonesia. Its development is backed by operators from Immersia Impact Consultants, bringing experience managing 20B+ digital marketing budgets across NGOs, education, and digital work structures."
+      description: "Impactory.id was built as a civic technology project by Yayasan Rumah Pembangunan Berkelanjutan to strengthen resource access, integrated operations, and digital capacity across civil society in Indonesia. Its architecture for WBS Control Center, MEAL V2, and SROI V2 stems from experience managing 20B+ digital marketing budgets across NGOs."
     },
     finalCta: {
-      heading: "Start from baseline. Scale your systems.",
-      description: "Take the Readiness Scorecard as a start, then structure your Grant Pipeline, library, proposal flows, and impact reporting pipelines.",
+      heading: "Start from baseline. Integrate your complete program lifecycle.",
+      description: "Take the Readiness Scorecard as a start, then activate WBS Control Center, MEAL V2, SROI V2, and donor-ready reporting for your organization.",
       ctaPrimary: "Start Readiness Scorecard",
       ctaSecondary: "View Grant Pipeline"
     },
     footer: {
-      tagline: "NGO Growth Operating System & Civic Technology Resource Hub.",
+      tagline: "Integrated Program Lifecycle System & Civic Technology Resource Hub.",
       rights: "All Rights Reserved."
     }
   }
 };
+
