@@ -607,6 +607,7 @@ export default function WBSBuilder({
           const level1Item: WbsItem = {
             id: level1Id,
             lfa_project_id: projectId,
+            lfa_entry_id: out.id || null,
             org_id: orgId,
             level: 1,
             parent_id: null,

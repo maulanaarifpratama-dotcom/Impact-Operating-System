@@ -49,6 +49,7 @@ export type WbsStatus = 'draft' | 'not_started' | 'ready' | 'in_progress' | 'blo
 export interface WbsItem {
   id: string;
   lfa_project_id: string;
+  lfa_entry_id?: string | null;
   org_id: string;
   level: 1 | 2 | 3 | 4;
   parent_id: string | null;
@@ -106,6 +107,7 @@ export interface BudgetItem {
 export interface MealItem {
   id: string;
   lfa_project_id: string;
+  wbs_item_id?: string | null;
   org_id: string;
   lfa_level: 'goal' | 'purpose' | 'output';
   indicator_text: string;

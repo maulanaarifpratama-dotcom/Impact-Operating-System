@@ -199,7 +199,7 @@ export default function MEALPlanner({
     }
   }, [projectId]);
 
-  // Computed Rollup: Aggregate WBS progress for Output indicators
+  // Computed Rollup: Aggregate WBS progress for Output indicators (ADR-0006 Relational Integrity)
   const getOutputWbsRollup = useCallback((mealItem: MealItem) => {
     if (mealItem.lfa_level !== 'output' || wbsItems.length === 0) {
       return null;
@@ -209,20 +209,28 @@ export default function MEALPlanner({
     const level1WbsItems = wbsItems.filter((w) => w.level === 1);
     if (level1WbsItems.length === 0) return null;
 
-    // Filter output meal items to find relative index
-    const outputMealItems = mealItems.filter((m) => m.lfa_level === 'output');
-    const outputIdx = outputMealItems.findIndex((m) => m.id === mealItem.id);
+    let matchedLevel1: WbsItem | undefined = undefined;
 
-    // Try to match Level 1 WBS item by name similarity or index
-    let matchedLevel1 = level1WbsItems.find(
-      (w) => w.name && mealItem.indicator_text && (
-        w.name.toLowerCase().includes(mealItem.indicator_text.substring(0, 15).toLowerCase()) ||
-        mealItem.indicator_text.toLowerCase().includes(w.name.substring(0, 15).toLowerCase())
-      )
-    );
+    // PRIORITY 1: Explicit Foreign Key Relation (wbs_item_id)
+    if (mealItem.wbs_item_id) {
+      matchedLevel1 = wbsItems.find((w) => w.id === mealItem.wbs_item_id);
+    }
 
-    if (!matchedLevel1 && outputIdx >= 0 && outputIdx < level1WbsItems.length) {
-      matchedLevel1 = level1WbsItems[outputIdx];
+    // PRIORITY 2: Legacy Fallback Matching
+    if (!matchedLevel1) {
+      const outputMealItems = mealItems.filter((m) => m.lfa_level === 'output');
+      const outputIdx = outputMealItems.findIndex((m) => m.id === mealItem.id);
+
+      matchedLevel1 = level1WbsItems.find(
+        (w) => w.name && mealItem.indicator_text && (
+          w.name.toLowerCase().includes(mealItem.indicator_text.substring(0, 15).toLowerCase()) ||
+          mealItem.indicator_text.toLowerCase().includes(w.name.substring(0, 15).toLowerCase())
+        )
+      );
+
+      if (!matchedLevel1 && outputIdx >= 0 && outputIdx < level1WbsItems.length) {
+        matchedLevel1 = level1WbsItems[outputIdx];
+      }
     }
 
     if (!matchedLevel1) return null;
@@ -443,8 +451,14 @@ export default function MEALPlanner({
           if (entry.level === 'goal') levelMap = 'goal';
           if (entry.level === 'purpose') levelMap = 'purpose';
 
+          // Match Level 1 WBS item if entry is output level (ADR-0006 Relational Integrity)
+          const matchedWbs = levelMap === 'output' 
+            ? wbsItems.find((w) => w.level === 1 && (w.lfa_entry_id === entry.id || w.name.toLowerCase().includes((entry.indicator || '').substring(0, 15).toLowerCase())))
+            : null;
+
           return {
             lfa_project_id: projectId,
+            wbs_item_id: matchedWbs?.id || null,
             org_id: orgId,
             lfa_level: levelMap,
             indicator_text: entry.indicator || '',
