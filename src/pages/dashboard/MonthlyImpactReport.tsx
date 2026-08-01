@@ -670,68 +670,52 @@ export default function MonthlyImpactReport() {
         }
       `}</style>
 
-      {/* Header HERO Card */}
-      <Card className="no-print relative overflow-hidden border-accent/20 bg-gradient-to-br from-accent-soft/60 via-background to-background p-6 shadow-card md:p-8">
-        <div aria-hidden className="pointer-events-none absolute -right-20 -top-20 h-56 w-56 rounded-full bg-gradient-to-br from-accent/25 to-primary/10 blur-3xl" />
-        <div className="relative flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div className="space-y-3">
-            <Badge className="w-fit border-accent/30 bg-accent/15 text-accent hover:bg-accent/20">Harvest & Review</Badge>
-            <div className="space-y-2">
-              <h1 className="text-3xl font-semibold tracking-tight md:text-4xl">Monthly Impact Report</h1>
-              <p className="max-w-3xl text-sm leading-relaxed text-muted-foreground md:text-base">
-                Kompilasikan dan verifikasi data bulanan organisasi Anda menjadi laporan pertanggungjawaban terpercaya untuk donor & review internal.
-              </p>
+      {/* CONSOLIDATED COMPACT WORKSPACE HEADER */}
+      <Card className="no-print relative overflow-hidden border-accent/20 bg-gradient-to-br from-accent-soft/40 via-background to-background p-4 shadow-sm rounded-xl">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <Badge className="border-accent/30 bg-accent/15 text-accent text-xs">
+                Harvest & Review
+              </Badge>
+              <Badge variant="outline" className="text-[10px] text-amber-700 bg-amber-50 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-900/50">
+                <ShieldCheck className="w-3 h-3 mr-1" /> Data Terverifikasi
+              </Badge>
             </div>
+            <h1 className="text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              Monthly Impact Report
+            </h1>
+            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl">
+              Kompilasikan dan verifikasi data bulanan organisasi Anda menjadi laporan pertanggungjawaban terpercaya untuk donor.
+            </p>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            {lfaProjects.length > 0 && (
-              <div className="flex flex-col gap-1 no-print text-left">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Project LFA</span>
-                <Select
-                  value={selectedLfaProjectId}
-                  onValueChange={(val) => {
-                    setSelectedLfaProjectId(val);
-                    const selectedName = lfaProjects.find((p) => p.id === val)?.name || '';
-                    toast.info(`Project terpilih: ${selectedName}`);
-                  }}
-                >
-                  <SelectTrigger className="h-10 w-[240px] border-accent/30 bg-background text-xs font-semibold">
-                    <SelectValue placeholder="Pilih Project LFA" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {lfaProjects.map((p) => (
-                      <SelectItem key={p.id} value={p.id} className="text-xs font-medium">
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            <div className="flex flex-col gap-1 no-print text-left">
-              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest pl-1">Otomasi</span>
-              <Button onClick={populateWithDbData} variant="outline" className="h-10 border-accent/30 text-accent hover:bg-accent/10 font-bold text-xs">
-                <Sparkles className="mr-2 h-4 w-4" /> Ambil Data Database
-              </Button>
-            </div>
-            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-accent text-accent-foreground shadow-elegant md:h-14 md:w-14 self-end">
-              <BarChart3 className="h-6 w-6 md:h-7 md:w-7" />
-            </div>
-          </div>
-        </div>
-      </Card>
 
-      {/* Warning Alert Banner */}
-      <Card className="no-print space-y-3 border-primary/15 bg-primary/5 p-5 shadow-card md:p-6">
-        <h2 className="text-xl font-semibold">Dokumentasi yang Jujur Adalah Kunci Trust Terkuat</h2>
-        <p className="max-w-4xl text-sm leading-relaxed text-muted-foreground">
-          Sistem ini terhubung langsung ke database program dan keuangan internal. Gunakan tombol otomasi untuk menarik data riil, kemudian lengkapi cerita kualitatif lapangan secara jujur sebelum disahkan.
-        </p>
-        <div className="flex max-w-3xl items-start gap-2 rounded-xl border border-amber-500/25 bg-background/70 p-3 text-xs text-muted-foreground">
-          <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-          <p>
-            Setiap angka wajib mengacu pada bukti transaksi atau catatan operasional valid. Jika data belum lengkap, laporkan situasi lapangan dengan transparan.
-          </p>
+          <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+            {lfaProjects.length > 0 && (
+              <Select
+                value={selectedLfaProjectId}
+                onValueChange={(val) => {
+                  setSelectedLfaProjectId(val);
+                  const selectedName = lfaProjects.find((p) => p.id === val)?.name || '';
+                  toast.info(`Project terpilih: ${selectedName}`);
+                }}
+              >
+                <SelectTrigger className="h-9 w-[200px] border-accent/30 bg-background text-xs font-semibold">
+                  <SelectValue placeholder="Pilih Project LFA" />
+                </SelectTrigger>
+                <SelectContent>
+                  {lfaProjects.map((p) => (
+                    <SelectItem key={p.id} value={p.id} className="text-xs font-medium">
+                      {p.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Button onClick={populateWithDbData} variant="outline" size="sm" className="h-9 border-accent/30 text-accent hover:bg-accent/10 font-bold text-xs">
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" /> Ambil Data Database
+            </Button>
+          </div>
         </div>
       </Card>
 
