@@ -196,9 +196,28 @@ export function buildProgramFactsForPrompt(input: any): ProgramFacts {
   const wizardData = input?.wizard_data || {};
   const wizardContext = wizardData?.context || {};
 
-  const title = (pFacts.proposedTitle || pFacts.title || project.title || wizardContext.proposedTitle || null)?.trim() || null;
-  const story = (pFacts.programStory || pFacts.story || project.summary || wizardContext.background || wizardContext.problemStatement || null)?.trim() || null;
-  const beneficiaryDescription = (pFacts.beneficiaryDescription || wizardContext.beneficiaryDescription || null)?.trim() || null;
+  /**
+   * The wizard encodes "the author did not tell us" as the literal strings
+   * 'unknown' and 'unentered', not as null. Numeric fields survive that by
+   * accident — Number('unknown') is NaN and fails the > 0 test — but text fields
+   * do not, so a program whose location was marked unknown was announced to the
+   * model as a known fact: "Lokasi/Geografi: unknown". Worse, validateGrounding
+   * then required the word "unknown" to appear in the generated logframe, failed,
+   * and triggered a full retry — a second pass over the 27,500 token budget for
+   * no reason. Treat the sentinels as absent.
+   */
+  const SENTINELS = new Set(['unknown', 'unentered', 'null', 'undefined', '']);
+  const cleanText = (value: unknown): string | null => {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return SENTINELS.has(trimmed.toLowerCase()) ? null : trimmed || null;
+  };
+
+  const title = cleanText(pFacts.proposedTitle) || cleanText(pFacts.title) || cleanText(pFacts.programTitle)
+    || cleanText(project.title) || cleanText(wizardContext.proposedTitle) || null;
+  const story = cleanText(pFacts.programStory) || cleanText(pFacts.story) || cleanText(project.summary)
+    || cleanText(wizardContext.background) || cleanText(wizardContext.problemStatement) || null;
+  const beneficiaryDescription = cleanText(pFacts.beneficiaryDescription) || cleanText(wizardContext.beneficiaryDescription) || null;
 
   const rawCount = pFacts.beneficiaryCount ?? input?.beneficiaries ?? project.beneficiaryCount ?? wizardContext.beneficiaryCount;
   let beneficiaryCount: number | string | null = null;
@@ -206,7 +225,7 @@ export function buildProgramFactsForPrompt(input: any): ProgramFacts {
     beneficiaryCount = Number(rawCount);
   }
 
-  const geography = (pFacts.geography || project.geography || wizardContext.geography || null)?.trim() || null;
+  const geography = cleanText(pFacts.geography) || cleanText(project.geography) || cleanText(wizardContext.geography) || null;
   
   const rawDuration = pFacts.durationMonths ?? project.duration_months ?? wizardContext.durationMonths;
   let durationMonths: number | null = null;
@@ -220,7 +239,7 @@ export function buildProgramFactsForPrompt(input: any): ProgramFacts {
     budgetIdr = Number(rawBudget);
   }
 
-  const optionalNotes = (pFacts.optionalNotes || pFacts.notes || wizardContext.notes || null)?.trim() || null;
+  const optionalNotes = cleanText(pFacts.optionalNotes) || cleanText(pFacts.notes) || cleanText(wizardContext.notes) || null;
 
   const knownFacts: string[] = [];
   const missingFacts: string[] = [];
@@ -304,19 +323,67 @@ export function extractGroundingTerms(programFacts: ProgramFacts, resolvedContex
     termsSet.add(`Rp ${programFacts.budgetIdr.toLocaleString('id-ID')}`);
   }
 
+  /**
+   * Story-derived terms: proper nouns and domain vocabulary only.
+   *
+   * This used to take the first ten words longer than three characters that were
+   * not in a short stopword list. On a real Indonesian program story that yields
+   * "banyak", "ayah", "muda", "tidak", "terlibat", "melatih" — and the grounding
+   * message then *orders* the model to work those words into Goal, Outcome,
+   * Output and Indikator text. Forcing "tidak" and "banyak" into an indicator is
+   * how you get an unmeasurable indicator.
+   *
+   * Keep only tokens that carry grounding value: capitalised proper nouns
+   * (Cibuntu, Posyandu, Bandung) and all-caps domain acronyms (HPK, PMBA, KIA).
+   * A sentence-initial word is skipped unless it repeats elsewhere mid-sentence,
+   * since capitalisation there proves nothing.
+   *
+   * Safe to tighten: validateGrounding only ever checks beneficiaryDescription,
+   * geography and beneficiaryCount, so these tokens never drive a retry — they
+   * only shape the prompt.
+   */
   if (programFacts.story) {
-    const cleanedStory = programFacts.story.replace(/[^\w\s-]/g, ' ');
+    const story = programFacts.story;
     const stopWords = new Set([
       'dan', 'di', 'ke', 'dari', 'yang', 'untuk', 'pada', 'dengan', 'adalah', 'ini', 'itu',
       'atau', 'sebagai', 'oleh', 'serta', 'dalam', 'akan', 'dapat', 'kami', 'program',
-      'tersebut', 'sangat', 'melalui', 'secara', 'agar', 'bisa', 'para', 'bagi'
+      'tersebut', 'sangat', 'melalui', 'secara', 'agar', 'bisa', 'para', 'bagi',
+      'banyak', 'tidak', 'sudah', 'belum', 'masih', 'juga', 'lebih', 'hanya', 'saja',
+      'karena', 'sehingga', 'namun', 'tetapi', 'antara', 'setiap', 'seluruh', 'sebuah'
     ]);
-    const words = cleanedStory
+
+    // Positions where a token starts a sentence — capitalisation is not evidence there.
+    const sentenceStarts = new Set<string>();
+    story.split(/(?<=[.!?])\s+/).forEach((sentence) => {
+      const first = sentence.trim().split(/\s+/)[0]?.replace(/[^\p{L}\p{N}-]/gu, '');
+      if (first) sentenceStarts.add(first);
+    });
+
+    const tokens = story
+      .replace(/[^\p{L}\p{N}\s-]/gu, ' ')
       .split(/\s+/)
       .map((w) => w.trim())
-      .filter((w) => w.length > 3 && !stopWords.has(w.toLowerCase()));
+      .filter(Boolean);
 
-    words.slice(0, 10).forEach((w) => termsSet.add(w));
+    const counts = new Map<string, number>();
+    tokens.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1));
+
+    const isAcronym = (w: string) => w.length >= 3 && w.length <= 6 && /^[\p{Lu}\p{N}]+$/u.test(w) && /\p{Lu}/u.test(w);
+    const isProperNoun = (w: string) => w.length > 3 && /^\p{Lu}\p{Ll}+/u.test(w);
+
+    const kept: string[] = [];
+    for (const token of tokens) {
+      if (kept.length >= 8) break;
+      if (stopWords.has(token.toLowerCase())) continue;
+      if (kept.includes(token)) continue;
+      if (!isAcronym(token) && !isProperNoun(token)) continue;
+      // A word that only ever appears at a sentence start is probably just
+      // sentence case, not a name.
+      if (sentenceStarts.has(token) && (counts.get(token) ?? 0) < 2) continue;
+      kept.push(token);
+    }
+
+    kept.forEach((w) => termsSet.add(w));
   }
 
   // Extract ONLY from matched sectors
@@ -640,7 +707,9 @@ ATURAN KUALITAS WAJIB:
 - Jika Anggaran, Durasi, atau Lokasi DIKETAHUI di FAKTA PROGRAM, WAJIB gunakan nilai tersebut (Anggaran: Rp ${programFacts.budgetIdr?.toLocaleString('id-ID') ?? 'diketahui'}, Durasi: ${programFacts.durationMonths ?? 'diketahui'} bulan, Lokasi: ${programFacts.geography ?? 'diketahui'}) di dalam meta, narasi Executive Summary, Problem Statement, dan Budget Narrative.
 - Jika fakta TIDAK TERSEDIA (ada di FAKTA PROGRAM YANG BELUM DIJELASKAN), nyatakan secara eksplisit sebagai belum dijelaskan dalam asumsi/catatan, JANGAN mengarang angka atau lokasi fiktif.
 - Tetap hasilkan LFA yang spesifik berdasarkan cerita program dan grounding ontologi yang tersedia.
-- Wajib menyertakan kata/istilah dari TERMS GROUNDING WAJIB di dalam narasi Goal, Outcome, Output, dan Indikator.
+- Wajib menyertakan kata/istilah dari TERMS GROUNDING WAJIB di dalam narasi Goal, Outcome, Output, Aktivitas, dan Indikator. Sisipkan secara wajar — jangan memaksakan sebuah term jika membuat kalimat tidak bermakna, terutama pada Indikator yang harus tetap terukur.
+- MATRIKS WAJIB TERISI PENUH DI SEMUA BARIS. Setiap baris Goal, Purpose/Outcome, Output, DAN Aktivitas wajib memiliki keempat kolom: uraian, indikator, sumber verifikasi (MoV), dan asumsi. Baris Aktivitas paling sering terlewat — jangan tinggalkan MoV atau asumsi aktivitas kosong. Untuk aktivitas, MoV adalah dokumen atau catatan konkret yang membuktikan kegiatan terjadi (daftar hadir, notulen, berita acara, laporan, foto berlokasi), dan asumsi adalah kondisi eksternal yang harus benar agar aktivitas bisa berjalan.
+- Aktivitas juga wajib memuat bulan mulai dan bulan selesai dalam rentang durasi program.
 
 OUTPUT:
 Keluarkan HANYA JSON valid sesuai schema yang sudah ada:
