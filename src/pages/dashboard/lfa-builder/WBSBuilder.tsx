@@ -2021,8 +2021,81 @@ export default function WBSBuilder({
                                   </div>
                                 </div>
                               )}
-                            </PopoverContent>
-                          </Popover>
+
+                               {/* Financial Lifecycle Section (Sprint 3) */}
+                               {item.level === 2 && (
+                                 <div className="space-y-1.5 bg-slate-50 dark:bg-slate-950/50 p-2 rounded border border-slate-200 dark:border-slate-800">
+                                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
+                                     <span className="flex items-center gap-1">
+                                       <Wallet className="h-3 w-3 text-indigo-600" />
+                                       Status Siklus Keuangan WBS
+                                     </span>
+                                     <Badge variant="outline" className="text-[8.5px] uppercase font-bold py-0 h-4">
+                                       {item.financial_status || 'draft'}
+                                     </Badge>
+                                   </div>
+                                   <select
+                                     value={item.financial_status || 'draft'}
+                                     data-testid="wbs-financial-status-select"
+                                     onChange={(e) => {
+                                       const val = e.target.value as WbsFinancialStatus;
+                                       const updated = { ...item, financial_status: val };
+                                       updateItemLocally(updated);
+                                       triggerAutosave(updated);
+                                     }}
+                                     className="text-xs w-full border bg-white dark:bg-slate-900 rounded p-1 focus:outline-none dark:border-slate-800 font-medium"
+                                   >
+                                     <option value="draft">💰 Draf Anggaran</option>
+                                     <option value="committed">📌 Terikat (Committed)</option>
+                                     <option value="disbursement_requested">⏳ Minta Cair (Disbursement Requested)</option>
+                                     <option value="paid">✅ Cair / Paid</option>
+                                     <option value="blocked_by_finance">⛔ Ditahan Keuangan (Blocked by Finance)</option>
+                                   </select>
+                                 </div>
+                               )}
+
+                               {/* Bottleneck Intelligence Section (Sprint 3) */}
+                               {item.level === 2 && (
+                                 <div className="space-y-1.5 bg-rose-50/50 dark:bg-rose-950/20 p-2 rounded border border-rose-200 dark:border-rose-900/40">
+                                   <div className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1">
+                                     <AlertTriangle className="h-3 w-3 text-rose-600" />
+                                     Bottleneck Intelligence (Akar Keterlambatan)
+                                   </div>
+                                   <div className="space-y-1.5">
+                                     <select
+                                       value={item.blocker_category || ''}
+                                       data-testid="wbs-blocker-category-select"
+                                       onChange={(e) => {
+                                         const val = (e.target.value || null) as WbsBlockerCategory | null;
+                                         const updated = { ...item, blocker_category: val };
+                                         updateItemLocally(updated);
+                                         triggerAutosave(updated);
+                                       }}
+                                       className="text-xs w-full border bg-white dark:bg-slate-900 rounded p-1 focus:outline-none dark:border-slate-800 text-rose-800 dark:text-rose-300 font-medium"
+                                     >
+                                       <option value="">-- Pilih Kategori Hambatan --</option>
+                                       <option value="donor_disbursement">🏛️ Pencairan Donor (Donor Disbursement)</option>
+                                       <option value="internal_approval">📑 Persetujuan Internal (Internal Approval)</option>
+                                       <option value="vendor_delay">🚚 Keterlambatan Vendor (Vendor Delay)</option>
+                                       <option value="field_condition">🌧️ Kondisi Lapangan (Field Condition)</option>
+                                       <option value="force_majeure">⚠️ Force Majeure</option>
+                                     </select>
+                                     <textarea
+                                       value={item.blocker_notes || ''}
+                                       data-testid="wbs-blocker-notes-input"
+                                       placeholder="Catatan kendala operasional (penjelasan detail penyebab hambatan)..."
+                                       onChange={(e) => {
+                                         const updated = { ...item, blocker_notes: e.target.value || null };
+                                         updateItemLocally(updated);
+                                         triggerAutosave(updated);
+                                       }}
+                                       className="text-xs w-full h-12 border bg-white dark:bg-slate-900 rounded p-1.5 focus:outline-none dark:border-slate-800"
+                                     />
+                                   </div>
+                                 </div>
+                               )}
+                             </PopoverContent>
+                           </Popover>
                         </div>
                       );
                     })()}

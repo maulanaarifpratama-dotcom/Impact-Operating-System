@@ -46,12 +46,19 @@ export interface AiActivity {
 
 export type WbsStatus = 'draft' | 'not_started' | 'ready' | 'in_progress' | 'blocked' | 'in_review' | 'completed' | 'cancelled';
 
+export type WbsFinancialStatus = 'draft' | 'committed' | 'disbursement_requested' | 'paid' | 'blocked_by_finance';
+
+export type WbsBlockerCategory = 'donor_disbursement' | 'internal_approval' | 'vendor_delay' | 'field_condition' | 'force_majeure';
+
 export interface WbsItem {
   id: string;
   lfa_project_id: string;
   lfa_entry_id?: string | null;
   owner_id?: string | null;
   reviewer_id?: string | null;
+  financial_status?: WbsFinancialStatus | null;
+  blocker_category?: WbsBlockerCategory | null;
+  blocker_notes?: string | null;
   org_id: string;
   level: 1 | 2 | 3 | 4;
   parent_id: string | null;

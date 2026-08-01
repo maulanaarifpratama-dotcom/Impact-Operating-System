@@ -1926,6 +1926,8 @@ export type Database = {
       lfa_wbs_items: {
         Row: {
           blocked_reason: string | null
+          blocker_category: string | null
+          blocker_notes: string | null
           carbon_description: string | null
           carbon_enabled: boolean | null
           carbon_factor: number | null
@@ -1938,6 +1940,7 @@ export type Database = {
           created_at: string | null
           dependencies: string[] | null
           duration_weeks: number | null
+          financial_status: string | null
           id: string
           indicator: string | null
           level: number
@@ -1961,6 +1964,8 @@ export type Database = {
         }
         Insert: {
           blocked_reason?: string | null
+          blocker_category?: string | null
+          blocker_notes?: string | null
           carbon_description?: string | null
           carbon_enabled?: boolean | null
           carbon_factor?: number | null
@@ -1973,6 +1978,7 @@ export type Database = {
           created_at?: string | null
           dependencies?: string[] | null
           duration_weeks?: number | null
+          financial_status?: string | null
           id?: string
           indicator?: string | null
           level: number
@@ -1996,6 +2002,8 @@ export type Database = {
         }
         Update: {
           blocked_reason?: string | null
+          blocker_category?: string | null
+          blocker_notes?: string | null
           carbon_description?: string | null
           carbon_enabled?: boolean | null
           carbon_factor?: number | null
@@ -2008,6 +2016,7 @@ export type Database = {
           created_at?: string | null
           dependencies?: string[] | null
           duration_weeks?: number | null
+          financial_status?: string | null
           id?: string
           indicator?: string | null
           level?: number
