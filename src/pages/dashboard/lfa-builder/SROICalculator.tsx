@@ -183,7 +183,7 @@ export default function SROICalculator({
       const { data: evData } = await supabase
         .from('wbs_completion_evidence')
         .select('*')
-        .eq('lfa_project_id', projectId);
+        .eq('org_id', orgId);
       if (evData) setWbsEvidences(evData);
 
       // 1. Fetch config

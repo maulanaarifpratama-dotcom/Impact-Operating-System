@@ -245,6 +245,7 @@ export interface LfaSroiOutcome {
   proxy_value?: number;
   duration?: number;
   attribution?: number;
+  dropoff?: number;
   attribution_rationale?: string | null;
   deadweight_rationale?: string | null;
   displacement_rationale?: string | null;
