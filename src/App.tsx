@@ -46,6 +46,7 @@ const Settings = lazy(() => import('./pages/dashboard/Settings'));
 const SROIStandalone = lazy(() => import('./pages/dashboard/SROIStandalone'));
 const EROIStandalone = lazy(() => import('./pages/dashboard/EROIStandalone'));
 const ESGDashboard = lazy(() => import('./pages/dashboard/ESGDashboard'));
+const SustainabilityReports = lazy(() => import('./pages/dashboard/SustainabilityReports'));
 const BeneficiaryRegistry = lazy(() => import('./pages/dashboard/BeneficiaryRegistry'));
 
 const GrantWriterIndex = lazy(() => import('./pages/dashboard/grant-writer/GrantWriterIndex'));
@@ -217,6 +218,7 @@ const App = () => (
               <Route path="/dashboard/sroi" element={<SROIStandalone />} />
               <Route path="/dashboard/eroi" element={<EROIStandalone />} />
               <Route path="/dashboard/esg" element={<ESGDashboard />} />
+              <Route path="/dashboard/sustainability-reports" element={<SustainabilityReports />} />
               <Route path="/dashboard/beneficiary" element={<BeneficiaryRegistry />} />
 
 

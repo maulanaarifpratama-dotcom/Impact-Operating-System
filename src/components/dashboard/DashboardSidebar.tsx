@@ -82,6 +82,7 @@ const IMPACT_ITEMS: NavItem[] = [
 
 const SUSTAINABILITY_ITEMS: NavItem[] = [
   { name: 'ESG Dashboard', href: '/dashboard/esg', icon: Globe },
+  { name: 'Sustainability Reports', href: '/dashboard/sustainability-reports', icon: FileText },
 ];
 
 
