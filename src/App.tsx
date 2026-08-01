@@ -45,6 +45,7 @@ const MonthlyOperatingReview = lazy(() => import('./pages/dashboard/MonthlyOpera
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
 const SROIStandalone = lazy(() => import('./pages/dashboard/SROIStandalone'));
 const EROIStandalone = lazy(() => import('./pages/dashboard/EROIStandalone'));
+const ESGDashboard = lazy(() => import('./pages/dashboard/ESGDashboard'));
 const BeneficiaryRegistry = lazy(() => import('./pages/dashboard/BeneficiaryRegistry'));
 
 const GrantWriterIndex = lazy(() => import('./pages/dashboard/grant-writer/GrantWriterIndex'));
@@ -215,6 +216,7 @@ const App = () => (
               <Route path="/dashboard/lfa-builder/:projectId" element={<LFABuilderEditor />} />
               <Route path="/dashboard/sroi" element={<SROIStandalone />} />
               <Route path="/dashboard/eroi" element={<EROIStandalone />} />
+              <Route path="/dashboard/esg" element={<ESGDashboard />} />
               <Route path="/dashboard/beneficiary" element={<BeneficiaryRegistry />} />
 
 

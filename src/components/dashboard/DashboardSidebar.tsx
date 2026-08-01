@@ -18,6 +18,7 @@ import {
   Ruler,
   TrendingUp,
   Leaf,
+  Globe,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -77,6 +78,10 @@ const IMPACT_ITEMS: NavItem[] = [
   { name: 'E-ROI Carbon', href: '/dashboard/eroi', icon: Leaf },
   { name: 'Monthly Report', href: '/dashboard/monthly-report', icon: BarChart3 },
   { name: 'Operating Review', href: '/dashboard/operating-review', icon: CalendarRange },
+];
+
+const SUSTAINABILITY_ITEMS: NavItem[] = [
+  { name: 'ESG Dashboard', href: '/dashboard/esg', icon: Globe },
 ];
 
 
@@ -209,6 +214,36 @@ export function DashboardSidebar() {
                         className={linkClass(active)}
                       >
                         <item.icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{item.name}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* SUSTAINABILITY INTELLIGENCE Group */}
+        <SidebarGroup>
+          {!collapsed && (
+            <SidebarGroupLabel className="text-sidebar-foreground/60">
+              SUSTAINABILITY INTELLIGENCE
+            </SidebarGroupLabel>
+          )}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {SUSTAINABILITY_ITEMS.map((item) => {
+                const active = isActive(item);
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild tooltip={item.name} isActive={active}>
+                      <NavLink
+                        to={item.href}
+                        end={item.exact}
+                        className={linkClass(active)}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0 text-emerald-500" />
                         {!collapsed && <span className="truncate">{item.name}</span>}
                       </NavLink>
                     </SidebarMenuButton>
