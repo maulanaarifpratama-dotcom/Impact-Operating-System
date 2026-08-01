@@ -1,7 +1,7 @@
 // src/components/esg/EnvironmentTab.tsx
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Leaf, Trees, DollarSign, BarChart3, TrendingDown, Scale } from 'lucide-react';
+import { Leaf, Trees, DollarSign, BarChart3, Scale } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { ESGEnvironmentalMetrics } from '@/lib/esg/types';
 import { formatCarbonMass, formatCurrency, formatTreesEquivalent } from '@/lib/carbon/formatters';
@@ -20,73 +20,77 @@ export function EnvironmentTab({ data }: EnvironmentTabProps) {
     { name: 'Scope 3 (Supply Chain)', value: scope_breakdown.scope3_kg, color: '#f59e0b' },
   ];
 
+  const netImpactDisplay = carbon.net_impact_kg !== 0 ? formatCarbonMass(carbon.net_impact_kg) : 'Belum Ada Data Karbon';
+  const valDisplay = valuation.net_impact_value_idr > 0 ? formatCurrency(valuation.net_impact_value_idr) : '—';
+  const eroiDisplay = eroi?.eroi_ratio ? eroi.formatted_ratio : '—';
+
   return (
     <div className="space-y-6">
-      {/* SUMMARY KPI ROW */}
+      {/* HERO KPI ROW */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="bg-white dark:bg-slate-900 shadow-sm border">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs">Net Carbon Impact</CardDescription>
-            <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-              <Leaf className="w-5 h-5 text-emerald-600" />
-              {formatCarbonMass(carbon.net_impact_kg)}
+            <CardDescription className="text-xs uppercase font-bold text-slate-500">Net Carbon Impact</CardDescription>
+            <CardTitle className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2 whitespace-nowrap truncate">
+              <Leaf className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>{netImpactDisplay}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-slate-500">
-            {carbon.net_impact_kg < 0 ? 'Net Carbon Negative (Pengurangan Emisi)' : 'Net Carbon Positive (Emisi Bersih)'}
+          <CardContent className="text-xs text-slate-500 whitespace-nowrap truncate">
+            {carbon.net_impact_kg < 0 ? 'Net Carbon Negative' : carbon.net_impact_kg > 0 ? 'Net Carbon Positive' : 'Data belum diinput di WBS'}
           </CardContent>
         </Card>
 
         <Card className="bg-white dark:bg-slate-900 shadow-sm border">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs">Ekuivalensi Serapan Pohon</CardDescription>
-            <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-              <Trees className="w-5 h-5 text-emerald-600" />
-              {formatTreesEquivalent(carbon.trees_equivalent)}
+            <CardDescription className="text-xs uppercase font-bold text-slate-500">Serapan Pohon</CardDescription>
+            <CardTitle className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2 whitespace-nowrap truncate">
+              <Trees className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>{carbon.trees_equivalent > 0 ? formatTreesEquivalent(carbon.trees_equivalent) : '—'}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-slate-500">
-            Dihitung menggunakan faktor serapan 5 kg/pohon/tahun
+          <CardContent className="text-xs text-slate-500 whitespace-nowrap truncate">
+            Asumsi 5 kg CO₂e / pohon / tahun
           </CardContent>
         </Card>
 
         <Card className="bg-white dark:bg-slate-900 shadow-sm border">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs">Monetized Env Value (NEK)</CardDescription>
-            <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-              <DollarSign className="w-5 h-5 text-blue-600" />
-              {formatCurrency(valuation.net_impact_value_idr)}
+            <CardDescription className="text-xs uppercase font-bold text-slate-500">Monetized Env Value</CardDescription>
+            <CardTitle className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2 whitespace-nowrap truncate">
+              <DollarSign className="w-5 h-5 text-blue-600 shrink-0" />
+              <span>{valDisplay}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-slate-500 flex items-center gap-1">
+          <CardContent className="text-xs text-slate-500 flex items-center gap-1 whitespace-nowrap truncate">
             <span>Acuan:</span>
-            <Badge variant="outline" className="text-[10px] py-0">{valuation.benchmark_name}</Badge>
+            <Badge variant="outline" className="text-[10px] py-0 px-1.5">{valuation.benchmark_name}</Badge>
           </CardContent>
         </Card>
 
         <Card className="bg-white dark:bg-slate-900 shadow-sm border">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs">Environmental Return (EROI)</CardDescription>
-            <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-              <Scale className="w-5 h-5 text-amber-600" />
-              {eroi?.formatted_ratio || '1 : 0'}
+            <CardDescription className="text-xs uppercase font-bold text-slate-500">EROI Ratio</CardDescription>
+            <CardTitle className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2 whitespace-nowrap truncate">
+              <Scale className="w-5 h-5 text-amber-600 shrink-0" />
+              <span>{eroiDisplay}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-slate-500">
-            Rasio pengembalian lingkungan moneter per investasi
+          <CardContent className="text-xs text-slate-500 whitespace-nowrap truncate">
+            Pengembalian lingkungan per investasi
           </CardContent>
         </Card>
       </div>
 
-      {/* GHG SCOPE BREAKDOWN CHART */}
+      {/* SCOPE DISTRIBUTION CHART AREA */}
       <Card className="bg-white dark:bg-slate-900 shadow-sm border">
         <CardHeader>
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
             <BarChart3 className="w-4 h-4 text-emerald-600" />
-            Distribusi Emisi & Serapan Karbon Per GHG Scope (kg CO₂e)
+            Distribusi Emisi & Serapan Karbon Per Scope (kg CO₂e)
           </CardTitle>
           <CardDescription className="text-xs">
-            Rincian emisi langsung (Scope 1), emisi energi (Scope 2), dan emisi rantai pasok/pengurangan (Scope 3) dari WBS.
+            Rincian emisi langsung (Scope 1), emisi energi (Scope 2), dan emisi/pengurangan rantai pasok (Scope 3) bersumber dari WBS.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">

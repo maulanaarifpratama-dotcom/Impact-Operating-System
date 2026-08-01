@@ -1,7 +1,8 @@
 // src/components/esg/SocialTab.tsx
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Heart, TrendingUp, UserCheck, ShieldAlert } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Users, Heart, TrendingUp, UserCheck } from 'lucide-react';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from 'recharts';
 import { ESGSocialMetrics } from '@/lib/esg/types';
 import { formatCurrency } from '@/lib/carbon/formatters';
@@ -17,59 +18,77 @@ export function SocialTab({ data }: SocialTabProps) {
     { name: 'Kelompok Rentan', percentage: data.vulnerable_percentage, color: '#f59e0b' },
   ];
 
+  const benDisplay = data.total_beneficiaries > 0 
+    ? `${data.total_beneficiaries.toLocaleString('id-ID')} Jiwa` 
+    : 'Belum Ada Data';
+
+  const socialValDisplay = data.social_value_idr > 0 
+    ? formatCurrency(data.social_value_idr) 
+    : '—';
+
+  const sroiRatioDisplay = data.sroi_ratio > 0 
+    ? `1 : ${data.sroi_ratio}` 
+    : '—';
+
   return (
     <div className="space-y-6">
-      {/* SUMMARY KPI ROW */}
+      {/* PRIMARY HERO KPI ROW */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="bg-white dark:bg-slate-900 shadow-sm border">
+        {/* PRIMARY HERO: TOTAL BENEFICIARIES */}
+        <Card className="bg-gradient-to-br from-blue-50/80 to-white dark:from-blue-950/30 dark:to-slate-900 border-blue-200 shadow-sm">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs">Total Penerima Manfaat</CardDescription>
-            <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-              <Users className="w-5 h-5 text-blue-600" />
-              {data.total_beneficiaries.toLocaleString('id-ID')} Jiwa
+            <CardDescription className="text-xs uppercase font-bold text-blue-800 dark:text-blue-400">
+              Total Penerima Manfaat
+            </CardDescription>
+            <CardTitle className="text-2xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2 whitespace-nowrap truncate">
+              <Users className="w-5 h-5 text-blue-600 shrink-0" />
+              <span>{benDisplay}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-slate-500">
-            Terverifikasi melalui Beneficiary Registry
+          <CardContent className="text-xs text-slate-500 whitespace-nowrap truncate">
+            Terdaftar di Beneficiary Registry
           </CardContent>
         </Card>
 
+        {/* SECONDARY: FEMALE PARTICIPATION */}
         <Card className="bg-white dark:bg-slate-900 shadow-sm border">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs">Proporsi Perempuan</CardDescription>
-            <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-              <Heart className="w-5 h-5 text-pink-600" />
-              {data.female_percentage}%
+            <CardDescription className="text-xs uppercase font-bold text-slate-500">Keterlibatan Perempuan</CardDescription>
+            <CardTitle className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2 whitespace-nowrap truncate">
+              <Heart className="w-5 h-5 text-pink-600 shrink-0" />
+              <span>{data.female_percentage > 0 ? `${data.female_percentage}%` : '—'}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-slate-500">
-            Dukungan kesetaraan gender & inklusif
+          <CardContent className="pt-1">
+            <Progress value={data.female_percentage} className="h-1.5 bg-slate-100" />
           </CardContent>
         </Card>
 
+        {/* SECONDARY: NET SOCIAL VALUE */}
         <Card className="bg-white dark:bg-slate-900 shadow-sm border">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs">Net Present Social Value</CardDescription>
-            <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-              <TrendingUp className="w-5 h-5 text-emerald-600" />
-              {formatCurrency(data.social_value_idr)}
+            <CardDescription className="text-xs uppercase font-bold text-slate-500">Net Social Value</CardDescription>
+            <CardTitle className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2 whitespace-nowrap truncate">
+              <TrendingUp className="w-5 h-5 text-emerald-600 shrink-0" />
+              <span>{socialValDisplay}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-slate-500">
-            Nilai manfaat sosial terkuantifikasi (SROI)
+          <CardContent className="text-xs text-slate-500 whitespace-nowrap truncate">
+            SROI Social Value
           </CardContent>
         </Card>
 
+        {/* SECONDARY: SROI RATIO */}
         <Card className="bg-white dark:bg-slate-900 shadow-sm border">
           <CardHeader className="pb-2">
-            <CardDescription className="text-xs">Social Return On Investment</CardDescription>
-            <CardTitle className="text-xl font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-              <UserCheck className="w-5 h-5 text-purple-600" />
-              1 : {data.sroi_ratio}
+            <CardDescription className="text-xs uppercase font-bold text-slate-500">SROI Return Ratio</CardDescription>
+            <CardTitle className="text-xl font-extrabold text-slate-900 dark:text-slate-100 flex items-center gap-2 whitespace-nowrap truncate">
+              <UserCheck className="w-5 h-5 text-purple-600 shrink-0" />
+              <span>{sroiRatioDisplay}</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="text-xs text-slate-500">
-            Rasio pengembalian sosial per dana hibah
+          <CardContent className="text-xs text-slate-500 whitespace-nowrap truncate">
+            Return sosial per dana hibah
           </CardContent>
         </Card>
       </div>
@@ -77,12 +96,12 @@ export function SocialTab({ data }: SocialTabProps) {
       {/* DEMOGRAPHICS BREAKDOWN CHART */}
       <Card className="bg-white dark:bg-slate-900 shadow-sm border">
         <CardHeader>
-          <CardTitle className="text-base font-semibold flex items-center gap-2">
+          <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
             <Users className="w-4 h-4 text-blue-600" />
             Profil Demografi & Inklusivitas Penerima Manfaat (%)
           </CardTitle>
           <CardDescription className="text-xs">
-            Persentase keterlibatan partisipan perempuan, pemuda, dan kelompok rentan/disabilitas.
+            Persentase partisipasi perempuan, pemuda, dan kelompok rentan/disabilitas.
           </CardDescription>
         </CardHeader>
         <CardContent className="pt-2">
