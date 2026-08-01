@@ -4,17 +4,23 @@ import { useAuth } from '@/providers/AuthProvider';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ExecutiveOverviewCards } from '@/components/esg/ExecutiveOverviewCards';
+import { EnvironmentTab } from '@/components/esg/EnvironmentTab';
+import { SocialTab } from '@/components/esg/SocialTab';
+import { GovernanceTab } from '@/components/esg/GovernanceTab';
+import { SDGTab } from '@/components/esg/SDGTab';
 import { getOrgESGSummary } from '@/lib/esg/aggregator';
 import { ESGSummaryPayload } from '@/lib/esg/types';
-import { Globe, RefreshCw, Shield, Sparkles, Building2 } from 'lucide-react';
+import { Globe, RefreshCw, Shield, Building2, Leaf, Users, ShieldCheck, LayoutDashboard } from 'lucide-react';
 
 export default function ESGDashboard() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [esgData, setEsgData] = useState<ESGSummaryPayload | null>(null);
   const [orgInfo, setOrgInfo] = useState<{ id: string; name: string } | null>(null);
+  const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     async function loadData() {
@@ -85,16 +91,65 @@ export default function ESGDashboard() {
         </div>
       </div>
 
-      {/* EXECUTIVE OVERVIEW CARDS */}
-      {loading || !esgData ? (
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-pulse">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-32 bg-slate-100 dark:bg-slate-800 rounded-xl border" />
-          ))}
-        </div>
-      ) : (
-        <ExecutiveOverviewCards data={esgData} />
-      )}
+      {/* DASHBOARD TABS NAVIGATION */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid grid-cols-2 sm:grid-cols-5 w-full md:w-auto bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+          <TabsTrigger value="overview" className="text-xs font-medium flex items-center gap-1.5">
+            <LayoutDashboard className="w-3.5 h-3.5" /> Overview
+          </TabsTrigger>
+          <TabsTrigger value="environment" className="text-xs font-medium flex items-center gap-1.5">
+            <Leaf className="w-3.5 h-3.5 text-emerald-600" /> Environment
+          </TabsTrigger>
+          <TabsTrigger value="social" className="text-xs font-medium flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-blue-600" /> Social
+          </TabsTrigger>
+          <TabsTrigger value="governance" className="text-xs font-medium flex items-center gap-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" /> Governance
+          </TabsTrigger>
+          <TabsTrigger value="sdgs" className="text-xs font-medium flex items-center gap-1.5">
+            <Globe className="w-3.5 h-3.5 text-amber-600" /> SDGs Matrix
+          </TabsTrigger>
+        </TabsList>
+
+        {/* TAB 1: OVERVIEW */}
+        <TabsContent value="overview" className="space-y-6">
+          {loading || !esgData ? (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 animate-pulse">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-32 bg-slate-100 dark:bg-slate-800 rounded-xl border" />
+              ))}
+            </div>
+          ) : (
+            <>
+              <ExecutiveOverviewCards data={esgData} />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+                <EnvironmentTab data={esgData.environment} />
+                <SocialTab data={esgData.social} />
+              </div>
+            </>
+          )}
+        </TabsContent>
+
+        {/* TAB 2: ENVIRONMENT */}
+        <TabsContent value="environment" className="space-y-6">
+          {esgData && <EnvironmentTab data={esgData.environment} />}
+        </TabsContent>
+
+        {/* TAB 3: SOCIAL */}
+        <TabsContent value="social" className="space-y-6">
+          {esgData && <SocialTab data={esgData.social} />}
+        </TabsContent>
+
+        {/* TAB 4: GOVERNANCE */}
+        <TabsContent value="governance" className="space-y-6">
+          {esgData && <GovernanceTab data={esgData.governance} />}
+        </TabsContent>
+
+        {/* TAB 5: SDGS MATRIX */}
+        <TabsContent value="sdgs" className="space-y-6">
+          {esgData && <SDGTab data={esgData.sdgs} />}
+        </TabsContent>
+      </Tabs>
 
       {/* SUMMARY NOTE & GOVERNANCE GUARANTEE */}
       <Card className="bg-slate-50/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800">
