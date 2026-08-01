@@ -488,6 +488,7 @@ export default function MEALPlanner({
 
           return {
             lfa_project_id: projectId,
+            wbs_item_id: null,
             org_id: orgId,
             lfa_level: levelMap,
             indicator_text: entry.indicator || `Indikator untuk: ${entry.description || entry.level}`,
