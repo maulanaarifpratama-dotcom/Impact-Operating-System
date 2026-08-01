@@ -1938,9 +1938,9 @@ export default function LFABuilderEditor() {
             size="sm"
             className="bg-emerald-600 hover:bg-emerald-500 text-white font-medium"
             onClick={handleExportToGrantwriter}
-            disabled={exportingToGrantwriter}
+            disabled={generatingProposal}
           >
-            {exportingToGrantwriter ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
+            {generatingProposal ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <Sparkles className="mr-1.5 h-3.5 w-3.5" />}
             Generate Proposal &rarr;
           </Button>
         </div>
