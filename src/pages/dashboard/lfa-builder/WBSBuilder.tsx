@@ -699,8 +699,31 @@ export default function WBSBuilder({
 
         if (insErr) throw insErr;
 
-        // Auto-populate ONE default empty budget row for each Level 2 WBS activity
-        const level2Items = newWbsItems.filter((i) => i.level === 2);
+        /**
+         * Auto-populate ONE default empty budget row for each Level 2 WBS
+         * activity — but only when the project has no budget at all yet.
+         *
+         * The generate pipeline now writes real budget lines from the model's
+         * budget_hints, rescaled to the author's total, and those rows carry a
+         * NULL wbs_item_id because WBS does not exist when they are written. The
+         * per-item NOT EXISTS check below is keyed on wbs_item_id, so it does not
+         * see them and would stack a "Rincian anggaran belum diisi" placeholder on
+         * top of every real line the moment this page was opened. Checking the
+         * project as a whole is what actually prevents that.
+         */
+        const { count: existingBudgetCount } = await supabase
+          .from('lfa_budget_items')
+          .select('id', { count: 'exact', head: true })
+          .eq('lfa_project_id', projectId);
+
+        const level2Items = existingBudgetCount && existingBudgetCount > 0
+          ? []
+          : newWbsItems.filter((i) => i.level === 2);
+
+        if (existingBudgetCount && existingBudgetCount > 0) {
+          console.log(`[Impactory] Skipping placeholder budget rows; ${existingBudgetCount} budget lines already exist.`);
+        }
+
         if (level2Items.length > 0) {
           const defaultBudgetItems = level2Items.map((act) => ({
             lfa_project_id: projectId,
