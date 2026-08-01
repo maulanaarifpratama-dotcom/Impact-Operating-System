@@ -1,7 +1,7 @@
 // src/lib/reports/types.ts
 import { ESGSummaryPayload } from '@/lib/esg/types';
 
-export type ReportTemplateType = 'GRI' | 'SEOJK' | 'SDG' | 'EXECUTIVE' | 'SEOJK_16_2021' | 'SDG_MATRIX' | 'EXECUTIVE_BRIEF';
+export type ReportTemplateType = 'GRI' | 'SEOJK' | 'SDG' | 'EXECUTIVE';
 
 export interface UnifiedReportPayload {
   metadata?: {
