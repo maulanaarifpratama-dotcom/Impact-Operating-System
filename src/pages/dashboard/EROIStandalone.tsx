@@ -176,25 +176,25 @@ export default function EROIStandalone() {
   }
 
   return (
-    <div id="eroi-standalone-root" data-testid="eroi-standalone-root" className="container mx-auto p-4 md:p-6 space-y-6 max-w-7xl">
+    <div id="eroi-standalone-root" data-testid="eroi-standalone-root" className="container mx-auto p-2 md:p-4 space-y-4 max-w-7xl">
       
       {/* HEADER SECTION */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between bg-white dark:bg-slate-950 p-6 rounded-2xl border shadow-elegant">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between bg-white dark:bg-slate-950 p-4 md:p-5 rounded-xl border shadow-elegant">
         <div>
           <div className="flex items-center gap-3">
-            <span className="p-3 bg-gradient-to-tr from-emerald-500 to-teal-400 text-white rounded-xl text-2xl shadow-sm flex items-center justify-center">
-              <Leaf className="h-6 w-6" />
+            <span className="p-2 bg-gradient-to-tr from-emerald-500 to-teal-400 text-white rounded-lg text-xl shadow-sm flex items-center justify-center">
+              <Leaf className="h-5 w-5" />
             </span>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-white">
+                <h1 className="text-lg md:text-xl font-bold tracking-tight text-slate-900 dark:text-white">
                   E-ROI Carbon Tracker
                 </h1>
-                <Badge variant="secondary" className="bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 font-semibold border-emerald-100 dark:border-emerald-900/50">
+                <Badge variant="secondary" className="bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 font-semibold border-emerald-100 dark:border-emerald-900/50 text-xs">
                   🌱 Carbon Standalone
                 </Badge>
               </div>
-              <p className="text-xs md:text-sm text-muted-foreground mt-1 max-w-2xl leading-relaxed">
+              <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
                 Pantau emisi, reduksi, dan net impact karbon dari seluruh aktivitas program LFA secara real-time.
               </p>
             </div>

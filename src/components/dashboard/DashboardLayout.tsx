@@ -11,7 +11,7 @@ export function DashboardLayout() {
         <DashboardSidebar />
         <div className="flex flex-1 flex-col">
           <DashboardTopbar />
-          <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
+          <main className="flex-1 px-4 py-4 md:px-8 md:py-5">
             <Outlet />
           </main>
         </div>
@@ -19,4 +19,4 @@ export function DashboardLayout() {
       <OnboardingFlow />
     </SidebarProvider>
   );
-}
+}

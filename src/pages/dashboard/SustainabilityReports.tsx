@@ -83,19 +83,19 @@ export default function SustainabilityReports() {
   const activeMeta = REPORT_TEMPLATES[selectedTemplate];
 
   return (
-    <div className="container mx-auto p-4 md:p-6 space-y-6 max-w-7xl">
+    <div className="container mx-auto p-2 md:p-4 space-y-4 max-w-7xl">
       {/* HEADER SECTION */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border shadow-sm">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-white dark:bg-slate-900 p-4 md:p-5 rounded-xl border shadow-sm">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950 dark:text-emerald-300">
               <FileText className="w-3.5 h-3.5 mr-1" /> Sustainability Intelligence
             </Badge>
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
             Sustainability Report Generator
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 max-w-3xl">
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-3xl">
             Kompilasi otomatis LFA, WBS, Budget, MEAL, SROI, EROI, dan ESG ke dalam Laporan Keberlanjutan imutabel (GRI, SEOJK, SDGs) tanpa *double entry*.
           </p>
         </div>
