@@ -833,8 +833,8 @@ export default function MonthlyImpactReport() {
           </Card>
         </div>
 
-        {/* MAIN PANEL: Live Preview & Sign-off */}
-        <div className="space-y-6">
+        {/* MAIN PANEL: Live Preview & Sign-off (Sticky Independent Preview Workspace) */}
+        <div className="space-y-6 lg:sticky lg:top-16 lg:max-h-[calc(100vh-5rem)] lg:overflow-y-auto lg:pr-2">
           {/* Laporan Preview (The element that will be styled & printed) */}
           <Card id="print-report-area" className="print-area p-6 md:p-10 shadow-card border bg-card space-y-8">
             {/* Report Header */}
