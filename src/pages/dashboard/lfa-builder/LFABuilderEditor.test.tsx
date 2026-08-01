@@ -123,7 +123,7 @@ describe('LFABuilderEditor canonical diagnostics consumer', () => {
   });
 
   test('keeps the editor shell rendered when canonical derivation throws during mapping', async () => {
-    mockBuildEditorCanonicalLfaView.mockImplementationOnce(() => {
+    mockBuildEditorCanonicalLfaView.mockImplementation(() => {
       throw new Error('canonical-bridge-failure');
     });
 
@@ -139,5 +139,10 @@ describe('LFABuilderEditor canonical diagnostics consumer', () => {
       return methods.flatMap((method) => method.mock.calls);
     });
     expect(writeCalls).toHaveLength(0);
+  });
+
+  test('calculates 100% progress when all required fields are filled', async () => {
+    render(<LFABuilderEditor />);
+    expect(await screen.findByText('100%')).toBeTruthy();
   });
 });

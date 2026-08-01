@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { finalizePrintWindow } from '@/lib/print/printWindow';
+import { parseIndicatorText, cleanIndicatorText } from '@/lib/lfa/indicatorUtils';
 
 interface MEALPlannerProps {
   projectId: string;
@@ -517,7 +518,7 @@ export default function MEALPlanner({
             wbs_item_id: matchedWbs?.id || null,
             org_id: orgId,
             lfa_level: levelMap,
-            indicator_text: entry.indicator || '',
+            indicator_text: cleanIndicatorText(entry.indicator) || '',
             baseline: null,
             target_value: null,
             target_unit: '',
@@ -547,7 +548,7 @@ export default function MEALPlanner({
             wbs_item_id: null,
             org_id: orgId,
             lfa_level: levelMap,
-            indicator_text: entry.indicator || `Indikator untuk: ${entry.description || entry.level}`,
+            indicator_text: cleanIndicatorText(entry.indicator) || `Indikator untuk: ${entry.description || entry.level}`,
             baseline: null,
             target_value: null,
             target_unit: '',

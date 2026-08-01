@@ -616,57 +616,54 @@ export default function LFABuilderEditor() {
     }
   };
 
-  // Completeness Metrics
+  // Completeness Metrics (Single Source of Truth)
   const calculateCompleteness = () => {
-    let score = 0;
-    if (goal?.description && goal.description.trim().length > 0) score += 25;
-    if (purpose?.description && purpose.description.trim().length > 0) score += 25;
-    if (outputs.length > 0 && outputs.some((o) => o.description.trim().length > 0)) score += 25;
-    if (activities.length > 0 && activities.some((a) => a.description.trim().length > 0)) score += 25;
+    let filledChecks = 0;
+    let totalChecks = 0;
 
-    let hasBlankRequiredOrMissingActivity = false;
+    // 1. Goal (4 required fields)
+    totalChecks += 4;
+    if (goal?.description?.trim()) filledChecks += 1;
+    if (goal?.indicator?.trim()) filledChecks += 1;
+    if (goal?.means_of_verification?.trim()) filledChecks += 1;
+    if (goal?.assumption?.trim()) filledChecks += 1;
 
-    // 1. Goal required fields
-    if (!goal?.indicator?.trim() || !goal?.means_of_verification?.trim() || !goal?.assumption?.trim()) {
-      hasBlankRequiredOrMissingActivity = true;
-    }
+    // 2. Purpose (4 required fields)
+    totalChecks += 4;
+    if (purpose?.description?.trim()) filledChecks += 1;
+    if (purpose?.indicator?.trim()) filledChecks += 1;
+    if (purpose?.means_of_verification?.trim()) filledChecks += 1;
+    if (purpose?.assumption?.trim()) filledChecks += 1;
 
-    // 2. Purpose required fields
-    if (!purpose?.indicator?.trim() || !purpose?.means_of_verification?.trim() || !purpose?.assumption?.trim()) {
-      hasBlankRequiredOrMissingActivity = true;
-    }
-
-    // 3. Outputs required fields & Activities presence
+    // 3. Outputs (5 required checks per output)
     if (outputs.length === 0) {
-      hasBlankRequiredOrMissingActivity = true;
+      totalChecks += 5;
     } else {
-      outputs.forEach(o => {
-        if (!o.description?.trim() || !o.indicator?.trim() || !o.means_of_verification?.trim() || !o.assumption?.trim()) {
-          hasBlankRequiredOrMissingActivity = true;
-        }
-        const hasActivity = activities.some(a => a.parent_id === o.id);
-        if (!hasActivity) {
-          hasBlankRequiredOrMissingActivity = true;
-        }
+      outputs.forEach((o) => {
+        totalChecks += 5;
+        if (o.description?.trim()) filledChecks += 1;
+        if (o.indicator?.trim()) filledChecks += 1;
+        if (o.means_of_verification?.trim()) filledChecks += 1;
+        if (o.assumption?.trim()) filledChecks += 1;
+        if (activities.some((a) => a.parent_id === o.id)) filledChecks += 1;
       });
     }
 
-    // 4. Activities required fields
+    // 4. Activities (4 required fields per activity)
     if (activities.length === 0) {
-      hasBlankRequiredOrMissingActivity = true;
+      totalChecks += 4;
     } else {
-      activities.forEach(a => {
-        if (!a.description?.trim() || !a.indicator?.trim() || !a.means_of_verification?.trim()) {
-          hasBlankRequiredOrMissingActivity = true;
-        }
+      activities.forEach((a) => {
+        totalChecks += 4;
+        if (a.description?.trim()) filledChecks += 1;
+        if (a.indicator?.trim()) filledChecks += 1;
+        if (a.means_of_verification?.trim()) filledChecks += 1;
+        if (a.responsible_party?.trim()) filledChecks += 1;
       });
     }
 
-    if (hasBlankRequiredOrMissingActivity) {
-      return Math.min(score, 95);
-    }
-
-    return score;
+    if (totalChecks === 0) return 0;
+    return Math.round((filledChecks / totalChecks) * 100);
   };
 
   // Logic Validation Engine
@@ -734,7 +731,12 @@ export default function LFABuilderEditor() {
 
   const proceedExportToGrantwriter = () => {
     if (!project) return;
-    navigate(`/dashboard/grant-writer?lfa_project_id=${project.id}`);
+    const targetGwProjectId = project.linked_grant_id || project.id;
+    if (proposalReady && (currentDocId || generatedGwProjectId)) {
+      navigate(`/dashboard/grant-writer/${targetGwProjectId}/proposal`);
+    } else {
+      navigate(`/dashboard/grant-writer/quick/${targetGwProjectId}`);
+    }
   };
 
   const validationWarnings = runValidation();

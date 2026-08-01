@@ -1048,7 +1048,7 @@ export function mapCanonicalProposalToRawEntries(
   // of undefined.
   (proposal.outcomes || []).forEach((outcome, oIdx) => {
     const indicatorText = (outcome.indicators || [])
-      .map((ind) => `${ind.id}: ${ind.indicator_name} (Target: ${ind.target_value} ${ind.unit_of_measure})`)
+      .map((ind) => `${ind.indicator_name}${ind.target_value ? ` (Target: ${ind.target_value}${ind.unit_of_measure ? ` ${ind.unit_of_measure}` : ''})` : ''}`)
       .join('; ');
     const movText = (outcome.indicators || [])
       .map((ind) => ind.means_of_verification)
@@ -1073,7 +1073,7 @@ export function mapCanonicalProposalToRawEntries(
     // 4. Outputs
     (outcome.outputs || []).forEach((output, opIdx) => {
       const opIndicatorText = (output.indicators || [])
-        .map((ind) => `${ind.id}: ${ind.indicator_name} (Target: ${ind.target_value} ${ind.unit_of_measure})`)
+        .map((ind) => `${ind.indicator_name}${ind.target_value ? ` (Target: ${ind.target_value}${ind.unit_of_measure ? ` ${ind.unit_of_measure}` : ''})` : ''}`)
         .join('; ');
       const opMovText = (output.indicators || [])
         .map((ind) => ind.means_of_verification)
@@ -1202,7 +1202,7 @@ export function materializeCanonicalProposalToLfaView(
     parentRef: { viewNodeId: `raw:${purposeId}`, nodeType: 'purpose' },
     rawSequence: idx + 1,
     statement: `${o.outcome_name} - ${o.description}`,
-    legacyIndicatorText: (o.indicators || []).map((i) => `${i.id}: ${i.indicator_name}`).join('; ') || null,
+    legacyIndicatorText: (o.indicators || []).map((i) => i.indicator_name).join('; ') || null,
     legacyMeansOfVerificationText: (o.indicators || []).map((i) => i.means_of_verification).filter(Boolean).join('; ') || null,
     legacyAssumptionText: null,
     legacyResponsiblePartyText: null,
@@ -1225,7 +1225,7 @@ export function materializeCanonicalProposalToLfaView(
     parentRef: { viewNodeId: `raw:${op.parent_outcome_id}`, nodeType: 'outcome' },
     rawSequence: idx + 1,
     statement: `${op.output_name} - ${op.description}`,
-    legacyIndicatorText: (op.indicators || []).map((i) => `${i.id}: ${i.indicator_name}`).join('; ') || null,
+    legacyIndicatorText: (op.indicators || []).map((i) => i.indicator_name).join('; ') || null,
     legacyMeansOfVerificationText: (op.indicators || []).map((i) => i.means_of_verification).filter(Boolean).join('; ') || null,
     legacyAssumptionText: null,
     legacyResponsiblePartyText: null,

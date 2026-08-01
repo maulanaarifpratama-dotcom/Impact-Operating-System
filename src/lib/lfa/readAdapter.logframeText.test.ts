@@ -60,14 +60,13 @@ describe('Teks logframe tersimpan (readAdapter)', () => {
     }
   });
 
-  test('setiap indikator membawa id dan cara verifikasinya', () => {
+  test('setiap indikator membawa teks manusiawi yang bersih dan cara verifikasinya', () => {
     const withIndicator = entries.filter((e) => e.indicator);
     expect(withIndicator.length).toBeGreaterThan(0);
 
     for (const entry of withIndicator) {
-      // "IND-OC-1.1: Peningkatan Rata-rata Pendapatan ..." — the id prefix is
-      // what links the sentence back to the canonical indicator it came from.
-      expect(entry.indicator, `indikator pada ${entry.level} kehilangan awalan id`).toMatch(/IND-[A-Z0-9.-]+:/);
+      // Primary indicator content is human readable and stripped of internal ID prefix
+      expect(entry.indicator, `indikator pada ${entry.level} tidak boleh tercemar awalan ID internal`).not.toMatch(/^IND-[A-Z0-9.-]+:/);
       expect(
         entry.means_of_verification,
         `indikator pada ${entry.level} tidak punya cara verifikasi`,
