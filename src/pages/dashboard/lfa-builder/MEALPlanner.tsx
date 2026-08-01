@@ -1346,10 +1346,10 @@ export default function MEALPlanner({
         <div className="space-y-6">
           {/* MATRIX TABLE CONTAINER */}
           <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-elegant">
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-600 dark:text-slate-400">
+              <tr className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 sticky top-0 z-10 shadow-xs">
                 <th className="p-3.5 py-4 w-32 shrink-0">Tingkat LFA</th>
                 <th className="p-3.5 py-4 min-w-[220px]">Indikator Keberhasilan</th>
                 {globalMode === 'professional' && <th className="p-3.5 py-4 w-36 shrink-0">Baseline</th>}

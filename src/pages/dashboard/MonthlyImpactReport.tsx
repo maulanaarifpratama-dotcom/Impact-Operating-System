@@ -895,10 +895,10 @@ export default function MonthlyImpactReport() {
               </div>
               
               {mealItems.length > 0 ? (
-                <div className="overflow-hidden rounded-xl border bg-background/50">
+                <div className="overflow-x-auto max-h-[500px] overflow-y-auto rounded-xl border bg-background/50">
                   <table className="w-full text-left border-collapse text-xs">
                     <thead>
-                      <tr className="border-b bg-muted/40 font-bold text-muted-foreground">
+                      <tr className="border-b bg-slate-100 dark:bg-slate-900 font-bold text-slate-700 dark:text-slate-300 sticky top-0 z-10 shadow-xs">
                         <th className="p-3 w-[45%]">Indikator Kinerja</th>
                         <th className="p-3 text-center w-[15%]">Target</th>
                         <th className="p-3 text-center w-[15%]">Capaian</th>

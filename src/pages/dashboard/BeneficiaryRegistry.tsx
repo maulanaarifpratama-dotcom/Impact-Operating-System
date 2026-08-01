@@ -760,9 +760,9 @@ export default function BeneficiaryRegistry() {
       {/* 4. BENEFICIARY TABLE CARD */}
       <Card className="shadow-sm border-border/80 print-shadow-none print-border-none">
         <CardContent className="p-0">
-          <div className="overflow-x-auto">
+          <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
             <Table>
-              <TableHeader className="bg-muted/30">
+              <TableHeader className="bg-slate-100 dark:bg-slate-900 sticky top-0 z-10">
                 <TableRow>
                   <TableHead className="font-bold text-xs text-foreground py-3">
                     Nama Lengkap

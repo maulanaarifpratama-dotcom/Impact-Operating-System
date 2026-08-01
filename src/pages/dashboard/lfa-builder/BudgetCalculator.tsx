@@ -2463,10 +2463,10 @@ export default function BudgetCalculator({
                         Belum ada item biaya alokasi. Klik "+ Tambah Item" untuk mulai merinci anggaran kegiatan ini.
                       </div>
                     ) : (
-                      <div className="overflow-x-auto">
+                      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                         <table className="w-full text-xs">
                           <thead>
-                            <tr className="border-b text-slate-400 font-bold bg-slate-50/30 dark:bg-slate-950/20">
+                            <tr className="border-b text-slate-700 dark:text-slate-300 font-bold bg-slate-100 dark:bg-slate-900 sticky top-0 z-10 shadow-xs">
                               <th className="text-left p-3 w-1/4">Nama Item Biaya</th>
                               <th className="text-left p-3 w-1/6">Kategori</th>
                               {globalMode === 'professional' && (
@@ -2856,10 +2856,10 @@ export default function BudgetCalculator({
                         Belum ada rincian item anggaran rencana untuk aktivitas ini.
                       </div>
                     ) : (
-                      <div className="overflow-x-auto">
+                      <div className="overflow-x-auto max-h-[500px] overflow-y-auto">
                         <table className="w-full text-xs">
                           <thead>
-                            <tr className="border-b text-slate-400 font-bold bg-slate-50/30 dark:bg-slate-950/20">
+                            <tr className="border-b text-slate-700 dark:text-slate-300 font-bold bg-slate-100 dark:bg-slate-900 sticky top-0 z-10 shadow-xs">
                               <th className="text-left p-3 w-1/4">Nama Item Biaya (Rencana)</th>
                               <th className="text-right p-3 w-[12%]">RAB Satuan</th>
                               <th className="text-right p-3 w-[12%]">RAB Total (Planned)</th>
