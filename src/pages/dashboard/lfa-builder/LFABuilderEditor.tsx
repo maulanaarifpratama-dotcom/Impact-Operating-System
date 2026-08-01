@@ -741,7 +741,15 @@ export default function LFABuilderEditor() {
 
   const validationWarnings = runValidation();
   const completenessPercent = calculateCompleteness();
-  const isSroiUnlocked = completenessPercent >= 80 && wbsExists && mealExists;
+  /**
+   * SROI is the one module with a genuine data dependency rather than an
+   * arbitrary threshold: it imports outcomes, targets and data sources from MEAL
+   * indicators, so with none registered there is nothing to compute from. The
+   * completenessPercent >= 80 and wbsExists conditions were removed — neither is
+   * required to calculate SROI, and together they locked the module for reasons
+   * the author could not act on.
+   */
+  const isSroiUnlocked = mealExists;
   const canonicalDiagnostics = useMemo(() => {
     if (!project) {
       return { view: null, error: null as string | null };
@@ -918,125 +926,85 @@ export default function LFABuilderEditor() {
 
       {/* MATRIX SUB TABS & PROGRESS BAR */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between bg-slate-50/50 dark:bg-slate-900/10 p-3 rounded-lg border">
-        {/* Tab Headers */}
+        {/*
+          Tab Headers — every module is reachable, always.
+
+          These tabs used to be gated on `completenessPercent >= 80` plus a chain
+          of wbsExists/mealExists checks. That made the progress number a gate
+          rather than information, and it contradicts the standing product rule
+          that the author is not blocked: poor-quality output the author can fix
+          beats a wall that stops them working. It also broke the moment the
+          progress figure became honest — a matrix with every description filled
+          but indicators still empty reads as 67%, which silently locked WBS,
+          Budget and MEAL with no way forward.
+
+          Prerequisites are still real, so they are still surfaced — as an advisory
+          marker and tooltip on the tab, not as a disabled button.
+        */}
         <div className="flex items-center gap-1 text-sm font-semibold">
-          <button
-            onClick={() => setActiveTab('lfa')}
-            className={`px-3 py-1.5 rounded-md transition-all ${
-              activeTab === 'lfa' ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border' : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            ① LFA Matrix
-          </button>
-          
-          {completenessPercent >= 80 ? (
-            <button
-              onClick={() => setActiveTab('wbs')}
-              data-testid="lfa-tab-wbs"
-              className={`px-3 py-1.5 rounded-md transition-all ${
-                activeTab === 'wbs' ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              ② WBS Builder
-            </button>
-          ) : (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button data-testid="lfa-tab-wbs" className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
-                    ② WBS 🔒
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>Lengkapi LFA Matrix minimal 80% untuk membuka WBS Builder</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+          {(() => {
+            const matrixThin = completenessPercent < 80;
+            const tabs = [
+              { id: 'lfa' as const, label: '① LFA Matrix', advisory: null },
+              {
+                id: 'wbs' as const,
+                label: '② WBS Builder',
+                advisory: matrixThin
+                  ? 'LFA Matrix baru terisi ' + completenessPercent + '%. WBS tetap bisa diisi — lengkapi matriks kapan saja.'
+                  : null,
+              },
+              {
+                id: 'budget' as const,
+                label: '③ Budget',
+                advisory: !wbsExists
+                  ? 'Belum ada item WBS. Anggaran yang belum terhubung ke aktivitas tetap tersimpan.'
+                  : null,
+              },
+              {
+                id: 'meal' as const,
+                label: '④ MEAL Planner',
+                advisory: !wbsExists
+                  ? 'MEAL paling berguna setelah WBS terisi, tapi indikator bisa didaftarkan sekarang.'
+                  : null,
+              },
+              {
+                id: 'sroi' as const,
+                label: '⑤ SROI Calculator',
+                advisory: !mealExists
+                  ? 'SROI butuh indikator MEAL dan data lapangan; tanpa itu hasilnya belum bermakna.'
+                  : null,
+              },
+            ];
 
-          {completenessPercent >= 80 && wbsExists ? (
-            <button
-              onClick={() => setActiveTab('budget')}
-              className={`px-3 py-1.5 rounded-md transition-all ${
-                activeTab === 'budget' ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              ③ Budget
-            </button>
-          ) : (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
-                    ③ Budget 🔒
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {completenessPercent < 80 
-                    ? 'Lengkapi LFA Matrix minimal 80% dan isi WBS untuk membuka Budget' 
-                    : 'Isi minimal satu item WBS untuk membuka Budget'}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+            return tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              const button = (
+                <button
+                  onClick={() => setActiveTab(tab.id)}
+                  data-testid={`lfa-tab-${tab.id}`}
+                  className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1 ${
+                    isActive
+                      ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {tab.label}
+                  {tab.advisory ? <span className="text-amber-500 text-xs">•</span> : null}
+                </button>
+              );
 
-          {completenessPercent >= 80 && wbsExists ? (
-            <button
-              onClick={() => setActiveTab('meal')}
-              data-testid="lfa-tab-meal"
-              className={`px-3 py-1.5 rounded-md transition-all ${
-                activeTab === 'meal' ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              ④ MEAL Planner
-            </button>
-          ) : (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button data-testid="lfa-tab-meal" className="px-3 py-1.5 rounded-md text-muted-foreground/60 cursor-not-allowed flex items-center gap-1 font-normal">
-                    ④ MEAL 🔒
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>Selesaikan LFA Matrix minimal 80% dan isi WBS untuk unlock modul MEAL</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+              if (!tab.advisory) return <span key={tab.id}>{button}</span>;
 
-          {completenessPercent >= 80 && wbsExists && mealExists ? (
-            <button
-              onClick={() => setActiveTab('sroi')}
-              data-testid="lfa-tab-sroi"
-              className={`px-3 py-1.5 rounded-md transition-all ${
-                activeTab === 'sroi' ? 'bg-white dark:bg-slate-950 shadow-sm text-primary border' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              ⑤ SROI Calculator
-            </button>
-          ) : (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <button 
-                    onClick={() => setActiveTab('sroi')}
-                    data-testid="lfa-tab-sroi" 
-                    className={`px-3 py-1.5 rounded-md transition-all flex items-center gap-1 font-normal ${
-                      activeTab === 'sroi'
-                        ? 'bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-200 border border-slate-200 dark:border-slate-800 shadow-sm'
-                        : 'text-muted-foreground/60 hover:text-foreground'
-                    }`}
-                  >
-                    ⑤ SROI 🔒
-                  </button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {completenessPercent < 80 
-                    ? 'Lengkapi LFA Matrix minimal 80% dan isi WBS untuk unlock SROI' 
-                    : !mealExists 
-                      ? 'Selesaikan MEAL Planner (minimal 1 indikator terdaftar) untuk membuka SROI'
-                      : 'Isi minimal satu item MEAL untuk membuka SROI'}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          )}
+              return (
+                <TooltipProvider key={tab.id}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>{button}</TooltipTrigger>
+                    <TooltipContent>{tab.advisory}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              );
+            });
+          })()}
         </div>
 
         {/* Progress tracker */}
@@ -1086,7 +1054,7 @@ export default function LFABuilderEditor() {
                     <Textarea
                       id="goal-description"
                       aria-label="Deskripsi Dampak"
-                      value={goal.description}
+                      value={goal.description ?? ''}
                       onChange={(e) => {
                         const updated = { ...goal, description: e.target.value };
                         setGoal(updated);
@@ -1104,7 +1072,7 @@ export default function LFABuilderEditor() {
                       <Input
                         id="goal-indicator"
                         aria-label="Indikator Kunci Dampak"
-                        value={goal.indicator}
+                        value={goal.indicator ?? ''}
                         onChange={(e) => setGoal({ ...goal, indicator: e.target.value })}
                         onBlur={() => void saveEntry(goal)}
                         placeholder="Mis. Angka stunting turun 15%"
@@ -1116,7 +1084,7 @@ export default function LFABuilderEditor() {
                       <Input
                         id="goal-mov"
                         aria-label="Sumber Verifikasi Dampak"
-                        value={goal.means_of_verification}
+                        value={goal.means_of_verification ?? ''}
                         onChange={(e) => setGoal({ ...goal, means_of_verification: e.target.value })}
                         onBlur={() => void saveEntry(goal)}
                         placeholder="Mis. Data BPS Kab. Garut"
@@ -1128,7 +1096,7 @@ export default function LFABuilderEditor() {
                       <Input
                         id="goal-assumption"
                         aria-label="Asumsi Eksternal Dampak"
-                        value={goal.assumption}
+                        value={goal.assumption ?? ''}
                         onChange={(e) => setGoal({ ...goal, assumption: e.target.value })}
                         onBlur={() => void saveEntry(goal)}
                         placeholder="Mis. Kebijakan dinkes stabil"
@@ -1175,7 +1143,7 @@ export default function LFABuilderEditor() {
                     <Textarea
                       id="purpose-description"
                       aria-label="Deskripsi Tujuan Program"
-                      value={purpose.description}
+                      value={purpose.description ?? ''}
                       onChange={(e) => {
                         const updated = { ...purpose, description: e.target.value };
                         setPurpose(updated);
@@ -1193,7 +1161,7 @@ export default function LFABuilderEditor() {
                       <Input
                         id="purpose-indicator"
                         aria-label="Indikator Kunci Tujuan Program"
-                        value={purpose.indicator}
+                        value={purpose.indicator ?? ''}
                         onChange={(e) => setPurpose({ ...purpose, indicator: e.target.value })}
                         onBlur={() => void saveEntry(purpose)}
                         placeholder="Mis. 500 ibu aktif menerapkan menu seimbang"
@@ -1205,7 +1173,7 @@ export default function LFABuilderEditor() {
                       <Input
                         id="purpose-mov"
                         aria-label="Sumber Verifikasi Tujuan Program"
-                        value={purpose.means_of_verification}
+                        value={purpose.means_of_verification ?? ''}
                         onChange={(e) => setPurpose({ ...purpose, means_of_verification: e.target.value })}
                         onBlur={() => void saveEntry(purpose)}
                         placeholder="Mis. Kuesioner pre-post test & kohort KIA"
@@ -1217,7 +1185,7 @@ export default function LFABuilderEditor() {
                       <Input
                         id="purpose-assumption"
                         aria-label="Asumsi Eksternal Tujuan Program"
-                        value={purpose.assumption}
+                        value={purpose.assumption ?? ''}
                         onChange={(e) => setPurpose({ ...purpose, assumption: e.target.value })}
                         onBlur={() => void saveEntry(purpose)}
                         placeholder="Mis. Ibu-ibu memiliki waktu luang posyandu"
@@ -1320,7 +1288,7 @@ export default function LFABuilderEditor() {
                           <Textarea
                             id={`output-desc-${out.id}`}
                             aria-label={`Deskripsi Deliverable Hasil ${index + 1}`}
-                            value={out.description}
+                            value={out.description ?? ''}
                             onChange={(e) => {
                               const updated = outputs.map((item) =>
                                 item.id === out.id ? { ...item, description: e.target.value } : item
@@ -1343,7 +1311,7 @@ export default function LFABuilderEditor() {
                             <Input
                               id={`output-indicator-${out.id}`}
                               aria-label={`Indikator Hasil ${index + 1}`}
-                              value={out.indicator}
+                              value={out.indicator ?? ''}
                               onChange={(e) => {
                                 const updated = outputs.map((item) =>
                                   item.id === out.id ? { ...item, indicator: e.target.value } : item
@@ -1363,7 +1331,7 @@ export default function LFABuilderEditor() {
                             <Input
                               id={`output-mov-${out.id}`}
                               aria-label={`Sumber Verifikasi Hasil ${index + 1}`}
-                              value={out.means_of_verification}
+                              value={out.means_of_verification ?? ''}
                               onChange={(e) => {
                                 const updated = outputs.map((item) =>
                                   item.id === out.id ? { ...item, means_of_verification: e.target.value } : item
@@ -1383,7 +1351,7 @@ export default function LFABuilderEditor() {
                             <Input
                               id={`output-assumption-${out.id}`}
                               aria-label={`Asumsi Hasil ${index + 1}`}
-                              value={out.assumption}
+                              value={out.assumption ?? ''}
                               onChange={(e) => {
                                 const updated = outputs.map((item) =>
                                   item.id === out.id ? { ...item, assumption: e.target.value } : item
@@ -1439,7 +1407,7 @@ export default function LFABuilderEditor() {
                                         <Input
                                           id={`act-desc-${act.id}`}
                                           aria-label={`Deskripsi Kegiatan ${index + 1}.${actIdx + 1}`}
-                                          value={act.description}
+                                          value={act.description ?? ''}
                                           onChange={(e) => {
                                             const updated = activities.map((item) =>
                                               item.id === act.id ? { ...item, description: e.target.value } : item
@@ -1882,23 +1850,7 @@ export default function LFABuilderEditor() {
               </div>
               <div className="flex flex-col sm:flex-row justify-center items-center gap-3">
                 <Button
-                  onClick={() => {
-                    const isMealUnlocked = completenessPercent >= 80 && wbsExists;
-                    if (!isMealUnlocked) {
-                      toast({
-                        title: "Modul MEAL Terkunci",
-                        description: "Selesaikan LFA Matrix minimal 80% dan isi WBS untuk unlock modul MEAL.",
-                        variant: "destructive",
-                      });
-                      if (completenessPercent < 80) {
-                        setActiveTab('lfa');
-                      } else {
-                        setActiveTab('wbs');
-                      }
-                    } else {
-                      setActiveTab('meal');
-                    }
-                  }}
+                  onClick={() => setActiveTab('meal')}
                   className="w-full sm:w-auto bg-teal-650 hover:bg-teal-600 dark:bg-teal-600 dark:hover:bg-teal-500 text-white font-semibold text-xs h-10 px-6 rounded-lg flex items-center justify-center gap-1.5 shadow"
                 >
                   Lengkapi MEAL dulu <ArrowRight className="h-3.5 w-3.5" />

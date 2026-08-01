@@ -145,4 +145,71 @@ describe('LFABuilderEditor canonical diagnostics consumer', () => {
     render(<LFABuilderEditor />);
     expect(await screen.findByText('100%')).toBeTruthy();
   });
+
+  /**
+   * Regression: an incomplete matrix must never lock the author out of the rest
+   * of the workspace.
+   *
+   * The tabs were gated on `completenessPercent >= 80`. That was survivable only
+   * because the old completeness calculation returned 95% as soon as the four
+   * descriptions were non-empty. Once the figure became honest, a matrix with
+   * descriptions but no indicators reads as 67% — and WBS, Budget and MEAL all
+   * locked, with no action available that would open them. Progress is
+   * information; it is not a gate.
+   */
+  test('keeps every module tab reachable when the matrix is incomplete', async () => {
+    const project = {
+      id: 'editor-project',
+      org_id: 'org-1',
+      name: 'Editor Project',
+      linked_grant_id: null,
+      duration_months: 12,
+      sector: 'Education',
+      location: 'Jakarta'
+    };
+
+    // Descriptions only — exactly the state the Quick Wizard lands in before the
+    // reasoning model fills the measurement columns.
+    const thinEntries = [
+      { id: 'goal-1', project_id: 'editor-project', org_id: 'org-1', level: 'goal', description: 'Goal', indicator: null, means_of_verification: null, assumption: null },
+      { id: 'purpose-1', project_id: 'editor-project', org_id: 'org-1', level: 'purpose', sequence: 1, description: 'Purpose', indicator: null, means_of_verification: null, assumption: null },
+      { id: 'output-1', project_id: 'editor-project', org_id: 'org-1', level: 'output', sequence: 1, parent_id: 'purpose-1', description: 'Output', indicator: null, means_of_verification: null, assumption: null },
+      { id: 'activity-1', project_id: 'editor-project', org_id: 'org-1', level: 'activity', sequence: 1, parent_id: 'output-1', description: 'Activity', indicator: null, means_of_verification: null, assumption: null }
+    ];
+
+    mockSupabaseFrom.mockImplementation((table: string) => {
+      const query = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        order: vi.fn().mockResolvedValue({ data: table === 'lfa_entries' ? thinEntries : project, error: null }),
+        maybeSingle: vi.fn().mockResolvedValue({ data: table === 'lfa_projects' ? project : null, error: null }),
+        single: vi.fn().mockResolvedValue({ data: table === 'lfa_entries' ? thinEntries[0] : project, error: null }),
+        insert: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        delete: vi.fn().mockReturnThis(),
+        limit: vi.fn().mockReturnThis()
+      };
+      createdQueries.push({ table, query });
+      return query;
+    });
+
+    render(<LFABuilderEditor />);
+
+    await screen.findByTestId('lfa-editor-root');
+
+    // The honest figure is well below the old 80% gate.
+    const progress = screen.getByText(/^\d+%$/).textContent ?? '';
+    expect(Number(progress.replace('%', ''))).toBeLessThan(80);
+
+    // Every module is still reachable and none is disabled.
+    for (const tab of ['lfa', 'wbs', 'budget', 'meal', 'sroi']) {
+      const button = screen.getByTestId(`lfa-tab-${tab}`);
+      expect(button).toBeTruthy();
+      expect(button.hasAttribute('disabled')).toBe(false);
+      expect(button.className).not.toContain('cursor-not-allowed');
+    }
+
+    // And no padlock is presented anywhere in the tab strip.
+    expect(screen.queryByText(/🔒/)).toBeNull();
+  });
 });
