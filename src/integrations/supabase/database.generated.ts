@@ -1491,6 +1491,7 @@ export type Database = {
           target_unit: string | null
           target_value: number | null
           updated_at: string | null
+          wbs_item_id: string | null
         }
         Insert: {
           baseline?: number | null
@@ -1516,6 +1517,7 @@ export type Database = {
           target_unit?: string | null
           target_value?: number | null
           updated_at?: string | null
+          wbs_item_id?: string | null
         }
         Update: {
           baseline?: number | null
@@ -1541,6 +1543,7 @@ export type Database = {
           target_unit?: string | null
           target_value?: number | null
           updated_at?: string | null
+          wbs_item_id?: string | null
         }
         Relationships: [
           {
@@ -1938,6 +1941,7 @@ export type Database = {
           id: string
           indicator: string | null
           level: number
+          lfa_entry_id: string | null
           lfa_project_id: string
           method: string | null
           mode: string | null
@@ -1970,6 +1974,7 @@ export type Database = {
           id?: string
           indicator?: string | null
           level: number
+          lfa_entry_id?: string | null
           lfa_project_id: string
           method?: string | null
           mode?: string | null
@@ -2002,6 +2007,7 @@ export type Database = {
           id?: string
           indicator?: string | null
           level?: number
+          lfa_entry_id?: string | null
           lfa_project_id?: string
           method?: string | null
           mode?: string | null
