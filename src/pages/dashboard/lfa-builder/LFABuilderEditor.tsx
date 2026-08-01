@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useNavigate, useParams, Link, useSearchParams } from 'react-router-dom';
+import { setActiveProjectId } from '@/lib/workspace/activeProject';
 import {
   ArrowLeft,
   Loader2,
@@ -321,6 +322,7 @@ export default function LFABuilderEditor() {
 
   useEffect(() => {
     if (user && projectId) {
+      setActiveProjectId(projectId);
       void loadProjectAndEntries();
     }
   }, [user, projectId, loadProjectAndEntries]);

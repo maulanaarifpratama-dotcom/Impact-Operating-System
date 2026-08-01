@@ -1,11 +1,12 @@
 // src/pages/dashboard/EROIStandalone.tsx
 // Standalone E-ROI Carbon Tracker page for Sprint 4
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
+import { getActiveProjectId, setActiveProjectId } from '@/lib/workspace/activeProject';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -94,6 +95,16 @@ export default function EROIStandalone() {
     },
     enabled: !!orgId,
   });
+
+  // Auto-select global active project if available
+  useEffect(() => {
+    if (projects && projects.length > 0 && selectedProject === 'all') {
+      const activeId = getActiveProjectId();
+      if (activeId && projects.some((p) => p.id === activeId)) {
+        setSelectedProject(activeId);
+      }
+    }
+  }, [projects]);
 
   // --- QUERY 3: WBS ITEMS WITH CARBON ---
   const { data: tableData, isLoading: isTableLoading } = useQuery({
@@ -224,7 +235,11 @@ export default function EROIStandalone() {
             id="eroi-program-select"
             data-testid="eroi-program-select"
             value={selectedProject}
-            onChange={(e) => setSelectedProject(e.target.value)}
+            onChange={(e) => {
+              const val = e.target.value;
+              setSelectedProject(val);
+              if (val !== 'all') setActiveProjectId(val);
+            }}
             className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-xs md:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 max-w-xs font-semibold text-slate-700 dark:text-slate-300 cursor-pointer shadow-sm min-w-[200px]"
           >
             <option value="all">Semua Program</option>

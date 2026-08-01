@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Link } from 'react-router-dom';
+import { getActiveProjectId, setActiveProjectId } from '@/lib/workspace/activeProject';
 import { 
   ArrowRight, 
   BarChart3, 
@@ -261,10 +262,15 @@ export default function MonthlyImpactReport() {
     enabled: !!orgId,
   });
 
-  // Automatically select the first project
+  // Automatically select the active or first project
   useEffect(() => {
     if (lfaProjects.length > 0 && !selectedLfaProjectId) {
-      setSelectedLfaProjectId(lfaProjects[0].id);
+      const activeId = getActiveProjectId();
+      if (activeId && lfaProjects.some((p) => p.id === activeId)) {
+        setSelectedLfaProjectId(activeId);
+      } else {
+        setSelectedLfaProjectId(lfaProjects[0].id);
+      }
     }
   }, [lfaProjects, selectedLfaProjectId]);
 
@@ -696,6 +702,7 @@ export default function MonthlyImpactReport() {
                 value={selectedLfaProjectId}
                 onValueChange={(val) => {
                   setSelectedLfaProjectId(val);
+                  setActiveProjectId(val);
                   const selectedName = lfaProjects.find((p) => p.id === val)?.name || '';
                   toast.info(`Project terpilih: ${selectedName}`);
                 }}

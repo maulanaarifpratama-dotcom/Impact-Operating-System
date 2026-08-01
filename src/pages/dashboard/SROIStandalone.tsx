@@ -6,6 +6,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { getActiveProjectId, setActiveProjectId } from '@/lib/workspace/activeProject';
 import { SROI_PROXIES_INDONESIA, SROI_SECTORS } from '@/data/sroi-proxies-indonesia';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -94,7 +95,14 @@ export default function SROIStandalone() {
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        if (data) setProjects(data);
+        if (data) {
+          setProjects(data);
+          const activeProjId = getActiveProjectId();
+          if (activeProjId && data.some(p => p.id === activeProjId)) {
+            // Pre-select active project
+            void handleConnectProject(activeProjId, data);
+          }
+        }
       } catch (err) {
         console.error('Error loading projects:', err);
       } finally {
@@ -174,16 +182,18 @@ export default function SROIStandalone() {
     });
   };
 
-  const handleConnectProject = async (projId: string) => {
+  const handleConnectProject = async (projId: string, overrideList?: any[]) => {
     if (projId === 'manual') {
       setSelectedProjectId('manual');
       return;
     }
 
-    const proj = projects.find(p => p.id === projId);
+    const list = overrideList || projects;
+    const proj = list.find(p => p.id === projId);
     if (!proj) return;
 
     setSelectedProjectId(projId);
+    setActiveProjectId(projId);
     setProgramName(proj.name);
     setSector(proj.sector || 'Pendidikan');
     setLocation(proj.location || '');
