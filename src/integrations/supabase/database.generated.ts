@@ -1856,10 +1856,14 @@ export type Database = {
       lfa_sroi_outcomes: {
         Row: {
           attribution_pct: number | null
+          attribution_rationale: string | null
           created_at: string | null
           deadweight_pct: number | null
+          deadweight_rationale: string | null
           displacement_pct: number | null
+          displacement_rationale: string | null
           dropoff_pct_per_year: number | null
+          dropoff_rationale: string | null
           duration_years: number | null
           gross_value_idr: number | null
           id: string
@@ -1878,13 +1882,18 @@ export type Database = {
           stakeholder_group: string | null
           unit: string | null
           updated_at: string | null
+          wbs_evidence_id: string | null
         }
         Insert: {
           attribution_pct?: number | null
+          attribution_rationale?: string | null
           created_at?: string | null
           deadweight_pct?: number | null
+          deadweight_rationale?: string | null
           displacement_pct?: number | null
+          displacement_rationale?: string | null
           dropoff_pct_per_year?: number | null
+          dropoff_rationale?: string | null
           duration_years?: number | null
           gross_value_idr?: number | null
           id?: string
@@ -1903,13 +1912,18 @@ export type Database = {
           stakeholder_group?: string | null
           unit?: string | null
           updated_at?: string | null
+          wbs_evidence_id?: string | null
         }
         Update: {
           attribution_pct?: number | null
+          attribution_rationale?: string | null
           created_at?: string | null
           deadweight_pct?: number | null
+          deadweight_rationale?: string | null
           displacement_pct?: number | null
+          displacement_rationale?: string | null
           dropoff_pct_per_year?: number | null
+          dropoff_rationale?: string | null
           duration_years?: number | null
           gross_value_idr?: number | null
           id?: string
@@ -1928,6 +1942,7 @@ export type Database = {
           stakeholder_group?: string | null
           unit?: string | null
           updated_at?: string | null
+          wbs_evidence_id?: string | null
         }
         Relationships: [
           {

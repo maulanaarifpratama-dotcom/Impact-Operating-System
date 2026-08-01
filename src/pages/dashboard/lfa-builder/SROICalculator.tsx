@@ -54,6 +54,7 @@ export default function SROICalculator({
   const [itemizedBudget, setItemizedBudget] = useState<number | null>(null);
   const [mealItems, setMealItems] = useState<MealItem[]>([]);
   const [mealEntries, setMealEntries] = useState<MealTrackingEntry[]>([]);
+  const [wbsEvidences, setWbsEvidences] = useState<any[]>([]);
 
   // Local states for virtual registry-linked outcome
   const [registryProxyValueIdr, setRegistryProxyValueIdr] = useState(0);
@@ -178,6 +179,12 @@ export default function SROICalculator({
         .select('*')
         .eq('lfa_project_id', projectId);
       if (mEntries) setMealEntries(mEntries as MealTrackingEntry[]);
+
+      const { data: evData } = await supabase
+        .from('wbs_completion_evidence')
+        .select('*')
+        .eq('lfa_project_id', projectId);
+      if (evData) setWbsEvidences(evData);
 
       // 1. Fetch config
       const { data: configData, error: configErr } = await supabase
@@ -646,9 +653,14 @@ export default function SROICalculator({
             proxy_category: newOutcome?.proxy_category ?? null,
             duration_years: newOutcome?.duration_years ?? 1,
             attribution_pct: newOutcome?.attribution_pct ?? 80,
+            attribution_rationale: newOutcome?.attribution_rationale ?? null,
             deadweight_pct: newOutcome?.deadweight_pct ?? 20,
+            deadweight_rationale: newOutcome?.deadweight_rationale ?? null,
             displacement_pct: newOutcome?.displacement_pct ?? 0,
+            displacement_rationale: newOutcome?.displacement_rationale ?? null,
             dropoff_pct_per_year: newOutcome?.dropoff_pct_per_year ?? 0,
+            dropoff_rationale: newOutcome?.dropoff_rationale ?? null,
+            wbs_evidence_id: newOutcome?.wbs_evidence_id ?? null,
             gross_value_idr: gross_value,
             present_value_idr: present_value,
             mode: newOutcome?.mode ?? 'simple'
@@ -1832,6 +1844,74 @@ export default function SROICalculator({
                               onValueChange={(val) => debounceSaveOutcome({ ...out, deadweight_pct: val[0] })}
                             />
                             <p className="text-[10px] text-muted-foreground">Persentase seberapa besar perubahan ini kemungkinan besar akan tetap terjadi meskipun program Anda tidak berjalan.</p>
+                          </div>
+
+                          {/* SROI OUTCOME AUDIT PANEL (Sprint 2 PART C & D) */}
+                          <div className="p-3 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg space-y-3">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                                <FileText className="h-3 w-3 text-indigo-500" /> Audit Rationale & Evidence Provenance
+                              </span>
+                              <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-slate-300">
+                                Donor Review Panel
+                              </Badge>
+                            </div>
+
+                            {/* Rationale Textareas */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">Justifikasi Kontribusi (Attribution Rationale)</Label>
+                                <Textarea
+                                  rows={2}
+                                  placeholder="E.g. Kegiatan dijalankan bersama mitra pemerintah daerah (30% share)..."
+                                  value={out.attribution_rationale || ''}
+                                  onChange={(e) => debounceSaveOutcome({ ...out, attribution_rationale: e.target.value })}
+                                  className="text-xs resize-none"
+                                />
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-[10px] font-semibold text-slate-700 dark:text-slate-300">Justifikasi Deadweight (Deadweight Rationale)</Label>
+                                <Textarea
+                                  rows={2}
+                                  placeholder="E.g. Tanpa intervensi program, 20% peserta akan secara mandiri mengakses pelatihan..."
+                                  value={out.deadweight_rationale || ''}
+                                  onChange={(e) => debounceSaveOutcome({ ...out, deadweight_rationale: e.target.value })}
+                                  className="text-xs resize-none"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Evidence Linkage */}
+                            <div className="pt-2 border-t text-[11px] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                              <div className="space-y-0.5">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase">Bukti Pendukung Terlampir:</span>
+                                {out.wbs_evidence_id ? (() => {
+                                  const ev = wbsEvidences.find(e => e.id === out.wbs_evidence_id);
+                                  return ev ? (
+                                    <div className="text-xs font-semibold text-teal-700 dark:text-teal-400 flex items-center gap-1">
+                                      <span>📄 {ev.title}</span>
+                                      <a href={ev.storage_reference || '#'} target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 underline">Buka ↗</a>
+                                    </div>
+                                  ) : <span className="text-xs text-slate-400 italic block">1 Berkas Terhubung</span>;
+                                })() : (
+                                  <span className="text-xs text-slate-400 italic block">Belum Ada Bukti Terlampir</span>
+                                )}
+                              </div>
+
+                              {/* Link Evidence Selector */}
+                              {wbsEvidences.length > 0 && (
+                                <select
+                                  value={out.wbs_evidence_id || ''}
+                                  onChange={(e) => debounceSaveOutcome({ ...out, wbs_evidence_id: e.target.value || null })}
+                                  className="text-[11px] border rounded px-2 py-1 bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800"
+                                >
+                                  <option value="">-- Hubungkan Bukti WBS --</option>
+                                  {wbsEvidences.map(e => (
+                                    <option key={e.id} value={e.id}>📄 {e.title}</option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
                           </div>
                         </div>
                       ))}
