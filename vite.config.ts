@@ -6,7 +6,8 @@ import { componentTagger } from "lovable-tagger";
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
-    host: "::",
+    // Bind to localhost by default to reduce dev-server exposure.
+    host: process.env.VITE_DEV_HOST ?? "127.0.0.1",
     port: 8080,
     hmr: {
       overlay: false,
