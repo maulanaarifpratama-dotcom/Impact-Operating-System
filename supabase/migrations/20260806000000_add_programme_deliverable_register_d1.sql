@@ -194,12 +194,12 @@ BEGIN
       RAISE EXCEPTION 'INVALID_DELIVERABLE_WBS_REFERENCE';
     END IF;
 
-    IF v_wbs_project <> NEW.lfa_project_id THEN
-      RAISE EXCEPTION 'CROSS_PROJECT_DELIVERABLE_WBS';
-    END IF;
-
     IF v_wbs_org <> NEW.org_id THEN
       RAISE EXCEPTION 'CROSS_ORG_DELIVERABLE_WBS';
+    END IF;
+
+    IF v_wbs_project <> NEW.lfa_project_id THEN
+      RAISE EXCEPTION 'CROSS_PROJECT_DELIVERABLE_WBS';
     END IF;
   END IF;
 
@@ -309,12 +309,12 @@ BEGIN
       RAISE EXCEPTION 'INVALID_DELIVERABLE_WBS_REFERENCE';
     END IF;
 
-    IF v_wbs_project <> p_lfa_project_id THEN
-      RAISE EXCEPTION 'CROSS_PROJECT_DELIVERABLE_WBS';
-    END IF;
-
     IF v_wbs_org <> v_org_id THEN
       RAISE EXCEPTION 'CROSS_ORG_DELIVERABLE_WBS';
+    END IF;
+
+    IF v_wbs_project <> p_lfa_project_id THEN
+      RAISE EXCEPTION 'CROSS_PROJECT_DELIVERABLE_WBS';
     END IF;
   END IF;
 
@@ -532,12 +532,12 @@ BEGIN
       RAISE EXCEPTION 'INVALID_DELIVERABLE_WBS_REFERENCE';
     END IF;
 
-    IF v_wbs_project <> v_row.lfa_project_id THEN
-      RAISE EXCEPTION 'CROSS_PROJECT_DELIVERABLE_WBS';
-    END IF;
-
     IF v_wbs_org <> v_row.org_id THEN
       RAISE EXCEPTION 'CROSS_ORG_DELIVERABLE_WBS';
+    END IF;
+
+    IF v_wbs_project <> v_row.lfa_project_id THEN
+      RAISE EXCEPTION 'CROSS_PROJECT_DELIVERABLE_WBS';
     END IF;
   END IF;
 

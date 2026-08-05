@@ -726,4 +726,206 @@ describe.skipIf(!canReachPostgres)('Deliverable Register D1 postgres integration
       client.release();
     }
   });
+
+  // --- Cross-project / cross-org / foreign-membership integrity guardrails --
+  //
+  // trg_programme_deliverables_validate_integrity and create_programme_deliverable
+  // both implement these checks, but until now nothing exercised them at
+  // runtime — only their error-code strings appeared in the migration source.
+  // Each case below builds a genuinely foreign project/org/user and proves the
+  // RPC rejects it with the exact symbolic error code, leaves no deliverable
+  // row and no event behind, and leaves the transaction usable afterward.
+
+  async function seedCrossOrgIntegrityFixtures(client: pg.PoolClient) {
+    await ensureAuthUser(client, USER_OWNER);
+    await ensureAuthUser(client, USER_OUTSIDER);
+
+    // Org A: the deliverable's own organization. USER_OWNER is a genuine member.
+    const orgARes = await client.query(`INSERT INTO public.organizations (name) VALUES ('D1 Integrity Org A') RETURNING id`);
+    const orgAId = orgARes.rows[0].id;
+
+    const projectARes = await client.query(
+      `INSERT INTO public.lfa_projects (org_id, name) VALUES ($1, 'D1 Integrity Project A1') RETURNING id`,
+      [orgAId],
+    );
+    const projectAId = projectARes.rows[0].id;
+
+    // A second project in the SAME org, for the cross-project (not cross-org) case.
+    const projectA2Res = await client.query(
+      `INSERT INTO public.lfa_projects (org_id, name) VALUES ($1, 'D1 Integrity Project A2') RETURNING id`,
+      [orgAId],
+    );
+    const projectA2Id = projectA2Res.rows[0].id;
+
+    const wbsA2Res = await client.query(
+      `INSERT INTO public.lfa_wbs_items (org_id, lfa_project_id, name, level) VALUES ($1, $2, 'WBS under Project A2', 1) RETURNING id`,
+      [orgAId, projectA2Id],
+    );
+    const wbsA2Id = wbsA2Res.rows[0].id;
+
+    await client.query(
+      `INSERT INTO public.organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`,
+      [orgAId, USER_OWNER],
+    );
+
+    // Org B: a genuinely foreign organization. USER_OUTSIDER belongs here —
+    // and only here, never to Org A.
+    const orgBRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('D1 Integrity Org B') RETURNING id`);
+    const orgBId = orgBRes.rows[0].id;
+
+    const projectBRes = await client.query(
+      `INSERT INTO public.lfa_projects (org_id, name) VALUES ($1, 'D1 Integrity Project B') RETURNING id`,
+      [orgBId],
+    );
+    const projectBId = projectBRes.rows[0].id;
+
+    const wbsBRes = await client.query(
+      `INSERT INTO public.lfa_wbs_items (org_id, lfa_project_id, name, level) VALUES ($1, $2, 'WBS under Project B', 1) RETURNING id`,
+      [orgBId, projectBId],
+    );
+    const wbsBId = wbsBRes.rows[0].id;
+
+    await client.query(
+      `INSERT INTO public.organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`,
+      [orgBId, USER_OUTSIDER],
+    );
+
+    return { orgAId, projectAId, projectA2Id, wbsA2Id, orgBId, projectBId, wbsBId };
+  }
+
+  it('rejects a WBS item from another project in the same organization (CROSS_PROJECT_DELIVERABLE_WBS)', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { projectAId, wbsA2Id } = await seedCrossOrgIntegrityFixtures(client);
+
+      await actAs(client, USER_OWNER);
+      await client.query('SAVEPOINT sp_cross_project_wbs');
+      await expect(
+        client.query(
+          `select * from public.create_programme_deliverable($1, $2, 'REPORT', 'Cross-project WBS probe', null, null, null, null, '2026-12-01', false, null)`,
+          [projectAId, wbsA2Id],
+        ),
+      ).rejects.toThrow(/CROSS_PROJECT_DELIVERABLE_WBS/);
+      await client.query('ROLLBACK TO SAVEPOINT sp_cross_project_wbs');
+
+      const deliverables = await client.query(
+        `select count(*)::int as n from public.programme_deliverables where lfa_project_id = $1`,
+        [projectAId],
+      );
+      expect(deliverables.rows[0].n).toBe(0);
+
+      const events = await client.query(
+        `select count(*)::int as n from public.programme_deliverable_events where lfa_project_id = $1`,
+        [projectAId],
+      );
+      expect(events.rows[0].n).toBe(0);
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
+
+  it('rejects a WBS item from another organization (CROSS_ORG_DELIVERABLE_WBS)', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { projectAId, wbsBId } = await seedCrossOrgIntegrityFixtures(client);
+
+      // USER_OWNER's legitimate membership in Org A must not authorize a
+      // reference into Org B's WBS tree.
+      await actAs(client, USER_OWNER);
+      await client.query('SAVEPOINT sp_cross_org_wbs');
+      await expect(
+        client.query(
+          `select * from public.create_programme_deliverable($1, $2, 'REPORT', 'Cross-org WBS probe', null, null, null, null, '2026-12-01', false, null)`,
+          [projectAId, wbsBId],
+        ),
+      ).rejects.toThrow(/CROSS_ORG_DELIVERABLE_WBS/);
+      await client.query('ROLLBACK TO SAVEPOINT sp_cross_org_wbs');
+
+      const deliverables = await client.query(
+        `select count(*)::int as n from public.programme_deliverables where lfa_project_id = $1`,
+        [projectAId],
+      );
+      expect(deliverables.rows[0].n).toBe(0);
+
+      const events = await client.query(
+        `select count(*)::int as n from public.programme_deliverable_events where lfa_project_id = $1`,
+        [projectAId],
+      );
+      expect(events.rows[0].n).toBe(0);
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
+
+  it('rejects an internal owner who is not a member of the deliverable organization (INVALID_DELIVERABLE_OWNER)', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { projectAId } = await seedCrossOrgIntegrityFixtures(client);
+
+      // USER_OUTSIDER belongs only to Org B — no organization_members row for Org A.
+      await actAs(client, USER_OWNER);
+      await client.query('SAVEPOINT sp_foreign_owner');
+      await expect(
+        client.query(
+          `select * from public.create_programme_deliverable($1, null, 'REPORT', 'Foreign owner probe', null, $2, null, null, '2026-12-01', false, null)`,
+          [projectAId, USER_OUTSIDER],
+        ),
+      ).rejects.toThrow(/INVALID_DELIVERABLE_OWNER/);
+      await client.query('ROLLBACK TO SAVEPOINT sp_foreign_owner');
+
+      const deliverables = await client.query(
+        `select count(*)::int as n from public.programme_deliverables where lfa_project_id = $1 and owner_id = $2`,
+        [projectAId, USER_OUTSIDER],
+      );
+      expect(deliverables.rows[0].n).toBe(0); // the foreign owner was never persisted
+
+      const events = await client.query(
+        `select count(*)::int as n from public.programme_deliverable_events where lfa_project_id = $1`,
+        [projectAId],
+      );
+      expect(events.rows[0].n).toBe(0);
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
+
+  it('rejects a reviewer who is not a member of the deliverable organization (INVALID_DELIVERABLE_REVIEWER)', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { projectAId } = await seedCrossOrgIntegrityFixtures(client);
+
+      // USER_OUTSIDER belongs only to Org B — no organization_members row for Org A.
+      await actAs(client, USER_OWNER);
+      await client.query('SAVEPOINT sp_foreign_reviewer');
+      await expect(
+        client.query(
+          `select * from public.create_programme_deliverable($1, null, 'REPORT', 'Foreign reviewer probe', null, null, null, $2, '2026-12-01', false, null)`,
+          [projectAId, USER_OUTSIDER],
+        ),
+      ).rejects.toThrow(/INVALID_DELIVERABLE_REVIEWER/);
+      await client.query('ROLLBACK TO SAVEPOINT sp_foreign_reviewer');
+
+      const deliverables = await client.query(
+        `select count(*)::int as n from public.programme_deliverables where lfa_project_id = $1 and reviewer_id = $2`,
+        [projectAId, USER_OUTSIDER],
+      );
+      expect(deliverables.rows[0].n).toBe(0); // the foreign reviewer was never persisted
+
+      const events = await client.query(
+        `select count(*)::int as n from public.programme_deliverable_events where lfa_project_id = $1`,
+        [projectAId],
+      );
+      expect(events.rows[0].n).toBe(0);
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
 });
