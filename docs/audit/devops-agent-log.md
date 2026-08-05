@@ -71,3 +71,27 @@ npx playwright test tests/e2e/sprint5-materialize.spec.ts
 ```
 - **Result**: **SUCCESS**
 - **Artifact Evidence**: Playwright screenshot successfully captured and stored at `playwright-report/sprint5-materialize-success.png`.
+
+---
+
+## Backport: Scoped organization membership helper (August 5, 2026)
+
+**Date**: August 5, 2026
+**Role**: Principal Supabase Security Engineer
+**Tier**: Tier 2
+**Status**: RESOLVED
+
+**Action**: Backport deployed-safe `is_org_member(uuid, uuid)` definition into migration history.
+
+**Target**: Local repository / additive migration — `supabase/migrations/20260805000000_backport_safe_is_org_member.sql`.
+
+**Reason**: Prevent a future fresh-deployment cross-tenant authorization bypass. The historical migration (`20260600000000_organizations.sql`) defines `public.is_org_member()` as an unconditional `SELECT true;`, and no committed migration since then ever replaces that body — confirmed by inspecting every `CREATE OR REPLACE FUNCTION public.is_org_member` occurrence in `supabase/migrations/`. Production was independently verified on 2026-08-05 to already run a safe, scoped membership check (`SELECT EXISTS (SELECT 1 FROM public.organization_members WHERE organization_id = _org_id AND user_id = _user_id)`), so no production remediation was required. Left uncorrected, migration history would still disagree with production: any database rebuilt from scratch (fresh preview/local/staging environment, or a redeploy of the historical function) would land on the unconditional-true stub, which is a cross-tenant bypass across every `org_isolation_*` policy that calls this function by name.
+
+**Result**: SUCCESS. One additive migration added; `20260600000000_organizations.sql` was not edited; no policy, table, or application RPC was changed; `database.generated.ts` / `database.types.ts` were not touched (function signature and return type are unchanged — `CREATE OR REPLACE FUNCTION` also preserves the function's existing grants, so no ACL change was needed). A focused regression suite was added at `src/lib/security/is_org_member_postgres.test.ts` (12 cases: real membership, cross-organization, unknown user/org, null inputs, an explicit guard against regressing to the unconditional stub, and catalog assertions for `SECURITY DEFINER`/pinned `search_path`/`STABLE`/signature/representative-policy compatibility). Runtime verification against a live local database was attempted and could not run to completion: no local Postgres was reachable on `127.0.0.1:54322` and the `supabase` CLI is not installed in this environment. The suite's own reachability probe skipped all 12 cases cleanly (0 failed, 0 fabricated passes) rather than reporting false confidence; this entry's verification basis is static source review plus that clean skip, not a live run.
+
+**Rollback**:
+- Before application to any environment: delete `supabase/migrations/20260805000000_backport_safe_is_org_member.sql`.
+- After application to a shared environment: do not drop or revert the function; ship a reviewed compensating migration instead, since other objects may come to depend on the corrected behavior in the interim.
+- No production action was taken as part of this entry — production was independently verified safe before this backport was authored, and this backport does not deploy to it.
+
+**Actor**: Impactory DevOps Hub Agent
