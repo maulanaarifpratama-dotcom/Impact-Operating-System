@@ -123,3 +123,43 @@ Rollback:
 
 Actor:
 - Impactory DevOps Hub Agent
+
+---
+
+## 2026-08-05 18:59 UTC+7
+
+Action:
+- Correct the canonical MEAL tracking table target in
+  `20260801000003_add_meal_v2_architecture.sql`.
+
+Tier:
+- Tier 2
+
+Target:
+- `supabase/migrations/20260801000003_add_meal_v2_architecture.sql`
+- `src/lib/security/r4_meal_v2_recovery_postgres.test.ts`
+
+Reason:
+- The historical migration targeted non-existent
+  `public.meal_tracking_entries`.
+- Production and application source use
+  `public.lfa_meal_tracking_entries`.
+- An additive compatibility table would fragment MEAL data.
+
+Result:
+- Local Git-only clean replay completed successfully.
+- All tracked migrations applied through
+  `20260806000000_add_programme_deliverable_register_d1.sql`.
+- Validation result: `FULL_FRESH_REPLAY_PASS`.
+- Tests: 255 passed, 0 failed, 0 skipped.
+- Typecheck, diff check, and targeted secret scan passed.
+- No Production or Staging write performed.
+- Pre-correction SHA-256:
+  `17524e5d68d90827cb46ae881f71917df5e23b28a957ee271ea151f8d1a0f5bf`.
+
+Rollback:
+- Revert the R4 correction commit.
+- Original content remains retrievable from Git commit `b3bfd3a`.
+
+Actor:
+- Impactory DevOps Hub Agent
