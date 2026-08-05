@@ -78,8 +78,13 @@ describe('R4 historical migration source correction', () => {
     });
     const corrected = fs.readFileSync(path.join(REPO_ROOT, MEAL_V2_FILE), 'utf8');
 
-    const originalLines = original.split('\n');
-    const correctedLines = corrected.split('\n');
+    // `git show` always returns the raw LF blob, but a working-tree file
+    // checked out on a repo with core.autocrlf=true may be CRLF -- normalize
+    // both sides before comparing so this test is platform-independent of
+    // how the file was checked out, not just how it was edited.
+    const normalize = (s: string) => s.replace(/\r\n?/g, '\n');
+    const originalLines = normalize(original).split('\n');
+    const correctedLines = normalize(corrected).split('\n');
     expect(correctedLines).toHaveLength(originalLines.length);
 
     const changedLines: number[] = [];
