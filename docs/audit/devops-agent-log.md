@@ -95,3 +95,31 @@ npx playwright test tests/e2e/sprint5-materialize.spec.ts
 - No production action was taken as part of this entry — production was independently verified safe before this backport was authored, and this backport does not deploy to it.
 
 **Actor**: Impactory DevOps Hub Agent
+
+---
+
+## 2026-08-05 17:43 UTC+7
+
+Action:
+- Recover source control for the foundational organizations migration.
+
+Tier:
+- Tier 2
+
+Target:
+- `.gitignore`
+- `supabase/migrations/20260600000000_organizations.sql`
+- foundation bootstrap test
+
+Reason:
+- Clean Git checkout lacked the only migration that creates foundational
+  organization/project/library tables.
+
+Result:
+- Pending local validation. No Production or Staging operation performed.
+
+Rollback:
+- Revert the foundation recovery commit.
+
+Actor:
+- Impactory DevOps Hub Agent
