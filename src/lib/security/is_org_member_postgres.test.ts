@@ -46,14 +46,41 @@ describe.skipIf(!canReachPostgres)('is_org_member() Source-of-Truth Backport —
     await pool.end();
   });
 
+  /**
+   * R1 (20260724190000_bootstrap_org_role_membership.sql,
+   * 20260726010000_bootstrap_organizations_created_by.sql) added a real
+   * foreign key from organization_members.user_id to auth.users(id), and made
+   * organizations.created_by NOT NULL with its own foreign key to
+   * auth.users(id). Every synthetic user id used below must exist as a real
+   * auth.users row first, and every organization insert must supply a
+   * creator, or these fixtures violate constraints that did not exist when
+   * this suite was first written.
+   */
+  async function ensureAuthUser(client: pg.PoolClient, userId: string) {
+    await client.query(
+      `INSERT INTO auth.users (id, instance_id, aud, role, email)
+       VALUES ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2)
+       ON CONFLICT (id) DO NOTHING`,
+      [userId, `${userId}@is-org-member-test.local`],
+    );
+  }
+
+  async function createOrg(client: pg.PoolClient, name: string, createdBy: string) {
+    const res = await client.query(
+      `INSERT INTO public.organizations (name, created_by) VALUES ($1, $2) RETURNING id`,
+      [name, createdBy],
+    );
+    return res.rows[0].id;
+  }
+
   test('1. Existing member returns true for own organization', async () => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
 
-      const orgRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Backport Test Org A') RETURNING id`);
-      const orgId = orgRes.rows[0].id;
       const userA = '11111111-1111-1111-1111-111111111111';
+      await ensureAuthUser(client, userA);
+      const orgId = await createOrg(client, 'Backport Test Org A', userA);
 
       await client.query(
         `INSERT INTO public.organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`,
@@ -65,6 +92,7 @@ describe.skipIf(!canReachPostgres)('is_org_member() Source-of-Truth Backport —
 
       await client.query('ROLLBACK');
     } finally {
+      await client.query('ROLLBACK').catch(() => {});
       client.release();
     }
   });
@@ -74,11 +102,10 @@ describe.skipIf(!canReachPostgres)('is_org_member() Source-of-Truth Backport —
     try {
       await client.query('BEGIN');
 
-      const orgARes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Backport Test Org A') RETURNING id`);
-      const orgAId = orgARes.rows[0].id;
-      const orgBRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Backport Test Org B') RETURNING id`);
-      const orgBId = orgBRes.rows[0].id;
       const userA = '11111111-1111-1111-1111-111111111111';
+      await ensureAuthUser(client, userA);
+      const orgAId = await createOrg(client, 'Backport Test Org A', userA);
+      const orgBId = await createOrg(client, 'Backport Test Org B', userA);
 
       await client.query(
         `INSERT INTO public.organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`,
@@ -91,6 +118,7 @@ describe.skipIf(!canReachPostgres)('is_org_member() Source-of-Truth Backport —
 
       await client.query('ROLLBACK');
     } finally {
+      await client.query('ROLLBACK').catch(() => {});
       client.release();
     }
   });
@@ -100,8 +128,9 @@ describe.skipIf(!canReachPostgres)('is_org_member() Source-of-Truth Backport —
     try {
       await client.query('BEGIN');
 
-      const orgRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Backport Test Org A') RETURNING id`);
-      const orgId = orgRes.rows[0].id;
+      const userA = '11111111-1111-1111-1111-111111111111';
+      await ensureAuthUser(client, userA);
+      const orgId = await createOrg(client, 'Backport Test Org A', userA);
       const unknownUser = '99999999-9999-9999-9999-999999999999';
 
       const res = await client.query(`SELECT public.is_org_member($1, $2) AS is_member`, [orgId, unknownUser]);
@@ -109,6 +138,7 @@ describe.skipIf(!canReachPostgres)('is_org_member() Source-of-Truth Backport —
 
       await client.query('ROLLBACK');
     } finally {
+      await client.query('ROLLBACK').catch(() => {});
       client.release();
     }
   });
@@ -126,6 +156,7 @@ describe.skipIf(!canReachPostgres)('is_org_member() Source-of-Truth Backport —
 
       await client.query('ROLLBACK');
     } finally {
+      await client.query('ROLLBACK').catch(() => {});
       client.release();
     }
   });
@@ -141,6 +172,7 @@ describe.skipIf(!canReachPostgres)('is_org_member() Source-of-Truth Backport —
 
       await client.query('ROLLBACK');
     } finally {
+      await client.query('ROLLBACK').catch(() => {});
       client.release();
     }
   });
@@ -150,14 +182,16 @@ describe.skipIf(!canReachPostgres)('is_org_member() Source-of-Truth Backport —
     try {
       await client.query('BEGIN');
 
-      const orgRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Backport Test Org A') RETURNING id`);
-      const orgId = orgRes.rows[0].id;
+      const userA = '11111111-1111-1111-1111-111111111111';
+      await ensureAuthUser(client, userA);
+      const orgId = await createOrg(client, 'Backport Test Org A', userA);
 
       const res = await client.query(`SELECT public.is_org_member($1, NULL) AS is_member`, [orgId]);
       expect(res.rows[0].is_member).toBe(false);
 
       await client.query('ROLLBACK');
     } finally {
+      await client.query('ROLLBACK').catch(() => {});
       client.release();
     }
   });
@@ -170,12 +204,12 @@ describe.skipIf(!canReachPostgres)('is_org_member() Source-of-Truth Backport —
       // Two organizations that genuinely exist, one real member each, no
       // overlap. If the function ever regresses to `SELECT true;`, every one
       // of these four cross combinations would incorrectly report true.
-      const orgARes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Backport Test Org A') RETURNING id`);
-      const orgAId = orgARes.rows[0].id;
-      const orgBRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Backport Test Org B') RETURNING id`);
-      const orgBId = orgBRes.rows[0].id;
       const userA = '11111111-1111-1111-1111-111111111111';
       const userB = '22222222-2222-2222-2222-222222222222';
+      await ensureAuthUser(client, userA);
+      await ensureAuthUser(client, userB);
+      const orgAId = await createOrg(client, 'Backport Test Org A', userA);
+      const orgBId = await createOrg(client, 'Backport Test Org B', userB);
 
       await client.query(
         `INSERT INTO public.organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`,
@@ -257,11 +291,10 @@ describe.skipIf(!canReachPostgres)('is_org_member() Source-of-Truth Backport —
       // And the function must actually scope real lfa_projects rows the way
       // that policy relies on: member of the row's org sees it, a member of
       // a different org does not.
-      const orgARes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Backport Test Org A') RETURNING id`);
-      const orgAId = orgARes.rows[0].id;
-      const orgBRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Backport Test Org B') RETURNING id`);
-      const orgBId = orgBRes.rows[0].id;
       const userA = '11111111-1111-1111-1111-111111111111';
+      await ensureAuthUser(client, userA);
+      const orgAId = await createOrg(client, 'Backport Test Org A', userA);
+      const orgBId = await createOrg(client, 'Backport Test Org B', userA);
 
       await client.query(
         `INSERT INTO public.organization_members (organization_id, user_id, role) VALUES ($1, $2, 'member')`,
@@ -283,6 +316,7 @@ describe.skipIf(!canReachPostgres)('is_org_member() Source-of-Truth Backport —
 
       await client.query('ROLLBACK');
     } finally {
+      await client.query('ROLLBACK').catch(() => {});
       client.release();
     }
   });

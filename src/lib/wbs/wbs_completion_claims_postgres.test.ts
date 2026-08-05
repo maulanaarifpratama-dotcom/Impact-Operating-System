@@ -40,6 +40,22 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-3A Real Postgres DB Validation (Clai
     await pool.end();
   });
 
+  // organizations.created_by (R1) did not exist when these fixtures were
+  // first written and now requires a real auth.users row. claimed_by/
+  // reviewed_by/uploaded_by below carry no foreign key to auth.users (see
+  // 20260724180000_wbs_completion_claims_evidence.sql), so only the org
+  // creator needs one.
+  const WBS_TEST_CREATOR = '77777777-7777-7777-7777-777777777777';
+
+  async function ensureAuthUser(client: pg.PoolClient, userId: string) {
+    await client.query(
+      `INSERT INTO auth.users (id, instance_id, aud, role, email)
+       VALUES ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2)
+       ON CONFLICT (id) DO NOTHING`,
+      [userId, `${userId}@wbs-claims-test.local`],
+    );
+  }
+
   test('1. Schema Verification: Confirm tables, constraints, and indexes exist', async () => {
     const claimsCols = await pool.query(`
       SELECT column_name, data_type, column_default 
@@ -78,7 +94,11 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-3A Real Postgres DB Validation (Clai
       await client.query('BEGIN');
 
       // Create test org, project, and WBS item
-      const orgRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Test Org P1A-3A') RETURNING id`);
+      await ensureAuthUser(client, WBS_TEST_CREATOR);
+      const orgRes = await client.query(
+        `INSERT INTO public.organizations (name, created_by) VALUES ('Test Org P1A-3A', $1) RETURNING id`,
+        [WBS_TEST_CREATOR],
+      );
       const orgId = orgRes.rows[0].id;
 
       const projRes = await client.query(`
@@ -118,7 +138,11 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-3A Real Postgres DB Validation (Clai
     try {
       await client.query('BEGIN');
 
-      const orgRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Test Org SOD') RETURNING id`);
+      await ensureAuthUser(client, WBS_TEST_CREATOR);
+      const orgRes = await client.query(
+        `INSERT INTO public.organizations (name, created_by) VALUES ('Test Org SOD', $1) RETURNING id`,
+        [WBS_TEST_CREATOR],
+      );
       const orgId = orgRes.rows[0].id;
       const projRes = await client.query(`INSERT INTO public.lfa_projects (org_id, name) VALUES ($1, 'Proj') RETURNING id`, [orgId]);
       const projId = projRes.rows[0].id;
@@ -164,7 +188,11 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-3A Real Postgres DB Validation (Clai
     try {
       await client.query('BEGIN');
 
-      const orgRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Test Org Verifier') RETURNING id`);
+      await ensureAuthUser(client, WBS_TEST_CREATOR);
+      const orgRes = await client.query(
+        `INSERT INTO public.organizations (name, created_by) VALUES ('Test Org Verifier', $1) RETURNING id`,
+        [WBS_TEST_CREATOR],
+      );
       const orgId = orgRes.rows[0].id;
       const projRes = await client.query(`INSERT INTO public.lfa_projects (org_id, name) VALUES ($1, 'Proj') RETURNING id`, [orgId]);
       const projId = projRes.rows[0].id;
@@ -212,7 +240,11 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-3A Real Postgres DB Validation (Clai
     try {
       await client.query('BEGIN');
 
-      const orgRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Test Org Lifecycle') RETURNING id`);
+      await ensureAuthUser(client, WBS_TEST_CREATOR);
+      const orgRes = await client.query(
+        `INSERT INTO public.organizations (name, created_by) VALUES ('Test Org Lifecycle', $1) RETURNING id`,
+        [WBS_TEST_CREATOR],
+      );
       const orgId = orgRes.rows[0].id;
       const projRes = await client.query(`INSERT INTO public.lfa_projects (org_id, name) VALUES ($1, 'Proj') RETURNING id`, [orgId]);
       const projId = projRes.rows[0].id;
@@ -276,7 +308,11 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-3A Real Postgres DB Validation (Clai
     try {
       await client.query('BEGIN');
 
-      const orgRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Test Org Independence') RETURNING id`);
+      await ensureAuthUser(client, WBS_TEST_CREATOR);
+      const orgRes = await client.query(
+        `INSERT INTO public.organizations (name, created_by) VALUES ('Test Org Independence', $1) RETURNING id`,
+        [WBS_TEST_CREATOR],
+      );
       const orgId = orgRes.rows[0].id;
       const projRes = await client.query(`INSERT INTO public.lfa_projects (org_id, name) VALUES ($1, 'Proj') RETURNING id`, [orgId]);
       const projId = projRes.rows[0].id;
@@ -316,7 +352,11 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-3A Real Postgres DB Validation (Clai
     try {
       await client.query('BEGIN');
 
-      const orgRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('Test Org Security') RETURNING id`);
+      await ensureAuthUser(client, WBS_TEST_CREATOR);
+      const orgRes = await client.query(
+        `INSERT INTO public.organizations (name, created_by) VALUES ('Test Org Security', $1) RETURNING id`,
+        [WBS_TEST_CREATOR],
+      );
       const orgId = orgRes.rows[0].id;
       const projRes = await client.query(`INSERT INTO public.lfa_projects (org_id, name) VALUES ($1, 'Proj Security') RETURNING id`, [orgId]);
       const projId = projRes.rows[0].id;

@@ -214,7 +214,10 @@ describe.skipIf(!canReachPostgres)('Deliverable Register D1 postgres integration
       await ensureAuthUser(client, userId);
     }
 
-    const orgRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('D1 Functional Org') RETURNING id`);
+    const orgRes = await client.query(
+      `INSERT INTO public.organizations (name, created_by) VALUES ('D1 Functional Org', $1) RETURNING id`,
+      [USER_OWNER],
+    );
     const orgId = orgRes.rows[0].id;
     const projRes = await client.query(
       `INSERT INTO public.lfa_projects (org_id, name) VALUES ($1, 'D1 Functional Project') RETURNING id`,
@@ -741,7 +744,10 @@ describe.skipIf(!canReachPostgres)('Deliverable Register D1 postgres integration
     await ensureAuthUser(client, USER_OUTSIDER);
 
     // Org A: the deliverable's own organization. USER_OWNER is a genuine member.
-    const orgARes = await client.query(`INSERT INTO public.organizations (name) VALUES ('D1 Integrity Org A') RETURNING id`);
+    const orgARes = await client.query(
+      `INSERT INTO public.organizations (name, created_by) VALUES ('D1 Integrity Org A', $1) RETURNING id`,
+      [USER_OWNER],
+    );
     const orgAId = orgARes.rows[0].id;
 
     const projectARes = await client.query(
@@ -770,7 +776,10 @@ describe.skipIf(!canReachPostgres)('Deliverable Register D1 postgres integration
 
     // Org B: a genuinely foreign organization. USER_OUTSIDER belongs here —
     // and only here, never to Org A.
-    const orgBRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('D1 Integrity Org B') RETURNING id`);
+    const orgBRes = await client.query(
+      `INSERT INTO public.organizations (name, created_by) VALUES ('D1 Integrity Org B', $1) RETURNING id`,
+      [USER_OUTSIDER],
+    );
     const orgBId = orgBRes.rows[0].id;
 
     const projectBRes = await client.query(

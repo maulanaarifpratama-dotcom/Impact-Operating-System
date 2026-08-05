@@ -129,9 +129,15 @@ describe.skipIf(!canReachPostgres)('Deliverable Register D1 RLS and DML guardrai
     await ensureAuthUser(client, MEMBER_A);
     await ensureAuthUser(client, MEMBER_B_OTHER_ORG);
 
-    const orgARes = await client.query(`INSERT INTO public.organizations (name) VALUES ('RLS Org A') RETURNING id`);
+    const orgARes = await client.query(
+      `INSERT INTO public.organizations (name, created_by) VALUES ('RLS Org A', $1) RETURNING id`,
+      [MEMBER_A],
+    );
     const orgAId = orgARes.rows[0].id;
-    const orgBRes = await client.query(`INSERT INTO public.organizations (name) VALUES ('RLS Org B') RETURNING id`);
+    const orgBRes = await client.query(
+      `INSERT INTO public.organizations (name, created_by) VALUES ('RLS Org B', $1) RETURNING id`,
+      [MEMBER_B_OTHER_ORG],
+    );
     const orgBId = orgBRes.rows[0].id;
 
     await client.query(

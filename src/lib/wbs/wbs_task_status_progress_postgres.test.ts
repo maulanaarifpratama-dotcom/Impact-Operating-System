@@ -40,6 +40,21 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-1A Real Postgres DB Validation', () 
     await pool.end();
   });
 
+  // organizations.created_by (R1) and organization_members.user_id's foreign
+  // key to auth.users(id) (R1) did not exist when these fixtures were first
+  // written. A synthetic creator must exist as a real auth.users row before
+  // any organizations insert below will succeed.
+  const WBS_TEST_CREATOR = '66666666-6666-6666-6666-666666666666';
+
+  async function ensureAuthUser(userId: string) {
+    await pool.query(
+      `INSERT INTO auth.users (id, instance_id, aud, role, email)
+       VALUES ($1, '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', $2)
+       ON CONFLICT (id) DO NOTHING`,
+      [userId, `${userId}@wbs-test.local`],
+    );
+  }
+
   test('1. Database Schema Inspection: Verify status and progress columns exist with correct defaults & constraints', async () => {
     const columnsRes = await pool.query(`
       SELECT column_name, column_default, is_nullable, data_type
@@ -78,7 +93,11 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-1A Real Postgres DB Validation', () 
   });
 
   test('2. Real INSERT test: Insert row into lfa_wbs_items without status/progress and verify defaults', async () => {
-    const orgRes = await pool.query(`INSERT INTO public.organizations (name) VALUES ('Test Org') RETURNING id`);
+    await ensureAuthUser(WBS_TEST_CREATOR);
+    const orgRes = await pool.query(
+      `INSERT INTO public.organizations (name, created_by) VALUES ('Test Org', $1) RETURNING id`,
+      [WBS_TEST_CREATOR],
+    );
     const orgId = orgRes.rows[0].id;
 
     const projRes = await pool.query(`
@@ -106,7 +125,11 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-1A Real Postgres DB Validation', () 
   });
 
   test('3. Real UPDATE & Trigger test: Update status to completed and verify completion attribution trigger', async () => {
-    const orgRes = await pool.query(`INSERT INTO public.organizations (name) VALUES ('Test Org 2') RETURNING id`);
+    await ensureAuthUser(WBS_TEST_CREATOR);
+    const orgRes = await pool.query(
+      `INSERT INTO public.organizations (name, created_by) VALUES ('Test Org 2', $1) RETURNING id`,
+      [WBS_TEST_CREATOR],
+    );
     const orgId = orgRes.rows[0].id;
 
     const projRes = await pool.query(`
@@ -151,7 +174,11 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-1A Real Postgres DB Validation', () 
   });
 
   test('4. CHECK constraint validation: Attempt invalid status and verify Postgres rejects it', async () => {
-    const orgRes = await pool.query(`INSERT INTO public.organizations (name) VALUES ('Test Org 3') RETURNING id`);
+    await ensureAuthUser(WBS_TEST_CREATOR);
+    const orgRes = await pool.query(
+      `INSERT INTO public.organizations (name, created_by) VALUES ('Test Org 3', $1) RETURNING id`,
+      [WBS_TEST_CREATOR],
+    );
     const orgId = orgRes.rows[0].id;
 
     const projRes = await pool.query(`
@@ -179,7 +206,11 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-1A Real Postgres DB Validation', () 
   });
 
   test('5. No-LFA-Mutation validation: Confirm lfa_entries remains completely unchanged during WBS status/progress edits', async () => {
-    const orgRes = await pool.query(`INSERT INTO public.organizations (name) VALUES ('Test Org LFA') RETURNING id`);
+    await ensureAuthUser(WBS_TEST_CREATOR);
+    const orgRes = await pool.query(
+      `INSERT INTO public.organizations (name, created_by) VALUES ('Test Org LFA', $1) RETURNING id`,
+      [WBS_TEST_CREATOR],
+    );
     const orgId = orgRes.rows[0].id;
 
     const projRes = await pool.query(`
