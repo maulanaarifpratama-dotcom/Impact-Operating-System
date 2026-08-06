@@ -124,6 +124,9 @@ export interface MealItem {
   id: string;
   lfa_project_id: string;
   wbs_item_id?: string | null;
+  objective_id?: string | null;
+  stage_id?: string | null;
+  deliverable_id?: string | null;
   org_id: string;
   lfa_level: 'goal' | 'purpose' | 'output';
   indicator_text: string;

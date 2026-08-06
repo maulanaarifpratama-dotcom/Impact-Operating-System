@@ -75,6 +75,18 @@ const ProjectWBSPage = lazy(
 const ProjectBudgetPage = lazy(
   () => import('./pages/dashboard/project-management/budget/ProjectBudgetPage'),
 );
+const ProjectMEALPage = lazy(
+  () => import('./pages/dashboard/project-management/meal/ProjectMEALPage'),
+);
+const ProjectDeliverablesPage = lazy(
+  () => import('./pages/dashboard/project-management/deliverables/ProjectDeliverablesPage'),
+);
+const ProjectActivityPage = lazy(
+  () => import('./pages/dashboard/project-management/activity/ProjectActivityPage'),
+);
+const ProjectOverviewPage = lazy(
+  () => import('./pages/dashboard/project-management/overview/ProjectOverviewPage'),
+);
 
 function RouteFallback() {
   return (
@@ -249,6 +261,22 @@ const App = () => (
               <Route
                 path="/dashboard/project-management/:projectId/budget"
                 element={<ProjectBudgetPage />}
+              />
+              <Route
+                path="/dashboard/project-management/:projectId/meal"
+                element={<ProjectMEALPage />}
+              />
+              <Route
+                path="/dashboard/project-management/:projectId/deliverables"
+                element={<ProjectDeliverablesPage />}
+              />
+              <Route
+                path="/dashboard/project-management/:projectId/activity"
+                element={<ProjectActivityPage />}
+              />
+              <Route
+                path="/dashboard/project-management/:projectId/overview"
+                element={<ProjectOverviewPage />}
               />
               <Route path="/dashboard/sroi" element={<SROIStandalone />} />
               <Route path="/dashboard/eroi" element={<EROIStandalone />} />

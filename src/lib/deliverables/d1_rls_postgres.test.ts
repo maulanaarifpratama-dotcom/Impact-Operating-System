@@ -86,8 +86,8 @@ describe.skipIf(!canReachPostgres)('Deliverable Register D1 RLS and DML guardrai
   it('grants execute on lifecycle RPCs to authenticated role', async () => {
     const grants = await pool.query(`
       select
-        has_function_privilege('authenticated', 'public.create_programme_deliverable(uuid,uuid,text,text,text,uuid,text,uuid,date,boolean,date)', 'EXECUTE') as create_ok,
-        has_function_privilege('authenticated', 'public.update_programme_deliverable_metadata(uuid,uuid,boolean,text,text,text,boolean,uuid,boolean,text,boolean,uuid,boolean,date,boolean,date,boolean)', 'EXECUTE') as update_ok,
+        has_function_privilege('authenticated', 'public.create_programme_deliverable(uuid,uuid,text,text,text,uuid,text,uuid,date,boolean,date,uuid)', 'EXECUTE') as create_ok,
+        has_function_privilege('authenticated', 'public.update_programme_deliverable_metadata(uuid,uuid,boolean,text,text,text,boolean,uuid,boolean,text,boolean,uuid,boolean,date,boolean,date,boolean,uuid,boolean)', 'EXECUTE') as update_ok,
         has_function_privilege('authenticated', 'public.transition_programme_deliverable(uuid,text,text,timestamp with time zone)', 'EXECUTE') as transition_ok,
         has_function_privilege('authenticated', 'public.archive_programme_deliverable(uuid,text)', 'EXECUTE') as archive_ok
     `);
