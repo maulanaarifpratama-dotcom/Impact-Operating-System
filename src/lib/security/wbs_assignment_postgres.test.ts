@@ -582,4 +582,188 @@ describe.skipIf(!canReachPostgres)('WBS Assignment Authorization (PM) — Real P
       client.release();
     }
   });
+
+  // --- Missing Gap Tests ---------------------------------------------------
+
+  test('Admin assigns same-org Reviewer via RPC', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ownerId = 'b0000000-0000-0000-0000-000000000001';
+      const adminId = 'b0000000-0000-0000-0000-000000000002';
+      const reviewerId = 'b0000000-0000-0000-0000-000000000003';
+      await ensureAuthUser(client, ownerId);
+      await ensureAuthUser(client, adminId);
+      await ensureAuthUser(client, reviewerId);
+      const { org, project } = await createOrgAndProject(client, 'AdminRev', ownerId, 'AdminRevP');
+      await addMember(client, org, adminId, 'admin');
+      await addMember(client, org, reviewerId, 'member');
+      const wbs = await createWbsItem(client, org, project, 'Activity Z1');
+
+      await actAs(client, adminId);
+      const res = await client.query(
+        `SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`,
+        [wbs.id, null, reviewerId],
+      );
+      expect(res.rows[0].reviewer_id).toBe(reviewerId);
+      expect(res.rows[0].owner_id).toBeNull();
+
+      await client.query('ROLLBACK');
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
+
+  test('Admin clears Reviewer via RPC', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ownerId = 'b0000000-0000-0000-0000-000000000011';
+      const adminId = 'b0000000-0000-0000-0000-000000000012';
+      const reviewerId = 'b0000000-0000-0000-0000-000000000013';
+      await ensureAuthUser(client, ownerId);
+      await ensureAuthUser(client, adminId);
+      await ensureAuthUser(client, reviewerId);
+      const { org, project } = await createOrgAndProject(client, 'AdminClr', ownerId, 'AdminClrP');
+      await addMember(client, org, adminId, 'admin');
+      await addMember(client, org, reviewerId, 'member');
+      const wbs = await createWbsItem(client, org, project, 'Activity Z2');
+
+      await actAs(client, adminId);
+      await client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, null, reviewerId]);
+      const cleared = await client.query(
+        `SELECT * FROM public.assign_wbs_item_people($1, $2, $3, $4, $5)`,
+        [wbs.id, null, null, false, true],
+      );
+      expect(cleared.rows[0].reviewer_id).toBeNull();
+
+      await client.query('ROLLBACK');
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
+
+  test('Pending invitation cannot be assigned as PIC', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ownerId = 'b0000000-0000-0000-0000-000000000021';
+      const inviteId = 'b0000000-0000-0000-0000-000000000022';
+      await ensureAuthUser(client, ownerId);
+      await ensureAuthUser(client, inviteId);
+      const { org, project } = await createOrgAndProject(client, 'PendingOrg', ownerId, 'PendingP');
+      // Insert as invitation but NOT as organization_member
+      await client.query(
+        `INSERT INTO public.organization_invitations (organization_id, invited_by, email, token, status)
+         VALUES ($1, $2, $3, $4, 'pending')`,
+        [org, ownerId, 'pending@test.local', inviteId],
+      );
+      const wbs = await createWbsItem(client, org, project, 'Activity Z3');
+
+      await actAs(client, ownerId);
+      await expect(
+        client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, inviteId, null]),
+      ).rejects.toThrow(/NOT_MEMBER/);
+
+      await client.query('ROLLBACK');
+
+      await client.query('ROLLBACK');
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
+
+  test('Pending invitation cannot be assigned as Reviewer', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ownerId = 'b0000000-0000-0000-0000-000000000031';
+      const inviteId = 'b0000000-0000-0000-0000-000000000032';
+      await ensureAuthUser(client, ownerId);
+      await ensureAuthUser(client, inviteId);
+      const { org, project } = await createOrgAndProject(client, 'PendingRev', ownerId, 'PendingRevP');
+      await client.query(
+         `INSERT INTO public.organization_invitations (organization_id, invited_by, email, token, status)
+          VALUES ($1, $2, $3, $4, 'pending')`,
+         [org, ownerId, 'pendingrev@test.local', inviteId],
+      );
+      const wbs = await createWbsItem(client, org, project, 'Activity Z4');
+
+      await actAs(client, ownerId);
+      await expect(
+        client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, null, inviteId]),
+      ).rejects.toThrow(/NOT_MEMBER/);
+
+      await client.query('ROLLBACK');
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
+
+  test('Assignment mutation emits exactly one wbs_people_changed event', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ownerId = 'b0000000-0000-0000-0000-000000000041';
+      const memberId = 'b0000000-0000-0000-0000-000000000042';
+      await ensureAuthUser(client, ownerId);
+      await ensureAuthUser(client, memberId);
+      const { org, project } = await createOrgAndProject(client, 'EventOrg', ownerId, 'EventP');
+      await addMember(client, org, memberId, 'member');
+      const wbs = await createWbsItem(client, org, project, 'Activity Z5');
+
+      await actAs(client, ownerId);
+      await client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, memberId, null]);
+
+      const events = (
+        await client.query(
+          `SELECT event_type FROM public.project_activity_events WHERE entity_id = $1 AND event_type = 'wbs_people_changed'`,
+          [wbs.id],
+        )
+      ).rows;
+      expect(events.length).toBe(1);
+      expect(events[0].event_type).toBe('wbs_people_changed');
+
+      await client.query('ROLLBACK');
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
+
+  test('Failed assignment emits zero wbs_people_changed events', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ownerId = 'b0000000-0000-0000-0000-000000000051';
+      const fakeUuid = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+      await ensureAuthUser(client, ownerId);
+      const { org, project } = await createOrgAndProject(client, 'FailEvent', ownerId, 'FailEventP');
+      const wbs = await createWbsItem(client, org, project, 'Activity Z6');
+
+      await actAs(client, ownerId);
+      await client.query('SAVEPOINT before_fail');
+      await expect(
+        client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, fakeUuid, null]),
+      ).rejects.toThrow(/NOT_MEMBER/);
+      await client.query('ROLLBACK TO SAVEPOINT before_fail');
+
+      const events = (
+        await client.query(
+          `SELECT event_type FROM public.project_activity_events WHERE entity_id = $1 AND event_type = 'wbs_people_changed'`,
+          [wbs.id],
+        )
+      ).rows;
+      expect(events.length).toBe(0);
+
+      await client.query('ROLLBACK');
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
 });
