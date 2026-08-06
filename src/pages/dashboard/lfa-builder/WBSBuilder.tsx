@@ -35,7 +35,7 @@ import ActivityBudgetEditor from '@/components/budget/ActivityBudgetEditor';
 import BudgetDrawer from '@/components/budget/BudgetDrawer';
 import CompletionClaimReviewDialog from '@/components/verification/CompletionClaimReviewDialog';
 import ProjectTimelineView from '@/pages/dashboard/project-management/wbs/ProjectTimelineView';
-import { computeWbsSchedule, computeItemProgress as computeScheduleItemProgress, type StageScheduleInput, type WbsScheduleInput } from '@/lib/project-management/scheduleModel';
+
 import { useOrgRole } from '@/hooks/useOrgRole';
 import { formatMember, formatMemberCompact, type MemberDisplay } from '@/lib/memberDisplay';
 import {
@@ -267,6 +267,7 @@ export default function WBSBuilder({
   const [viewMode, setViewMode] = useState<'outline' | 'timeline'>(
     productMode === 'project_management' ? 'outline' : 'timeline'
   );
+  const [scheduleMode, setScheduleMode] = useState<'plan' | 'actual'>('plan');
 
   // Budget drawer (PM mode)
   const [budgetDrawerActivityId, setBudgetDrawerActivityId] = useState<string | null>(null);
@@ -1230,10 +1231,6 @@ export default function WBSBuilder({
           status: item.status || 'not_started',
           progress_percent: item.status === 'completed' ? 100 : (item.progress_percent ?? 0),
           blocked_reason: item.status === 'blocked' ? item.blocked_reason : null,
-          planned_start_date: item.planned_start_date ?? null,
-          planned_end_date: item.planned_end_date ?? null,
-          actual_start_date: item.actual_start_date ?? null,
-          actual_end_date: item.actual_end_date ?? null,
         };
 
         // NOTE: completed_at and completed_by are omitted intentionally.
@@ -2278,7 +2275,8 @@ export default function WBSBuilder({
         </div>
       </div>
 
-      {/* View toggle — Outline / Timeline */}
+      {/* View toggle — Outline / Timeline (Programme Design only) */}
+      {productMode !== 'project_management' && (
       <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
           <button
             onClick={() => setViewMode('outline')}
@@ -2301,6 +2299,7 @@ export default function WBSBuilder({
             Timeline
           </button>
         </div>
+      )}
 
       {/* Work Plan Filter — Project Management only */}
       {productMode === 'project_management' && (
@@ -2409,6 +2408,7 @@ export default function WBSBuilder({
           scroll (overflow-x-auto) since only the Timeline needs to scroll
           sideways for long programs. Applies to both Programme Design and
           Project Management -- this structure is unconditional. */}
+      {productMode !== 'project_management' && (
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 border rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-900 max-h-[600px] overflow-y-auto">
 
         {/* LEFT COLUMN (60%): Interactive Tree Sheet. Full width in Outline mode. */}
@@ -3775,17 +3775,26 @@ export default function WBSBuilder({
         </div>
         )}
       </div>
+      )}
 
-      {/* PM Timeline — Project Management only */}
-      {viewMode === 'timeline' && productMode === 'project_management' && (
+      {/* PM Work Plan + Gantt — Project Management unified view */}
+      {productMode === 'project_management' && (
         <div className="border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
           <ProjectTimelineView
             wbsItems={wbsItems}
             stages={stages}
-            orgMembers={orgMembers}
-            orgMemberLookup={orgMemberLookup}
             isOwner={isOwner}
+            scheduleMode={scheduleMode}
+            onScheduleModeChange={setScheduleMode}
             onStagesRefresh={() => { void loadStages(); }}
+            onAddActivity={(stageId) => { void handleAddActivityToStage(stageId); }}
+            onOpenActivity={(activityId) => {
+              const item = wbsItems.find((w) => w.id === activityId);
+              if (item) {
+                const el = document.getElementById(`wbs-row-${activityId}`);
+                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }}
             onDurationChange={(wbsId, weeks) => {
               const item = wbsItems.find((w) => w.id === wbsId);
               if (item) {
