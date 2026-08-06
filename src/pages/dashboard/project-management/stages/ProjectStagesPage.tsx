@@ -120,6 +120,12 @@ export default function ProjectStagesPage() {
     void loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (projectId) {
+      navigate(`/dashboard/project-management/${projectId}/wbs`, { replace: true });
+    }
+  }, [projectId, navigate]);
+
   const resetForm = () => {
     setTitle('');
     setDescription('');

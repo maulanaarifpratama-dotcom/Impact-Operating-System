@@ -11,8 +11,7 @@ export function ProjectWorkspaceNav({ projectId }: { projectId: string }) {
   const tabs = [
     { name: 'Overview', href: `/dashboard/project-management/${projectId}/overview` },
     { name: 'Objectives', href: `/dashboard/project-management/${projectId}/objectives` },
-    { name: 'Stages', href: `/dashboard/project-management/${projectId}/stages` },
-    { name: 'WBS', href: `/dashboard/project-management/${projectId}/wbs` },
+    { name: 'Work Plan', href: `/dashboard/project-management/${projectId}/wbs` },
     { name: 'Budget', href: `/dashboard/project-management/${projectId}/budget` },
     { name: 'MEAL', href: `/dashboard/project-management/${projectId}/meal` },
     { name: 'Deliverables', href: `/dashboard/project-management/${projectId}/deliverables` },

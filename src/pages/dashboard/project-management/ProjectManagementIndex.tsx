@@ -111,7 +111,7 @@ export default function ProjectManagementIndex() {
       setCreateOpen(false);
       resetForm();
       if (newProjectId) {
-        navigate(`/dashboard/project-management/${newProjectId}/stages`);
+        navigate(`/dashboard/project-management/${newProjectId}/wbs`);
       } else {
         void loadProjects();
       }
@@ -167,7 +167,7 @@ export default function ProjectManagementIndex() {
             <Card
               key={p.id}
               className="cursor-pointer transition-colors hover:border-primary/50"
-              onClick={() => navigate(`/dashboard/project-management/${p.id}/stages`)}
+              onClick={() => navigate(`/dashboard/project-management/${p.id}/wbs`)}
             >
               <CardHeader>
                 <CardTitle className="text-base">{p.name}</CardTitle>

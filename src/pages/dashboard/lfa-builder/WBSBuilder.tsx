@@ -25,6 +25,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { computeEvmVarianceFlag } from './evmVariance';
+import { buildWorkPlan, type WbsItemInput, type BudgetItemInput } from '@/lib/project-management/workPlan';
 import { appStylesheetTags, finalizePrintWindow } from '@/lib/print/printWindow';
 import { persistTargetBudgetForLfaProject, resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 import { evaluateMirrorBudgetModel } from '@/lib/budget/mirrorBudgetModel';
@@ -231,6 +232,16 @@ export default function WBSBuilder({
   const [targetBudgetInput, setTargetBudgetInput] = useState('');
   const [savingTargetBudget, setSavingTargetBudget] = useState(false);
   const [carbonMode, setCarbonMode] = useState(false);
+
+  // Stage inline CRUD (Project Management only)
+  const [stageDialogOpen, setStageDialogOpen] = useState(false);
+  const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [stageFormTitle, setStageFormTitle] = useState('');
+  const [stageFormDesc, setStageFormDesc] = useState('');
+  const [stageFormPlannedStart, setStageFormPlannedStart] = useState('');
+  const [stageFormPlannedEnd, setStageFormPlannedEnd] = useState('');
+  const [stageSaving, setStageSaving] = useState(false);
+  const [viewMode, setViewMode] = useState<'outline' | 'timeline'>('outline');
 
   // Dynamic Row Heights tracking for auto-height text wrapping alignment
   const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
@@ -1819,6 +1830,156 @@ export default function WBSBuilder({
     return unassigned.items.length > 0 ? [...ordered, unassigned] : ordered;
   }, [productMode, wbsItems, stages]);
 
+  // Canonical Work Plan view (PM mode only)
+  const workPlanView = useMemo(() => {
+    if (productMode !== 'project_management') return null;
+    return buildWorkPlan(stages, wbsItems as WbsItemInput[], rawBudgetItems as BudgetItemInput[]);
+  }, [productMode, stages, wbsItems, rawBudgetItems]);
+
+  // Fast lookups from canonical view
+  const stageProgressLookup = useMemo(() => {
+    const map: Record<string, number> = {};
+    if (!workPlanView) return map;
+    for (const s of workPlanView.stages) map[s.id] = s.progress;
+    return map;
+  }, [workPlanView]);
+
+  const stageBudgetLookup = useMemo(() => {
+    const map: Record<string, number> = {};
+    if (!workPlanView) return map;
+    for (const s of workPlanView.stages) map[s.id] = s.budgetTotal;
+    return map;
+  }, [workPlanView]);
+
+  const activityBudgetLookup = useMemo(() => {
+    const map: Record<string, number> = {};
+    if (!workPlanView) return map;
+    const allActs = [
+      ...workPlanView.stages.flatMap((s) => s.activities),
+      ...workPlanView.unassignedActivities,
+    ];
+    for (const a of allActs) map[a.id] = a.budgetTotal;
+    return map;
+  }, [workPlanView]);
+
+  const activityProgressLookup = useMemo(() => {
+    const map: Record<string, number> = {};
+    if (!workPlanView) return map;
+    const allActs = [
+      ...workPlanView.stages.flatMap((s) => s.activities),
+      ...workPlanView.unassignedActivities,
+    ];
+    for (const a of allActs) map[a.id] = a.progress;
+    return map;
+  }, [workPlanView]);
+
+  // Stage CRUD handlers (PM mode)
+  const openStageCreate = () => {
+    setEditingStageId(null);
+    setStageFormTitle('');
+    setStageFormDesc('');
+    setStageFormPlannedStart('');
+    setStageFormPlannedEnd('');
+    setStageDialogOpen(true);
+  };
+
+  const openStageEdit = async (stage: WbsStageOption) => {
+    setEditingStageId(stage.id);
+    setStageFormTitle(stage.title);
+    setStageFormDesc('');
+    setStageFormPlannedStart('');
+    setStageFormPlannedEnd('');
+    setStageDialogOpen(true);
+    try {
+      const { data } = await (supabase as any)
+        .from('project_stages')
+        .select('description, planned_start_date, planned_end_date')
+        .eq('id', stage.id)
+        .single();
+      if (data) {
+        setStageFormDesc(data.description || '');
+        setStageFormPlannedStart(data.planned_start_date || '');
+        setStageFormPlannedEnd(data.planned_end_date || '');
+      }
+    } catch { /* keep defaults */ }
+  };
+
+  const handleCreateStage = async () => {
+    if (!stageFormTitle.trim() || !projectId) return;
+    setStageSaving(true);
+    try {
+      const { error: rpcError } = await (supabase.rpc as any)('create_project_stage', {
+        p_project_id: projectId,
+        p_title: stageFormTitle.trim(),
+        p_description: stageFormDesc || null,
+        p_planned_start_date: stageFormPlannedStart || null,
+        p_planned_end_date: stageFormPlannedEnd || null,
+      });
+      if (rpcError) throw rpcError;
+      toast({ title: 'Stage Ditambahkan' });
+      setStageDialogOpen(false);
+      void loadStages();
+    } catch (err: any) {
+      toast({ title: 'Gagal menambah Stage', description: err?.message || 'Terjadi kesalahan.', variant: 'destructive' });
+    } finally {
+      setStageSaving(false);
+    }
+  };
+
+  const handleUpdateStage = async () => {
+    if (!editingStageId || !stageFormTitle.trim()) return;
+    setStageSaving(true);
+    try {
+      const { error: rpcError } = await (supabase.rpc as any)('update_project_stage_metadata', {
+        p_stage_id: editingStageId,
+        p_title: stageFormTitle.trim(),
+        p_description: stageFormDesc || null,
+        p_planned_start_date: stageFormPlannedStart || null,
+        p_planned_end_date: stageFormPlannedEnd || null,
+      });
+      if (rpcError) throw rpcError;
+      toast({ title: 'Stage Diperbarui' });
+      setStageDialogOpen(false);
+      setEditingStageId(null);
+      void loadStages();
+    } catch (err: any) {
+      toast({ title: 'Gagal memperbarui Stage', description: err?.message || 'Terjadi kesalahan.', variant: 'destructive' });
+    } finally {
+      setStageSaving(false);
+    }
+  };
+
+  const handleArchiveStageAction = async (stageId: string) => {
+    try {
+      const { error: rpcError } = await (supabase.rpc as any)('archive_project_stage', { p_stage_id: stageId });
+      if (rpcError) throw rpcError;
+      toast({ title: 'Stage Diarsipkan' });
+      void loadStages();
+    } catch (err: any) {
+      toast({ title: 'Gagal mengarsipkan Stage', description: err?.message || 'Terjadi kesalahan.', variant: 'destructive' });
+    }
+  };
+
+  const handleReorderStageAction = async (stageId: string, direction: -1 | 1) => {
+    const activeStages = stages.filter((s) => !s.archived_at);
+    const idx = activeStages.findIndex((s) => s.id === stageId);
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= activeStages.length || !projectId) return;
+    const reordered = [...activeStages];
+    [reordered[idx], reordered[targetIdx]] = [reordered[targetIdx], reordered[idx]];
+    const orderedIds = reordered.map((s) => s.id);
+    try {
+      const { error: rpcError } = await (supabase.rpc as any)('reorder_project_stages', {
+        p_project_id: projectId,
+        p_ordered_ids: orderedIds,
+      });
+      if (rpcError) throw rpcError;
+      void loadStages();
+    } catch (err: any) {
+      toast({ title: 'Gagal mengubah urutan Stage', description: err?.message || 'Terjadi kesalahan.', variant: 'destructive' });
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -2029,6 +2190,12 @@ export default function WBSBuilder({
             );
           })()}
 
+          {productMode === 'project_management' && (
+            <Button size="sm" onClick={openStageCreate} className="text-xs font-semibold">
+              <Plus className="mr-1.5 h-3.5 w-3.5" /> Tambah Stage
+            </Button>
+          )}
+
           <Button variant="outline" size="sm" onClick={handleExportPrintPDF} className="text-xs font-semibold">
             <Download className="mr-1.5 h-3.5 w-3.5" /> Export PDF
           </Button>
@@ -2040,6 +2207,32 @@ export default function WBSBuilder({
           )}
         </div>
       </div>
+
+      {/* View toggle — Project Management only */}
+      {productMode === 'project_management' && (
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
+          <button
+            onClick={() => setViewMode('outline')}
+            className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
+              viewMode === 'outline'
+                ? 'bg-white dark:bg-slate-950 text-primary shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Outline
+          </button>
+          <button
+            onClick={() => setViewMode('timeline')}
+            className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
+              viewMode === 'timeline'
+                ? 'bg-white dark:bg-slate-950 text-primary shadow-sm'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Timeline
+          </button>
+        </div>
+      )}
 
       {/* PROGRAM-LEVEL MIRROR BUDGET SUMMARY -- Programme Design only.
           Project Management already has its own dedicated Budget tab
@@ -2121,18 +2314,24 @@ export default function WBSBuilder({
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 border rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-900 max-h-[600px] overflow-y-auto">
 
         {/* LEFT COLUMN (60%): Interactive Tree Sheet */}
-        <div className="lg:col-span-3 border-r divide-y overflow-x-auto min-w-0">
+        <div className={`${productMode === 'project_management' && viewMode === 'outline' ? 'lg:col-span-5' : 'lg:col-span-3'} border-r divide-y overflow-x-auto min-w-0`}>
           {/* Row Headers */}
-          <div className="flex bg-slate-50 dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-500 py-3 px-4 min-w-[980px] gap-2">
-            <div className="flex-1 min-w-[280px]">Deskripsi WBS Tree</div>
-            <div className="w-16 text-center shrink-0">Progres</div>
-            <div className="w-24 text-center shrink-0">Status</div>
-            <div className="w-14 text-center shrink-0">Bulan</div>
-            <div className="w-14 text-center shrink-0">Mgg/Hari</div>
-            <div className="w-20 text-left shrink-0">PIC</div>
-            <div className="w-24 text-left shrink-0">Owner</div>
-            <div className="w-24 text-left shrink-0">Reviewer</div>
-            {globalMode === 'professional' && <div className="w-20 text-left shrink-0">Metode</div>}
+          <div className={`flex bg-slate-50 dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-500 py-3 px-4 gap-2 ${productMode === 'project_management' ? 'min-w-[650px]' : 'min-w-[980px]'}`}>
+            <div className="flex-1 min-w-[240px]">Deskripsi WBS Tree</div>
+            <div className="w-20 text-center shrink-0">Progres</div>
+            <div className="w-28 text-center shrink-0">Status</div>
+            <div className="w-16 text-center shrink-0">Bulan</div>
+            <div className="w-16 text-center shrink-0">Mgg/Hari</div>
+            <div className="w-24 text-left shrink-0">PIC</div>
+            {productMode !== 'project_management' ? (
+              <>
+                <div className="w-24 text-left shrink-0">Owner</div>
+                <div className="w-24 text-left shrink-0">Reviewer</div>
+                {globalMode === 'professional' && <div className="w-20 text-left shrink-0">Metode</div>}
+              </>
+            ) : (
+              <div className="w-24 text-right shrink-0">Budget</div>
+            )}
             <div className="w-8 shrink-0"></div>
           </div>
 
@@ -2149,7 +2348,7 @@ export default function WBSBuilder({
 
               let indentStyle = '';
               const rowHeightClass = 'min-h-[42px] py-2';
-              let rowStyle = `px-4 flex items-center min-w-[850px] gap-2 transition-all ${rowHeightClass} `;
+              let rowStyle = `px-4 flex items-center ${productMode === 'project_management' ? 'min-w-[650px]' : 'min-w-[850px]'} gap-2 transition-all ${rowHeightClass} `;
 
               if (item.level === 1) {
                 indentStyle = `border-l-4 ${theme.border} bg-slate-100/70 dark:bg-slate-800/30 font-bold border-t border-b border-slate-200/50 dark:border-slate-800/50`;
@@ -2667,7 +2866,8 @@ export default function WBSBuilder({
                       )}
                     </div>
 
-                    {/* Owner column (Sprint 2) */}
+                    {/* Owner column (Sprint 2) — Programme Design only */}
+                    {productMode !== 'project_management' && (
                     <div className="w-24">
                       {item.level === 2 ? (
                         <select
@@ -2693,8 +2893,10 @@ export default function WBSBuilder({
                         <span className="text-[10px] text-muted-foreground">-</span>
                       )}
                     </div>
+                    )}
 
-                    {/* Reviewer column (Sprint 2) */}
+                    {/* Reviewer column (Sprint 2) — Programme Design only */}
+                    {productMode !== 'project_management' && (
                     <div className="w-24">
                       {item.level === 2 ? (
                         <select
@@ -2720,9 +2922,10 @@ export default function WBSBuilder({
                         <span className="text-[10px] text-muted-foreground">-</span>
                       )}
                     </div>
+                    )}
 
-                    {/* Method dropdown for professional mode (Level 2 only) */}
-                    {globalMode === 'professional' && (
+                    {/* Method dropdown — Programme Design only */}
+                    {globalMode === 'professional' && productMode !== 'project_management' && (
                       <div className="w-24">
                         {item.level === 2 ? (
                           <select
@@ -2764,6 +2967,28 @@ export default function WBSBuilder({
                           <option key={s.id} value={s.id}>
                             {s.title}{s.archived_at ? ' (archived)' : ''}
                           </option>
+                        ))}
+                      </select>
+                    )}
+
+                    {/* Move to Stage (PM mode, Level 2 Activity items) */}
+                    {item.level === 2 && productMode === 'project_management' && (
+                      <select
+                        value={(() => {
+                          const l1 = item.parent_id ? wbsItems.find((w) => w.id === item.parent_id) : null;
+                          return l1?.stage_id || '';
+                        })()}
+                        onChange={(e) => {
+                          const newStageId = e.target.value || null;
+                          const l1 = item.parent_id ? wbsItems.find((w) => w.id === item.parent_id) : null;
+                          if (l1) { void handleAssignStage(l1.id, newStageId); }
+                        }}
+                        title="Pindah Stage"
+                        className="text-[10px] w-24 border bg-transparent rounded px-1 h-6 shrink-0 focus:outline-none dark:border-slate-800"
+                      >
+                        <option value="">Unassigned</option>
+                        {stages.filter((s) => !s.archived_at).map((s) => (
+                          <option key={s.id} value={s.id}>{s.title}</option>
                         ))}
                       </select>
                     )}
@@ -2821,7 +3046,7 @@ export default function WBSBuilder({
 
                   {/* Blocked Reason Row for leaf items when status === 'blocked' */}
                   {isLeaf && item.status === 'blocked' && (
-                    <div className="pl-14 pr-4 py-1.5 bg-red-50/50 dark:bg-red-950/20 border-b border-red-100 dark:border-red-900/30 flex items-center gap-2 min-w-[850px] text-xs">
+                    <div className={`pl-14 pr-4 py-1.5 bg-red-50/50 dark:bg-red-950/20 border-b border-red-100 dark:border-red-900/30 flex items-center gap-2 ${productMode === 'project_management' ? 'min-w-[650px]' : 'min-w-[850px]'} text-xs`}>
                       <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />
                       <span className="text-[10px] font-bold text-red-700 dark:text-red-400 shrink-0">Alasan Terhambat:</span>
                       <input
@@ -3089,34 +3314,104 @@ export default function WBSBuilder({
                   <p>Buat Stage terlebih dahulu, lalu tambahkan Activity di dalamnya.</p>
                   <Button
                     size="sm"
-                    onClick={() => navigate(`/dashboard/project-management/${projectId}/stages`)}
-                    data-testid="wbs-empty-goto-stages-button"
+                    onClick={openStageCreate}
+                    data-testid="wbs-empty-create-stage-button"
                   >
-                    <Plus className="mr-1.5 h-3.5 w-3.5" /> Buka Halaman Stages
+                    <Plus className="mr-1.5 h-3.5 w-3.5" /> Tambah Stage
                   </Button>
                 </div>
               );
             }
-            return pmStageGroups.map((group) => (
+            return pmStageGroups.map((group, index) => {
+              const activeStagesLocal = stages.filter((s) => !s.archived_at);
+              const stageIdx = activeStagesLocal.findIndex((s) => s.id === group.stageId);
+              const progressPct = group.stageId ? (stageProgressLookup[group.stageId] ?? 0) : 0;
+              const budgetIdr = group.stageId ? (stageBudgetLookup[group.stageId] ?? 0) : 0;
+              const isUnassigned = group.stageId === null;
+
+              return (
               <Fragment key={group.key}>
                 <div
-                  className="h-[45px] flex items-center justify-between gap-2 px-4 bg-slate-100 dark:bg-slate-800/60 border-y border-slate-200 dark:border-slate-800"
+                  className="h-auto min-h-[45px] flex items-center justify-between gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800/60 border-y border-slate-200 dark:border-slate-800"
                   data-testid="wbs-stage-group-header"
                 >
-                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide">
-                    Stage: {group.label}
-                  </span>
-                  {group.stageId !== null && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="h-6 text-[11px]"
-                      onClick={() => void handleAddActivityToStage(group.stageId)}
-                      data-testid="wbs-stage-add-activity-button"
-                    >
-                      <Plus className="mr-1 h-3 w-3" /> Tambah Aktivitas
-                    </Button>
-                  )}
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide truncate">
+                      {group.label}
+                    </span>
+                    {!isUnassigned && (
+                      <div className="flex items-center gap-2 text-[10px] text-slate-500 shrink-0">
+                        <span className="font-semibold" title="Progress Stage dihitung dari rata-rata Activity non-cancelled">
+                          {progressPct}%
+                        </span>
+                        <span className="text-slate-400">|</span>
+                        <span className="font-semibold">
+                          {budgetIdr > 0 ? formatBudgetBadge(budgetIdr) : 'Rp 0'}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {!isUnassigned && (
+                      <>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-slate-500 hover:text-slate-700"
+                          disabled={stageIdx === 0}
+                          onClick={() => handleReorderStageAction(group.stageId!, -1)}
+                          title="Pindah ke atas"
+                        >
+                          <ChevronUp className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6 text-slate-500 hover:text-slate-700"
+                          disabled={stageIdx === activeStagesLocal.length - 1}
+                          onClick={() => handleReorderStageAction(group.stageId!, 1)}
+                          title="Pindah ke bawah"
+                        >
+                          <ChevronDown className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-6 text-[10px]"
+                          onClick={() => {
+                            const s = stages.find((st) => st.id === group.stageId);
+                            if (s) openStageEdit(s);
+                          }}
+                          title="Edit Stage"
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => handleArchiveStageAction(group.stageId!)}
+                          title="Arsipkan Stage"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-6 text-[10px]"
+                          onClick={() => void handleAddActivityToStage(group.stageId)}
+                          data-testid="wbs-stage-add-activity-button"
+                        >
+                          <Plus className="mr-1 h-3 w-3" /> Tambah Aktivitas
+                        </Button>
+                      </>
+                    )}
+                    {isUnassigned && group.items.length > 0 && (
+                      <span className="text-[10px] text-muted-foreground italic">
+                        Activity belum ditentukan Stage-nya
+                      </span>
+                    )}
+                  </div>
                 </div>
                 {group.items.length === 0 ? (
                   <div className="h-[42px] pl-8 flex items-center text-[11px] text-muted-foreground italic">
@@ -3126,11 +3421,12 @@ export default function WBSBuilder({
                   group.items.map(renderLeftRow)
                 )}
               </Fragment>
-            ));
+            )});
           })()}
         </div>
 
-        {/* RIGHT COLUMN (40%): Draggable CSS Grid Gantt Chart */}
+        {/* RIGHT COLUMN (40%): Draggable CSS Grid Gantt Chart — hidden in PM Outline mode */}
+        {(productMode !== 'project_management' || viewMode === 'timeline') && (
         <div className="lg:col-span-2 overflow-x-auto select-none bg-slate-50/10 dark:bg-slate-900/10">
           <div className="flex flex-col min-w-max">
             {/* Header timeline */}
@@ -3275,6 +3571,7 @@ export default function WBSBuilder({
             </div>
           </div>
         </div>
+        )}
       </div>
 
       {/* RENDER SYSTEM OVERLAYS: SVG DEPENDENCY ARROWS (Professional Mode only) */}
@@ -3286,6 +3583,69 @@ export default function WBSBuilder({
             <span>Untuk membuat ketergantungan (dependencies) antar aktivitas, atur dan sambungkan aktivitas yang saling terikat. Sistem akan menghitung jalur kritis (critical path) dan menandainya dengan warna merah jika mendeteksi risiko penundaan berantai.</span>
           </div>
         </div>
+      )}
+
+      {/* Stage CRUD Dialog (PM only) */}
+      {productMode === 'project_management' && (
+      <Dialog open={stageDialogOpen} onOpenChange={setStageDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingStageId ? 'Edit Stage' : 'Tambah Stage'}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="wbs-stage-title">Judul Stage</Label>
+              <Input
+                id="wbs-stage-title"
+                value={stageFormTitle}
+                onChange={(e) => setStageFormTitle(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && stageFormTitle.trim()) {
+                    void (editingStageId ? handleUpdateStage() : handleCreateStage());
+                  }
+                }}
+              />
+            </div>
+            <div>
+              <Label htmlFor="wbs-stage-desc">Deskripsi</Label>
+              <Textarea id="wbs-stage-desc" value={stageFormDesc} onChange={(e) => setStageFormDesc(e.target.value)} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="wbs-stage-start">Rencana Mulai</Label>
+                <Input
+                  id="wbs-stage-start"
+                  type="date"
+                  value={stageFormPlannedStart}
+                  onChange={(e) => setStageFormPlannedStart(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="wbs-stage-end">Rencana Selesai</Label>
+                <Input
+                  id="wbs-stage-end"
+                  type="date"
+                  value={stageFormPlannedEnd}
+                  onChange={(e) => setStageFormPlannedEnd(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" disabled={stageSaving} onClick={() => setStageDialogOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              onClick={editingStageId ? handleUpdateStage : handleCreateStage}
+              disabled={stageSaving || !stageFormTitle.trim()}
+            >
+              {stageSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              Simpan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       )}
 
       {/* AI ESTIMATE SUGGESTION DIALOG */}
