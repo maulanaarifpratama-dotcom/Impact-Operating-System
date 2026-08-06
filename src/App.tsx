@@ -63,6 +63,9 @@ const LFABuilderEditor = lazy(() => import('./pages/dashboard/lfa-builder/LFABui
 const ProjectManagementIndex = lazy(
   () => import('./pages/dashboard/project-management/ProjectManagementIndex'),
 );
+const ProjectObjectivesPage = lazy(
+  () => import('./pages/dashboard/project-management/objectives/ProjectObjectivesPage'),
+);
 
 function RouteFallback() {
   return (
@@ -220,8 +223,12 @@ const App = () => (
               <Route path="/dashboard/lfa-builder" element={<LFABuilderIndex />} />
               <Route path="/dashboard/lfa-builder/:projectId" element={<LFABuilderEditor />} />
 
-              {/* Project Management Routes (PM-1A: creation only, no workspace shell yet) */}
+              {/* Project Management Routes */}
               <Route path="/dashboard/project-management" element={<ProjectManagementIndex />} />
+              <Route
+                path="/dashboard/project-management/:projectId/objectives"
+                element={<ProjectObjectivesPage />}
+              />
               <Route path="/dashboard/sroi" element={<SROIStandalone />} />
               <Route path="/dashboard/eroi" element={<EROIStandalone />} />
               <Route path="/dashboard/esg" element={<ESGDashboard />} />

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, Loader2, FolderKanban } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,6 +35,7 @@ interface ProjectManagementProject {
 export default function ProjectManagementIndex() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const [projects, setProjects] = useState<ProjectManagementProject[]>([]);
   const [loading, setLoading] = useState(true);
@@ -166,7 +168,11 @@ export default function ProjectManagementIndex() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((p) => (
-            <Card key={p.id}>
+            <Card
+              key={p.id}
+              className="cursor-pointer transition-colors hover:border-primary/50"
+              onClick={() => navigate(`/dashboard/project-management/${p.id}/objectives`)}
+            >
               <CardHeader>
                 <CardTitle className="text-base">{p.name}</CardTitle>
                 <CardDescription>
