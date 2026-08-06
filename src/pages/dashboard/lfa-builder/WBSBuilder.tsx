@@ -31,6 +31,7 @@ import { appStylesheetTags, finalizePrintWindow } from '@/lib/print/printWindow'
 import { persistTargetBudgetForLfaProject, resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 import { evaluateMirrorBudgetModel } from '@/lib/budget/mirrorBudgetModel';
 import type { Database } from '@/integrations/supabase/database.generated';
+import ActivityBudgetEditor from '@/components/budget/ActivityBudgetEditor';
 
 type WbsClaimInsert = Database['public']['Tables']['wbs_completion_claims']['Insert'];
 
@@ -245,6 +246,9 @@ export default function WBSBuilder({
   const [viewMode, setViewMode] = useState<'outline' | 'timeline'>(
     productMode === 'project_management' ? 'outline' : 'timeline'
   );
+
+  // Inline budget editing (PM mode)
+  const [editingBudgetActivityId, setEditingBudgetActivityId] = useState<string | null>(null);
 
   // Dynamic Row Heights tracking for auto-height text wrapping alignment
   const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
@@ -2993,6 +2997,27 @@ export default function WBSBuilder({
                       </div>
                     )}
 
+                    {/* Compact Activity Budget (PM mode, Level 2 only) */}
+                    {item.level === 2 && productMode === 'project_management' && (
+                      <div className="w-24 flex items-center gap-1 shrink-0">
+                        <span className="text-[10px] font-semibold">
+                          {formatBudgetBadge(activityBudgetLookup[item.id] || 0)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 text-[9px] px-1 text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingBudgetActivityId(editingBudgetActivityId === item.id ? null : item.id);
+                          }}
+                          title="Edit Budget Activity"
+                        >
+                          {editingBudgetActivityId === item.id ? 'Tutup' : (activityBudgetLookup[item.id] || 0) > 0 ? 'Edit' : 'Isi'}
+                        </Button>
+                      </div>
+                    )}
+
                     {/* Move to Stage (PM mode, Level 2 Activity items) */}
                     {item.level === 2 && productMode === 'project_management' && (
                       <select
@@ -3310,6 +3335,23 @@ export default function WBSBuilder({
                           </p>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Inline Activity Budget Editor (PM mode) */}
+                  {item.level === 2 && productMode === 'project_management' && editingBudgetActivityId === item.id && (
+                    <div className="pl-8 pr-4 py-2 bg-slate-50/50 dark:bg-slate-900/30 border-b">
+                      <ActivityBudgetEditor
+                        projectId={projectId}
+                        orgId={orgId}
+                        activityId={item.id}
+                        activityName={item.name || 'Activity'}
+                        onChanged={() => {
+                          void loadBudgetTotals();
+                          void loadWbsItems();
+                          if (onWbsSaved) onWbsSaved();
+                        }}
+                      />
                     </div>
                   )}
                 </Fragment>

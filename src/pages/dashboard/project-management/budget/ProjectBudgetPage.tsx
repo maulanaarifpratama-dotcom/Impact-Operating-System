@@ -20,6 +20,7 @@ import { supabase } from '@/integrations/supabase/client';
 import BudgetCalculator from '@/pages/dashboard/lfa-builder/BudgetCalculator';
 import { ProjectWorkspaceNav } from '../ProjectWorkspaceNav';
 import { resolveTargetBudgetForLfaProject, persistTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
+import ActivityBudgetEditor from '@/components/budget/ActivityBudgetEditor';
 import {
   computeBudgetSnapshot,
   computeStageBudgets,
@@ -237,7 +238,20 @@ export default function ProjectBudgetPage() {
                 </CardContent>
               </Card>
             );
-          })()}
+          }          )()}
+
+          {/* Activity Budget Editor (when activityId is present) */}
+          {focusedActivityId && orgId && (
+            <ActivityBudgetEditor
+              projectId={projectId!}
+              orgId={orgId}
+              activityId={focusedActivityId}
+              activityName={rawWbsItems.find((wi) => wi.id === focusedActivityId && wi.level === 2)
+                ? ((rawWbsItems.find((wi) => wi.id === focusedActivityId && wi.level === 2) as any)?.name as string) || focusedActivityId
+                : focusedActivityId}
+              onChanged={onBudgetChanged}
+            />
+          )}
 
           {/* SECTION 1 — Budget Summary */}
           <Card>
