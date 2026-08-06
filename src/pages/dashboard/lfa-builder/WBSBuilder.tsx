@@ -3786,6 +3786,14 @@ export default function WBSBuilder({
             orgMemberLookup={orgMemberLookup}
             isOwner={isOwner}
             onStagesRefresh={() => { void loadStages(); }}
+            onDurationChange={(wbsId, weeks) => {
+              const item = wbsItems.find((w) => w.id === wbsId);
+              if (item) {
+                const updated = { ...item, duration_weeks: weeks };
+                updateItemLocally(updated);
+                triggerAutosave(updated);
+              }
+            }}
           />
         </div>
       )}

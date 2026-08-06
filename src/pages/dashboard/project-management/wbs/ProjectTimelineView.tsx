@@ -1,5 +1,5 @@
 import { useMemo, useRef, useLayoutEffect, useState, useCallback } from 'react';
-import { Calendar, AlertTriangle, Loader2 } from 'lucide-react';
+import { Calendar, AlertTriangle, Loader2, Settings } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -31,12 +31,13 @@ interface Props {
   orgMemberLookup: Map<string, OrgMember>;
   isOwner: boolean;
   onStagesRefresh?: () => void;
+  onDurationChange?: (wbsId: string, weeks: number) => void;
 }
 
 const MONTH_WIDTH = 80;
 const ROW_BASE = 42;
 const STAGE_H = 42;
-const ROADMAP_H = 56;
+const ROADMAP_H = 52;
 const LW = 360;
 
 function fmt(d: Date | null): string { if (!d) return '—'; const m=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'][d.getMonth()]; return `${d.getDate()} ${m} ${d.getFullYear()}`; }
@@ -63,12 +64,12 @@ function getStLabel(s: string): string {
   return s;
 }
 
-export default function ProjectTimelineView({ wbsItems, stages: dbStages, orgMemberLookup, isOwner, onStagesRefresh }: Props) {
+export default function ProjectTimelineView({ wbsItems, stages: dbStages, orgMemberLookup, isOwner, onStagesRefresh, onDurationChange }: Props) {
   const { toast } = useToast();
   const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
   const leftRowRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const lpRef = useRef<HTMLDivElement>(null); const rpRef = useRef<HTMLDivElement>(null);
-  const roadRef = useRef<HTMLDivElement>(null); const monRef = useRef<HTMLDivElement>(null);
+  const roadRef = useRef<HTMLDivElement>(null);
   const [dlgOpen, setDlgOpen] = useState(false);
   const [dlgStage, setDlgStage] = useState<DBStage | null>(null);
   const [dlgStart, setDlgStart] = useState(''); const [dlgEnd, setDlgEnd] = useState('');
@@ -78,7 +79,6 @@ export default function ProjectTimelineView({ wbsItems, stages: dbStages, orgMem
   const scheduledPhases = activeStages.filter((s) => s.planned_start_date && s.planned_end_date);
   const unscheduledPhases = activeStages.filter((s) => !s.planned_start_date || !s.planned_end_date);
 
-  // Compute range from planned Phase dates
   const range = useMemo(() => {
     if (scheduledPhases.length === 0) return null;
     let minD: Date | null = null; let maxD: Date | null = null;
@@ -103,18 +103,17 @@ export default function ProjectTimelineView({ wbsItems, stages: dbStages, orgMem
   const barL = (d: Date) => { if (!range?.minD) return 0; return ((d.getFullYear() - range.minD.getFullYear()) * 12 + (d.getMonth() - range.minD.getMonth())) * MONTH_WIDTH; };
   const barW = (s: Date, f: Date) => Math.max(8, ((f.getTime() - s.getTime()) / 86400000 / 30) * MONTH_WIDTH);
 
-  // Sync horizontal scroll for roadmap, month, and body
   useLayoutEffect(() => {
-    const r = roadRef.current; const m = monRef.current; const b = rpRef.current;
-    if (!r || !m || !b) return;
-    const sync = () => { m.scrollLeft = r.scrollLeft; b.scrollLeft = r.scrollLeft; };
-    r.addEventListener('scroll', sync, { passive: true });
-    return () => r.removeEventListener('scroll', sync);
+    const r = roadRef.current; const b = rpRef.current; if (!r || !b) return;
+    const syncX = () => { b.scrollLeft = r.scrollLeft; };
+    r.addEventListener('scroll', syncX, { passive: true });
+    return () => r.removeEventListener('scroll', syncX);
   }, []);
-  // Vertical sync
   useLayoutEffect(() => {
     const l = lpRef.current; const r = rpRef.current; if (!l || !r) return;
-    const s = () => { r.scrollTop = l.scrollTop; }; l.addEventListener('scroll', s, { passive: true }); return () => l.removeEventListener('scroll', s);
+    const syncY = () => { r.scrollTop = l.scrollTop; };
+    l.addEventListener('scroll', syncY, { passive: true });
+    return () => l.removeEventListener('scroll', syncY);
   }, []);
   useLayoutEffect(() => {
     const nh: Record<string, number> = {}; let c = false;
@@ -142,38 +141,29 @@ export default function ProjectTimelineView({ wbsItems, stages: dbStages, orgMem
 
   const phaseActivities = useCallback((sid: string) => wbsItems.filter((w) => w.level === 2 && w.stage_id === sid), [wbsItems]);
 
-  // Build activity rows for timeline view
   const timelineRows = useMemo(() => {
     const rows: { key: string; stageId: string | null; type: string; item: WbsItem | null; stage: DBStage | null }[] = [];
     for (const s of activeStages) {
       rows.push({ key: `sh-${s.id}`, stageId: s.id, type: 'stage-header', item: null, stage: s });
       const acts = wbsItems.filter((w) => w.level === 2 && w.stage_id === s.id);
-      if (acts.length === 0) continue;
       for (const a of acts) {
-        rows.push({ key: `w-${a.id}`, stageId: s.id, type: 'activity', item: a, stage: s });
+        rows.push({ key: `a-${a.id}`, stageId: s.id, type: 'activity', item: a, stage: s });
         const tasks = wbsItems.filter((w) => w.parent_id === a.id);
-        for (const t of tasks) {
-          rows.push({ key: `w-${t.id}`, stageId: s.id, type: 'task', item: t, stage: s });
-        }
+        for (const t of tasks) rows.push({ key: `t-${t.id}`, stageId: s.id, type: 'task', item: t, stage: s });
       }
     }
     const unassigned = wbsItems.filter((w) => w.level === 2 && !w.stage_id);
     if (unassigned.length > 0) {
       rows.push({ key: 'sh-unassigned', stageId: null, type: 'stage-header', item: null, stage: null });
-      for (const a of unassigned) {
-        rows.push({ key: `w-${a.id}`, stageId: null, type: 'activity', item: a, stage: null });
-        const tasks = wbsItems.filter((w) => w.parent_id === a.id);
-        for (const t of tasks) rows.push({ key: `w-${t.id}`, stageId: null, type: 'task', item: t, stage: null });
-      }
+      for (const a of unassigned) { rows.push({ key: `a-${a.id}`, stageId: null, type: 'activity', item: a, stage: null }); }
     }
     return rows;
   }, [activeStages, wbsItems]);
 
-  // Empty state
   if (scheduledPhases.length === 0 && activeStages.length > 0) {
     return (
       <div className="border rounded-lg bg-white dark:bg-slate-900 p-8 space-y-6">
-        <div className="text-center"><Calendar className="h-10 w-10 mx-auto text-muted-foreground mb-3" /><h3 className="text-lg font-bold">Jadwal proyek belum diatur</h3><p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">Atur tanggal mulai dan selesai setiap Phase untuk menampilkan Gantt.</p></div>
+        <div className="text-center"><Calendar className="h-10 w-10 mx-auto text-muted-foreground mb-3" /><h3 className="text-lg font-bold">Jadwal proyek belum diatur</h3><p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">Atur tanggal mulai dan selesai setiap Phase.</p></div>
         <div className="space-y-2 max-w-lg mx-auto">
           {activeStages.map((s) => (
             <div key={s.id} className="flex items-center justify-between p-3 border rounded-lg bg-slate-50">
@@ -188,48 +178,35 @@ export default function ProjectTimelineView({ wbsItems, stages: dbStages, orgMem
 
   return (
     <div className="border rounded-lg bg-white dark:bg-slate-900 flex flex-col" style={{ height: 'calc(100vh - 260px)', minHeight: 400 }}>
-      {/* 1. Phase Roadmap Band — above month header */}
+      {/* 1. Phase Roadmap Band */}
       {range && (
         <div className="flex border-b shrink-0 bg-slate-50/30">
           <div className="py-2 px-4 text-[10px] font-bold uppercase text-slate-500 border-r flex items-center shrink-0" style={{ width: LW }}>Fase Proyek</div>
           <div className="flex-1 overflow-x-auto" ref={roadRef}>
             <div className="relative" style={{ minWidth: range.total * MONTH_WIDTH, height: ROADMAP_H }}>
-              {/* Grid lines matching month columns */}
-              {range.months.map((_, i) => (<div key={i} className="absolute top-0 bottom-0 border-r border-slate-100" style={{ left: i * MONTH_WIDTH, width: MONTH_WIDTH }} />))}
-              {/* Phase segments on ONE line */}
-              <div className="absolute inset-y-0 flex items-center">
-                {scheduledPhases.map((phase) => {
-                  const p = getPhaseProgress(wbsItems, phase.id);
-                  const sd = new Date(phase.planned_start_date!);
-                  const ed = new Date(phase.planned_end_date!);
-                  const color = getStatusColor(phase.status || 'not_started');
-                  const left = barL(sd);
-                  const width = Math.max(barW(sd, ed), 80);
-                  return (
-                    <button
-                      key={`road-${phase.id}`}
-                      className={`absolute top-2 bottom-2 rounded-md border shadow-sm ${color} cursor-pointer hover:brightness-110 transition-all focus:outline-none focus:ring-2 focus:ring-primary flex items-center px-3 min-w-0`}
-                      style={{ left, width }}
-                      onClick={() => openStageDlg(phase)}
-                      aria-label={`Buka detail ${phase.title}, ${fmt(sd)} sampai ${fmt(ed)}, progres ${p} persen, status ${getStLabel(phase.status || 'not_started')}`}
-                      title={`${phase.title}: ${fmt(sd)} → ${fmt(ed)}`}
-                    >
-                      {/* Progress fill */}
-                      {p > 0 && <div className="absolute inset-y-0 left-0 bg-black/20 rounded-l-md" style={{ width: `${p}%` }} />}
-                      <span className="text-[11px] font-bold text-white truncate relative z-10 drop-shadow-sm">{phase.title}</span>
-                      <span className="text-[10px] text-white/90 font-semibold shrink-0 ml-1.5 relative z-10">{p}%</span>
-                    </button>
-                  );
-                })}
-              </div>
-              {/* Unscheduled Phase chips */}
+              {scheduledPhases.map((phase) => {
+                const p = getPhaseProgress(wbsItems, phase.id);
+                const sd = new Date(phase.planned_start_date!); const ed = new Date(phase.planned_end_date!);
+                const color = getStatusColor(phase.status || 'not_started');
+                const left = barL(sd); const width = Math.max(barW(sd, ed), 80);
+                return (
+                  <button key={`road-${phase.id}`}
+                    className={`absolute top-2 bottom-2 rounded-md border shadow-sm ${color} cursor-pointer hover:brightness-110 transition-all focus:outline-none focus:ring-2 focus:ring-primary flex items-center px-3 min-w-0`}
+                    style={{ left, width }}
+                    onClick={() => openStageDlg(phase)}
+                    aria-label={`${phase.title}, ${fmt(sd)} sampai ${fmt(ed)}, progres ${p}%, ${getStLabel(phase.status || 'not_started')}`}
+                    title={`${phase.title}: ${fmt(sd)} → ${fmt(ed)}`}>
+                    {p > 0 && <div className="absolute inset-y-0 left-0 bg-black/20 rounded-l-md" style={{ width: `${p}%` }} />}
+                    <span className="text-[11px] font-bold text-white truncate relative z-10 drop-shadow-sm">{phase.title}</span>
+                    <span className="text-[10px] text-white/90 font-semibold shrink-0 ml-1.5 relative z-10">{p}%</span>
+                  </button>
+                );
+              })}
               {unscheduledPhases.length > 0 && (
                 <div className="absolute right-2 top-2 bottom-2 flex items-center gap-1">
                   {unscheduledPhases.map((s) => (
                     <button key={`uns-${s.id}`} className="text-[9px] bg-amber-50 border border-amber-200 rounded px-2 py-1 text-amber-700 cursor-pointer hover:bg-amber-100"
-                      onClick={() => openStageDlg(s)}>
-                      {s.title} • Atur Jadwal
-                    </button>
+                      onClick={() => openStageDlg(s)}>{s.title} • Atur Jadwal</button>
                   ))}
                 </div>
               )}
@@ -239,75 +216,110 @@ export default function ProjectTimelineView({ wbsItems, stages: dbStages, orgMem
       )}
 
       {/* 2. Month header */}
-      <div className="flex border-b bg-slate-50 shrink-0" ref={monRef}>
+      <div className="flex border-b bg-slate-50 shrink-0">
         <div className="py-2 px-4 text-[10px] font-bold uppercase text-slate-500 border-r flex items-center" style={{ width: LW }}>Timeline</div>
         <div className="flex-1 overflow-hidden">
           {range && <div className="flex" style={{ minWidth: range.total * MONTH_WIDTH }}>{range.months.map((m, i) => (<div key={i} className="shrink-0 text-center py-2 text-[10px] font-bold text-slate-500 border-r" style={{ width: MONTH_WIDTH }}>{m.label}</div>))}</div>}
         </div>
       </div>
 
-      {/* 3. Activity rows — left tree + right execution */}
+      {/* 3. Body: left hierarchy + right Gantt */}
       <div className="flex flex-1 overflow-hidden">
         <div className="overflow-y-auto overflow-x-hidden border-r shrink-0" ref={lpRef} style={{ width: LW }}>
-          {timelineRows.map((row) => (
-            <div key={row.key} ref={row.type !== 'stage-header' ? (el) => (leftRowRefs.current[row.key] = el) : undefined}
-              className={`flex items-center gap-1 px-2 py-1.5 border-b ${
-                row.type === 'stage-header' ? 'bg-slate-50 font-bold' :
-                row.type === 'activity' ? 'pl-4' : 'pl-8'
-              }`}
-              style={{ minHeight: row.type === 'stage-header' ? STAGE_H : ROW_BASE }}>
-              <div className="flex-1 min-w-0">
-                {row.type === 'stage-header' && (
-                  <div className="flex items-center justify-between w-full">
-                    <span className="text-xs font-bold uppercase truncate">
-                      {row.stage ? row.stage.title : 'Belum Ditentukan Stage'}
-                    </span>
-                    {row.stage && (
-                      <div className="flex items-center gap-1 shrink-0">
-                        <span className="text-[9px] text-muted-foreground">{getPhaseProgress(wbsItems, row.stage.id)}%</span>
-                        {isOwner && <Button size="sm" variant="ghost" className="h-5 text-[8px] px-1" onClick={() => openStageDlg(row.stage!)}>Edit</Button>}
+          {timelineRows.map((row) => {
+            const durationDw = row.item?.duration_weeks;
+            return (
+              <div key={row.key} ref={row.type !== 'stage-header' ? (el) => (leftRowRefs.current[row.key] = el) : undefined}
+                className={`flex items-center gap-1 px-2 py-1.5 border-b ${
+                  row.type === 'stage-header' ? 'bg-slate-50 font-bold' :
+                  row.type === 'activity' ? 'pl-4' : 'pl-8'
+                }`}
+                style={{ minHeight: row.type === 'stage-header' ? STAGE_H : ROW_BASE }}>
+                <div className="flex-1 min-w-0">
+                  {row.type === 'stage-header' && (
+                    <div className="flex items-center justify-between w-full">
+                      <span className="text-xs font-bold uppercase truncate">{row.stage ? row.stage.title : 'Belum Ditentukan Stage'}</span>
+                      {row.stage && (
+                        <div className="flex items-center gap-1 shrink-0">
+                          <span className="text-[9px] text-muted-foreground">{getPhaseProgress(wbsItems, row.stage.id)}%</span>
+                          {isOwner && <Button size="sm" variant="ghost" className="h-5 text-[8px] px-1" onClick={() => openStageDlg(row.stage!)}>Edit</Button>}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {(row.type === 'activity' || row.type === 'task') && row.item && (
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <Badge variant="outline" className={`text-[8px] py-0 h-4 shrink-0 ${row.type === 'activity' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                          {row.type === 'activity' ? 'Activity' : 'Task'}
+                        </Badge>
+                        <span className="text-xs font-medium truncate">{row.item.name}</span>
                       </div>
-                    )}
-                  </div>
-                )}
-                {(row.type === 'activity' || row.type === 'task') && row.item && (
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <Badge variant="outline" className={`text-[8px] py-0 h-4 shrink-0 ${row.type === 'activity' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}`}>
-                        {row.type === 'activity' ? 'Activity' : 'Task'}
-                      </Badge>
-                      <span className="text-xs font-medium truncate">{row.item.name}</span>
+                      <div className="flex items-center gap-2 mt-0.5 text-[9px] text-muted-foreground">
+                        {/* Editable duration */}
+                        <span className="flex items-center gap-0.5">
+                          {isOwner && row.item ? (
+                            <Input type="number" min={1} max={52}
+                              value={durationDw ?? ''} placeholder="Mgg"
+                              onChange={(e) => { const v = parseInt(e.target.value); if (v >= 1 && onDurationChange) onDurationChange(row.item!.id, v); }}
+                              className="w-10 h-5 text-[9px] px-1 text-center" title="Durasi Minggu" />
+                          ) : (
+                            <span>{durationDw ? `${durationDw} Minggu` : 'Durasi belum diisi'}</span>
+                          )}
+                          {isOwner && <span className="text-[8px]">Minggu</span>}
+                        </span>
+                        {row.item.owner_id && <span className="truncate max-w-[80px]">{nm(row.item.owner_id, orgMemberLookup)}</span>}
+                        <span className={row.item.status === 'completed' ? 'text-emerald-700' : row.item.status === 'blocked' ? 'text-red-700' : ''}>{getStLabel(row.item.status)}</span>
+                        <span className="font-semibold">{row.item.progress_percent ?? (row.item.status === 'completed' ? 100 : 0)}%</span>
+                        {row.item.status === 'blocked' && <AlertTriangle className="h-3 w-3 text-red-500" />}
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-0.5 text-[9px] text-muted-foreground">
-                      <span>{row.item.duration_weeks ? `${row.item.duration_weeks} Minggu` : 'Durasi belum diisi'}</span>
-                      {row.item.owner_id && <span className="truncate max-w-[80px]">{nm(row.item.owner_id, orgMemberLookup)}</span>}
-                      <span className={row.item.status === 'completed' ? 'text-emerald-700' : row.item.status === 'blocked' ? 'text-red-700' : ''}>{getStLabel(row.item.status)}</span>
-                      <span className="font-semibold">{row.item.progress_percent ?? (row.item.status === 'completed' ? 100 : 0)}%</span>
-                      {row.item.status === 'blocked' && <AlertTriangle className="h-3 w-3 text-red-500" />}
-                    </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
-        {/* Gantt body — simplified execution rows */}
+        {/* Right Gantt — bars locked to Phase timeline */}
         <div className="flex-1 overflow-y-auto overflow-x-auto" ref={rpRef}>
           {range ? (
             <div style={{ minWidth: range.total * MONTH_WIDTH }}>
               {timelineRows.map((row) => {
-                if (row.type === 'stage-header') return <div key={`g-${row.key}`} className="border-b bg-slate-50/50" style={{ height: STAGE_H }} />;
+                if (row.type === 'stage-header') {
+                  // Find matching Phase start date for this stage
+                  const sd = row.stage?.planned_start_date ? new Date(row.stage.planned_start_date) : null;
+                  const ed = row.stage?.planned_end_date ? new Date(row.stage.planned_end_date) : null;
+                  return (
+                    <div key={`g-${row.key}`} className="border-b bg-slate-50/30 relative flex items-center" style={{ height: STAGE_H }}>
+                      {range.months.map((_, i) => (<div key={i} className="shrink-0 h-full border-r border-slate-50" style={{ width: MONTH_WIDTH }} />))}
+                      {sd && ed && (
+                        <div className="absolute top-1.5 h-3.5 rounded border border-blue-300 bg-blue-100/50" style={{ left: barL(sd), width: barW(sd, ed), minWidth: 40 }} />
+                      )}
+                    </div>
+                  );
+                }
                 const h = rowHeights[row.key] || ROW_BASE;
+                const sd = row.stage?.planned_start_date ? new Date(row.stage.planned_start_date) : null;
                 return (
                   <div key={`g-${row.key}`} className="border-b relative flex items-center" style={{ height: h }}>
                     {range.months.map((_, i) => (<div key={i} className="shrink-0 h-full border-r border-slate-50" style={{ width: MONTH_WIDTH }} />))}
-                    {/* Activity execution marker: thin indicator based on duration */}
-                    {row.type === 'activity' && row.item?.duration_weeks && row.item.duration_weeks > 0 && (
-                      <div className="absolute top-2 h-3 rounded bg-emerald-200/60 border border-emerald-300" style={{ left: 4, width: Math.min(row.item.duration_weeks * MONTH_WIDTH / 4, 200) }} />
+                    {/* Activity/Task duration bar — anchored to Phase start */}
+                    {row.item?.duration_weeks && row.item.duration_weeks > 0 && sd && (
+                      <div
+                        className={`absolute top-2 ${row.type === 'activity' ? 'h-4 rounded bg-emerald-500/70 border border-emerald-600 shadow-sm' : 'h-3 rounded bg-indigo-400/60 border border-indigo-500'}`}
+                        style={{
+                          left: barL(sd),
+                          width: Math.max(row.item.duration_weeks * MONTH_WIDTH / 4, 20),
+                        }}
+                        title={`${row.item?.name}: ${row.item?.duration_weeks} minggu`}>
+                        {row.item?.progress_percent ? row.item.progress_percent > 0 && (
+                          <div className="absolute inset-y-0 left-0 bg-white/40 rounded-l" style={{ width: `${Math.min(row.item.progress_percent, 100)}%` }} />
+                        ) : null}
+                      </div>
                     )}
-                    {row.type === 'task' && row.item?.duration_weeks && row.item.duration_weeks > 0 && (
-                      <div className="absolute top-2 h-2.5 rounded bg-indigo-200/50 border border-indigo-300" style={{ left: 4, width: Math.min(row.item.duration_weeks * MONTH_WIDTH / 4, 160) }} />
+                    {row.item && (!row.item.duration_weeks || row.item.duration_weeks <= 0) && (
+                      <div className="absolute top-3 left-2 text-[7px] text-amber-600 italic">Durasi belum diisi</div>
                     )}
                   </div>
                 );
@@ -343,7 +355,7 @@ export default function ProjectTimelineView({ wbsItems, stages: dbStages, orgMem
                   {phaseActivities(dlgStage.id).map((a) => (
                     <div key={a.id} className="flex items-center justify-between py-1 border-b text-[11px]">
                       <span className="truncate">{a.name}</span>
-                      <span className="text-muted-foreground shrink-0">{a.duration_weeks ? `${a.duration_weeks} Minggu` : 'Durasi belum diisi'}</span>
+                      <span className="text-muted-foreground shrink-0">{a.duration_weeks ? `${a.duration_weeks} Minggu` : '—'}</span>
                     </div>
                   ))}
                   {phaseActivities(dlgStage.id).length === 0 && <span className="text-muted-foreground italic">Belum ada Activity</span>}
