@@ -1230,6 +1230,10 @@ export default function WBSBuilder({
           status: item.status || 'not_started',
           progress_percent: item.status === 'completed' ? 100 : (item.progress_percent ?? 0),
           blocked_reason: item.status === 'blocked' ? item.blocked_reason : null,
+          planned_start_date: item.planned_start_date ?? null,
+          planned_end_date: item.planned_end_date ?? null,
+          actual_start_date: item.actual_start_date ?? null,
+          actual_end_date: item.actual_end_date ?? null,
         };
 
         // NOTE: completed_at and completed_by are omitted intentionally.
@@ -2523,37 +2527,24 @@ export default function WBSBuilder({
                         />
                       )}
 
-                      {/* PM schedule label for Activity/Task */}
+                      {/* PM schedule label */}
                       {productMode === 'project_management' && (item.level === 2 || item.level === 3) && (() => {
-                        const l1 = item.parent_id ? wbsItems.find((w) => w.id === item.parent_id) : null;
-                        const sid = l1?.stage_id || (item.level === 1 ? item.stage_id : null);
-                        const stage = sid ? stages.find((s) => s.id === sid) : null;
-                        const stageStart = (stage as any)?.planned_start_date || null;
-                        const sm = item.start_month;
-                        const dw = item.duration_weeks;
-                        const missing = !stageStart || sm == null || dw == null || dw <= 0;
-                        let label = 'Tenggat Belum Diatur';
-                        let labelClass = 'text-amber-600';
+                        const ps = item.planned_start_date; const pe = item.planned_end_date;
+                        const missing = !ps || !pe;
+                        let label = 'Jadwal Belum Diatur'; let cls = 'text-amber-600';
                         if (!missing && item.status !== 'completed' && item.status !== 'cancelled') {
                           try {
-                            const anchor = new Date(stageStart);
-                            const start = new Date(anchor.getFullYear(), anchor.getMonth() + (sm - 1), 1);
-                            const finish = new Date(start.getTime() + dw * 7 * 86400000);
-                            const now = new Date();
-                            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                            const finishDay = new Date(finish.getFullYear(), finish.getMonth(), finish.getDate());
-                            const diffDays = Math.floor((today.getTime() - finishDay.getTime()) / 86400000);
-                            if (diffDays > 0) { label = `Terlambat ${diffDays} Hari`; labelClass = 'text-red-600 font-semibold'; }
-                            else if (diffDays >= -7) { label = `Jatuh Tempo ${Math.abs(diffDays)} Hari`; labelClass = 'text-amber-600'; }
-                            else { const days = Math.ceil((finish.getTime() - today.getTime()) / 86400000); label = `Jatuh Tempo ${days} Hari`; labelClass = 'text-muted-foreground'; }
-                          } catch { label = 'Tenggat Belum Diatur'; }
-                        } else if (item.status === 'completed') { label = 'Selesai'; labelClass = 'text-emerald-600'; }
-                        else if (item.status === 'cancelled') { label = 'Dibatalkan'; labelClass = 'text-slate-400'; }
-                        return (
-                          <span className={`text-[8px] ${labelClass} mt-0.5 block truncate`} title={`Mulai Bulan ${sm ?? '?'}, ${dw ?? '?'} minggu`}>
-                            {label}
-                          </span>
-                        );
+                            const finish = new Date(pe); const now = new Date();
+                            const todayD = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                            const finishD = new Date(finish.getFullYear(), finish.getMonth(), finish.getDate());
+                            const diff = Math.floor((todayD.getTime() - finishD.getTime()) / 86400000);
+                            if (diff > 0) { label = `Terlambat ${diff} Hari`; cls = 'text-red-600 font-semibold'; }
+                            else if (diff >= -7) { label = `Jatuh Tempo ${Math.abs(diff)} Hari`; cls = 'text-amber-600'; }
+                            else { label = `Mulai ${ps} → Tenggat ${pe}`; cls = 'text-muted-foreground'; }
+                          } catch { label = 'Jadwal Belum Diatur'; }
+                        } else if (item.status === 'completed') { label = 'Selesai'; cls = 'text-emerald-600'; }
+                        else if (item.status === 'cancelled') { label = 'Dibatalkan'; cls = 'text-slate-400'; }
+                        return <span className={`text-[8px] ${cls} mt-0.5 block truncate`}>{label}</span>;
                       })()}
 
                       {/* On-Demand Detail Popover Button */}
@@ -3807,11 +3798,10 @@ export default function WBSBuilder({
             orgMembers={orgMembers}
             orgMemberLookup={orgMemberLookup}
             isOwner={isOwner}
-            onStagesRefresh={() => { void loadStages(); }}
-            onScheduleChange={(wbsId, field, value) => {
+            onScheduleSave={(wbsId, plannedStart, plannedEnd) => {
               const item = wbsItems.find((w) => w.id === wbsId);
               if (item) {
-                const updated = { ...item, [field]: value };
+                const updated = { ...item, planned_start_date: plannedStart, planned_end_date: plannedEnd };
                 updateItemLocally(updated);
                 triggerAutosave(updated);
               }
