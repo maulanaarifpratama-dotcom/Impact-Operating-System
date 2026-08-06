@@ -33,6 +33,7 @@ import { evaluateMirrorBudgetModel } from '@/lib/budget/mirrorBudgetModel';
 import type { Database } from '@/integrations/supabase/database.generated';
 import ActivityBudgetEditor from '@/components/budget/ActivityBudgetEditor';
 import BudgetDrawer from '@/components/budget/BudgetDrawer';
+import CompletionClaimReviewDialog from '@/components/verification/CompletionClaimReviewDialog';
 import { useOrgRole } from '@/hooks/useOrgRole';
 import { formatMember, formatMemberCompact, type MemberDisplay } from '@/lib/memberDisplay';
 import {
@@ -4344,7 +4345,7 @@ export default function WBSBuilder({
                               {/* NOTE: Real security protection is enforced server-side by trigger handle_wbs_completion_claim_audit in Postgres */}
                             </div>
                           </div>
-                        ) : (
+                        ) : isOwner && (
                           claim.status === 'submitted' && (
                             <div className="pt-3 border-t space-y-3">
                               <div className="space-y-1">

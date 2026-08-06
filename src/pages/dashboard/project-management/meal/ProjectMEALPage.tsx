@@ -40,6 +40,8 @@ import {
   type BudgetItemInput,
 } from '@/lib/budget/budgetModel';
 import { resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
+import { useOrgRole } from '@/hooks/useOrgRole';
+import CompletionClaimReviewDialog from '@/components/verification/CompletionClaimReviewDialog';
 
 type MealTab = 'control-center' | 'deliverables' | 'evidence' | 'activity';
 
@@ -565,21 +567,77 @@ function DeliverablesTab({ projectId }: { projectId: string }) {
 }
 
 function EvidenceVerificationTab({ projectId }: { projectId: string }) {
+  const { role: orgRole } = useOrgRole();
+  const isOwner = orgRole === 'owner';
+  const { user } = { user: { id: null } }; // fallback — auth is handled by backend
   const [claims, setClaims] = useState<any[]>([]);
+  const [evidenceMap, setEvidenceMap] = useState<Record<string, any[]>>({});
+  const [wbsMap, setWbsMap] = useState<Record<string, { id: string; name: string; level: number }>>({});
+  const [submitterMap, setSubmitterMap] = useState<Record<string, string>>({});
+  const [reviewerMap, setReviewerMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<string>('submitted');
+  const [selectedClaim, setSelectedClaim] = useState<any | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
-      const { data, error } = await supabase
+      const { data, error: claimsErr } = await supabase
         .from('wbs_completion_claims')
-        .select('id, wbs_item_id, claim_note, claimed_progress, status, submitted_at, review_note')
+        .select('id, wbs_item_id, claim_note, claimed_progress, status, submitted_at, review_note, claimed_by, reviewed_by, reviewed_at')
         .eq('lfa_project_id', projectId)
         .order('created_at', { ascending: false });
-      if (error) throw error;
-      setClaims((data || []) as any[]);
-    } catch {
-      // silent
+      if (claimsErr) throw claimsErr;
+      const rows = (data || []) as any[];
+      setClaims(rows);
+
+      const claimIds = rows.map((c: any) => c.id);
+      if (claimIds.length > 0) {
+        const { data: evData } = await supabase
+          .from('wbs_completion_evidence')
+          .select('id, claim_id, evidence_type, title, storage_reference, uploaded_at')
+          .in('claim_id', claimIds)
+          .order('uploaded_at', { ascending: true });
+        const evMap: Record<string, any[]> = {};
+        for (const ev of (evData || [])) {
+          if (!evMap[ev.claim_id]) evMap[ev.claim_id] = [];
+          evMap[ev.claim_id].push(ev);
+        }
+        setEvidenceMap(evMap);
+      }
+
+      const wbsIds = Array.from(new Set(rows.map((c: any) => c.wbs_item_id).filter(Boolean)));
+      if (wbsIds.length > 0) {
+        const { data: wbsData } = await supabase
+          .from('lfa_wbs_items')
+          .select('id, name, level')
+          .in('id', wbsIds);
+        const wm: Record<string, { id: string; name: string; level: number }> = {};
+        for (const w of (wbsData || [])) {
+          wm[w.id] = { id: w.id, name: w.name || 'Tanpa Nama', level: w.level || 2 };
+        }
+        setWbsMap(wm);
+      }
+
+      const userIds = Array.from(new Set([
+        ...rows.map((c: any) => c.claimed_by).filter(Boolean),
+        ...rows.map((c: any) => c.reviewed_by).filter(Boolean),
+      ]));
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', userIds);
+        const sm: Record<string, string> = {};
+        for (const p of (profiles || [])) sm[p.id] = p.full_name || p.id;
+        setSubmitterMap(sm);
+        setReviewerMap(sm);
+      }
+    } catch (err: any) {
+      setError(err?.message || 'Gagal memuat antrean verifikasi.');
     } finally {
       setLoading(false);
     }
@@ -593,52 +651,137 @@ function EvidenceVerificationTab({ projectId }: { projectId: string }) {
       case 'submitted': return <Badge variant="secondary" className="bg-amber-100 text-amber-800 border-amber-300">Menunggu Verifikasi</Badge>;
       case 'needs_revision': return <Badge variant="secondary" className="bg-orange-100 text-orange-800 border-orange-300">Perlu Perbaikan</Badge>;
       case 'rejected': return <Badge variant="destructive">Ditolak</Badge>;
-      default: return <Badge variant="outline" className="text-muted-foreground">{status}</Badge>;
+      default: return <Badge variant="outline">{status}</Badge>;
     }
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin" />
-      </div>
-    );
-  }
+  const getLevelBadge = (level: number) => {
+    switch (level) {
+      case 2: return <Badge variant="outline" className="text-[8px] py-0 h-4 bg-emerald-50 text-emerald-700">Activity</Badge>;
+      case 3: return <Badge variant="outline" className="text-[8px] py-0 h-4 bg-indigo-50 text-indigo-700">Task</Badge>;
+      case 4: return <Badge variant="outline" className="text-[8px] py-0 h-4 bg-slate-100 text-slate-600">Subtask</Badge>;
+      default: return null;
+    }
+  };
 
-  if (claims.length === 0) {
-    return (
-      <Card>
-        <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-          <ClipboardCheck className="h-10 w-10 text-muted-foreground" />
-          <CardTitle className="text-lg">Belum ada Klaim</CardTitle>
-          <CardDescription>Klaim penyelesaian dibuat dari Activity di Work Plan.</CardDescription>
-        </CardContent>
-      </Card>
-    );
-  }
+  const filtered = claims.filter((c: any) => filter === 'all' ? true : c.status === filter);
+
+  const submittedCount = claims.filter((c: any) => c.status === 'submitted').length;
+
+  const handleReviewed = useCallback(() => {
+    void load();
+    setDialogOpen(false);
+    setSelectedClaim(null);
+  }, [load]);
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>
+  );
+
+  if (error) return (
+    <Card className="border-destructive/50"><CardContent className="py-4 text-sm text-destructive">{error}</CardContent></Card>
+  );
 
   return (
     <div className="space-y-3">
-      {claims.map((c: any) => (
-        <Card key={c.id}>
-          <CardContent className="space-y-2 py-4">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-semibold">Claim {c.id.slice(0, 8)}</span>
-                {getClaimBadge(c.status)}
-              </div>
-              <span className="text-xs text-muted-foreground">
-                {c.submitted_at ? new Date(c.submitted_at).toLocaleDateString('id-ID') : '-'}
-              </span>
-            </div>
-            {c.claim_note && <p className="text-sm text-muted-foreground">{c.claim_note}</p>}
-            <div className="flex items-center gap-4 text-xs text-muted-foreground">
-              <span>Progres diklaim: {c.claimed_progress}%</span>
-              {c.review_note && <span className="italic">Catatan: {c.review_note}</span>}
-            </div>
+      {/* Filter tabs */}
+      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
+        {[
+          { key: 'submitted', label: 'Menunggu Verifikasi' },
+          { key: 'needs_revision', label: 'Perlu Revisi' },
+          { key: 'verified', label: 'Terverifikasi' },
+          { key: 'rejected', label: 'Ditolak' },
+          { key: 'all', label: 'Semua' },
+        ].map((f) => (
+          <button key={f.key} onClick={() => setFilter(f.key)}
+            className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
+              filter === f.key ? 'bg-white dark:bg-slate-950 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {f.label}{f.key === 'submitted' && submittedCount > 0 && <span className="ml-1 text-[9px] bg-amber-500 text-white rounded-full px-1.5 py-0">{submittedCount}</span>}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+            <ClipboardCheck className="h-10 w-10 text-muted-foreground" />
+            <CardTitle className="text-lg">
+              {filter === 'submitted' ? 'Tidak ada klaim yang menunggu verifikasi.' : 'Belum ada klaim'}
+            </CardTitle>
+            <CardDescription>Klaim penyelesaian dibuat dari Activity di Work Plan.</CardDescription>
           </CardContent>
         </Card>
-      ))}
+      ) : (
+        filtered.map((c: any) => {
+          const wbs = wbsMap[c.wbs_item_id];
+          const evCount = (evidenceMap[c.id] || []).length;
+          return (
+            <Card key={c.id} className="cursor-pointer hover:border-primary/50 transition-colors"
+              onClick={() => { setSelectedClaim(c); setDialogOpen(true); }}>
+              <CardContent className="space-y-2 py-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {wbs && getLevelBadge(wbs.level)}
+                    <span className="text-sm font-semibold truncate">{wbs?.name || c.wbs_item_id?.slice(0, 8) || 'Claim'}</span>
+                    {getClaimBadge(c.status)}
+                  </div>
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {c.submitted_at ? new Date(c.submitted_at).toLocaleDateString('id-ID') : '-'}
+                  </span>
+                </div>
+                {c.claim_note && <p className="text-xs text-muted-foreground line-clamp-2">{c.claim_note}</p>}
+                <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                  <span>Pengaju: {submitterMap[c.claimed_by] || c.claimed_by?.slice(0, 8) || '—'}</span>
+                  <span>Progress: {c.claimed_progress || 0}%</span>
+                  {evCount > 0 && <span className="flex items-center gap-1"><FileText className="h-3 w-3" />{evCount} bukti</span>}
+                </div>
+                {c.review_note && <p className="text-xs italic text-orange-700 dark:text-orange-400 line-clamp-1">Catatan: {c.review_note}</p>}
+              </CardContent>
+            </Card>
+          );
+        })
+      )}
+
+      {selectedClaim && (
+        <CompletionClaimReviewDialog
+          open={dialogOpen}
+          onOpenChange={(open) => { if (!open) { setDialogOpen(false); setSelectedClaim(null); } }}
+          projectId={projectId}
+          claim={{
+            id: selectedClaim.id,
+            wbsItemId: selectedClaim.wbs_item_id,
+            claimNote: selectedClaim.claim_note,
+            claimedProgress: selectedClaim.claimed_progress || 0,
+            status: selectedClaim.status,
+            submittedAt: selectedClaim.submitted_at,
+            reviewNote: selectedClaim.review_note,
+            claimedBy: selectedClaim.claimed_by,
+            reviewedBy: selectedClaim.reviewed_by,
+            reviewedAt: selectedClaim.reviewed_at,
+          }}
+          wbsContext={{
+            id: selectedClaim.wbs_item_id,
+            name: wbsMap[selectedClaim.wbs_item_id]?.name || selectedClaim.wbs_item_id?.slice(0, 8) || '—',
+            level: wbsMap[selectedClaim.wbs_item_id]?.level || 2,
+            stageTitle: null,
+          }}
+          evidence={(evidenceMap[selectedClaim.id] || []).map((ev: any) => ({
+            id: ev.id,
+            evidence_type: ev.evidence_type,
+            title: ev.title,
+            description: ev.description,
+            storage_reference: ev.storage_reference,
+            uploaded_at: ev.uploaded_at,
+          }))}
+          submitterName={submitterMap[selectedClaim.claimed_by] || null}
+          reviewerName={reviewerMap[selectedClaim.reviewed_by] || null}
+          isOwner={isOwner}
+          currentUserId={user?.id || null}
+          onReviewed={handleReviewed}
+        />
+      )}
     </div>
   );
 }
