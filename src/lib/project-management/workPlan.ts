@@ -13,10 +13,13 @@ export interface WbsItemInput {
   status?: string | null;
   progress_percent?: number | null;
   pic?: string | null;
+  owner_id?: string | null;
+  reviewer_id?: string | null;
   start_month?: number;
   duration_weeks?: number;
   stage_id?: string | null;
   dependencies?: string[] | null;
+  blocked_reason?: string | null;
 }
 
 export interface BudgetItemInput {

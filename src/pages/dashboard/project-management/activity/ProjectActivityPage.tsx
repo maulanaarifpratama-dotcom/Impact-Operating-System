@@ -29,6 +29,7 @@ const EVENT_LABELS: Record<string, string> = {
   wbs_stage_assigned: 'WBS ditautkan ke Stage',
   wbs_stage_unassigned: 'Tautan WBS ke Stage dilepas',
   wbs_people_changed: 'PIC/Reviewer WBS berubah',
+  wbs_status_changed: 'Status WBS berubah',
   meal_context_changed: 'Context indikator MEAL diperbarui',
   deliverable_created: 'Deliverable dibuat',
   deliverable_status_changed: 'Status Deliverable berubah',

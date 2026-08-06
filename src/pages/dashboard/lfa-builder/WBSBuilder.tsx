@@ -221,6 +221,7 @@ export default function WBSBuilder({
   const { user } = useAuth();
   const { role: orgRole, canDelete: canManage } = useOrgRole();
   const isOwnerOrAdmin = orgRole === 'owner' || orgRole === 'admin';
+  const canManageProjectWork = isOwnerOrAdmin;
   const navigate = useNavigate();
   const [wbsItems, setWbsItems] = useState<WbsItem[]>([]);
   const [stages, setStages] = useState<WbsStageOption[]>([]);
@@ -1862,6 +1863,19 @@ export default function WBSBuilder({
 
     wbsItems
       .filter((i) => i.level !== 1)
+      .filter((item) => {
+        if (workPlanFilter === 'all') return true;
+        if (workPlanFilter === 'my-work') return user?.id && item.owner_id === user.id;
+        if (workPlanFilter === 'unassigned') return !item.owner_id;
+        if (workPlanFilter === 'blocked') return item.status === 'blocked';
+        if (workPlanFilter === 'overdue') {
+          if (item.status === 'completed') return false;
+          const endDate = new Date();
+          endDate.setMonth(endDate.getMonth() + (item.start_month ?? 1) - 1 + Math.ceil((item.duration_weeks ?? 4) / 4));
+          return endDate < new Date();
+        }
+        return true;
+      })
       .forEach((item) => {
         const stageId = resolveStageId(item);
         const key = stageId && groups.has(stageId) ? stageId : UNASSIGNED_KEY;
@@ -1871,7 +1885,7 @@ export default function WBSBuilder({
     const ordered = activeStages.map((s) => groups.get(s.id)!);
     const unassigned = groups.get(UNASSIGNED_KEY)!;
     return unassigned.items.length > 0 ? [...ordered, unassigned] : ordered;
-  }, [productMode, wbsItems, stages]);
+  }, [productMode, wbsItems, stages, workPlanFilter, user?.id]);
 
   // Canonical Work Plan view (PM mode only)
   const workPlanView = useMemo(() => {
@@ -2631,7 +2645,11 @@ export default function WBSBuilder({
                                         <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-800 border-blue-200 py-0.5 h-auto">
                                           Real: {formatBudgetBadge(rollup.realizedTotal || 0)} {rollup.burnPercent !== null ? `(${rollup.burnPercent}%)` : ''}
                                         </Badge>
-                                      ) : (
+                      ) : productMode === 'project_management' && !canManageProjectWork && item.owner_id !== user?.id ? (
+                        <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${getStatusStyleClass(item.status as WbsStatus)}`}>
+                          {getStatusLabel(item.status as WbsStatus)}
+                        </span>
+                      ) : (
                                         <Badge variant="secondary" className="text-[8px] bg-slate-100 text-slate-500 border border-slate-200 py-0.5 h-auto">
                                           Belum ada data realisasi
                                         </Badge>
@@ -3179,7 +3197,7 @@ export default function WBSBuilder({
                           <Plus className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      {item.level !== 1 && (
+                      {item.level !== 1 && (productMode !== 'project_management' || canManageProjectWork) && (
                         <Button
                           variant="ghost"
                           size="icon"

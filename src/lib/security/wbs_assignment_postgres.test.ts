@@ -544,6 +544,8 @@ describe.skipIf(!canReachPostgres)('WBS Assignment Authorization (PM) — Real P
       const { org, project } = await createOrgAndProject(client, 'Status Org', ownerId, 'Status Proj');
       await addMember(client, org, memberId, 'member');
       const wbs = await createWbsItem(client, org, project, 'Activity P');
+      await actAs(client, ownerId);
+      await client.query(`UPDATE public.lfa_wbs_items SET owner_id = $1 WHERE id = $2`, [memberId, wbs.id]);
 
       await actAs(client, memberId);
       await client.query(`UPDATE public.lfa_wbs_items SET status = 'in_progress' WHERE id = $1`, [wbs.id]);

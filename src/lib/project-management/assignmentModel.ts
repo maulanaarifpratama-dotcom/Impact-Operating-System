@@ -208,8 +208,8 @@ export function computeGroupedWorkload(input: ComputeWorkloadInput): GroupedWork
   const active = wbsItems.filter((w) => w.level >= 2 && w.status !== 'cancelled');
 
   const filtered = active.filter((w) => {
-    if (filter === 'my-work') return currentUserId && w.pic === currentUserId;
-    if (filter === 'unassigned') return !w.pic || !members.has(w.pic);
+    if (filter === 'my-work') return currentUserId && w.owner_id === currentUserId;
+    if (filter === 'unassigned') return !w.owner_id;
     if (filter === 'overdue') {
       if (w.status === 'completed') return false;
       const endDate = computeEndDate(w);
