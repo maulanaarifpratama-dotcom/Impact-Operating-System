@@ -15,7 +15,7 @@ serve(async (req: Request) => {
     // 1. Authenticate caller
     const ctx = await authenticate(req);
     const body = await req.json();
-    const { action = 'send', invitationId, organizationId, email, role = 'member', appUrl } = body;
+    const { action = 'send', invitationId, organizationId, email, role = 'member', jobTitle = null, appUrl } = body;
 
     if (!organizationId || !email) {
       return errorResponse("organizationId dan email wajib diisi.", 400);
@@ -88,7 +88,10 @@ serve(async (req: Request) => {
             token,
             expires_at: expiresAt,
             role,
-            invited_by: ctx.userId
+            job_title: jobTitle || null,
+            invited_by: ctx.userId,
+            status: 'pending',
+            created_at: new Date().toISOString()
           })
           .eq('id', existingInv.id)
           .select('*')
@@ -103,6 +106,7 @@ serve(async (req: Request) => {
             organization_id: organizationId,
             email: email.trim().toLowerCase(),
             role,
+            job_title: jobTitle || null,
             invited_by: ctx.userId,
             token,
             status: 'pending',

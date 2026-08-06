@@ -2482,6 +2482,7 @@ export type Database = {
         Row: {
           id: string
           invited_by: string | null
+          job_title: string | null
           joined_at: string
           organization_id: string
           role: Database["public"]["Enums"]["org_role"]
@@ -2490,6 +2491,7 @@ export type Database = {
         Insert: {
           id?: string
           invited_by?: string | null
+          job_title?: string | null
           joined_at?: string
           organization_id: string
           role?: Database["public"]["Enums"]["org_role"]
@@ -2498,6 +2500,7 @@ export type Database = {
         Update: {
           id?: string
           invited_by?: string | null
+          job_title?: string | null
           joined_at?: string
           organization_id?: string
           role?: Database["public"]["Enums"]["org_role"]

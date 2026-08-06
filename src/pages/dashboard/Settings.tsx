@@ -34,13 +34,7 @@ import {
   Mail
 } from 'lucide-react';
 import { fromJson } from '@/integrations/supabase/json';
-
-function initials(name?: string | null, email?: string | null) {
-  const src = (name || email || '?').trim();
-  const parts = src.split(/\s+/);
-  if (parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
-  return src.slice(0, 2).toUpperCase();
-}
+import { initials, FUNCTIONAL_ROLES, formatMember } from '@/lib/memberDisplay';
 
 export default function Settings() {
   const { user } = useAuth();
@@ -167,7 +161,7 @@ export default function Settings() {
       if (!orgId) return [];
       const { data: members, error: membersError } = await supabase
         .from('organization_members')
-        .select('id, role, joined_at, user_id')
+        .select('id, role, job_title, joined_at, user_id')
         .eq('organization_id', orgId)
         .order('joined_at', { ascending: true });
 
@@ -215,6 +209,7 @@ export default function Settings() {
 
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'member' | 'admin'>('member');
+  const [inviteJobTitle, setInviteJobTitle] = useState('');
   const [isInviting, setIsInviting] = useState(false);
   const [resendingId, setResendingId] = useState<string | null>(null);
   const [cancelInviteTarget, setCancelInviteTarget] = useState<{ id: string; email: string } | null>(null);
@@ -238,6 +233,27 @@ export default function Settings() {
     } catch (err: any) {
       console.error('[Settings] Error updating member role:', err);
       toast.error('Gagal merubah hak akses: ' + err.message);
+    }
+  };
+
+  // Update member job_title (functional role)
+  const handleUpdateMemberJobTitle = async (memberId: string, targetJobTitle: string) => {
+    if (!isAdminOrOwner) {
+      toast.error('Gagal: Hanya Owner atau Admin yang dapat merubah peran/jabatan');
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from('organization_members')
+        .update({ job_title: targetJobTitle || null })
+        .eq('id', memberId);
+
+      if (error) throw error;
+
+      await refetchTeam();
+    } catch (err: any) {
+      console.error('[Settings] Error updating member job_title:', err);
+      toast.error('Gagal merubah peran/jabatan: ' + err.message);
     }
   };
 
@@ -312,6 +328,7 @@ export default function Settings() {
             organization_id: orgId,
             user_id: profileData.id,
             role: inviteRole,
+            job_title: inviteJobTitle.trim() || null,
             invited_by: user?.id,
           });
 
@@ -330,6 +347,7 @@ export default function Settings() {
           organizationId: orgId,
           email: targetEmail,
           role: inviteRole,
+          jobTitle: inviteJobTitle.trim() || null,
           appUrl: window.location.origin,
         },
       });
@@ -722,6 +740,30 @@ export default function Settings() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="inviteJobTitle" className="text-xs font-bold text-slate-700">Peran / Jabatan (opsional)</Label>
+                    <Select value={inviteJobTitle} onValueChange={setInviteJobTitle} disabled={!isAdminOrOwner}>
+                      <SelectTrigger className="border-slate-200 focus-visible:ring-orange-500">
+                        <SelectValue placeholder="Pilih peran/jabatan" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {FUNCTIONAL_ROLES.map((r) => (
+                          <SelectItem key={r} value={r}>{r}</SelectItem>
+                        ))}
+                        <SelectItem value="Other">Lainnya (custom)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {inviteJobTitle === 'Other' && (
+                      <Input
+                        placeholder="Tulis jabatan kustom..."
+                        value={inviteJobTitle === 'Other' ? '' : inviteJobTitle}
+                        onChange={(e) => setInviteJobTitle(e.target.value)}
+                        disabled={!isAdminOrOwner}
+                        className="mt-2 border-slate-200 focus-visible:ring-orange-500 text-xs"
+                      />
+                    )}
+                  </div>
                 </CardContent>
                 <CardFooter className="border-t border-slate-50 pt-4 bg-slate-50/20">
                   <Button type="submit" disabled={isInviting || !isAdminOrOwner} className="w-full bg-orange-600 hover:bg-orange-700 text-white font-semibold flex items-center justify-center gap-2">
@@ -753,6 +795,7 @@ export default function Settings() {
                     <thead>
                       <tr className="border-b border-slate-100 bg-slate-50/50">
                         <th className="p-4 text-xs font-bold uppercase text-slate-500">Nama Anggota</th>
+                        <th className="p-4 text-xs font-bold uppercase text-slate-500 text-center">Peran / Jabatan</th>
                         <th className="p-4 text-xs font-bold uppercase text-slate-500 text-center">Tingkat Hak Akses</th>
                         <th className="p-4 text-xs font-bold uppercase text-slate-500 text-right">Aksi</th>
                       </tr>
@@ -761,27 +804,56 @@ export default function Settings() {
                       {teamMembers?.map((m) => {
                         const prof = m.profiles as any;
                         const isCurrentUser = m.user_id === user?.id;
+                        const member = formatMember(prof, m.job_title, m.role, prof?.avatar_url);
+                        const currentJobTitle = m.job_title || '';
 
                         return (
                           <tr key={m.id} className="hover:bg-slate-50/30 transition-colors">
-                            <td className="p-4 flex items-center gap-3">
-                              <Avatar className="h-9 w-9 border border-orange-100">
-                                <AvatarImage src={prof?.avatar_url ?? undefined} alt={prof?.full_name ?? 'Avatar'} />
-                                <AvatarFallback className="bg-orange-100 text-orange-700 font-extrabold text-xs">
-                                  {initials(prof?.full_name, prof?.email)}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <div className="font-bold text-slate-800 flex items-center gap-1.5">
-                                  <span>{prof?.full_name ?? 'Pengguna'}</span>
-                                  {isCurrentUser && (
-                                    <Badge className="bg-orange-100 border-0 text-orange-700 hover:bg-orange-100 text-[9px] font-bold px-1.5 py-0">
-                                      Anda
-                                    </Badge>
-                                  )}
+                            <td className="p-4">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-9 w-9 border border-orange-100">
+                                  <AvatarImage src={member.avatarUrl ?? undefined} alt={member.displayName} />
+                                  <AvatarFallback className="bg-orange-100 text-orange-700 font-extrabold text-xs">
+                                    {member.displayInitials}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <div className="font-bold text-slate-800 flex items-center gap-1.5 text-sm">
+                                    <span>{member.displayName}</span>
+                                    {isCurrentUser && (
+                                      <Badge className="bg-orange-100 border-0 text-orange-700 hover:bg-orange-100 text-[9px] font-bold px-1.5 py-0">
+                                        Anda
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-muted-foreground leading-none mt-1">{member.email}</p>
                                 </div>
-                                <p className="text-[10px] text-muted-foreground leading-none mt-1">{prof?.email}</p>
                               </div>
+                            </td>
+                            <td className="p-4 text-center">
+                              {isAdminOrOwner ? (
+                                <div className="max-w-[160px] mx-auto">
+                                  <Select
+                                    value={currentJobTitle}
+                                    onValueChange={(val) => handleUpdateMemberJobTitle(m.id, val)}
+                                  >
+                                    <SelectTrigger className="h-7 border-slate-200 text-xs">
+                                      <SelectValue placeholder="Pilih peran..." />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {FUNCTIONAL_ROLES.map((r) => (
+                                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                                      ))}
+                                      <SelectItem value="Other">Lainnya (custom)</SelectItem>
+                                      {currentJobTitle && !FUNCTIONAL_ROLES.includes(currentJobTitle as any) && currentJobTitle !== 'Other' && (
+                                        <SelectItem value={currentJobTitle}>{currentJobTitle}</SelectItem>
+                                      )}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              ) : (
+                                <span className="text-xs text-slate-500">{currentJobTitle || '-'}</span>
+                              )}
                             </td>
                             <td className="p-4 text-center">
                               {isCurrentUser || !isAdminOrOwner || m.role === 'owner' ? (
