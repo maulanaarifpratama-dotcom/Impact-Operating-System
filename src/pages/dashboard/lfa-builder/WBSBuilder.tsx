@@ -2966,21 +2966,18 @@ export default function WBSBuilder({
                               data-testid="wbs-pic-select"
                               onChange={(e) => {
                                 const val = e.target.value || null;
-                                // NOTE: Backend authorization hardening required.
-                                // owner_id/reviewer_id writes currently lack role-based RLS.
-                                // See: NEEDS_WBS_ASSIGNMENT_AUTHORIZATION_HARDENING
-                                void supabase
-                                  .from('lfa_wbs_items')
-                                  .update({ owner_id: val, pic: val || undefined })
-                                  .eq('id', item.id)
-                                  .then(({ error }) => {
-                                    if (error) {
-                                      toast({ title: 'Gagal mengubah PIC', description: error.message, variant: 'destructive' });
-                                      return;
-                                    }
-                                    updateItemLocally({ ...item, owner_id: val, pic: val || undefined });
-                                    toast({ title: 'PIC Diperbarui' });
-                                  });
+                                void (supabase.rpc as any)('assign_wbs_item_people', {
+                                  p_wbs_item_id: item.id,
+                                  p_owner_id: val,
+                                  p_reviewer_id: null,
+                                }).then(({ error }: any) => {
+                                  if (error) {
+                                    toast({ title: 'Gagal mengubah PIC', description: error.message, variant: 'destructive' });
+                                    return;
+                                  }
+                                  updateItemLocally({ ...item, owner_id: val, pic: val || undefined });
+                                  toast({ title: 'PIC Diperbarui' });
+                                });
                               }}
                               className="text-[10px] w-full border bg-transparent rounded px-1 h-6 focus:outline-none dark:border-slate-800 truncate"
                               title="Pilih PIC"
