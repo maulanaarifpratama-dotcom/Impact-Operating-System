@@ -60,6 +60,10 @@ const ImpactoryAds = lazy(() => import('./pages/dashboard/products/ImpactoryAds'
 const LFABuilderIndex = lazy(() => import('./pages/dashboard/lfa-builder/LFABuilderIndex'));
 const LFABuilderEditor = lazy(() => import('./pages/dashboard/lfa-builder/LFABuilderEditor'));
 
+const ProjectManagementIndex = lazy(
+  () => import('./pages/dashboard/project-management/ProjectManagementIndex'),
+);
+
 function RouteFallback() {
   return (
     <div
@@ -215,6 +219,9 @@ const App = () => (
               {/* LFA Builder Routes */}
               <Route path="/dashboard/lfa-builder" element={<LFABuilderIndex />} />
               <Route path="/dashboard/lfa-builder/:projectId" element={<LFABuilderEditor />} />
+
+              {/* Project Management Routes (PM-1A: creation only, no workspace shell yet) */}
+              <Route path="/dashboard/project-management" element={<ProjectManagementIndex />} />
               <Route path="/dashboard/sroi" element={<SROIStandalone />} />
               <Route path="/dashboard/eroi" element={<EROIStandalone />} />
               <Route path="/dashboard/esg" element={<ESGDashboard />} />

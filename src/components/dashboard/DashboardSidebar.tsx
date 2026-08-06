@@ -19,6 +19,7 @@ import {
   TrendingUp,
   Leaf,
   Globe,
+  FolderKanban,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -67,6 +68,10 @@ const PROGRAM_DESIGN_ITEMS: NavItem[] = [
   { name: 'Grant Pipeline', href: '/dashboard/grantfinder', icon: Search },
   { name: 'LFA Builder', href: '/dashboard/lfa-builder', icon: Ruler },
   { name: 'Grantwriter', href: '/dashboard/grant-writer', icon: FileText },
+];
+
+const PROJECT_MANAGEMENT_ITEMS: NavItem[] = [
+  { name: 'Project Management', href: '/dashboard/project-management', icon: FolderKanban },
 ];
 
 const IMPACT_ITEMS: NavItem[] = [
@@ -178,6 +183,36 @@ export function DashboardSidebar() {
                           undefined
                         }
                         data-testid={item.name === 'LFA Builder' ? 'nav-lfa-builder' : undefined}
+                        to={item.href}
+                        end={item.exact}
+                        className={linkClass(active)}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{item.name}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* PROJECT MANAGEMENT Group */}
+        <SidebarGroup>
+          {!collapsed && (
+            <SidebarGroupLabel className="text-sidebar-foreground/60">
+              PROJECT MANAGEMENT
+            </SidebarGroupLabel>
+          )}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {PROJECT_MANAGEMENT_ITEMS.map((item) => {
+                const active = isActive(item);
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild tooltip={item.name} isActive={active}>
+                      <NavLink
                         to={item.href}
                         end={item.exact}
                         className={linkClass(active)}
