@@ -552,10 +552,10 @@ export default function BudgetCalculator({
 
     setBudgetItems(updatedItems);
     toast({
-      title: active ? 'NGO Mode Aktif 🛡️' : 'NGO Mode Nonaktif 🏢',
+      title: active ? 'Skenario Efisiensi Internal Aktif' : 'Skenario Efisiensi Internal Nonaktif',
       description: active 
-        ? 'Tarif personil disesuaikan dengan koefisien pengali NGO (70% dari tarif INKINDO).'
-        : 'Tarif personil disesuaikan dengan tarif komersial penuh INKINDO (100%).',
+        ? 'Tarif personil disesuaikan dengan multiplier skenario internal (70% dari referensi INKINDO).'
+        : 'Tarif personil menggunakan referensi INKINDO penuh (100%).',
     });
     if (onBudgetChanged) onBudgetChanged();
   };
@@ -1696,7 +1696,7 @@ export default function BudgetCalculator({
                 className="h-3.5 w-3.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
               />
               <label htmlFor="ngo-mode" className="text-[10px] font-black uppercase text-blue-700 dark:text-blue-400 select-none cursor-pointer tracking-wider flex items-center gap-1.5">
-                🛡️ NGO Mode Active (70% Multiplier)
+                Skenario Efisiensi Internal (70%)
               </label>
             </div>
 
@@ -2599,8 +2599,8 @@ export default function BudgetCalculator({
                                       <button
                                         type="button"
                                         onClick={() => handleCheckSbmWithAI(item)}
-                                        title="SBM PMK-32 AI Assistant"
-                                        className="absolute right-1.5 h-6 w-8 rounded bg-amber-50 hover:bg-amber-100 text-amber-600 dark:bg-amber-950/20 dark:hover:bg-amber-950/40 border border-amber-200/50 flex items-center justify-center text-[10px]"
+                                        title="Cek Referensi SBM TA 2026"
+                                        className="absolute right-1.5 h-6 w-8 rounded bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/20 dark:hover:bg-blue-950/40 border border-blue-200/50 flex items-center justify-center text-[10px]"
                                       >
                                         ✨
                                       </button>
