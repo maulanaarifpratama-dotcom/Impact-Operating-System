@@ -34,6 +34,8 @@ import type { Database } from '@/integrations/supabase/database.generated';
 import ActivityBudgetEditor from '@/components/budget/ActivityBudgetEditor';
 import BudgetDrawer from '@/components/budget/BudgetDrawer';
 import CompletionClaimReviewDialog from '@/components/verification/CompletionClaimReviewDialog';
+import ProjectTimelineView from '@/pages/dashboard/project-management/wbs/ProjectTimelineView';
+import { computeWbsSchedule, computeItemProgress as computeScheduleItemProgress, type StageScheduleInput, type WbsScheduleInput } from '@/lib/project-management/scheduleModel';
 import { useOrgRole } from '@/hooks/useOrgRole';
 import { formatMember, formatMemberCompact, type MemberDisplay } from '@/lib/memberDisplay';
 import {
@@ -2515,6 +2517,39 @@ export default function WBSBuilder({
                         />
                       )}
 
+                      {/* PM schedule label for Activity/Task */}
+                      {productMode === 'project_management' && (item.level === 2 || item.level === 3) && (() => {
+                        const l1 = item.parent_id ? wbsItems.find((w) => w.id === item.parent_id) : null;
+                        const sid = l1?.stage_id || (item.level === 1 ? item.stage_id : null);
+                        const stage = sid ? stages.find((s) => s.id === sid) : null;
+                        const stageStart = (stage as any)?.planned_start_date || null;
+                        const sm = item.start_month;
+                        const dw = item.duration_weeks;
+                        const missing = !stageStart || sm == null || dw == null || dw <= 0;
+                        let label = 'Tenggat Belum Diatur';
+                        let labelClass = 'text-amber-600';
+                        if (!missing && item.status !== 'completed' && item.status !== 'cancelled') {
+                          try {
+                            const anchor = new Date(stageStart);
+                            const start = new Date(anchor.getFullYear(), anchor.getMonth() + (sm - 1), 1);
+                            const finish = new Date(start.getTime() + dw * 7 * 86400000);
+                            const now = new Date();
+                            const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                            const finishDay = new Date(finish.getFullYear(), finish.getMonth(), finish.getDate());
+                            const diffDays = Math.floor((today.getTime() - finishDay.getTime()) / 86400000);
+                            if (diffDays > 0) { label = `Terlambat ${diffDays} Hari`; labelClass = 'text-red-600 font-semibold'; }
+                            else if (diffDays >= -7) { label = `Jatuh Tempo ${Math.abs(diffDays)} Hari`; labelClass = 'text-amber-600'; }
+                            else { const days = Math.ceil((finish.getTime() - today.getTime()) / 86400000); label = `Jatuh Tempo ${days} Hari`; labelClass = 'text-muted-foreground'; }
+                          } catch { label = 'Tenggat Belum Diatur'; }
+                        } else if (item.status === 'completed') { label = 'Selesai'; labelClass = 'text-emerald-600'; }
+                        else if (item.status === 'cancelled') { label = 'Dibatalkan'; labelClass = 'text-slate-400'; }
+                        return (
+                          <span className={`text-[8px] ${labelClass} mt-0.5 block truncate`} title={`Mulai Bulan ${sm ?? '?'}, ${dw ?? '?'} minggu`}>
+                            {label}
+                          </span>
+                        );
+                      })()}
+
                       {/* On-Demand Detail Popover Button */}
                       {(() => {
                         const activityWbsIds = getSubtreeWbsIds(item.id);
@@ -3594,8 +3629,8 @@ export default function WBSBuilder({
           })()}
         </div>
 
-        {/* RIGHT COLUMN (40%): Draggable CSS Grid Gantt Chart — only in Timeline mode */}
-        {viewMode === 'timeline' && (
+        {/* RIGHT COLUMN — Programme Design only: Draggable Gantt Chart */}
+        {viewMode === 'timeline' && productMode !== 'project_management' && (
         <div className="lg:col-span-2 overflow-x-auto select-none bg-slate-50/10 dark:bg-slate-900/10">
           <div className="flex flex-col min-w-max">
             {/* Header timeline */}
@@ -3742,6 +3777,27 @@ export default function WBSBuilder({
         </div>
         )}
       </div>
+
+      {/* PM Timeline — Project Management only */}
+      {viewMode === 'timeline' && productMode === 'project_management' && (
+        <div className="border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+          <ProjectTimelineView
+            wbsItems={wbsItems}
+            stages={stages.map((s) => ({ ...s, planned_start_date: (s as any).planned_start_date, planned_end_date: (s as any).planned_end_date }))}
+            orgMembers={orgMembers}
+            orgMemberLookup={orgMemberLookup}
+            isOwner={isOwner}
+            onScheduleChange={(wbsId, field, value) => {
+              const item = wbsItems.find((w) => w.id === wbsId);
+              if (item) {
+                const updated = { ...item, [field]: value };
+                updateItemLocally(updated);
+                triggerAutosave(updated);
+              }
+            }}
+          />
+        </div>
+      )}
 
       {/* RENDER SYSTEM OVERLAYS: SVG DEPENDENCY ARROWS (Professional Mode only) */}
       {globalMode === 'professional' && wbsItems.length > 0 && (
