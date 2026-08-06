@@ -33,6 +33,14 @@ import { evaluateMirrorBudgetModel } from '@/lib/budget/mirrorBudgetModel';
 import type { Database } from '@/integrations/supabase/database.generated';
 import ActivityBudgetEditor from '@/components/budget/ActivityBudgetEditor';
 import BudgetDrawer from '@/components/budget/BudgetDrawer';
+import { useOrgRole } from '@/hooks/useOrgRole';
+import { formatMember, formatMemberCompact, type MemberDisplay } from '@/lib/memberDisplay';
+import {
+  computeGroupedWorkload,
+  type WorkPlanFilter,
+  type GroupedWorkload,
+  type MemberInfo,
+} from '@/lib/project-management/assignmentModel';
 
 type WbsClaimInsert = Database['public']['Tables']['wbs_completion_claims']['Insert'];
 
@@ -211,6 +219,8 @@ export default function WBSBuilder({
 }: WBSBuilderProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { role: orgRole, canDelete: canManage } = useOrgRole();
+  const isOwnerOrAdmin = orgRole === 'owner' || orgRole === 'admin';
   const navigate = useNavigate();
   const [wbsItems, setWbsItems] = useState<WbsItem[]>([]);
   const [stages, setStages] = useState<WbsStageOption[]>([]);
@@ -253,6 +263,11 @@ export default function WBSBuilder({
   const budgetDrawerActivity = useMemo(
     () => wbsItems.find((i) => i.id === budgetDrawerActivityId && i.level === 2),
     [wbsItems, budgetDrawerActivityId],
+  );
+
+  // Work Plan filter (PM mode)
+  const [workPlanFilter, setWorkPlanFilter] = useState<WorkPlanFilter>(
+    isOwnerOrAdmin ? 'all' : 'my-work',
   );
 
   // Dynamic Row Heights tracking for auto-height text wrapping alignment
@@ -304,14 +319,24 @@ export default function WBSBuilder({
   const [submittingReview, setSubmittingReview] = useState(false);
 
   // Organization Members State for Owner & Reviewer Assignment (Sprint 2)
-  const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; full_name: string; email: string }>>([]);
+  const [orgMembers, setOrgMembers] = useState<Array<{
+    user_id: string;
+    full_name: string;
+    email: string;
+    job_title: string | null;
+    access_role: string | null;
+  }>>([]);
+  const orgMemberLookup = useMemo(
+    () => new Map(orgMembers.map((m) => [m.user_id, m])),
+    [orgMembers],
+  );
 
   const loadOrgMembers = useCallback(async () => {
     if (!orgId) return;
     try {
       const { data: members, error: memErr } = await supabase
         .from('organization_members')
-        .select('user_id')
+        .select('user_id, job_title, role')
         .eq('organization_id', orgId);
 
       if (memErr) throw memErr;
@@ -326,12 +351,18 @@ export default function WBSBuilder({
         .in('id', userIds);
 
       if (!profErr && profiles) {
+        const profileMap = new Map(profiles.map((p) => [p.id, p]));
         setOrgMembers(
-          profiles.map((p) => ({
-            user_id: p.id,
-            full_name: p.full_name || p.email || 'Anggota Tim',
-            email: p.email || '',
-          }))
+          members.map((m) => {
+            const p = profileMap.get(m.user_id);
+            return {
+              user_id: m.user_id,
+              full_name: p?.full_name || p?.email || 'Anggota Tim',
+              email: p?.email || '',
+              job_title: m.job_title || null,
+              access_role: m.role || null,
+            };
+          }),
         );
       }
     } catch (err) {
@@ -2244,6 +2275,36 @@ export default function WBSBuilder({
           </button>
         </div>
 
+      {/* Work Plan Filter — Project Management only */}
+      {productMode === 'project_management' && (
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
+          {(() => {
+            const filters: Array<{ key: WorkPlanFilter; label: string; showFor: string }> = [
+              { key: 'all', label: 'Semua Pekerjaan', showFor: 'all' },
+              { key: 'my-work', label: 'Tugas Saya', showFor: 'all' },
+              { key: 'unassigned', label: 'Tanpa PIC', showFor: 'admin' },
+              { key: 'overdue', label: 'Terlambat', showFor: 'all' },
+              { key: 'blocked', label: 'Terblokir', showFor: 'all' },
+            ];
+            return filters
+              .filter((f) => f.showFor === 'all' || isOwnerOrAdmin)
+              .map((f) => (
+                <button
+                  key={f.key}
+                  onClick={() => setWorkPlanFilter(f.key)}
+                  className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
+                    workPlanFilter === f.key
+                      ? 'bg-white dark:bg-slate-950 text-primary shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ));
+          })()}
+        </div>
+      )}
+
       {/* PROGRAM-LEVEL MIRROR BUDGET SUMMARY -- Programme Design only.
           Project Management already has its own dedicated Budget tab
           (ProjectWorkspaceNav); duplicating this large summary here would
@@ -2746,6 +2807,10 @@ export default function WBSBuilder({
                             />
                           </div>
                         </div>
+                      ) : productMode === 'project_management' ? (
+                        <span className="text-[10px] font-bold text-slate-700 dark:text-slate-300">
+                          {item.status === 'completed' ? '100%' : '0%'}
+                        </span>
                       ) : (
                         <div className="flex items-center justify-center gap-0.5">
                           <input
@@ -2893,6 +2958,51 @@ export default function WBSBuilder({
                     <div className="w-24">
                       {item.level === 1 ? (
                         <span className="text-[10px] text-muted-foreground">-</span>
+                      ) : productMode === 'project_management' ? (
+                        <div className="relative" onClick={(e) => e.stopPropagation()}>
+                          {isOwnerOrAdmin ? (
+                            <select
+                              value={item.owner_id || item.pic || ''}
+                              data-testid="wbs-pic-select"
+                              onChange={(e) => {
+                                const val = e.target.value || null;
+                                // NOTE: Backend authorization hardening required.
+                                // owner_id/reviewer_id writes currently lack role-based RLS.
+                                // See: NEEDS_WBS_ASSIGNMENT_AUTHORIZATION_HARDENING
+                                void supabase
+                                  .from('lfa_wbs_items')
+                                  .update({ owner_id: val, pic: val || undefined })
+                                  .eq('id', item.id)
+                                  .then(({ error }) => {
+                                    if (error) {
+                                      toast({ title: 'Gagal mengubah PIC', description: error.message, variant: 'destructive' });
+                                      return;
+                                    }
+                                    updateItemLocally({ ...item, owner_id: val, pic: val || undefined });
+                                    toast({ title: 'PIC Diperbarui' });
+                                  });
+                              }}
+                              className="text-[10px] w-full border bg-transparent rounded px-1 h-6 focus:outline-none dark:border-slate-800 truncate"
+                              title="Pilih PIC"
+                            >
+                              <option value="">Belum Ada PIC</option>
+                              {orgMembers.map((m) => (
+                                <option key={m.user_id} value={m.user_id}>
+                                  {m.full_name}{m.job_title ? ` (${m.job_title})` : ''}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            (() => {
+                              const pic = item.owner_id ? orgMemberLookup.get(item.owner_id) : null;
+                              return (
+                                <span className="text-[10px] truncate block" title={pic ? `${pic.full_name}${pic.job_title ? `\n${pic.job_title} · ${pic.access_role || ''}` : ''}` : ''}>
+                                  {pic ? pic.full_name : 'Belum Ada PIC'}
+                                </span>
+                              );
+                            })()
+                          )}
+                        </div>
                       ) : (
                         <input
                           type="text"

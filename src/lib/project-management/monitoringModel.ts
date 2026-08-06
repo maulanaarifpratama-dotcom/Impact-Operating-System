@@ -111,12 +111,27 @@ export interface EvidenceHealth {
   evidenceCount: number;
 }
 
+export interface AssignmentHealth {
+  withoutPIC: number;
+  activitiesWithoutPIC: number;
+  tasksWithoutPIC: number;
+  myOverdue: number;
+  projectOverdue: number;
+  dueWithin7Days: number;
+  dueWithin14Days: number;
+  blocked: number;
+  evidenceMissing: number;
+  submittedForVerification: number;
+  needsRevision: number;
+}
+
 export interface MonitoringOutput {
   schedule: ScheduleHealth;
   execution: ExecutionHealth;
   budget: BudgetHealth;
   deliverables: DeliverableHealth;
   evidence: EvidenceHealth;
+  assignment: AssignmentHealth;
   warnings: string[];
   recentEvents: ActivityEvent[];
   projectIndicators: ProjectIndicator[];
@@ -198,7 +213,16 @@ function computeExecutionHealth(
   };
 }
 
-function computeBudgetHealth(budget: BudgetSnapshot, stageTotals: Record<string, number>): BudgetHealth {
+function computeBudgetHealth(
+  budget: BudgetSnapshot,
+  stageTotals: Record<string, number>,
+  wbsItems?: WbsSnapshot[],
+  budgetedActivityIds?: Set<string>,
+): BudgetHealth {
+  const activitiesWithoutBudget = wbsItems
+    ? wbsItems.filter((w) => w.level === 2 && !budgetedActivityIds?.has(w.id)).length
+    : 0;
+
   return {
     targetBudget: budget.targetBudget,
     detailedBudget: budget.detailedBudget,
@@ -207,7 +231,7 @@ function computeBudgetHealth(budget: BudgetSnapshot, stageTotals: Record<string,
     realization: budget.realization,
     utilizationPercent: budget.utilizationPercent,
     stageTotals,
-    activitiesWithoutBudget: 0,
+    activitiesWithoutBudget,
   };
 }
 
@@ -277,10 +301,12 @@ export function computeMonitoring(input: {
   events: ActivityEvent[];
   indicators?: ProjectIndicator[];
   stageTotals?: Record<string, number>;
+  budgetedActivityIds?: Set<string>;
+  currentUserId?: string | null;
 }): MonitoringOutput {
   const schedule = computeScheduleHealth(input.stages, input.wbsItems);
   const execution = computeExecutionHealth(input.stages, input.wbsItems);
-  const budget = computeBudgetHealth(input.budget, input.stageTotals || {});
+  const budget = computeBudgetHealth(input.budget, input.stageTotals || {}, input.wbsItems, input.budgetedActivityIds);
   const deliverables = computeDeliverableHealth(input.deliverables);
   const evidence = computeEvidenceHealth(input.claims, input.evidence);
 
@@ -290,12 +316,32 @@ export function computeMonitoring(input: {
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
     .slice(0, 20);
 
+  const activeWbs = input.wbsItems.filter((w) => w.level >= 2 && w.status !== 'cancelled');
+  const withoutPIC = activeWbs.filter((w) => !w.pic).length;
+  const myOverdue = schedule.activityOverdue > 0 || schedule.taskOverdue > 0 ? 0 : 0;
+  // myOverdue requires currentUserId context; compute outside
+
+  const assignment: AssignmentHealth = {
+    withoutPIC,
+    activitiesWithoutPIC: activeWbs.filter((w) => w.level === 2 && !w.pic).length,
+    tasksWithoutPIC: activeWbs.filter((w) => w.level >= 3 && !w.pic).length,
+    myOverdue: 0,
+    projectOverdue: schedule.activityOverdue + schedule.taskOverdue,
+    dueWithin7Days: schedule.upcomingDeadlines,
+    dueWithin14Days: schedule.upcomingDeadlines,
+    blocked: schedule.blockedWork,
+    evidenceMissing: 0,
+    submittedForVerification: evidence.pendingVerification,
+    needsRevision: 0,
+  };
+
   return {
     schedule,
     execution,
     budget,
     deliverables,
     evidence,
+    assignment,
     warnings,
     recentEvents,
     projectIndicators: input.indicators || [],

@@ -10,6 +10,7 @@ import {
   Clock,
   Target,
   Wallet,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -191,6 +192,20 @@ function ControlCenterTab({ projectId, orgId }: { projectId: string; orgId: stri
         claims,
         evidence,
         events,
+        budgetedActivityIds: new Set(
+          budgetItems
+            .filter((b) => b.wbs_item_id)
+            .map((b) => {
+              let cur = wbsItems.find((w) => w.id === b.wbs_item_id);
+              for (let g = 0; g < 10 && cur; g++) {
+                if (cur.level === 2) return cur.id;
+                if (!cur.parentId) break;
+                cur = wbsItems.find((w) => w.id === cur!.parentId);
+              }
+              return null;
+            })
+            .filter(Boolean) as string[],
+        ),
       });
 
       setMonitoring(result);
@@ -378,6 +393,41 @@ function ControlCenterTab({ projectId, orgId }: { projectId: string; orgId: stri
             <div className="flex justify-between">
               <span className="text-muted-foreground">Total Bukti</span>
               <span>{m.evidence.evidenceCount}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              Assignment
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-1 text-xs">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Tanpa PIC</span>
+              <Badge variant={m.assignment.withoutPIC > 0 ? 'destructive' : 'outline'}>{m.assignment.withoutPIC}</Badge>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Activity tanpa PIC</span>
+              <span>{m.assignment.activitiesWithoutPIC}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Task/Subtask tanpa PIC</span>
+              <span>{m.assignment.tasksWithoutPIC}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Terblokir</span>
+              <Badge variant={m.assignment.blocked > 0 ? 'destructive' : 'outline'}>{m.assignment.blocked}</Badge>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Jatuh tempo 7 hari</span>
+              <span>{m.assignment.dueWithin7Days}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Menunggu verifikasi</span>
+              <span>{m.assignment.submittedForVerification}</span>
             </div>
           </CardContent>
         </Card>
