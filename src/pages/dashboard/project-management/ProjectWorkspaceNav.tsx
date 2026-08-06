@@ -10,7 +10,6 @@ import { cn } from '@/lib/utils';
 export function ProjectWorkspaceNav({ projectId }: { projectId: string }) {
   const tabs = [
     { name: 'Overview', href: `/dashboard/project-management/${projectId}/overview` },
-    { name: 'Objectives', href: `/dashboard/project-management/${projectId}/objectives` },
     { name: 'Work Plan', href: `/dashboard/project-management/${projectId}/wbs` },
     { name: 'Budget', href: `/dashboard/project-management/${projectId}/budget` },
     { name: 'MEAL', href: `/dashboard/project-management/${projectId}/meal` },

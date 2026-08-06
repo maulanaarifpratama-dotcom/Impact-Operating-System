@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import WBSBuilder from '@/pages/dashboard/lfa-builder/WBSBuilder';
+import ProjectObjectivesPanel from './ProjectObjectivesPanel';
 import { ProjectWorkspaceNav } from '../ProjectWorkspaceNav';
 
 /**
@@ -50,6 +51,8 @@ export default function ProjectWBSPage() {
       </div>
 
       {projectId && <ProjectWorkspaceNav projectId={projectId} />}
+
+      {projectId && <ProjectObjectivesPanel projectId={projectId} />}
 
       {loading ? (
         <div className="flex items-center justify-center py-16 text-muted-foreground">

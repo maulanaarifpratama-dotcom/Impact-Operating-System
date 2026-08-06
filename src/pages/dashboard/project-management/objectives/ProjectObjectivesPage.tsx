@@ -90,6 +90,13 @@ export default function ProjectObjectivesPage() {
     void loadObjectives();
   }, [loadObjectives]);
 
+  // Redirect to Work Plan — Objectives are managed inline there now.
+  useEffect(() => {
+    if (projectId) {
+      navigate(`/dashboard/project-management/${projectId}/wbs?panel=objectives`, { replace: true });
+    }
+  }, [projectId, navigate]);
+
   const resetForm = () => {
     setTitle('');
     setDescription('');
