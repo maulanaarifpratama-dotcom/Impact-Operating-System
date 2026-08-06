@@ -27,7 +27,9 @@
 CREATE OR REPLACE FUNCTION public.assign_wbs_item_people(
   p_wbs_item_id UUID,
   p_owner_id UUID DEFAULT NULL,
-  p_reviewer_id UUID DEFAULT NULL
+  p_reviewer_id UUID DEFAULT NULL,
+  p_clear_owner BOOLEAN DEFAULT FALSE,
+  p_clear_reviewer BOOLEAN DEFAULT FALSE
 )
 RETURNS TABLE (
   id UUID,
@@ -97,8 +99,16 @@ BEGIN
 
   UPDATE public.lfa_wbs_items w
   SET
-    owner_id = p_owner_id,
-    reviewer_id = p_reviewer_id
+    owner_id = CASE
+      WHEN p_clear_owner THEN NULL
+      WHEN p_owner_id IS NOT NULL THEN p_owner_id
+      ELSE w.owner_id
+    END,
+    reviewer_id = CASE
+      WHEN p_clear_reviewer THEN NULL
+      WHEN p_reviewer_id IS NOT NULL THEN p_reviewer_id
+      ELSE w.reviewer_id
+    END
   WHERE w.id = p_wbs_item_id
   RETURNING * INTO v_row;
 
@@ -122,8 +132,8 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.assign_wbs_item_people(UUID, UUID, UUID) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.assign_wbs_item_people(UUID, UUID, UUID) TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.assign_wbs_item_people(UUID, UUID, UUID, BOOLEAN, BOOLEAN) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.assign_wbs_item_people(UUID, UUID, UUID, BOOLEAN, BOOLEAN) TO authenticated, service_role;
 
 -- ==========================================================================
 -- 2. Assignment guard trigger — the enforcement boundary

@@ -214,7 +214,10 @@ describe.skipIf(!canReachPostgres)('WBS Assignment Authorization (PM) — Real P
 
       await actAs(client, ownerId);
       await client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, memberId, null]);
-      const cleared = await client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, null, null]);
+      const cleared = await client.query(
+        `SELECT * FROM public.assign_wbs_item_people($1, $2, $3, $4, $5)`,
+        [wbs.id, null, null, true, false],
+      );
       expect(cleared.rows[0].owner_id).toBeNull();
 
       await client.query('ROLLBACK');
@@ -343,10 +346,8 @@ describe.skipIf(!canReachPostgres)('WBS Assignment Authorization (PM) — Real P
       await ensureAuthUser(client, ownerB);
       await ensureAuthUser(client, extMember);
       const { org: orgA, project: projA } = await createOrgAndProject(client, 'Cross Org A', ownerA, 'Cross A');
-      await createOrgAndProject(client, 'Cross Org B', ownerB, 'Cross B');
-      // extMember is only in Org B
-      await addMember(client, '00000000-0000-0000-0000-000000000000', extMember, 'member'); // won't work, need actual orgB ID
-      // Actually, let me just use a fresh UUID that's not in any org
+      const { org: orgB } = await createOrgAndProject(client, 'Cross Org B', ownerB, 'Cross B');
+      await addMember(client, orgB, extMember, 'member');
       const wbs = await createWbsItem(client, orgA, projA, 'Activity I');
 
       await actAs(client, ownerA);
@@ -513,9 +514,11 @@ describe.skipIf(!canReachPostgres)('WBS Assignment Authorization (PM) — Real P
         await client.query(`SELECT owner_id, reviewer_id FROM public.lfa_wbs_items WHERE id = $1`, [wbs.id])
       ).rows[0];
 
+      await client.query('SAVEPOINT before_fail');
       await expect(
         client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, fakeUuid, null]),
       ).rejects.toThrow(/NOT_MEMBER/);
+      await client.query('ROLLBACK TO SAVEPOINT before_fail');
 
       const after = (
         await client.query(`SELECT owner_id, reviewer_id FROM public.lfa_wbs_items WHERE id = $1`, [wbs.id])
