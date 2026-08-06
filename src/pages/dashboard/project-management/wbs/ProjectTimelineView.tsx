@@ -123,13 +123,26 @@ export default function ProjectTimelineView({
     const activeStages = stages.filter((s) => !s.archived_at);
     const stageMap = new Map(activeStages.map((s) => [s.id, s]));
 
+    // Resolve stage_id for any WBS item by walking up to Level-1 ancestor
+    const resolveStageId = (item: WbsItem): string | null => {
+      let cur: WbsItem | undefined = item;
+      const seen = new Set<string>();
+      while (cur) {
+        if (cur.level === 1) return cur.stage_id ?? null;
+        if (!cur.parent_id || seen.has(cur.id)) return null;
+        seen.add(cur.id);
+        cur = wbsItems.find((p) => p.id === cur!.parent_id);
+      }
+      return null;
+    };
+
     // Group Activities by stage
     const phaseActs = new Map<string, WbsItem[]>();
     for (const s of activeStages) phaseActs.set(s.id, []);
     for (const w of wbsItems) {
       if (w.level !== 2) continue;
-      const sid = w.stage_id && stageMap.has(w.stage_id) ? w.stage_id : null;
-      if (sid) phaseActs.get(sid)!.push(w);
+      const sid = resolveStageId(w);
+      if (sid && phaseActs.has(sid)) phaseActs.get(sid)!.push(w);
     }
 
     // Build Phase metadata
