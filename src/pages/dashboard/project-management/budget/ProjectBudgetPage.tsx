@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, ChevronDown, ChevronRight, Info, Edit3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -95,6 +95,26 @@ export default function ProjectBudgetPage() {
   }, [projectId]);
 
   useEffect(() => { void loadAll(); }, [loadAll]);
+
+  // Deep-link from Work Plan: ?activityId=xxx
+  const [searchParams] = useSearchParams();
+  const focusedActivityId = searchParams.get('activityId');
+
+  // Auto-expand stage containing the focused Activity
+  useEffect(() => {
+    if (!focusedActivityId || rawWbsItems.length === 0) return;
+    const wbsById = new Map(rawWbsItems.map((w) => [w.id, w]));
+    let cur = wbsById.get(focusedActivityId);
+    let stageId: string | null = null;
+    for (let g = 0; g < 10 && cur; g++) {
+      if (cur.level === 1) { stageId = cur.stage_id ?? null; break; }
+      if (!cur.parent_id) break;
+      cur = wbsById.get(cur.parent_id);
+    }
+    if (stageId) {
+      setStageExpanded((prev) => ({ ...prev, [stageId!]: true }));
+    }
+  }, [focusedActivityId, rawWbsItems]);
 
   const snapshot = useMemo(() => computeBudgetSnapshot({
     targetBudget,
@@ -199,6 +219,26 @@ export default function ProjectBudgetPage() {
         </Card>
       ) : (
         <>
+          {/* Focused Activity header (deep-linked from Work Plan) */}
+          {focusedActivityId && (() => {
+            const actWbs = rawWbsItems.find((w) => w.id === focusedActivityId && w.level === 2);
+            if (!actWbs) return null;
+            const actName = ((actWbs as any).name as string) || focusedActivityId;
+            return (
+              <Card className="border-primary/50 bg-primary/5">
+                <CardContent className="flex items-center justify-between py-3">
+                  <div>
+                    <div className="text-xs text-muted-foreground">Kelola Budget Activity</div>
+                    <div className="text-sm font-bold">{actName}</div>
+                  </div>
+                  <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate(`/dashboard/project-management/${projectId}/budget`, { replace: true })}>
+                    Tampilkan Semua
+                  </Button>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           {/* SECTION 1 — Budget Summary */}
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
@@ -304,7 +344,11 @@ export default function ProjectBudgetPage() {
                     </div>
                     <CollapsibleContent className="pl-8 pt-2 space-y-1">
                       {(activitiesByStage.get(row.stageId) || []).map((a) => (
-                        <div key={a.activityId} className="flex items-center justify-between rounded bg-muted/30 px-3 py-1.5 text-xs">
+                        <div
+                          key={a.activityId}
+                          id={`activity-budget-${a.activityId}`}
+                          className={`flex items-center justify-between rounded bg-muted/30 px-3 py-1.5 text-xs ${focusedActivityId === a.activityId ? 'ring-2 ring-primary/50 bg-primary/10' : ''}`}
+                        >
                           <span className="truncate">{wbsNameById.get(a.activityId) || a.activityId}</span>
                           <span className="ml-2 shrink-0 text-muted-foreground">
                             {formatIDR(a.total)} · {a.budgetItemCount} item

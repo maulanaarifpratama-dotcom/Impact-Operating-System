@@ -2972,6 +2972,27 @@ export default function WBSBuilder({
                       </select>
                     )}
 
+                    {/* Compact Activity Budget (PM mode, Level 2 only) */}
+                    {item.level === 2 && productMode === 'project_management' && (
+                      <div className="w-24 flex items-center gap-1 shrink-0">
+                        <span className="text-[10px] font-semibold">
+                          {formatBudgetBadge(activityBudgetLookup[item.id] || 0)}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-5 text-[9px] px-1 text-primary"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/dashboard/project-management/${projectId}/budget?activityId=${item.id}`);
+                          }}
+                          title="Kelola Budget Activity"
+                        >
+                          {(activityBudgetLookup[item.id] || 0) > 0 ? 'Kelola' : 'Isi Budget'}
+                        </Button>
+                      </div>
+                    )}
+
                     {/* Move to Stage (PM mode, Level 2 Activity items) */}
                     {item.level === 2 && productMode === 'project_management' && (
                       <select
