@@ -1,4 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef, useMemo, useCallback, Fragment } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/providers/AuthProvider';
@@ -206,13 +207,23 @@ export default function WBSBuilder({
 }: WBSBuilderProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [wbsItems, setWbsItems] = useState<WbsItem[]>([]);
   const [stages, setStages] = useState<WbsStageOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const [saving, setSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
-  const [globalMode, setGlobalMode] = useState<'simple' | 'professional'>('simple');
+  // Project Management's happy path is Activity -> Task -> optional Subtask,
+  // which only exists at all when the mode is 'professional' (Level 4 is
+  // hidden entirely in 'simple' mode, see the level===4 filters below). The
+  // Sederhana/Profesional toggle itself is hidden for productMode ===
+  // 'project_management' further down, so this default is the only place
+  // that choice is made for Project Management -- Programme Design's own
+  // default and toggle are unchanged.
+  const [globalMode, setGlobalMode] = useState<'simple' | 'professional'>(
+    productMode === 'project_management' ? 'professional' : 'simple'
+  );
   const [budgetTotals, setBudgetTotals] = useState<Record<string, number>>({});
   const [rawBudgetItems, setRawBudgetItems] = useState<RawBudgetItem[]>([]);
   const [targetBudget, setTargetBudget] = useState<number | null>(null);
@@ -1553,7 +1564,10 @@ export default function WBSBuilder({
 
     // Render tree nodes to clean table HTML
     const renderTableRowsHtml = () => {
-      return wbsItems.map((item) => {
+      const isPm = productMode === 'project_management';
+      return wbsItems
+        .filter((item) => !(isPm && item.level === 1)) // Level 1 is a minimal internal container in PM; never printed.
+        .map((item) => {
         let indentClass = '';
         let badgeColor = '';
         let levelLabel = '';
@@ -1565,15 +1579,15 @@ export default function WBSBuilder({
         } else if (item.level === 2) {
           indentClass = 'pl-6 font-semibold bg-slate-50/50';
           badgeColor = 'bg-emerald-500 text-white';
-          levelLabel = 'K';
+          levelLabel = isPm ? 'Activity' : 'K';
         } else if (item.level === 3) {
           indentClass = 'pl-12 text-slate-700 italic';
           badgeColor = 'bg-indigo-500 text-white';
-          levelLabel = 'Sub';
+          levelLabel = isPm ? 'Task' : 'Sub';
         } else if (item.level === 4) {
           indentClass = 'pl-20 text-slate-500 text-xs';
           badgeColor = 'bg-slate-400 text-white';
-          levelLabel = 'Task';
+          levelLabel = isPm ? 'Subtask' : 'Task';
         }
 
         const methodBadge = item.method && globalMode === 'professional' ? `<span class="px-1.5 py-0.5 bg-blue-100 text-blue-800 rounded font-normal ml-2 text-[10px]">${item.method}</span>` : '';
@@ -1708,7 +1722,11 @@ export default function WBSBuilder({
             <table class="w-full border-collapse border border-slate-300">
               <thead>
                 <tr>
-                  <th class="p-2 border border-slate-300 bg-slate-900 text-white text-xs text-left">Nama Output / Aktivitas / Sub-aktivitas</th>
+                  <th class="p-2 border border-slate-300 bg-slate-900 text-white text-xs text-left">${
+                    productMode === 'project_management'
+                      ? 'Nama Activity / Task / Subtask'
+                      : 'Nama Output / Aktivitas / Sub-aktivitas'
+                  }</th>
                   <th class="p-2 border border-slate-300 bg-slate-900 text-white text-xs text-center w-24">Bulan Mulai</th>
                   <th class="p-2 border border-slate-300 bg-slate-900 text-white text-xs text-center w-24">Durasi</th>
                   <th class="p-2 border border-slate-300 bg-slate-900 text-white text-xs text-left w-36">PIC</th>
@@ -1798,59 +1816,196 @@ export default function WBSBuilder({
     return level1s.findIndex((i) => i.id === level1Id);
   };
 
+  // Project Management only: group every non-Level-1 item by the Stage its
+  // Level-1 ancestor carries, so Stage can be the primary visual group in
+  // both panes. Level 1 itself is never rendered in this mode -- it stays a
+  // database-only container that keeps Level 2 meaning "Activity" for
+  // Budget (see handleAddActivityToStage) without the user ever needing to
+  // know it exists. Every non-archived Stage gets its own group (even with
+  // zero items yet, so its "Tambah Aktivitas" CTA is always reachable);
+  // "Belum Ditentukan Stage" only appears if it actually holds orphaned
+  // items.
+  const pmStageGroups = useMemo(() => {
+    if (productMode !== 'project_management') return [] as Array<{ key: string; stageId: string | null; label: string; items: WbsItem[] }>;
+
+    const resolveStageId = (item: WbsItem): string | null => {
+      let cur: WbsItem | undefined = item;
+      const seen = new Set<string>();
+      while (cur) {
+        if (cur.level === 1) return cur.stage_id ?? null;
+        if (!cur.parent_id || seen.has(cur.id)) return null;
+        seen.add(cur.id);
+        cur = wbsItems.find((p) => p.id === cur!.parent_id);
+      }
+      return null;
+    };
+
+    const activeStages = stages.filter((s) => !s.archived_at);
+    const groups = new Map<string, { key: string; stageId: string | null; label: string; items: WbsItem[] }>();
+    activeStages.forEach((s) => groups.set(s.id, { key: s.id, stageId: s.id, label: s.title, items: [] }));
+
+    const UNASSIGNED_KEY = '__unassigned__';
+    groups.set(UNASSIGNED_KEY, { key: UNASSIGNED_KEY, stageId: null, label: 'Belum Ditentukan Stage', items: [] });
+
+    wbsItems
+      .filter((i) => i.level !== 1)
+      .forEach((item) => {
+        const stageId = resolveStageId(item);
+        const key = stageId && groups.has(stageId) ? stageId : UNASSIGNED_KEY;
+        groups.get(key)!.items.push(item);
+      });
+
+    const ordered = activeStages.map((s) => groups.get(s.id)!);
+    const unassigned = groups.get(UNASSIGNED_KEY)!;
+    return unassigned.items.length > 0 ? [...ordered, unassigned] : ordered;
+  }, [productMode, wbsItems, stages]);
+
+  // Project Management only: "Tambah Aktivitas" inside a Stage section.
+  // Reuses an existing Level-1 container for that Stage if one already
+  // exists, or silently creates one (never shown to the user) the first
+  // time a Stage receives an Activity, then adds the Level-2 Activity under
+  // it via the existing handleAddSubActivity. No new RPC and no new insert
+  // path -- this only orchestrates the same calls handleAddRootItem and
+  // handleAssignStage already make.
+  const handleAddActivityToStage = async (stageId: string | null) => {
+    if (!orgId) return;
+    setSaving(true);
+    try {
+      let container = wbsItems.find((i) => i.level === 1 && (i.stage_id ?? null) === stageId);
+
+      if (!container) {
+        const newId = crypto.randomUUID();
+        const level1Items = wbsItems.filter((i) => i.level === 1);
+        const nextSortOrder = level1Items.length > 0 ? Math.max(...level1Items.map((i) => i.sort_order)) + 1 : 0;
+
+        const { error: insertError } = await supabase
+          .from('lfa_wbs_items')
+          .insert({
+            id: newId,
+            lfa_project_id: projectId,
+            org_id: orgId,
+            level: 1,
+            parent_id: null,
+            name: '',
+            start_month: 1,
+            duration_weeks: 4,
+            sort_order: nextSortOrder,
+            mode: globalMode,
+            status: 'not_started',
+            progress_percent: 0,
+          });
+        if (insertError) throw insertError;
+
+        if (stageId) {
+          const { error: assignError } = await (supabase.rpc as any)('assign_wbs_item_to_stage', {
+            p_wbs_item_id: newId,
+            p_stage_id: stageId,
+          });
+          if (assignError) throw assignError;
+        }
+
+        container = {
+          id: newId,
+          lfa_project_id: projectId,
+          org_id: orgId,
+          level: 1,
+          parent_id: null,
+          name: '',
+          start_month: 1,
+          duration_weeks: 4,
+          sort_order: nextSortOrder,
+          mode: globalMode,
+          status: 'not_started',
+          progress_percent: 0,
+          dependencies: [],
+          stage_id: stageId,
+        };
+        setWbsItems((prev) => [...prev, container as WbsItem]);
+      }
+
+      await handleAddSubActivity(container.id);
+    } catch (err) {
+      const error = err as Error;
+      toast({ title: 'Gagal menambah Activity', description: error.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div data-testid="wbs-builder-root" className="space-y-6">
       {/* MODULE WORKSPACE HEADER */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between p-4 bg-white dark:bg-slate-900 border rounded-lg shadow-sm">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100 uppercase tracking-wide">Work Breakdown Structure Builder</h4>
-            <Badge variant="outline" className="text-[10px] font-medium py-0">Hybrid module</Badge>
+            <h4 className="font-bold text-sm text-slate-800 dark:text-slate-100 uppercase tracking-wide">
+              {productMode === 'project_management' ? 'Work Breakdown Structure' : 'Work Breakdown Structure Builder'}
+            </h4>
+            {productMode !== 'project_management' && (
+              <Badge variant="outline" className="text-[10px] font-medium py-0">Hybrid module</Badge>
+            )}
           </div>
-          <p className="text-xs text-muted-foreground">Detail aktivitas, timeline visual, estimasi AI dan cascading modul Budget.</p>
+          <p className="text-xs text-muted-foreground">
+            {productMode === 'project_management'
+              ? 'Kelola Activity dan Task di setiap Stage, timeline visual dan estimasi AI.'
+              : 'Detail aktivitas, timeline visual, estimasi AI dan cascading modul Budget.'}
+          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Sederhana vs Profesional Toggle Slider */}
-          <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border">
-            <button
-              onClick={() => setGlobalMode('simple')}
-              className={`px-3 py-1 text-[11px] font-semibold flex items-center gap-1 transition-all ${
-                globalMode === 'simple'
-                  ? 'bg-white dark:bg-slate-950 text-emerald-600 shadow-sm rounded-md'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              🌱 Sederhana
-            </button>
-            <button
-              onClick={() => setGlobalMode('professional')}
-              className={`px-3 py-1 text-[11px] font-semibold flex items-center gap-1 transition-all ${
-                globalMode === 'professional'
-                  ? 'bg-white dark:bg-slate-950 text-indigo-600 shadow-sm rounded-md'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              🏢 Profesional
-            </button>
-          </div>
+          {/* Sederhana vs Profesional Toggle Slider -- Programme Design only.
+              Project Management is fixed to 'professional' (set in the
+              globalMode default above) since its happy path needs Task-level
+              editing and optional Subtasks, which 'simple' mode hides. */}
+          {productMode !== 'project_management' && (
+            <div className="flex items-center bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border">
+              <button
+                onClick={() => setGlobalMode('simple')}
+                className={`px-3 py-1 text-[11px] font-semibold flex items-center gap-1 transition-all ${
+                  globalMode === 'simple'
+                    ? 'bg-white dark:bg-slate-950 text-emerald-600 shadow-sm rounded-md'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                🌱 Sederhana
+              </button>
+              <button
+                onClick={() => setGlobalMode('professional')}
+                className={`px-3 py-1 text-[11px] font-semibold flex items-center gap-1 transition-all ${
+                  globalMode === 'professional'
+                    ? 'bg-white dark:bg-slate-950 text-indigo-600 shadow-sm rounded-md'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                🏢 Profesional
+              </button>
+            </div>
+          )}
 
-          {/* Carbon Analysis Toggle */}
-          <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 px-3 rounded-lg border">
-            <input
-              type="checkbox"
-              id="carbonModeToggle"
-              checked={carbonMode}
-              onChange={(e) => setCarbonMode(e.target.checked)}
-              className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
-            />
-            <label htmlFor="carbonModeToggle" className="text-[11px] font-semibold cursor-pointer select-none text-slate-700 dark:text-slate-300 flex items-center gap-1">
-              🌱 Aktifkan Analisis Lingkungan (Opsional)
-            </label>
-          </div>
+          {/* Carbon Analysis Toggle -- Programme Design only; Project
+              Management's happy path is execution tracking (Stage/Activity/
+              Task), not donor-facing environmental quantification. */}
+          {productMode !== 'project_management' && (
+            <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1.5 px-3 rounded-lg border">
+              <input
+                type="checkbox"
+                id="carbonModeToggle"
+                checked={carbonMode}
+                onChange={(e) => setCarbonMode(e.target.checked)}
+                className="h-4 w-4 rounded border-gray-300 text-teal-600 focus:ring-teal-500 cursor-pointer"
+              />
+              <label htmlFor="carbonModeToggle" className="text-[11px] font-semibold cursor-pointer select-none text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                🌱 Aktifkan Analisis Lingkungan (Opsional)
+              </label>
+            </div>
+          )}
 
-          {/* Verifier Review Queue Button (WBS-P1A-3B) */}
-          {(() => {
+          {/* Verifier Review Queue Button (WBS-P1A-3B) -- Programme Design
+              only. Per-item completion claims/evidence stay available in
+              both modes via each row's own "Rincian" popover; only this
+              cross-project aggregate review queue is hidden for Project
+              Management. */}
+          {productMode !== 'project_management' && (() => {
             const pendingCount = claims.filter((c) => c.status === 'submitted').length;
             return (
               <Button
@@ -1874,18 +2029,6 @@ export default function WBSBuilder({
             );
           })()}
 
-          {productMode === 'project_management' && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleAddRootItem()}
-              className="text-xs font-semibold text-slate-900 border-slate-300"
-              data-testid="wbs-add-root-button"
-            >
-              <Plus className="mr-1.5 h-3.5 w-3.5" /> Tambah Output
-            </Button>
-          )}
-
           <Button variant="outline" size="sm" onClick={handleExportPrintPDF} className="text-xs font-semibold">
             <Download className="mr-1.5 h-3.5 w-3.5" /> Export PDF
           </Button>
@@ -1898,7 +2041,11 @@ export default function WBSBuilder({
         </div>
       </div>
 
-      {/* PROGRAM-LEVEL MIRROR BUDGET SUMMARY */}
+      {/* PROGRAM-LEVEL MIRROR BUDGET SUMMARY -- Programme Design only.
+          Project Management already has its own dedicated Budget tab
+          (ProjectWorkspaceNav); duplicating this large summary here would
+          dominate the WBS view for no benefit. */}
+      {productMode !== 'project_management' && (
       <div className="flex flex-wrap items-center justify-between gap-4 p-3 px-4 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/40 rounded-lg text-xs shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 flex-1 min-w-[260px]">
           <div>
@@ -1963,12 +2110,18 @@ export default function WBSBuilder({
           </div>
         </div>
       </div>
+      )}
 
-      {/* CORE WORKSPACE GRID */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 border rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-900">
-        
+      {/* CORE WORKSPACE GRID -- both columns share ONE vertical scroll
+          container (this grid itself) so the tree and the Gantt chart always
+          scroll together. Each column keeps its own independent horizontal
+          scroll (overflow-x-auto) since only the Timeline needs to scroll
+          sideways for long programs. Applies to both Programme Design and
+          Project Management -- this structure is unconditional. */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 border rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-900 max-h-[600px] overflow-y-auto">
+
         {/* LEFT COLUMN (60%): Interactive Tree Sheet */}
-        <div className="lg:col-span-3 border-r divide-y overflow-x-auto min-w-0 max-h-[600px] overflow-y-auto">
+        <div className="lg:col-span-3 border-r divide-y overflow-x-auto min-w-0">
           {/* Row Headers */}
           <div className="flex bg-slate-50 dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-500 py-3 px-4 min-w-[980px] gap-2">
             <div className="flex-1 min-w-[280px]">Deskripsi WBS Tree</div>
@@ -1984,21 +2137,8 @@ export default function WBSBuilder({
           </div>
 
           {/* Tree Rows */}
-          {wbsItems.length === 0 ? (
-            <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
-              <p>
-                {productMode === 'project_management'
-                  ? 'Belum ada data WBS. Tambahkan Output pertama untuk memulai.'
-                  : 'Belum ada data WBS. Selesaikan LFA Matrix untuk memulai.'}
-              </p>
-              {productMode === 'project_management' && (
-                <Button size="sm" onClick={() => void handleAddRootItem()} data-testid="wbs-empty-add-root-button">
-                  <Plus className="mr-1.5 h-3.5 w-3.5" /> Tambah Output
-                </Button>
-              )}
-            </div>
-          ) : (
-            wbsItems.map((item) => {
+          {(() => {
+            const renderLeftRow = (item: WbsItem) => {
               const level1Idx = item.level === 1 ? getOutputIndex(item.id) : (item.parent_id ? getOutputIndex(item.parent_id) : 0);
               const parentOutput = item.level === 1 ? item : wbsItems.find((p) => p.id === item.parent_id);
               const level1OutputIdx = parentOutput ? getOutputIndex(parentOutput.id) : level1Idx;
@@ -2032,11 +2172,29 @@ export default function WBSBuilder({
                   >
                     {/* Row Body Left Side */}
                     <div className="flex-1 flex items-start gap-1.5 min-w-[280px]">
-                      {/* Row level tag */}
+                      {/* Row level tag -- Project Management spells the
+                          level out (Activity/Task/Subtask) rather than
+                          relying on an unlabeled single letter or
+                          abbreviation, since that's the only visual cue this
+                          row gives for what it is and what "Edit" even means
+                          here (the name field just below is already live-
+                          editable by clicking into it). */}
                       {item.level === 1 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-900 text-white shrink-0 mt-0.5">H</span>}
-                      {item.level === 2 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-600 text-white shrink-0 mt-0.5">K</span>}
-                      {item.level === 3 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-500 text-white shrink-0 mt-0.5">Sub</span>}
-                      {item.level === 4 && <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-400 text-white shrink-0 mt-0.5">Task</span>}
+                      {item.level === 2 && (
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-emerald-600 text-white shrink-0 mt-0.5">
+                          {productMode === 'project_management' ? 'Activity' : 'K'}
+                        </span>
+                      )}
+                      {item.level === 3 && (
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-indigo-500 text-white shrink-0 mt-0.5">
+                          {productMode === 'project_management' ? 'Task' : 'Sub'}
+                        </span>
+                      )}
+                      {item.level === 4 && (
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-slate-400 text-white shrink-0 mt-0.5">
+                          {productMode === 'project_management' ? 'Subtask' : 'Task'}
+                        </span>
+                      )}
 
                       {/* Inline edit input / Title text */}
                       {item.level === 1 ? (
@@ -2053,8 +2211,9 @@ export default function WBSBuilder({
                           value={item.name}
                           testId="wbs-activity-name-input"
                           placeholder={
-                            item.level === 2 ? 'Ketik nama aktivitas...' :
-                            item.level === 3 ? 'Ketik sub-aktivitas...' : 'Ketik detail task...'
+                            productMode === 'project_management'
+                              ? (item.level === 2 ? 'Ketik nama Activity...' : item.level === 3 ? 'Ketik nama Task...' : 'Ketik nama Subtask...')
+                              : (item.level === 2 ? 'Ketik nama aktivitas...' : item.level === 3 ? 'Ketik sub-aktivitas...' : 'Ketik detail task...')
                           }
                           onChange={(val) => {
                             const updated = { ...item, name: val };
@@ -2630,7 +2789,7 @@ export default function WBSBuilder({
                           data-testid="wbs-add-item-button"
                           className="h-6 w-6 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
                           onClick={() => void handleAddSubActivity(item.id)}
-                          title="Tambah Sub-aktivitas"
+                          title={productMode === 'project_management' ? 'Tambah Task' : 'Tambah Sub-aktivitas'}
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </Button>
@@ -2641,7 +2800,7 @@ export default function WBSBuilder({
                           size="icon"
                           className="h-6 w-6 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
                           onClick={() => void handleAddTask(item.id)}
-                          title="Tambah Task Detail"
+                          title={productMode === 'project_management' ? 'Tambah Subtask' : 'Tambah Task Detail'}
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </Button>
@@ -2908,12 +3067,71 @@ export default function WBSBuilder({
                   )}
                 </Fragment>
               );
-            })
-          )}
+            };
+
+            // Programme Design: unchanged flat render, LFA-import-driven.
+            if (productMode !== 'project_management') {
+              if (wbsItems.length === 0) {
+                return (
+                  <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
+                    <p>Belum ada data WBS. Selesaikan LFA Matrix untuk memulai.</p>
+                  </div>
+                );
+              }
+              return wbsItems.map(renderLeftRow);
+            }
+
+            // Project Management: Stage is the primary visual group. Level 1
+            // is never rendered here -- see pmStageGroups below.
+            if (pmStageGroups.length === 0) {
+              return (
+                <div className="p-8 text-center text-xs text-muted-foreground space-y-2">
+                  <p>Buat Stage terlebih dahulu, lalu tambahkan Activity di dalamnya.</p>
+                  <Button
+                    size="sm"
+                    onClick={() => navigate(`/dashboard/project-management/${projectId}/stages`)}
+                    data-testid="wbs-empty-goto-stages-button"
+                  >
+                    <Plus className="mr-1.5 h-3.5 w-3.5" /> Buka Halaman Stages
+                  </Button>
+                </div>
+              );
+            }
+            return pmStageGroups.map((group) => (
+              <Fragment key={group.key}>
+                <div
+                  className="h-[45px] flex items-center justify-between gap-2 px-4 bg-slate-100 dark:bg-slate-800/60 border-y border-slate-200 dark:border-slate-800"
+                  data-testid="wbs-stage-group-header"
+                >
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wide">
+                    Stage: {group.label}
+                  </span>
+                  {group.stageId !== null && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-6 text-[11px]"
+                      onClick={() => void handleAddActivityToStage(group.stageId)}
+                      data-testid="wbs-stage-add-activity-button"
+                    >
+                      <Plus className="mr-1 h-3 w-3" /> Tambah Aktivitas
+                    </Button>
+                  )}
+                </div>
+                {group.items.length === 0 ? (
+                  <div className="h-[42px] pl-8 flex items-center text-[11px] text-muted-foreground italic">
+                    Belum ada Activity di Stage ini.
+                  </div>
+                ) : (
+                  group.items.map(renderLeftRow)
+                )}
+              </Fragment>
+            ));
+          })()}
         </div>
 
         {/* RIGHT COLUMN (40%): Draggable CSS Grid Gantt Chart */}
-        <div className="lg:col-span-2 overflow-x-auto select-none bg-slate-50/10 dark:bg-slate-900/10 max-h-[600px] overflow-y-auto">
+        <div className="lg:col-span-2 overflow-x-auto select-none bg-slate-50/10 dark:bg-slate-900/10">
           <div className="flex flex-col min-w-max">
             {/* Header timeline */}
             <div className="flex bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-600 dark:text-slate-300 border-b">
@@ -2926,10 +3144,8 @@ export default function WBSBuilder({
 
             {/* Vertical grid line blocks and timeline bar rendering */}
             <div className="flex flex-col divide-y divide-slate-100 dark:divide-slate-800">
-              {wbsItems.length === 0 ? (
-                <div className="h-40 bg-slate-50/50"></div>
-              ) : (
-                wbsItems.map((item) => {
+              {(() => {
+                const renderRightRow = (item: WbsItem) => {
                   const level1Idx = item.level === 1 ? getOutputIndex(item.id) : (item.parent_id ? getOutputIndex(item.parent_id) : 0);
                   const parentOutput = item.level === 1 ? item : wbsItems.find((p) => p.id === item.parent_id);
                   const level1OutputIdx = parentOutput ? getOutputIndex(parentOutput.id) : level1Idx;
@@ -3033,8 +3249,29 @@ export default function WBSBuilder({
                       )}
                     </Fragment>
                   );
-                })
-              )}
+                };
+
+                if (productMode !== 'project_management') {
+                  if (wbsItems.length === 0) return <div className="h-40 bg-slate-50/50"></div>;
+                  return wbsItems.map(renderRightRow);
+                }
+
+                if (pmStageGroups.length === 0) return <div className="h-40 bg-slate-50/50"></div>;
+
+                // Matches the left pane's Stage header + empty-group placeholder
+                // exactly (same fixed height on both sides) so rows stay aligned
+                // under the single shared vertical scroll container.
+                return pmStageGroups.map((group) => (
+                  <Fragment key={group.key}>
+                    <div className="h-[45px] flex items-center bg-slate-100 dark:bg-slate-800/60 border-y border-slate-200 dark:border-slate-800" />
+                    {group.items.length === 0 ? (
+                      <div className="h-[42px] bg-slate-50/30 dark:bg-slate-900/10" />
+                    ) : (
+                      group.items.map(renderRightRow)
+                    )}
+                  </Fragment>
+                ));
+              })()}
             </div>
           </div>
         </div>

@@ -14,7 +14,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/providers/AuthProvider';
@@ -43,12 +42,6 @@ export default function ProjectManagementIndex() {
   const [creating, setCreating] = useState(false);
 
   const [name, setName] = useState('');
-  const [sector, setSector] = useState('');
-  const [location, setLocation] = useState('');
-  const [duration, setDuration] = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [beneficiaryCount, setBeneficiaryCount] = useState('');
-  const [beneficiaryDesc, setBeneficiaryDesc] = useState('');
 
   const loadProjects = useCallback(async () => {
     setLoading(true);
@@ -86,39 +79,42 @@ export default function ProjectManagementIndex() {
 
   const resetForm = () => {
     setName('');
-    setSector('');
-    setLocation('');
-    setDuration('');
-    setStartDate('');
-    setBeneficiaryCount('');
-    setBeneficiaryDesc('');
   };
 
   const handleCreate = async () => {
     if (!name.trim()) return;
     setCreating(true);
     try {
+      // Only the title is collected up front -- every other field the RPC
+      // accepts (sector, location, duration, dates, beneficiary info) is
+      // optional server-side, so it's safe to always send null here rather
+      // than asking the user to fill them in before they can even start.
       // Same not-yet-typed-schema reason as loadProjects above.
       const { data, error } = await (supabase.rpc as any)('create_project_management_project', {
         p_name: name.trim(),
-        p_sector: sector || null,
-        p_location: location || null,
-        p_duration_months: duration ? parseInt(duration, 10) : null,
-        p_start_date: startDate || null,
-        p_beneficiary_count: beneficiaryCount ? parseInt(beneficiaryCount, 10) : null,
-        p_beneficiary_description: beneficiaryDesc || null,
+        p_sector: null,
+        p_location: null,
+        p_duration_months: null,
+        p_start_date: null,
+        p_beneficiary_count: null,
+        p_beneficiary_description: null,
       });
 
       if (error) throw error;
 
+      const newProjectId = (data as { id: string }[] | null)?.[0]?.id;
+
       toast({
         title: 'Proyek Berhasil Dibuat',
-        description: 'Proyek Project Management baru telah tercatat.',
+        description: 'Lanjutkan dengan membuat Stage pertama.',
       });
       setCreateOpen(false);
       resetForm();
-      void loadProjects();
-      void data;
+      if (newProjectId) {
+        navigate(`/dashboard/project-management/${newProjectId}/stages`);
+      } else {
+        void loadProjects();
+      }
     } catch (err) {
       const error = err as Error;
       toast({
@@ -171,7 +167,7 @@ export default function ProjectManagementIndex() {
             <Card
               key={p.id}
               className="cursor-pointer transition-colors hover:border-primary/50"
-              onClick={() => navigate(`/dashboard/project-management/${p.id}/objectives`)}
+              onClick={() => navigate(`/dashboard/project-management/${p.id}/stages`)}
             >
               <CardHeader>
                 <CardTitle className="text-base">{p.name}</CardTitle>
@@ -198,58 +194,15 @@ export default function ProjectManagementIndex() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="pm-name">Nama Proyek</Label>
-              <Input id="pm-name" value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="pm-sector">Sektor</Label>
-                <Input id="pm-sector" value={sector} onChange={(e) => setSector(e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="pm-location">Lokasi</Label>
-                <Input
-                  id="pm-location"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="pm-duration">Durasi (bulan)</Label>
-                <Input
-                  id="pm-duration"
-                  type="number"
-                  value={duration}
-                  onChange={(e) => setDuration(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="pm-start">Tanggal Mulai</Label>
-                <Input
-                  id="pm-start"
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="pm-beneficiary-count">Jumlah Penerima Manfaat</Label>
+              <Label htmlFor="pm-name">Judul Project</Label>
               <Input
-                id="pm-beneficiary-count"
-                type="number"
-                value={beneficiaryCount}
-                onChange={(e) => setBeneficiaryCount(e.target.value)}
-              />
-            </div>
-            <div>
-              <Label htmlFor="pm-beneficiary-desc">Deskripsi Penerima Manfaat</Label>
-              <Textarea
-                id="pm-beneficiary-desc"
-                value={beneficiaryDesc}
-                onChange={(e) => setBeneficiaryDesc(e.target.value)}
+                id="pm-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && name.trim()) void handleCreate();
+                }}
               />
             </div>
           </div>

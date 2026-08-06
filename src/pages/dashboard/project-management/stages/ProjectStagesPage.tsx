@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowDown, ArrowUp, Loader2, Plus, RotateCcw, Trash2, Waypoints } from 'lucide-react';
+import { ArrowLeft, ArrowDown, ArrowUp, ChevronDown, ListTodo, Loader2, Plus, RotateCcw, Trash2, Waypoints } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrgRole } from '@/hooks/useOrgRole';
@@ -78,6 +79,7 @@ export default function ProjectStagesPage() {
   const [plannedEnd, setPlannedEnd] = useState('');
   const [actualStart, setActualStart] = useState('');
   const [actualEnd, setActualEnd] = useState('');
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const loadData = useCallback(async () => {
     if (!projectId) return;
@@ -127,6 +129,7 @@ export default function ProjectStagesPage() {
     setPlannedEnd('');
     setActualStart('');
     setActualEnd('');
+    setAdvancedOpen(false);
   };
 
   const openEdit = (stage: Stage) => {
@@ -139,6 +142,12 @@ export default function ProjectStagesPage() {
     setPlannedEnd(stage.planned_end_date || '');
     setActualStart(stage.actual_start_date || '');
     setActualEnd(stage.actual_end_date || '');
+    // Existing Stages likely already carry some of these fields -- open the
+    // advanced section by default when editing so nothing already set is
+    // hidden from view, while a brand-new Stage still starts collapsed.
+    setAdvancedOpen(Boolean(
+      stage.description || stage.primary_objective_id || stage.planned_start_date || stage.planned_end_date,
+    ));
   };
 
   const handleCreate = async () => {
@@ -327,6 +336,14 @@ export default function ProjectStagesPage() {
                   >
                     <ArrowDown className="h-4 w-4" />
                   </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => navigate(`/dashboard/project-management/${projectId}/wbs`)}
+                  >
+                    <ListTodo className="mr-1.5 h-4 w-4" />
+                    Tambah Aktivitas
+                  </Button>
                   <Button variant="outline" size="sm" onClick={() => openEdit(stage)}>
                     Edit
                   </Button>
@@ -380,87 +397,106 @@ export default function ProjectStagesPage() {
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="stage-title">Judul</Label>
-              <Input id="stage-title" value={title} onChange={(e) => setTitle(e.target.value)} />
+              <Label htmlFor="stage-title">Judul Stage</Label>
+              <Input
+                id="stage-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && title.trim()) void (editing ? handleUpdate() : handleCreate());
+                }}
+              />
             </div>
-            <div>
-              <Label htmlFor="stage-desc">Deskripsi</Label>
-              <Textarea id="stage-desc" value={description} onChange={(e) => setDescription(e.target.value)} />
-            </div>
-            <div>
-              <Label htmlFor="stage-objective">Primary Objective</Label>
-              <Select value={primaryObjectiveId} onValueChange={setPrimaryObjectiveId}>
-                <SelectTrigger id="stage-objective">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NO_OBJECTIVE}>Tidak ada</SelectItem>
-                  {objectives.map((o) => (
-                    <SelectItem key={o.id} value={o.id}>
-                      {o.title}
-                      {o.archived_at ? ' (archived)' : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="stage-planned-start">Rencana Mulai</Label>
-                <Input
-                  id="stage-planned-start"
-                  type="date"
-                  value={plannedStart}
-                  onChange={(e) => setPlannedStart(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="stage-planned-end">Rencana Selesai</Label>
-                <Input
-                  id="stage-planned-end"
-                  type="date"
-                  value={plannedEnd}
-                  onChange={(e) => setPlannedEnd(e.target.value)}
-                />
-              </div>
-            </div>
-            {editing && (
-              <>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="stage-actual-start">Aktual Mulai</Label>
-                    <Input
-                      id="stage-actual-start"
-                      type="date"
-                      value={actualStart}
-                      onChange={(e) => setActualStart(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="stage-actual-end">Aktual Selesai</Label>
-                    <Input
-                      id="stage-actual-end"
-                      type="date"
-                      value={actualEnd}
-                      onChange={(e) => setActualEnd(e.target.value)}
-                    />
-                  </div>
+
+            <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
+              <CollapsibleTrigger asChild>
+                <Button variant="ghost" size="sm" className="-ml-2 text-xs text-muted-foreground">
+                  <ChevronDown className={`mr-1.5 h-3.5 w-3.5 transition-transform ${advancedOpen ? 'rotate-180' : ''}`} />
+                  Pengaturan Lanjutan
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-4 pt-3">
+                <div>
+                  <Label htmlFor="stage-desc">Deskripsi</Label>
+                  <Textarea id="stage-desc" value={description} onChange={(e) => setDescription(e.target.value)} />
                 </div>
                 <div>
-                  <Label htmlFor="stage-status">Status</Label>
-                  <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
-                    <SelectTrigger id="stage-status">
+                  <Label htmlFor="stage-objective">Primary Objective</Label>
+                  <Select value={primaryObjectiveId} onValueChange={setPrimaryObjectiveId}>
+                    <SelectTrigger id="stage-objective">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="not_started">Not Started</SelectItem>
-                      <SelectItem value="in_progress">In Progress</SelectItem>
-                      <SelectItem value="completed">Completed</SelectItem>
+                      <SelectItem value={NO_OBJECTIVE}>Tidak ada</SelectItem>
+                      {objectives.map((o) => (
+                        <SelectItem key={o.id} value={o.id}>
+                          {o.title}
+                          {o.archived_at ? ' (archived)' : ''}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-              </>
-            )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="stage-planned-start">Rencana Mulai</Label>
+                    <Input
+                      id="stage-planned-start"
+                      type="date"
+                      value={plannedStart}
+                      onChange={(e) => setPlannedStart(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="stage-planned-end">Rencana Selesai</Label>
+                    <Input
+                      id="stage-planned-end"
+                      type="date"
+                      value={plannedEnd}
+                      onChange={(e) => setPlannedEnd(e.target.value)}
+                    />
+                  </div>
+                </div>
+                {editing && (
+                  <>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label htmlFor="stage-actual-start">Aktual Mulai</Label>
+                        <Input
+                          id="stage-actual-start"
+                          type="date"
+                          value={actualStart}
+                          onChange={(e) => setActualStart(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor="stage-actual-end">Aktual Selesai</Label>
+                        <Input
+                          id="stage-actual-end"
+                          type="date"
+                          value={actualEnd}
+                          onChange={(e) => setActualEnd(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label htmlFor="stage-status">Status</Label>
+                      <Select value={status} onValueChange={(v) => setStatus(v as typeof status)}>
+                        <SelectTrigger id="stage-status">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="not_started">Not Started</SelectItem>
+                          <SelectItem value="in_progress">In Progress</SelectItem>
+                          <SelectItem value="completed">Completed</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                )}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
           <DialogFooter>
             <Button
