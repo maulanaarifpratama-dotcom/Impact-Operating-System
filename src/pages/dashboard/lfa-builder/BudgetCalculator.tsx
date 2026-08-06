@@ -70,11 +70,11 @@ export default function BudgetCalculator({
   const [isRateFallback, setIsRateFallback] = useState(true);
   const [rateUpdateTime, setRateUpdateTime] = useState<string>('');
 
-  // AI Suggestion states
-  const [aiCheckOpen, setAiCheckOpen] = useState(false);
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiTargetItem, setAiTargetItem] = useState<BudgetItem | null>(null);
-  const [aiSuggestion, setAiSuggestion] = useState<{ reference_price: number; explanation: string } | null>(null);
+  // Deterministic SBM/INKINDO reference states
+  const [sbmCheckOpen, setSbmCheckOpen] = useState(false);
+  const [sbmLoading, setSbmLoading] = useState(false);
+  const [sbmTargetItem, setSbmTargetItem] = useState<BudgetItem | null>(null);
+  const [sbmSuggestion, setSbmSuggestion] = useState<{ reference_price: number; explanation: string } | null>(null);
 
   // NGO Mode active multiplier state (default is true - NGO receives 70% rate discount under Lampiran II.2)
   const [isNgoMode, setIsNgoMode] = useState<boolean>(true);
@@ -755,11 +755,11 @@ export default function BudgetCalculator({
   };
 
   // Deterministic SBM / INKINDO standard reference suggestion fetcher
-  const handleCheckSbmWithAI = (item: BudgetItem) => {
-    setAiTargetItem(item);
-    setAiSuggestion(null);
-    setAiCheckOpen(true);
-    setAiLoading(true);
+  const handleCheckSbmReference = (item: BudgetItem) => {
+    setSbmTargetItem(item);
+    setSbmSuggestion(null);
+    setSbmCheckOpen(true);
+    setSbmLoading(true);
 
     // Run high-speed client-side lookup with micro-delay for smooth layout transition
     setTimeout(() => {
@@ -780,12 +780,12 @@ export default function BudgetCalculator({
             isNgoMode
           );
 
-          setAiSuggestion({
+          setSbmSuggestion({
             reference_price: maxAllowedRate,
             explanation: `Berdasarkan database INKINDO 2026 untuk Provinsi ${projectData?.location || 'DKI Jakarta'} (${isNgoMode ? 'NGO Mode Aktif 70% Koefisien' : 'Komersial 100%'}), batas atas remunerasi harian/bulanan untuk peran "${inkindoRole.role}" adalah Rp ${maxAllowedRate.toLocaleString('id-ID')}/${item.unit || 'Bulan'}.`
           });
         } else {
-          setAiSuggestion({
+          setSbmSuggestion({
             reference_price: 1500000,
             explanation: `Tidak ditemukan jabatan spesifik di INKINDO 2026. Disarankan menggunakan batas aman asisten penunjang lokal: Rp 1.500.000/bulan.`
           });
@@ -793,29 +793,29 @@ export default function BudgetCalculator({
       } else {
         const ref = findSbmReference(item.item_name, item.category || 'Lainnya');
         if (ref) {
-          setAiSuggestion({
+          setSbmSuggestion({
             reference_price: ref.price,
             explanation: `Berdasarkan database SBM 2026 PMK 32/2025, standar harga masukan regional untuk item "${ref.name}" adalah Rp ${ref.price.toLocaleString('id-ID')}/${ref.unit}.`
           });
         } else {
-          setAiSuggestion({
+          setSbmSuggestion({
             reference_price: 150000,
             explanation: `Item "${item.item_name}" tidak ditemukan di database SBM 2026. Merekomendasikan standar harian umum: Rp 150.000.`
           });
         }
       }
-      setAiLoading(false);
+      setSbmLoading(false);
     }, 120);
   };
 
   // Apply SBM Suggestion
   const handleApplySbmSuggestion = () => {
-    if (!aiTargetItem || !aiSuggestion) return;
-    handleFieldChange(aiTargetItem.id, 'unit_price_idr', aiSuggestion.reference_price);
-    setAiCheckOpen(false);
+    if (!sbmTargetItem || !sbmSuggestion) return;
+    handleFieldChange(sbmTargetItem.id, 'unit_price_idr', sbmSuggestion.reference_price);
+    setSbmCheckOpen(false);
     toast({
-      title: 'Standar Biaya Diaplikasikan ✨',
-      description: `Harga satuan item "${aiTargetItem.item_name}" diperbarui ke Rp ${aiSuggestion.reference_price.toLocaleString('id-ID')}.`,
+      title: 'Cek Referensi SBM/INKINDO',
+      description: `Harga satuan item "${sbmTargetItem.item_name}" diperbarui ke Rp ${sbmSuggestion.reference_price.toLocaleString('id-ID')}.`,
     });
   };
 
@@ -2603,7 +2603,7 @@ export default function BudgetCalculator({
                                       />
                                       <button
                                         type="button"
-                                        onClick={() => handleCheckSbmWithAI(item)}
+                                        onClick={() => handleCheckSbmReference(item)}
                                         title="Cek Referensi SBM TA 2026"
                                         className="absolute right-1.5 h-6 w-8 rounded bg-blue-50 hover:bg-blue-100 text-blue-600 dark:bg-blue-950/20 dark:hover:bg-blue-950/40 border border-blue-200/50 flex items-center justify-center text-[10px]"
                                       >
@@ -2947,7 +2947,7 @@ export default function BudgetCalculator({
       </Tabs>
 
       {/* 6. SBM AI DIALOG */}
-      <Dialog open={aiCheckOpen} onOpenChange={setAiCheckOpen}>
+      <Dialog open={sbmCheckOpen} onOpenChange={setSbmCheckOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-1.5 text-sm font-bold uppercase text-amber-600">
@@ -2958,24 +2958,24 @@ export default function BudgetCalculator({
             </DialogDescription>
           </DialogHeader>
 
-          {aiLoading ? (
+          {sbmLoading ? (
             <div className="flex flex-col items-center justify-center py-8 gap-3 text-xs text-muted-foreground">
               <Loader2 className="h-6 w-6 animate-spin text-amber-500" />
               <span>Membandingkan anggaran dengan SBM PMK 32/2025...</span>
             </div>
-          ) : aiSuggestion ? (
+          ) : sbmSuggestion ? (
             <div className="space-y-4 py-2">
               <div className="p-3.5 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/50 rounded-xl space-y-2.5">
                 <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400 uppercase tracking-widest block">🔬 Hasil Analisis Kepatuhan SBM</span>
                 <p className="text-sm font-black text-slate-900 dark:text-slate-100">
-                  Rekomendasi Unit Price: <span className="text-amber-600">Rp {aiSuggestion.reference_price.toLocaleString('id-ID')}</span>
+                  Rekomendasi Unit Price: <span className="text-amber-600">Rp {sbmSuggestion.reference_price.toLocaleString('id-ID')}</span>
                 </p>
                 <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">
-                  {aiSuggestion.explanation}
+                  {sbmSuggestion.explanation}
                 </p>
               </div>
 
-              {aiTargetItem && aiTargetItem.unit_price_idr > aiSuggestion.reference_price * 2 && (
+              {sbmTargetItem && sbmTargetItem.unit_price_idr > sbmSuggestion.reference_price * 2 && (
                 <div className="p-2 border border-rose-200/50 bg-rose-50/30 text-[10px] rounded text-rose-600 leading-relaxed flex gap-2 font-medium">
                   <span>⚠️</span>
                   <span><strong>Peringatan Kelebihan:</strong> Anggaran Anda melebihi 2x standar resmi PMK. Pastikan memiliki lembar justifikasi yang kuat untuk keperluan audit donor.</span>
@@ -2985,10 +2985,10 @@ export default function BudgetCalculator({
           ) : null}
 
           <DialogFooter className="sm:justify-end gap-2">
-            <Button variant="outline" size="sm" onClick={() => setAiCheckOpen(false)} className="text-xs">
+            <Button variant="outline" size="sm" onClick={() => setSbmCheckOpen(false)} className="text-xs">
               Abaikan
             </Button>
-            {aiSuggestion && (
+            {sbmSuggestion && (
               <Button size="sm" onClick={handleApplySbmSuggestion} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold">
                 Terapkan Standar SBM
               </Button>

@@ -32,6 +32,7 @@ import { persistTargetBudgetForLfaProject, resolveTargetBudgetForLfaProject } fr
 import { evaluateMirrorBudgetModel } from '@/lib/budget/mirrorBudgetModel';
 import type { Database } from '@/integrations/supabase/database.generated';
 import ActivityBudgetEditor from '@/components/budget/ActivityBudgetEditor';
+import BudgetDrawer from '@/components/budget/BudgetDrawer';
 
 type WbsClaimInsert = Database['public']['Tables']['wbs_completion_claims']['Insert'];
 
@@ -247,8 +248,12 @@ export default function WBSBuilder({
     productMode === 'project_management' ? 'outline' : 'timeline'
   );
 
-  // Inline budget editing (PM mode)
-  const [editingBudgetActivityId, setEditingBudgetActivityId] = useState<string | null>(null);
+  // Budget drawer (PM mode)
+  const [budgetDrawerActivityId, setBudgetDrawerActivityId] = useState<string | null>(null);
+  const budgetDrawerActivity = useMemo(
+    () => wbsItems.find((i) => i.id === budgetDrawerActivityId && i.level === 2),
+    [wbsItems, budgetDrawerActivityId],
+  );
 
   // Dynamic Row Heights tracking for auto-height text wrapping alignment
   const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
@@ -2321,12 +2326,16 @@ export default function WBSBuilder({
         {/* LEFT COLUMN (60%): Interactive Tree Sheet. Full width in Outline mode. */}
         <div className={`${viewMode === 'outline' ? 'lg:col-span-5' : 'lg:col-span-3'} border-r divide-y overflow-x-auto min-w-0`}>
           {/* Row Headers */}
-          <div className={`flex bg-slate-50 dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-500 py-3 px-4 gap-2 ${productMode === 'project_management' ? 'min-w-[650px]' : 'min-w-[980px]'}`}>
+          <div className={`flex bg-slate-50 dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-500 py-3 px-4 gap-2 ${productMode === 'project_management' ? 'min-w-[480px]' : 'min-w-[980px]'}`}>
             <div className="flex-1 min-w-[240px]">Deskripsi WBS Tree</div>
             <div className="w-20 text-center shrink-0">Progres</div>
             <div className="w-28 text-center shrink-0">Status</div>
-            <div className="w-16 text-center shrink-0">Bulan</div>
-            <div className="w-16 text-center shrink-0">Mgg/Hari</div>
+            {productMode !== 'project_management' && (
+              <>
+                <div className="w-16 text-center shrink-0">Bulan</div>
+                <div className="w-16 text-center shrink-0">Mgg/Hari</div>
+              </>
+            )}
             <div className="w-24 text-left shrink-0">PIC</div>
             {productMode !== 'project_management' ? (
               <>
@@ -2353,7 +2362,7 @@ export default function WBSBuilder({
 
               let indentStyle = '';
               const rowHeightClass = 'min-h-[42px] py-2';
-              let rowStyle = `px-4 flex items-center ${productMode === 'project_management' ? 'min-w-[650px]' : 'min-w-[850px]'} gap-2 transition-all ${rowHeightClass} `;
+              let rowStyle = `px-4 flex items-center ${productMode === 'project_management' ? 'min-w-[480px]' : 'min-w-[850px]'} gap-2 transition-all ${rowHeightClass} `;
 
               if (item.level === 1) {
                 indentStyle = `border-l-4 ${theme.border} bg-slate-100/70 dark:bg-slate-800/30 font-bold border-t border-b border-slate-200/50 dark:border-slate-800/50`;
@@ -2688,9 +2697,35 @@ export default function WBSBuilder({
                                        className="text-xs w-full h-12 border bg-white dark:bg-slate-900 rounded p-1.5 focus:outline-none dark:border-slate-800"
                                      />
                                    </div>
+                                  </div>
+                                )}
+
+                               {/* Pindah Stage (PM mode, Level 2 only) */}
+                               {item.level === 2 && productMode === 'project_management' && (
+                                 <div className="space-y-1.5 bg-slate-50 dark:bg-slate-950/50 p-2 rounded border border-slate-200 dark:border-slate-800">
+                                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                     <span>Pindah Stage</span>
+                                   </div>
+                                   <select
+                                     value={(() => {
+                                       const l1 = item.parent_id ? wbsItems.find((w) => w.id === item.parent_id) : null;
+                                       return l1?.stage_id || '';
+                                     })()}
+                                     onChange={(e) => {
+                                       const newStageId = e.target.value || null;
+                                       const l1 = item.parent_id ? wbsItems.find((w) => w.id === item.parent_id) : null;
+                                       if (l1) { void handleAssignStage(l1.id, newStageId); }
+                                     }}
+                                     className="text-xs w-full border bg-white dark:bg-slate-900 rounded p-1 focus:outline-none dark:border-slate-800"
+                                   >
+                                     <option value="">Unassigned</option>
+                                     {stages.filter((s) => !s.archived_at).map((s) => (
+                                       <option key={s.id} value={s.id}>{s.title}</option>
+                                     ))}
+                                   </select>
                                  </div>
                                )}
-                             </PopoverContent>
+                              </PopoverContent>
                            </Popover>
                         </div>
                       );
@@ -2781,7 +2816,8 @@ export default function WBSBuilder({
                       )}
                     </div>
 
-                    {/* Monthly starting column */}
+                    {/* Monthly starting column — Programme Design only; PM moves to Rincian */}
+                    {productMode !== 'project_management' && (
                     <div className="w-16 text-center">
                       {item.level === 2 ? (
                         <input
@@ -2799,14 +2835,15 @@ export default function WBSBuilder({
                           title="Bulan mulai"
                         />
                       ) : item.level === 3 && globalMode === 'professional' ? (
-                        // start_month input for level 3 pic duration
                         <span className="text-[10px] text-muted-foreground">-</span>
                       ) : (
                         <span className="text-[10px] text-muted-foreground">-</span>
                       )}
                     </div>
+                    )}
 
-                    {/* Weeks / Days duration columns */}
+                    {/* Weeks / Days duration columns — Programme Design only; PM moves to Rincian */}
+                    {productMode !== 'project_management' && (
                     <div className="w-16 text-center flex items-center justify-center gap-0.5">
                       {item.level === 2 ? (
                         <div className="flex items-center gap-1">
@@ -2835,7 +2872,7 @@ export default function WBSBuilder({
                           <input
                             type="number"
                             min={1}
-                            value={item.duration_weeks} // level 3 duration in days
+                            value={item.duration_weeks}
                             onChange={(e) => {
                               const val = Math.max(1, parseInt(e.target.value) || 1);
                               const updated = { ...item, duration_weeks: val };
@@ -2850,6 +2887,7 @@ export default function WBSBuilder({
                         <span className="text-[10px] text-muted-foreground">-</span>
                       )}
                     </div>
+                    )}
 
                     {/* PIC column */}
                     <div className="w-24">
@@ -2988,56 +3026,13 @@ export default function WBSBuilder({
                           className="h-5 text-[9px] px-1 text-primary"
                           onClick={(e) => {
                             e.stopPropagation();
-                            navigate(`/dashboard/project-management/${projectId}/budget?activityId=${item.id}`);
+                            setBudgetDrawerActivityId(item.id);
                           }}
                           title="Kelola Budget Activity"
                         >
                           {(activityBudgetLookup[item.id] || 0) > 0 ? 'Kelola' : 'Isi Budget'}
                         </Button>
                       </div>
-                    )}
-
-                    {/* Compact Activity Budget (PM mode, Level 2 only) */}
-                    {item.level === 2 && productMode === 'project_management' && (
-                      <div className="w-24 flex items-center gap-1 shrink-0">
-                        <span className="text-[10px] font-semibold">
-                          {formatBudgetBadge(activityBudgetLookup[item.id] || 0)}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-5 text-[9px] px-1 text-primary"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingBudgetActivityId(editingBudgetActivityId === item.id ? null : item.id);
-                          }}
-                          title="Edit Budget Activity"
-                        >
-                          {editingBudgetActivityId === item.id ? 'Tutup' : (activityBudgetLookup[item.id] || 0) > 0 ? 'Edit' : 'Isi'}
-                        </Button>
-                      </div>
-                    )}
-
-                    {/* Move to Stage (PM mode, Level 2 Activity items) */}
-                    {item.level === 2 && productMode === 'project_management' && (
-                      <select
-                        value={(() => {
-                          const l1 = item.parent_id ? wbsItems.find((w) => w.id === item.parent_id) : null;
-                          return l1?.stage_id || '';
-                        })()}
-                        onChange={(e) => {
-                          const newStageId = e.target.value || null;
-                          const l1 = item.parent_id ? wbsItems.find((w) => w.id === item.parent_id) : null;
-                          if (l1) { void handleAssignStage(l1.id, newStageId); }
-                        }}
-                        title="Pindah Stage"
-                        className="text-[10px] w-24 border bg-transparent rounded px-1 h-6 shrink-0 focus:outline-none dark:border-slate-800"
-                      >
-                        <option value="">Unassigned</option>
-                        {stages.filter((s) => !s.archived_at).map((s) => (
-                          <option key={s.id} value={s.id}>{s.title}</option>
-                        ))}
-                      </select>
                     )}
 
                     {/* Action Buttons Right Side */}
@@ -3093,7 +3088,7 @@ export default function WBSBuilder({
 
                   {/* Blocked Reason Row for leaf items when status === 'blocked' */}
                   {isLeaf && item.status === 'blocked' && (
-                    <div className={`pl-14 pr-4 py-1.5 bg-red-50/50 dark:bg-red-950/20 border-b border-red-100 dark:border-red-900/30 flex items-center gap-2 ${productMode === 'project_management' ? 'min-w-[650px]' : 'min-w-[850px]'} text-xs`}>
+                    <div className={`pl-14 pr-4 py-1.5 bg-red-50/50 dark:bg-red-950/20 border-b border-red-100 dark:border-red-900/30 flex items-center gap-2 ${productMode === 'project_management' ? 'min-w-[480px]' : 'min-w-[850px]'} text-xs`}>
                       <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />
                       <span className="text-[10px] font-bold text-red-700 dark:text-red-400 shrink-0">Alasan Terhambat:</span>
                       <input
@@ -3338,22 +3333,6 @@ export default function WBSBuilder({
                     </div>
                   )}
 
-                  {/* Inline Activity Budget Editor (PM mode) */}
-                  {item.level === 2 && productMode === 'project_management' && editingBudgetActivityId === item.id && (
-                    <div className="pl-8 pr-4 py-2 bg-slate-50/50 dark:bg-slate-900/30 border-b">
-                      <ActivityBudgetEditor
-                        projectId={projectId}
-                        orgId={orgId}
-                        activityId={item.id}
-                        activityName={item.name || 'Activity'}
-                        onChanged={() => {
-                          void loadBudgetTotals();
-                          void loadWbsItems();
-                          if (onWbsSaved) onWbsSaved();
-                        }}
-                      />
-                    </div>
-                  )}
                 </Fragment>
               );
             };
@@ -3712,7 +3691,8 @@ export default function WBSBuilder({
       </Dialog>
       )}
 
-      {/* AI ESTIMATE SUGGESTION DIALOG */}
+      {/* AI ESTIMATE SUGGESTION DIALOG — Programme Design only */}
+      {productMode !== 'project_management' && (
       <Dialog open={aiSuggestOpen} onOpenChange={setAiSuggestOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -3760,6 +3740,7 @@ export default function WBSBuilder({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
 
       <Dialog open={targetBudgetDialogOpen} onOpenChange={setTargetBudgetDialogOpen}>
         <DialogContent className="sm:max-w-md">
@@ -4319,6 +4300,22 @@ export default function WBSBuilder({
         loading={saving}
         onConfirm={executeDeleteWbsItem}
       />
+
+      {/* Budget Drawer (PM mode only) */}
+      {productMode === 'project_management' && (
+        <BudgetDrawer
+          open={budgetDrawerActivityId !== null}
+          onOpenChange={(open) => { if (!open) setBudgetDrawerActivityId(null); }}
+          projectId={projectId}
+          orgId={orgId}
+          activityId={budgetDrawerActivityId || ''}
+          activityName={budgetDrawerActivity?.name || 'Activity'}
+          onChanged={() => {
+            void loadBudgetTotals();
+            if (onWbsSaved) onWbsSaved();
+          }}
+        />
+      )}
     </div>
   );
 }
