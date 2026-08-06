@@ -3798,14 +3798,7 @@ export default function WBSBuilder({
             orgMembers={orgMembers}
             orgMemberLookup={orgMemberLookup}
             isOwner={isOwner}
-            onScheduleSave={(wbsId, plannedStart, plannedEnd) => {
-              const item = wbsItems.find((w) => w.id === wbsId);
-              if (item) {
-                const updated = { ...item, planned_start_date: plannedStart, planned_end_date: plannedEnd };
-                updateItemLocally(updated);
-                triggerAutosave(updated);
-              }
-            }}
+            onStagesRefresh={() => { void loadStages(); }}
           />
         </div>
       )}
