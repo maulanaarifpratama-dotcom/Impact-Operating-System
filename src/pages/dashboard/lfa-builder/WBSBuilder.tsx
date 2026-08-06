@@ -242,7 +242,9 @@ export default function WBSBuilder({
   const [stageFormPlannedStart, setStageFormPlannedStart] = useState('');
   const [stageFormPlannedEnd, setStageFormPlannedEnd] = useState('');
   const [stageSaving, setStageSaving] = useState(false);
-  const [viewMode, setViewMode] = useState<'outline' | 'timeline'>('outline');
+  const [viewMode, setViewMode] = useState<'outline' | 'timeline'>(
+    productMode === 'project_management' ? 'outline' : 'timeline'
+  );
 
   // Dynamic Row Heights tracking for auto-height text wrapping alignment
   const [rowHeights, setRowHeights] = useState<Record<string, number>>({});
@@ -2209,9 +2211,8 @@ export default function WBSBuilder({
         </div>
       </div>
 
-      {/* View toggle — Project Management only */}
-      {productMode === 'project_management' && (
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
+      {/* View toggle — Outline / Timeline */}
+      <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
           <button
             onClick={() => setViewMode('outline')}
             className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
@@ -2233,7 +2234,6 @@ export default function WBSBuilder({
             Timeline
           </button>
         </div>
-      )}
 
       {/* PROGRAM-LEVEL MIRROR BUDGET SUMMARY -- Programme Design only.
           Project Management already has its own dedicated Budget tab
@@ -2314,8 +2314,8 @@ export default function WBSBuilder({
           Project Management -- this structure is unconditional. */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 border rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-900 max-h-[600px] overflow-y-auto">
 
-        {/* LEFT COLUMN (60%): Interactive Tree Sheet */}
-        <div className={`${productMode === 'project_management' && viewMode === 'outline' ? 'lg:col-span-5' : 'lg:col-span-3'} border-r divide-y overflow-x-auto min-w-0`}>
+        {/* LEFT COLUMN (60%): Interactive Tree Sheet. Full width in Outline mode. */}
+        <div className={`${viewMode === 'outline' ? 'lg:col-span-5' : 'lg:col-span-3'} border-r divide-y overflow-x-auto min-w-0`}>
           {/* Row Headers */}
           <div className={`flex bg-slate-50 dark:bg-slate-900 text-[10px] font-bold uppercase tracking-wider text-slate-500 py-3 px-4 gap-2 ${productMode === 'project_management' ? 'min-w-[650px]' : 'min-w-[980px]'}`}>
             <div className="flex-1 min-w-[240px]">Deskripsi WBS Tree</div>
@@ -3426,8 +3426,8 @@ export default function WBSBuilder({
           })()}
         </div>
 
-        {/* RIGHT COLUMN (40%): Draggable CSS Grid Gantt Chart — hidden in PM Outline mode */}
-        {(productMode !== 'project_management' || viewMode === 'timeline') && (
+        {/* RIGHT COLUMN (40%): Draggable CSS Grid Gantt Chart — only in Timeline mode */}
+        {viewMode === 'timeline' && (
         <div className="lg:col-span-2 overflow-x-auto select-none bg-slate-50/10 dark:bg-slate-900/10">
           <div className="flex flex-col min-w-max">
             {/* Header timeline */}
