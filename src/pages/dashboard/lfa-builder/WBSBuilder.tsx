@@ -1775,47 +1775,6 @@ export default function WBSBuilder({
     finalizePrintWindow(printWindow);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-64 gap-3 p-6 text-center">
-        <p className="text-red-500 text-sm">
-          Gagal memuat data.
-        </p>
-        <button 
-          onClick={() => window.location.reload()}
-          className="text-sm text-teal-600 underline">
-          Muat Ulang
-        </button>
-      </div>
-    );
-  }
-
-  // Get color themed classes per output level 1 parent
-  const getLevel1Theme = (index: number) => {
-    const themes = [
-      { border: 'border-l-emerald-500', bg: 'bg-emerald-50/30', bar: 'bg-emerald-600 dark:bg-emerald-500', tag: 'bg-emerald-600 text-white' },
-      { border: 'border-l-blue-500', bg: 'bg-blue-50/30', bar: 'bg-blue-600 dark:bg-blue-500', tag: 'bg-blue-600 text-white' },
-      { border: 'border-l-purple-500', bg: 'bg-purple-50/30', bar: 'bg-purple-600 dark:bg-purple-500', tag: 'bg-purple-600 text-white' },
-      { border: 'border-l-amber-500', bg: 'bg-amber-50/30', bar: 'bg-amber-600 dark:bg-amber-500', tag: 'bg-amber-600 text-white' },
-      { border: 'border-l-rose-500', bg: 'bg-rose-50/30', bar: 'bg-rose-600 dark:bg-rose-500', tag: 'bg-rose-600 text-white' }
-    ];
-    return themes[index % themes.length];
-  };
-
-  // Find index of parent Level 1 Outputs
-  const getOutputIndex = (level1Id: string) => {
-    const level1s = wbsItems.filter((i) => i.level === 1);
-    return level1s.findIndex((i) => i.id === level1Id);
-  };
-
   // Project Management only: group every non-Level-1 item by the Stage its
   // Level-1 ancestor carries, so Stage can be the primary visual group in
   // both panes. Level 1 itself is never rendered in this mode -- it stays a
@@ -1859,6 +1818,47 @@ export default function WBSBuilder({
     const unassigned = groups.get(UNASSIGNED_KEY)!;
     return unassigned.items.length > 0 ? [...ordered, unassigned] : ordered;
   }, [productMode, wbsItems, stages]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-teal-600" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3 p-6 text-center">
+        <p className="text-red-500 text-sm">
+          Gagal memuat data.
+        </p>
+        <button 
+          onClick={() => window.location.reload()}
+          className="text-sm text-teal-600 underline">
+          Muat Ulang
+        </button>
+      </div>
+    );
+  }
+
+  // Get color themed classes per output level 1 parent
+  const getLevel1Theme = (index: number) => {
+    const themes = [
+      { border: 'border-l-emerald-500', bg: 'bg-emerald-50/30', bar: 'bg-emerald-600 dark:bg-emerald-500', tag: 'bg-emerald-600 text-white' },
+      { border: 'border-l-blue-500', bg: 'bg-blue-50/30', bar: 'bg-blue-600 dark:bg-blue-500', tag: 'bg-blue-600 text-white' },
+      { border: 'border-l-purple-500', bg: 'bg-purple-50/30', bar: 'bg-purple-600 dark:bg-purple-500', tag: 'bg-purple-600 text-white' },
+      { border: 'border-l-amber-500', bg: 'bg-amber-50/30', bar: 'bg-amber-600 dark:bg-amber-500', tag: 'bg-amber-600 text-white' },
+      { border: 'border-l-rose-500', bg: 'bg-rose-50/30', bar: 'bg-rose-600 dark:bg-rose-500', tag: 'bg-rose-600 text-white' }
+    ];
+    return themes[index % themes.length];
+  };
+
+  // Find index of parent Level 1 Outputs
+  const getOutputIndex = (level1Id: string) => {
+    const level1s = wbsItems.filter((i) => i.level === 1);
+    return level1s.findIndex((i) => i.id === level1Id);
+  };
 
   // Project Management only: "Tambah Aktivitas" inside a Stage section.
   // Reuses an existing Level-1 container for that Stage if one already
