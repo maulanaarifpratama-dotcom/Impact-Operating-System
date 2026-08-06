@@ -1,10 +1,3 @@
-/**
- * GENERATED FILE — do not edit by hand.
- *
- * Produced by .github/workflows/generate-supabase-types.yml.
- * Import from ./database.types, which re-exports Database and Json
- * from here and adds the app's hand-written aliases.
- */
 export type Json =
   | string
   | number
@@ -18,31 +11,6 @@ export type Database = {
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
     PostgrestVersion: "14.5"
-  }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
   }
   public: {
     Tables: {
@@ -696,6 +664,53 @@ export type Database = {
           {
             foreignKeyName: "donors_organization_id_fkey"
             columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      esg_report_snapshots: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          docx_storage_url: string | null
+          id: string
+          org_id: string
+          pdf_storage_url: string | null
+          report_period: string
+          report_title: string
+          report_type: string
+          snapshot_json: Json
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          docx_storage_url?: string | null
+          id?: string
+          org_id: string
+          pdf_storage_url?: string | null
+          report_period: string
+          report_title: string
+          report_type: string
+          snapshot_json: Json
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          docx_storage_url?: string | null
+          id?: string
+          org_id?: string
+          pdf_storage_url?: string | null
+          report_period?: string
+          report_title?: string
+          report_type?: string
+          snapshot_json?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "esg_report_snapshots_org_id_fkey"
+            columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
             referencedColumns: ["id"]
@@ -1475,6 +1490,7 @@ export type Database = {
           collection_tool: string | null
           created_at: string | null
           data_assumption: string | null
+          deliverable_id: string | null
           disaggregation: string[] | null
           endline_target: number | null
           frequency: string | null
@@ -1486,10 +1502,12 @@ export type Database = {
           midline_target: number | null
           mode: string | null
           monitoring_risk: string | null
+          objective_id: string | null
           org_id: string
           pic: string | null
           secondary_source: string | null
           sort_order: number | null
+          stage_id: string | null
           status: string | null
           target_unit: string | null
           target_value: number | null
@@ -1506,6 +1524,7 @@ export type Database = {
           collection_tool?: string | null
           created_at?: string | null
           data_assumption?: string | null
+          deliverable_id?: string | null
           disaggregation?: string[] | null
           endline_target?: number | null
           frequency?: string | null
@@ -1517,10 +1536,12 @@ export type Database = {
           midline_target?: number | null
           mode?: string | null
           monitoring_risk?: string | null
+          objective_id?: string | null
           org_id: string
           pic?: string | null
           secondary_source?: string | null
           sort_order?: number | null
+          stage_id?: string | null
           status?: string | null
           target_unit?: string | null
           target_value?: number | null
@@ -1537,6 +1558,7 @@ export type Database = {
           collection_tool?: string | null
           created_at?: string | null
           data_assumption?: string | null
+          deliverable_id?: string | null
           disaggregation?: string[] | null
           endline_target?: number | null
           frequency?: string | null
@@ -1548,10 +1570,12 @@ export type Database = {
           midline_target?: number | null
           mode?: string | null
           monitoring_risk?: string | null
+          objective_id?: string | null
           org_id?: string
           pic?: string | null
           secondary_source?: string | null
           sort_order?: number | null
+          stage_id?: string | null
           status?: string | null
           target_unit?: string | null
           target_value?: number | null
@@ -1562,6 +1586,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "lfa_meal_items_deliverable_id_fkey"
+            columns: ["deliverable_id"]
+            isOneToOne: false
+            referencedRelation: "programme_deliverables"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "lfa_meal_items_lfa_project_id_fkey"
             columns: ["lfa_project_id"]
             isOneToOne: false
@@ -1569,10 +1600,31 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "lfa_meal_items_objective_id_fkey"
+            columns: ["objective_id"]
+            isOneToOne: false
+            referencedRelation: "project_objectives"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "lfa_meal_items_org_id_fkey"
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lfa_meal_items_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "project_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lfa_meal_items_wbs_item_id_fkey"
+            columns: ["wbs_item_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_wbs_items"
             referencedColumns: ["id"]
           },
         ]
@@ -1723,6 +1775,13 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "lfa_meal_tracking_entries_wbs_evidence_id_fkey"
+            columns: ["wbs_evidence_id"]
+            isOneToOne: false
+            referencedRelation: "wbs_completion_evidence"
+            referencedColumns: ["id"]
+          },
         ]
       }
       lfa_projects: {
@@ -1737,9 +1796,11 @@ export type Database = {
           location: string | null
           name: string
           org_id: string
+          project_mode: string
           sector: string | null
           start_date: string | null
           status: string | null
+          target_budget_idr: number | null
           updated_at: string | null
         }
         Insert: {
@@ -1753,9 +1814,11 @@ export type Database = {
           location?: string | null
           name: string
           org_id: string
+          project_mode?: string
           sector?: string | null
           start_date?: string | null
           status?: string | null
+          target_budget_idr?: number | null
           updated_at?: string | null
         }
         Update: {
@@ -1769,9 +1832,11 @@ export type Database = {
           location?: string | null
           name?: string
           org_id?: string
+          project_mode?: string
           sector?: string | null
           start_date?: string | null
           status?: string | null
+          target_budget_idr?: number | null
           updated_at?: string | null
         }
         Relationships: [
@@ -1966,6 +2031,13 @@ export type Database = {
             referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "lfa_sroi_outcomes_wbs_evidence_id_fkey"
+            columns: ["wbs_evidence_id"]
+            isOneToOne: false
+            referencedRelation: "wbs_completion_evidence"
+            referencedColumns: ["id"]
+          },
         ]
       }
       lfa_wbs_items: {
@@ -2003,6 +2075,7 @@ export type Database = {
           reviewer_id: string | null
           sort_order: number | null
           source_task_id: string | null
+          stage_id: string | null
           start_month: number | null
           status: string
           updated_at: string | null
@@ -2041,6 +2114,7 @@ export type Database = {
           reviewer_id?: string | null
           sort_order?: number | null
           source_task_id?: string | null
+          stage_id?: string | null
           start_month?: number | null
           status?: string
           updated_at?: string | null
@@ -2079,11 +2153,19 @@ export type Database = {
           reviewer_id?: string | null
           sort_order?: number | null
           source_task_id?: string | null
+          stage_id?: string | null
           start_month?: number | null
           status?: string
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "lfa_wbs_items_lfa_entry_id_fkey"
+            columns: ["lfa_entry_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_entries"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lfa_wbs_items_lfa_project_id_fkey"
             columns: ["lfa_project_id"]
@@ -2103,6 +2185,13 @@ export type Database = {
             columns: ["parent_id"]
             isOneToOne: false
             referencedRelation: "lfa_wbs_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lfa_wbs_items_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "project_stages"
             referencedColumns: ["id"]
           },
         ]
@@ -2513,6 +2602,376 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      programme_deliverable_events: {
+        Row: {
+          actor_id: string
+          created_at: string
+          deliverable_id: string
+          event_reason: string | null
+          event_type: string
+          from_status: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          to_status: string | null
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          deliverable_id: string
+          event_reason?: string | null
+          event_type: string
+          from_status?: string | null
+          id?: string
+          lfa_project_id: string
+          org_id: string
+          to_status?: string | null
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          deliverable_id?: string
+          event_reason?: string | null
+          event_type?: string
+          from_status?: string | null
+          id?: string
+          lfa_project_id?: string
+          org_id?: string
+          to_status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "programme_deliverable_events_deliverable_id_fkey"
+            columns: ["deliverable_id"]
+            isOneToOne: false
+            referencedRelation: "programme_deliverables"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "programme_deliverable_events_lfa_project_id_fkey"
+            columns: ["lfa_project_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "programme_deliverable_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      programme_deliverables: {
+        Row: {
+          accepted_at: string | null
+          approved_at: string | null
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string
+          deliverable_type: string
+          description: string | null
+          exception_reason: string | null
+          external_owner_text: string | null
+          forecast_date: string | null
+          id: string
+          lfa_project_id: string
+          lifecycle_status: string
+          org_id: string
+          owner_id: string | null
+          reviewer_id: string | null
+          stage_id: string | null
+          submitted_at: string | null
+          target_date: string
+          target_date_is_estimated: boolean
+          title: string
+          updated_at: string
+          wbs_item_id: string | null
+        }
+        Insert: {
+          accepted_at?: string | null
+          approved_at?: string | null
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by: string
+          deliverable_type?: string
+          description?: string | null
+          exception_reason?: string | null
+          external_owner_text?: string | null
+          forecast_date?: string | null
+          id?: string
+          lfa_project_id: string
+          lifecycle_status?: string
+          org_id: string
+          owner_id?: string | null
+          reviewer_id?: string | null
+          stage_id?: string | null
+          submitted_at?: string | null
+          target_date: string
+          target_date_is_estimated?: boolean
+          title: string
+          updated_at?: string
+          wbs_item_id?: string | null
+        }
+        Update: {
+          accepted_at?: string | null
+          approved_at?: string | null
+          archive_reason?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string
+          deliverable_type?: string
+          description?: string | null
+          exception_reason?: string | null
+          external_owner_text?: string | null
+          forecast_date?: string | null
+          id?: string
+          lfa_project_id?: string
+          lifecycle_status?: string
+          org_id?: string
+          owner_id?: string | null
+          reviewer_id?: string | null
+          stage_id?: string | null
+          submitted_at?: string | null
+          target_date?: string
+          target_date_is_estimated?: boolean
+          title?: string
+          updated_at?: string
+          wbs_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "programme_deliverables_lfa_project_id_fkey"
+            columns: ["lfa_project_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "programme_deliverables_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "programme_deliverables_stage_id_fkey"
+            columns: ["stage_id"]
+            isOneToOne: false
+            referencedRelation: "project_stages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "programme_deliverables_wbs_item_id_fkey"
+            columns: ["wbs_item_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_wbs_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_activity_events: {
+        Row: {
+          actor_id: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id: string
+          org_id: string
+          project_id: string
+          safe_metadata: Json
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id?: string
+          org_id: string
+          project_id: string
+          safe_metadata?: Json
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          event_type?: string
+          id?: string
+          org_id?: string
+          project_id?: string
+          safe_metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_activity_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_activity_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_objectives: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          org_id: string
+          project_id: string
+          sort_order: number
+          status: string
+          success_criteria: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          org_id: string
+          project_id: string
+          sort_order?: number
+          status?: string
+          success_criteria?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          org_id?: string
+          project_id?: string
+          sort_order?: number
+          status?: string
+          success_criteria?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_objectives_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_objectives_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_stages: {
+        Row: {
+          actual_end_date: string | null
+          actual_start_date: string | null
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          org_id: string
+          planned_end_date: string | null
+          planned_start_date: string | null
+          primary_objective_id: string | null
+          project_id: string
+          sort_order: number
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          actual_end_date?: string | null
+          actual_start_date?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          org_id: string
+          planned_end_date?: string | null
+          planned_start_date?: string | null
+          primary_objective_id?: string | null
+          project_id: string
+          sort_order?: number
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          actual_end_date?: string | null
+          actual_start_date?: string | null
+          archived_at?: string | null
+          archived_by?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          org_id?: string
+          planned_end_date?: string | null
+          planned_start_date?: string | null
+          primary_objective_id?: string | null
+          project_id?: string
+          sort_order?: number
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_stages_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_stages_primary_objective_id_fkey"
+            columns: ["primary_objective_id"]
+            isOneToOne: false
+            referencedRelation: "project_objectives"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_stages_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       readiness_scores: {
         Row: {
@@ -3034,6 +3493,79 @@ export type Database = {
         Args: { _token: string; _user_id: string }
         Returns: Json
       }
+      archive_programme_deliverable: {
+        Args: { p_archive_reason: string; p_deliverable_id: string }
+        Returns: {
+          accepted_at: string | null
+          approved_at: string | null
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string
+          deliverable_type: string
+          description: string | null
+          exception_reason: string | null
+          external_owner_text: string | null
+          forecast_date: string | null
+          id: string
+          lfa_project_id: string
+          lifecycle_status: string
+          org_id: string
+          owner_id: string | null
+          reviewer_id: string | null
+          stage_id: string | null
+          submitted_at: string | null
+          target_date: string
+          target_date_is_estimated: boolean
+          title: string
+          updated_at: string
+          wbs_item_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "programme_deliverables"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      archive_project_objective: {
+        Args: { p_objective_id: string }
+        Returns: {
+          archived_at: string
+          id: string
+          status: string
+        }[]
+      }
+      archive_project_stage: {
+        Args: { p_stage_id: string }
+        Returns: {
+          archived_at: string
+          id: string
+          status: string
+        }[]
+      }
+      assign_meal_item_context: {
+        Args: {
+          p_deliverable_id: string
+          p_meal_item_id: string
+          p_objective_id: string
+          p_stage_id: string
+        }
+        Returns: {
+          deliverable_id: string
+          id: string
+          objective_id: string
+          stage_id: string
+        }[]
+      }
+      assign_wbs_item_to_stage: {
+        Args: { p_stage_id: string; p_wbs_item_id: string }
+        Returns: {
+          id: string
+          stage_id: string
+        }[]
+      }
       auto_populate_wbs_default_budget_items: {
         Args: { p_lfa_project_id: string; p_org_id: string }
         Returns: number
@@ -3046,6 +3578,116 @@ export type Database = {
           _window_seconds: number
         }
         Returns: Json
+      }
+      create_programme_deliverable: {
+        Args: {
+          p_deliverable_type?: string
+          p_description?: string
+          p_external_owner_text?: string
+          p_forecast_date?: string
+          p_lfa_project_id: string
+          p_owner_id?: string
+          p_reviewer_id?: string
+          p_stage_id?: string
+          p_target_date?: string
+          p_target_date_is_estimated?: boolean
+          p_title?: string
+          p_wbs_item_id?: string
+        }
+        Returns: {
+          accepted_at: string | null
+          approved_at: string | null
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string
+          deliverable_type: string
+          description: string | null
+          exception_reason: string | null
+          external_owner_text: string | null
+          forecast_date: string | null
+          id: string
+          lfa_project_id: string
+          lifecycle_status: string
+          org_id: string
+          owner_id: string | null
+          reviewer_id: string | null
+          stage_id: string | null
+          submitted_at: string | null
+          target_date: string
+          target_date_is_estimated: boolean
+          title: string
+          updated_at: string
+          wbs_item_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "programme_deliverables"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_project_management_project: {
+        Args: {
+          p_beneficiary_count: number
+          p_beneficiary_description: string
+          p_duration_months: number
+          p_location: string
+          p_name: string
+          p_sector: string
+          p_start_date: string
+        }
+        Returns: {
+          created_at: string
+          name: string
+          org_id: string
+          project_id: string
+          project_mode: string
+          status: string
+        }[]
+      }
+      create_project_objective: {
+        Args: {
+          p_description: string
+          p_project_id: string
+          p_success_criteria: string
+          p_title: string
+        }
+        Returns: {
+          created_at: string
+          description: string
+          id: string
+          org_id: string
+          project_id: string
+          sort_order: number
+          status: string
+          success_criteria: string
+          title: string
+        }[]
+      }
+      create_project_stage: {
+        Args: {
+          p_description: string
+          p_planned_end_date: string
+          p_planned_start_date: string
+          p_primary_objective_id: string
+          p_project_id: string
+          p_title: string
+        }
+        Returns: {
+          created_at: string
+          description: string
+          id: string
+          org_id: string
+          planned_end_date: string
+          planned_start_date: string
+          primary_objective_id: string
+          project_id: string
+          sort_order: number
+          status: string
+          title: string
+        }[]
       }
       get_org_role: {
         Args: { _org_id: string; _user_id: string }
@@ -3065,6 +3707,7 @@ export type Database = {
           status: string
         }[]
       }
+      has_paid_plan: { Args: { _org_id: string }; Returns: boolean }
       has_product_access: {
         Args: {
           _org_id: string
@@ -3139,7 +3782,7 @@ export type Database = {
       materialize_grantwriter_document: {
         Args: {
           p_existing_lfa_project_id?: string
-          p_expected_document_version: number
+          p_expected_document_version?: number
           p_source_document_id: string
         }
         Returns: Json
@@ -3147,6 +3790,179 @@ export type Database = {
       materialize_lfa_matrix_transactional: {
         Args: { p_entries: Json; p_project_id: string }
         Returns: Json
+      }
+      reorder_project_objectives: {
+        Args: { p_ordered_ids: string[]; p_project_id: string }
+        Returns: {
+          item_count: number
+          reordered: boolean
+        }[]
+      }
+      reorder_project_stages: {
+        Args: { p_ordered_ids: string[]; p_project_id: string }
+        Returns: {
+          item_count: number
+          reordered: boolean
+        }[]
+      }
+      restore_project_objective: {
+        Args: { p_objective_id: string }
+        Returns: {
+          id: string
+          status: string
+        }[]
+      }
+      restore_project_stage: {
+        Args: { p_stage_id: string }
+        Returns: {
+          id: string
+          status: string
+        }[]
+      }
+      transition_programme_deliverable: {
+        Args: {
+          p_deliverable_id: string
+          p_reason?: string
+          p_submitted_at?: string
+          p_to_status: string
+        }
+        Returns: {
+          accepted_at: string | null
+          approved_at: string | null
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string
+          deliverable_type: string
+          description: string | null
+          exception_reason: string | null
+          external_owner_text: string | null
+          forecast_date: string | null
+          id: string
+          lfa_project_id: string
+          lifecycle_status: string
+          org_id: string
+          owner_id: string | null
+          reviewer_id: string | null
+          stage_id: string | null
+          submitted_at: string | null
+          target_date: string
+          target_date_is_estimated: boolean
+          title: string
+          updated_at: string
+          wbs_item_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "programme_deliverables"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_programme_deliverable_metadata: {
+        Args: {
+          p_deliverable_id: string
+          p_deliverable_type?: string
+          p_description?: string
+          p_external_owner_text?: string
+          p_forecast_date?: string
+          p_owner_id?: string
+          p_reviewer_id?: string
+          p_stage_id?: string
+          p_target_date?: string
+          p_target_date_is_estimated?: boolean
+          p_title?: string
+          p_update_description?: boolean
+          p_update_external_owner_text?: boolean
+          p_update_forecast_date?: boolean
+          p_update_owner_id?: boolean
+          p_update_reviewer_id?: boolean
+          p_update_stage_id?: boolean
+          p_update_wbs_item_id?: boolean
+          p_wbs_item_id: string
+        }
+        Returns: {
+          accepted_at: string | null
+          approved_at: string | null
+          archive_reason: string | null
+          archived_at: string | null
+          archived_by: string | null
+          created_at: string
+          created_by: string
+          deliverable_type: string
+          description: string | null
+          exception_reason: string | null
+          external_owner_text: string | null
+          forecast_date: string | null
+          id: string
+          lfa_project_id: string
+          lifecycle_status: string
+          org_id: string
+          owner_id: string | null
+          reviewer_id: string | null
+          stage_id: string | null
+          submitted_at: string | null
+          target_date: string
+          target_date_is_estimated: boolean
+          title: string
+          updated_at: string
+          wbs_item_id: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "programme_deliverables"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_project_objective_metadata: {
+        Args: {
+          p_description: string
+          p_objective_id: string
+          p_status: string
+          p_success_criteria: string
+          p_title: string
+        }
+        Returns: {
+          description: string
+          id: string
+          org_id: string
+          project_id: string
+          sort_order: number
+          status: string
+          success_criteria: string
+          title: string
+          updated_at: string
+        }[]
+      }
+      update_project_stage_metadata: {
+        Args: {
+          p_actual_end_date: string
+          p_actual_start_date: string
+          p_description: string
+          p_planned_end_date: string
+          p_planned_start_date: string
+          p_primary_objective_id: string
+          p_stage_id: string
+          p_status: string
+          p_title: string
+        }
+        Returns: {
+          actual_end_date: string
+          actual_start_date: string
+          description: string
+          id: string
+          org_id: string
+          planned_end_date: string
+          planned_start_date: string
+          primary_objective_id: string
+          project_id: string
+          sort_order: number
+          status: string
+          title: string
+          updated_at: string
+        }[]
       }
       user_has_organization: {
         Args: { check_user_id: string }
@@ -3190,6 +4006,18 @@ export type Database = {
         | "past_due"
         | "canceled"
         | "incomplete"
+      wbs_blocker_category:
+        | "donor_disbursement"
+        | "internal_approval"
+        | "vendor_delay"
+        | "field_condition"
+        | "force_majeure"
+      wbs_financial_status:
+        | "draft"
+        | "committed"
+        | "disbursement_requested"
+        | "paid"
+        | "blocked_by_finance"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -3315,9 +4143,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       admin_role: ["super_admin", "support"],
@@ -3360,6 +4185,20 @@ export const Constants = {
         "past_due",
         "canceled",
         "incomplete",
+      ],
+      wbs_blocker_category: [
+        "donor_disbursement",
+        "internal_approval",
+        "vendor_delay",
+        "field_condition",
+        "force_majeure",
+      ],
+      wbs_financial_status: [
+        "draft",
+        "committed",
+        "disbursement_requested",
+        "paid",
+        "blocked_by_finance",
       ],
     },
   },
