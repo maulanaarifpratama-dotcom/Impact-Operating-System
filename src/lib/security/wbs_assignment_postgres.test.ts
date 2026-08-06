@@ -145,7 +145,7 @@ describe.skipIf(!canReachPostgres)('WBS Assignment Authorization (PM) — Real P
     }
   });
 
-  test('Admin assigns same-org Member as PIC via RPC', async () => {
+  test('Legacy admin role denied PIC assignment (owner-only canonical)', async () => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -161,11 +161,9 @@ describe.skipIf(!canReachPostgres)('WBS Assignment Authorization (PM) — Real P
       const wbs = await createWbsItem(client, org, project, 'Activity B');
 
       await actAs(client, adminId);
-      const res = await client.query(
-        `SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`,
-        [wbs.id, memberId, null],
-      );
-      expect(res.rows[0].owner_id).toBe(memberId);
+      await expect(
+        client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, memberId, null]),
+      ).rejects.toThrow(/WBS_ASSIGN_FORBIDDEN/);
 
       await client.query('ROLLBACK');
     } finally {
@@ -587,7 +585,7 @@ describe.skipIf(!canReachPostgres)('WBS Assignment Authorization (PM) — Real P
 
   // --- Missing Gap Tests ---------------------------------------------------
 
-  test('Admin assigns same-org Reviewer via RPC', async () => {
+  test('Legacy admin denied Reviewer assignment (owner-only canonical)', async () => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -603,12 +601,9 @@ describe.skipIf(!canReachPostgres)('WBS Assignment Authorization (PM) — Real P
       const wbs = await createWbsItem(client, org, project, 'Activity Z1');
 
       await actAs(client, adminId);
-      const res = await client.query(
-        `SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`,
-        [wbs.id, null, reviewerId],
-      );
-      expect(res.rows[0].reviewer_id).toBe(reviewerId);
-      expect(res.rows[0].owner_id).toBeNull();
+      await expect(
+        client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, null, reviewerId]),
+      ).rejects.toThrow(/WBS_ASSIGN_FORBIDDEN/);
 
       await client.query('ROLLBACK');
     } finally {
@@ -617,7 +612,7 @@ describe.skipIf(!canReachPostgres)('WBS Assignment Authorization (PM) — Real P
     }
   });
 
-  test('Admin clears Reviewer via RPC', async () => {
+  test('Legacy admin denied Reviewer clear (owner-only canonical)', async () => {
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
@@ -633,12 +628,9 @@ describe.skipIf(!canReachPostgres)('WBS Assignment Authorization (PM) — Real P
       const wbs = await createWbsItem(client, org, project, 'Activity Z2');
 
       await actAs(client, adminId);
-      await client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, null, reviewerId]);
-      const cleared = await client.query(
-        `SELECT * FROM public.assign_wbs_item_people($1, $2, $3, $4, $5)`,
-        [wbs.id, null, null, false, true],
-      );
-      expect(cleared.rows[0].reviewer_id).toBeNull();
+      await expect(
+        client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3, $4, $5)`, [wbs.id, null, null, false, true]),
+      ).rejects.toThrow(/WBS_ASSIGN_FORBIDDEN/);
 
       await client.query('ROLLBACK');
     } finally {
@@ -761,6 +753,62 @@ describe.skipIf(!canReachPostgres)('WBS Assignment Authorization (PM) — Real P
         )
       ).rows;
       expect(events.length).toBe(0);
+
+      await client.query('ROLLBACK');
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
+
+  // --- Legacy admin role denial (owner-only canonical) --------------------
+
+  test('Legacy admin role cannot assign PIC', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ownerId = 'd0000000-0000-0000-0000-000000000001';
+      const adminId = 'd0000000-0000-0000-0000-000000000002';
+      const memberId = 'd0000000-0000-0000-0000-000000000003';
+      await ensureAuthUser(client, ownerId);
+      await ensureAuthUser(client, adminId);
+      await ensureAuthUser(client, memberId);
+      const { org, project } = await createOrgAndProject(client, 'AdminDeny', ownerId, 'AdminDenyP');
+      await addMember(client, org, adminId, 'admin');
+      await addMember(client, org, memberId, 'member');
+      const wbs = await createWbsItem(client, org, project, 'Item AA');
+
+      await actAs(client, adminId);
+      await expect(
+        client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, memberId, null]),
+      ).rejects.toThrow(/WBS_ASSIGN_FORBIDDEN/);
+
+      await client.query('ROLLBACK');
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
+
+  test('Legacy admin role cannot assign Reviewer', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ownerId = 'd0000000-0000-0000-0000-000000000011';
+      const adminId = 'd0000000-0000-0000-0000-000000000012';
+      const memberId = 'd0000000-0000-0000-0000-000000000013';
+      await ensureAuthUser(client, ownerId);
+      await ensureAuthUser(client, adminId);
+      await ensureAuthUser(client, memberId);
+      const { org, project } = await createOrgAndProject(client, 'AdminRevDeny', ownerId, 'AdminRevDenyP');
+      await addMember(client, org, adminId, 'admin');
+      await addMember(client, org, memberId, 'member');
+      const wbs = await createWbsItem(client, org, project, 'Item AB');
+
+      await actAs(client, adminId);
+      await expect(
+        client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, null, memberId]),
+      ).rejects.toThrow(/WBS_ASSIGN_FORBIDDEN/);
 
       await client.query('ROLLBACK');
     } finally {

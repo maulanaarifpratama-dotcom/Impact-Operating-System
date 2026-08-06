@@ -220,8 +220,8 @@ export default function WBSBuilder({
   const { toast } = useToast();
   const { user } = useAuth();
   const { role: orgRole, canDelete: canManage } = useOrgRole();
-  const isOwnerOrAdmin = orgRole === 'owner' || orgRole === 'admin';
-  const canManageProjectWork = isOwnerOrAdmin;
+  const isOwner = orgRole === 'owner';
+  const canManageProjectWork = isOwner;
   const navigate = useNavigate();
   const [wbsItems, setWbsItems] = useState<WbsItem[]>([]);
   const [stages, setStages] = useState<WbsStageOption[]>([]);
@@ -268,7 +268,7 @@ export default function WBSBuilder({
 
   // Work Plan filter (PM mode)
   const [workPlanFilter, setWorkPlanFilter] = useState<WorkPlanFilter>(
-    isOwnerOrAdmin ? 'all' : 'my-work',
+    isOwner ? 'all' : 'my-work',
   );
 
   // Dynamic Row Heights tracking for auto-height text wrapping alignment
@@ -2301,7 +2301,7 @@ export default function WBSBuilder({
               { key: 'blocked', label: 'Terblokir', showFor: 'all' },
             ];
             return filters
-              .filter((f) => f.showFor === 'all' || isOwnerOrAdmin)
+              .filter((f) => f.showFor === 'all' || isOwner)
               .map((f) => (
                 <button
                   key={f.key}
@@ -2978,7 +2978,7 @@ export default function WBSBuilder({
                         <span className="text-[10px] text-muted-foreground">-</span>
                       ) : productMode === 'project_management' ? (
                         <div className="relative" onClick={(e) => e.stopPropagation()}>
-                          {isOwnerOrAdmin ? (
+                          {isOwner ? (
                             <select
                               value={item.owner_id || item.pic || ''}
                               data-testid="wbs-pic-select"

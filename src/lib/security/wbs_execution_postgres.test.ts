@@ -565,4 +565,90 @@ describe.skipIf(!canReachPostgres)('WBS Execution Authorization (PM) — Real Po
       client.release();
     }
   });
+
+  // --- Legacy admin role denial (owner-only canonical) --------------------
+
+  test('Legacy admin cannot edit all PM WBS fields', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ownerId = 'd0000000-0000-0000-0000-000000000021';
+      const adminId = 'd0000000-0000-0000-0000-000000000022';
+      await ensureAuthUser(client, ownerId);
+      await ensureAuthUser(client, adminId);
+      const { org, project } = await createOrgAndProject(client, 'AdmExec', ownerId, 'AdmExecP');
+      await addMember(client, org, adminId, 'admin');
+      const wbs = await createWbsItem(client, org, project, 'Item AC');
+
+      await actAs(client, adminId);
+      await expect(
+        client.query(`UPDATE public.lfa_wbs_items SET name = 'Hacked' WHERE id = $1`, [wbs.id]),
+      ).rejects.toThrow(/WBS_EXEC_FORBIDDEN/);
+
+      await client.query('ROLLBACK');
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
+
+  test('Legacy admin cannot delete PM WBS item', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ownerId = 'd0000000-0000-0000-0000-000000000031';
+      const adminId = 'd0000000-0000-0000-0000-000000000032';
+      await ensureAuthUser(client, ownerId);
+      await ensureAuthUser(client, adminId);
+      const { org, project } = await createOrgAndProject(client, 'AdmDel', ownerId, 'AdmDelP');
+      await addMember(client, org, adminId, 'admin');
+      const wbs = await createWbsItem(client, org, project, 'Item AD');
+
+      await actAs(client, adminId);
+      await expect(
+        client.query(`DELETE FROM public.lfa_wbs_items WHERE id = $1`, [wbs.id]),
+      ).rejects.toThrow(/WBS_DELETE_FORBIDDEN/);
+
+      await client.query('ROLLBACK');
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
+
+  test('Owner retains full assignment and execution authority', async () => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const ownerId = 'd0000000-0000-0000-0000-000000000041';
+      const memberId = 'd0000000-0000-0000-0000-000000000042';
+      await ensureAuthUser(client, ownerId);
+      await ensureAuthUser(client, memberId);
+      const { org, project } = await createOrgAndProject(client, 'OwnFull', ownerId, 'OwnFullP');
+      await addMember(client, org, memberId, 'member');
+      const wbs = await createWbsItem(client, org, project, 'Item AE');
+
+      // Owner assigns PIC
+      await actAs(client, ownerId);
+      await client.query(`SELECT * FROM public.assign_wbs_item_people($1, $2, $3)`, [wbs.id, memberId, null]);
+      const assigned = (await client.query(`SELECT owner_id FROM public.lfa_wbs_items WHERE id = $1`, [wbs.id])).rows[0];
+      expect(assigned.owner_id).toBe(memberId);
+
+      // Owner changes title
+      await client.query(`UPDATE public.lfa_wbs_items SET name = 'Updated' WHERE id = $1`, [wbs.id]);
+
+      // Owner changes status
+      await client.query(`UPDATE public.lfa_wbs_items SET status = 'completed' WHERE id = $1`, [wbs.id]);
+
+      // Owner deletes
+      await client.query(`DELETE FROM public.lfa_wbs_items WHERE id = $1`, [wbs.id]);
+      const after = (await client.query(`SELECT id FROM public.lfa_wbs_items WHERE id = $1`, [wbs.id])).rows;
+      expect(after.length).toBe(0);
+
+      await client.query('ROLLBACK');
+    } finally {
+      await client.query('ROLLBACK').catch(() => {});
+      client.release();
+    }
+  });
 });
