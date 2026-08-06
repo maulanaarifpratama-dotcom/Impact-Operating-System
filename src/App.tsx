@@ -1,6 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useParams } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
@@ -87,6 +87,11 @@ const ProjectActivityPage = lazy(
 const ProjectOverviewPage = lazy(
   () => import('./pages/dashboard/project-management/overview/ProjectOverviewPage'),
 );
+
+function RedirectToMeal() {
+  const { projectId } = useParams<{ projectId: string }>();
+  return <Navigate to={`/dashboard/project-management/${projectId}/meal`} replace />;
+}
 
 function RouteFallback() {
   return (
@@ -268,15 +273,15 @@ const App = () => (
               />
               <Route
                 path="/dashboard/project-management/:projectId/deliverables"
-                element={<ProjectDeliverablesPage />}
+                element={<RedirectToMeal />}
               />
               <Route
                 path="/dashboard/project-management/:projectId/activity"
-                element={<ProjectActivityPage />}
+                element={<RedirectToMeal />}
               />
               <Route
                 path="/dashboard/project-management/:projectId/overview"
-                element={<ProjectOverviewPage />}
+                element={<RedirectToMeal />}
               />
               <Route path="/dashboard/sroi" element={<SROIStandalone />} />
               <Route path="/dashboard/eroi" element={<EROIStandalone />} />

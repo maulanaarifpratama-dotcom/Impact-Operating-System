@@ -2,19 +2,14 @@ import { NavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 
 /**
- * Shared tab strip for a Project Management project's sub-pages. PM-1B added
- * Objectives, PM-1C adds Stages, PM-2 adds WBS and Budget, PM-3 adds MEAL,
- * Deliverables, Activity, and Overview -- each needs a way to reach the
- * others, since no single page's route implies the rest exist.
+ * Shared tab strip for a Project Management project's sub-pages.
+ * Canonical PM P0: three primary tabs.
  */
 export function ProjectWorkspaceNav({ projectId }: { projectId: string }) {
   const tabs = [
-    { name: 'Overview', href: `/dashboard/project-management/${projectId}/overview` },
     { name: 'Work Plan', href: `/dashboard/project-management/${projectId}/wbs` },
     { name: 'Budget', href: `/dashboard/project-management/${projectId}/budget` },
     { name: 'MEAL', href: `/dashboard/project-management/${projectId}/meal` },
-    { name: 'Deliverables', href: `/dashboard/project-management/${projectId}/deliverables` },
-    { name: 'Activity', href: `/dashboard/project-management/${projectId}/activity` },
   ];
 
   return (
