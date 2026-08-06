@@ -2168,7 +2168,7 @@ export default function WBSBuilder({
           </div>
           <p className="text-xs text-muted-foreground">
             {productMode === 'project_management'
-              ? 'Kelola Activity dan Task di setiap Stage, timeline visual dan estimasi AI.'
+              ? 'Kelola Stage, Activity, Task, jadwal, progress, dan tanggung jawab proyek.'
               : 'Detail aktivitas, timeline visual, estimasi AI dan cascading modul Budget.'}
           </p>
         </div>
@@ -3787,6 +3787,7 @@ export default function WBSBuilder({
             orgMembers={orgMembers}
             orgMemberLookup={orgMemberLookup}
             isOwner={isOwner}
+            onStagesRefresh={() => { void loadStages(); }}
             onScheduleChange={(wbsId, field, value) => {
               const item = wbsItems.find((w) => w.id === wbsId);
               if (item) {
