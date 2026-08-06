@@ -2527,25 +2527,12 @@ export default function WBSBuilder({
                         />
                       )}
 
-                      {/* PM schedule label */}
-                      {productMode === 'project_management' && (item.level === 2 || item.level === 3) && (() => {
-                        const ps = item.planned_start_date; const pe = item.planned_end_date;
-                        const missing = !ps || !pe;
-                        let label = 'Jadwal Belum Diatur'; let cls = 'text-amber-600';
-                        if (!missing && item.status !== 'completed' && item.status !== 'cancelled') {
-                          try {
-                            const finish = new Date(pe); const now = new Date();
-                            const todayD = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-                            const finishD = new Date(finish.getFullYear(), finish.getMonth(), finish.getDate());
-                            const diff = Math.floor((todayD.getTime() - finishD.getTime()) / 86400000);
-                            if (diff > 0) { label = `Terlambat ${diff} Hari`; cls = 'text-red-600 font-semibold'; }
-                            else if (diff >= -7) { label = `Jatuh Tempo ${Math.abs(diff)} Hari`; cls = 'text-amber-600'; }
-                            else { label = `Mulai ${ps} → Tenggat ${pe}`; cls = 'text-muted-foreground'; }
-                          } catch { label = 'Jadwal Belum Diatur'; }
-                        } else if (item.status === 'completed') { label = 'Selesai'; cls = 'text-emerald-600'; }
-                        else if (item.status === 'cancelled') { label = 'Dibatalkan'; cls = 'text-slate-400'; }
-                        return <span className={`text-[8px] ${cls} mt-0.5 block truncate`}>{label}</span>;
-                      })()}
+                      {/* PM Activity duration label */}
+                      {productMode === 'project_management' && (item.level === 2 || item.level === 3) && (
+                        <span className="text-[8px] text-muted-foreground mt-0.5 block truncate">
+                          {item.duration_weeks ? `${item.duration_weeks} Minggu` : 'Durasi belum diisi'}
+                        </span>
+                      )}
 
                       {/* On-Demand Detail Popover Button */}
                       {(() => {
