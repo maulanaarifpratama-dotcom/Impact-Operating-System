@@ -39,6 +39,7 @@ interface BudgetCalculatorProps {
   programDurationMonths?: number;
   sector?: string;
   onBudgetChanged?: () => void;
+  productMode?: 'programme_design' | 'project_management';
 }
 
 export default function BudgetCalculator({
@@ -46,7 +47,8 @@ export default function BudgetCalculator({
   orgId,
   programDurationMonths = 12,
   sector = 'Sektor Lainnya',
-  onBudgetChanged
+  onBudgetChanged,
+  productMode = 'programme_design'
 }: BudgetCalculatorProps) {
   const { toast } = useToast();
   const [wbsActivities, setWbsActivities] = useState<WbsItem[]>([]);
@@ -1684,8 +1686,8 @@ export default function BudgetCalculator({
           <div className="flex flex-col gap-1">
             <h2 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-tight">Kalkulator & Realisasi Anggaran</h2>
             <p className="text-[11px] text-muted-foreground">Kelola rencana alokasi biaya program dan catat realisasi pengeluaran dalam satu dasbor.</p>
-          </div>
-          
+        </div>
+
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50/50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 rounded-lg shadow-sm">
               <input
@@ -1711,6 +1713,8 @@ export default function BudgetCalculator({
           </div>
         </div>
 
+        {/* Mirror Budget Model — Programme Design only. PM has its own canonical summary in ProjectBudgetPage. */}
+        {productMode !== 'project_management' && (
         <div className={`p-5 rounded-xl border mb-5 transition-all duration-300 ${
           !hasTargetBudget
             ? 'bg-slate-50/60 border-slate-200 dark:bg-slate-900/30 dark:border-slate-800'
@@ -1827,6 +1831,7 @@ export default function BudgetCalculator({
             </div>
           </div>
         </div>
+        )}
 
         {/* Dynamic Metric Cards at top (depending on active tab) */}
         {activeTab === 'rencana' ? (

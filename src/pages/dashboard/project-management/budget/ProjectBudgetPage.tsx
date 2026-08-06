@@ -1,15 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, ChevronDown, ChevronRight, Info } from 'lucide-react';
+import { ArrowLeft, Loader2, ChevronDown, ChevronRight, Info, Edit3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import BudgetCalculator from '@/pages/dashboard/lfa-builder/BudgetCalculator';
 import { ProjectWorkspaceNav } from '../ProjectWorkspaceNav';
-import { resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
+import { resolveTargetBudgetForLfaProject, persistTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 import {
   computeBudgetSnapshot,
   computeStageBudgets,
@@ -28,21 +38,28 @@ interface ProjectMeta {
   sector: string | null;
 }
 
+type StageActivityRow = { activityId: string; total: number; budgetItemCount: number };
+
 export default function ProjectBudgetPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   const [orgId, setOrgId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [projectMeta, setProjectMeta] = useState<ProjectMeta | null>(null);
   const [targetBudget, setTargetBudget] = useState<number | null>(null);
-  const [budgetRefreshKey, setBudgetRefreshKey] = useState(0);
   const [stageExpanded, setStageExpanded] = useState<Record<string, boolean>>({});
 
   const [rawBudgetItems, setRawBudgetItems] = useState<BudgetItemInput[]>([]);
   const [rawWbsItems, setRawWbsItems] = useState<WbsBudgetInput[]>([]);
   const [rawStages, setRawStages] = useState<StageBudgetInput[]>([]);
+
+  // Target Budget dialog
+  const [targetDialogOpen, setTargetDialogOpen] = useState(false);
+  const [targetInput, setTargetInput] = useState('');
+  const [savingTarget, setSavingTarget] = useState(false);
 
   const loadAll = useCallback(async () => {
     if (!projectId) return;
@@ -51,7 +68,7 @@ export default function ProjectBudgetPage() {
     try {
       const [projRes, wbsRes, budgetRes, stagesRes] = await Promise.all([
         supabase.from('lfa_projects').select('org_id, name, duration_months, sector').eq('id', projectId).single(),
-        (supabase as any).from('lfa_wbs_items').select('id, level, parent_id, stage_id').eq('lfa_project_id', projectId),
+        (supabase as any).from('lfa_wbs_items').select('id, level, parent_id, stage_id, name').eq('lfa_project_id', projectId),
         supabase.from('lfa_budget_items').select('id, wbs_item_id, volume, unit_price_idr, actual_amount_idr, cost_category').eq('lfa_project_id', projectId),
         (supabase as any).from('project_stages').select('id, title, archived_at').eq('project_id', projectId),
       ]);
@@ -96,15 +113,67 @@ export default function ProjectBudgetPage() {
     wbsItems: rawWbsItems,
   }), [rawBudgetItems, rawWbsItems]);
 
+  // Pre-compute which activity belongs to which stage
+  const activitiesByStage = useMemo(() => {
+    const map = new Map<string | null, StageActivityRow[]>();
+    const wbsById = new Map(rawWbsItems.map((w) => [w.id, w]));
+
+    const resolveStage = (wbsItemId: string): string | null => {
+      let cur = wbsById.get(wbsItemId);
+      for (let g = 0; g < 10 && cur; g++) {
+        if (cur.level === 1) return cur.stage_id ?? null;
+        if (!cur.parent_id) break;
+        cur = wbsById.get(cur.parent_id);
+      }
+      return null;
+    };
+
+    for (const stage of stageResult.rows) {
+      map.set(stage.stageId, []);
+    }
+    map.set(null, []);
+
+    for (const a of activityRows) {
+      const sid = resolveStage(a.activityId);
+      const key = sid && map.has(sid) ? sid : null;
+      map.get(key)!.push(a);
+    }
+    return map;
+  }, [activityRows, rawWbsItems, stageResult.rows]);
+
   const onBudgetChanged = useCallback(() => {
     void loadAll();
-    setBudgetRefreshKey((k) => k + 1);
   }, [loadAll]);
 
-  const activityNameById = useMemo(() => {
+  // Target Budget persistence
+  const openTargetDialog = () => {
+    setTargetInput(targetBudget ? String(Math.round(targetBudget)) : '');
+    setTargetDialogOpen(true);
+  };
+
+  const handleSaveTarget = async () => {
+    const normalized = Number(String(targetInput).replace(/[^0-9]/g, ''));
+    if (!Number.isFinite(normalized) || normalized <= 0) {
+      toast({ title: 'Target Budget tidak valid', description: 'Isi nominal lebih besar dari 0.', variant: 'destructive' });
+      return;
+    }
+    setSavingTarget(true);
+    try {
+      const saved = await persistTargetBudgetForLfaProject(supabase as any, projectId!, normalized);
+      setTargetBudget(saved);
+      setTargetDialogOpen(false);
+      toast({ title: 'Target Budget Tersimpan', description: `Target budget diperbarui ke ${formatIDR(saved)}.` });
+    } catch (err: any) {
+      toast({ title: 'Gagal menyimpan Target Budget', description: err?.message || 'Terjadi kesalahan.', variant: 'destructive' });
+    } finally {
+      setSavingTarget(false);
+    }
+  };
+
+  const wbsNameById = useMemo(() => {
     const map = new Map<string, string>();
     for (const w of rawWbsItems) {
-      if (w.level === 2) map.set(w.id, `Activity ${w.id.slice(0, 8)}`);
+      if (w.level === 2 && (w as any).name) map.set(w.id, (w as any).name);
     }
     return map;
   }, [rawWbsItems]);
@@ -132,20 +201,24 @@ export default function ProjectBudgetPage() {
         <>
           {/* SECTION 1 — Budget Summary */}
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Ringkasan Anggaran</CardTitle>
+              <Button variant="outline" size="sm" onClick={openTargetDialog}>
+                <Edit3 className="mr-1.5 h-3.5 w-3.5" />
+                {snapshot.hasTargetBudget ? 'Edit Target Budget' : 'Set Target Budget'}
+              </Button>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
                 <div>
                   <div className="text-xs text-muted-foreground">Target Budget</div>
                   <div className="text-lg font-bold">
-                    {snapshot.hasTargetBudget ? formatBudgetBadge(snapshot.targetBudget!) : 'Belum ditetapkan'}
+                    {snapshot.hasTargetBudget ? formatIDR(snapshot.targetBudget!) : '—'}
                   </div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Detailed Budget</div>
-                  <div className="text-lg font-bold">{formatBudgetBadge(snapshot.detailedBudget)}</div>
+                  <div className="text-lg font-bold">{formatIDR(snapshot.detailedBudget)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Coverage</div>
@@ -158,13 +231,13 @@ export default function ProjectBudgetPage() {
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">
-                    {snapshot.overAllocation > 0 ? 'Over-allocation' : 'Sisa Gap'}
+                    {snapshot.overAllocation > 0 ? 'Over-allocation' : 'Gap Belum Dialokasikan'}
                   </div>
                   <div className={`text-lg font-bold ${snapshot.overAllocation > 0 ? 'text-destructive' : 'text-emerald-600'}`}>
                     {snapshot.hasTargetBudget
                       ? snapshot.overAllocation > 0
-                        ? `+${formatBudgetBadge(snapshot.overAllocation)}`
-                        : formatBudgetBadge(snapshot.remainingGap ?? 0)
+                        ? `+${formatIDR(snapshot.overAllocation)}`
+                        : formatIDR(snapshot.remainingGap ?? 0)
                       : '—'}
                   </div>
                 </div>
@@ -172,15 +245,15 @@ export default function ProjectBudgetPage() {
               <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 border-t pt-4">
                 <div>
                   <div className="text-xs text-muted-foreground">Realisasi</div>
-                  <div className="text-sm font-semibold">{formatBudgetBadge(snapshot.actualRealization)}</div>
+                  <div className="text-sm font-semibold">{formatIDR(snapshot.actualRealization)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Utilisasi</div>
                   <div className="text-sm font-semibold">{snapshot.utilizationPercent.toFixed(0)}%</div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">Burn Rate (bln)</div>
-                  <div className="text-sm font-semibold">{formatBudgetBadge(snapshot.plannedBurnRate)}</div>
+                  <div className="text-xs text-muted-foreground">Burn Rate Bulanan</div>
+                  <div className="text-sm font-semibold">{formatIDR(snapshot.plannedBurnRate)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Overhead</div>
@@ -224,47 +297,21 @@ export default function ProjectBudgetPage() {
                           {row.activityCount} Activity · {row.percentOfProject.toFixed(0)}% dari Project
                         </div>
                       </div>
-                      <div className="text-sm font-bold shrink-0">{formatBudgetBadge(row.total)}</div>
+                      <div className="text-sm font-bold shrink-0">{formatIDR(row.total)}</div>
                       {row.percentOfProject > 0 && (
                         <Progress value={row.percentOfProject} className="w-16 h-1.5 shrink-0" />
                       )}
                     </div>
                     <CollapsibleContent className="pl-8 pt-2 space-y-1">
-                      {activityRows
-                        .filter((a) => {
-                          const w = rawWbsItems.find((wi) => wi.id === a.activityId);
-                          if (!w || w.level !== 2) return false;
-                          let cur = w;
-                          for (let g = 0; g < 10; g++) {
-                            if (cur.level === 1) return cur.stage_id === row.stageId;
-                            if (!cur.parent_id) break;
-                            const parent = rawWbsItems.find((p) => p.id === cur.parent_id);
-                            if (!parent) break;
-                            cur = parent;
-                          }
-                          return row.stageId === null;
-                        })
-                        .map((a) => (
-                          <div key={a.activityId} className="flex items-center justify-between rounded bg-muted/30 px-3 py-1.5 text-xs">
-                            <span className="truncate">{activityNameById.get(a.activityId) || a.activityId}</span>
-                            <span className="ml-2 shrink-0 text-muted-foreground">
-                              {formatBudgetBadge(a.total)} · {a.budgetItemCount} item
-                            </span>
-                          </div>
-                        ))}
-                      {activityRows.filter((a) => {
-                        const w = rawWbsItems.find((wi) => wi.id === a.activityId);
-                        if (!w || w.level !== 2) return false;
-                        let cur = w;
-                        for (let g = 0; g < 10; g++) {
-                          if (cur.level === 1) return cur.stage_id === row.stageId;
-                          if (!cur.parent_id) break;
-                          const parent = rawWbsItems.find((p) => p.id === cur.parent_id);
-                          if (!parent) break;
-                          cur = parent;
-                        }
-                        return row.stageId === null;
-                      }).length === 0 && (
+                      {(activitiesByStage.get(row.stageId) || []).map((a) => (
+                        <div key={a.activityId} className="flex items-center justify-between rounded bg-muted/30 px-3 py-1.5 text-xs">
+                          <span className="truncate">{wbsNameById.get(a.activityId) || a.activityId}</span>
+                          <span className="ml-2 shrink-0 text-muted-foreground">
+                            {formatIDR(a.total)} · {a.budgetItemCount} item
+                          </span>
+                        </div>
+                      ))}
+                      {(activitiesByStage.get(row.stageId) || []).length === 0 && (
                         <div className="text-xs text-muted-foreground italic px-3 py-1">Belum ada Activity dengan anggaran.</div>
                       )}
                     </CollapsibleContent>
@@ -278,7 +325,7 @@ export default function ProjectBudgetPage() {
                       <div className="text-sm font-semibold">Belum Ditentukan Stage</div>
                       <div className="text-xs text-muted-foreground">Activity yang belum ditautkan ke Stage mana pun</div>
                     </div>
-                    <div className="text-sm font-bold shrink-0">{formatBudgetBadge(stageResult.unassignedTotal)}</div>
+                    <div className="text-sm font-bold shrink-0">{formatIDR(stageResult.unassignedTotal)}</div>
                   </div>
                 )}
               </CardContent>
@@ -298,26 +345,61 @@ export default function ProjectBudgetPage() {
               </div>
               <div className="rounded border p-3">
                 <div className="font-semibold text-foreground text-xs mb-1">INKINDO 2026</div>
-                <div>Remunerasi Tenaga Ahli &amp; Pendukung</div>
+                <div>Referensi Biaya Profesional</div>
                 <div className="mt-1">Indeks provinsi diterapkan berdasarkan lokasi proyek untuk penyesuaian biaya personil.</div>
               </div>
               <div className="rounded border p-3">
                 <div className="font-semibold text-foreground text-xs mb-1">Skenario Efisiensi Internal</div>
-                <div>Multiplier dapat disesuaikan</div>
-                <div className="mt-1">Bukan standar resmi. Gunakan untuk perencanaan skenario internal organisasi.</div>
+                <div>Multiplier 70% (dapat disesuaikan)</div>
+                <div className="mt-1">Bukan standar resmi. Untuk perencanaan skenario internal organisasi.</div>
               </div>
             </CardContent>
           </Card>
 
           {/* SECTION 4 — Detailed Budget Calculator */}
           <BudgetCalculator
-            key={budgetRefreshKey}
             projectId={projectId}
             orgId={orgId}
             programDurationMonths={projectMeta?.duration_months || 12}
             sector={projectMeta?.sector || 'Sektor Lainnya'}
             onBudgetChanged={onBudgetChanged}
+            productMode="project_management"
           />
+
+          {/* Target Budget Dialog */}
+          <Dialog open={targetDialogOpen} onOpenChange={setTargetDialogOpen}>
+            <DialogContent className="sm:max-w-md">
+              <DialogHeader>
+                <DialogTitle>{snapshot.hasTargetBudget ? 'Edit Target Budget' : 'Set Target Budget'}</DialogTitle>
+                <DialogDescription>
+                  Target budget digunakan sebagai acuan Coverage dan Gap terhadap Detailed Budget.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-2">
+                <Label htmlFor="pm-target-budget">Target Budget (IDR)</Label>
+                <Input
+                  id="pm-target-budget"
+                  inputMode="numeric"
+                  placeholder="500000000"
+                  value={targetInput}
+                  onChange={(e) => setTargetInput(e.target.value)}
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && targetInput.trim()) void handleSaveTarget();
+                  }}
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" disabled={savingTarget} onClick={() => setTargetDialogOpen(false)}>
+                  Batal
+                </Button>
+                <Button onClick={handleSaveTarget} disabled={savingTarget || !targetInput.trim()}>
+                  {savingTarget ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Simpan
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </>
       )}
     </div>
