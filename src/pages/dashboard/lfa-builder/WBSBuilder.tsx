@@ -26,6 +26,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider } from '@/components/ui/tooltip';
 import { computeEvmVarianceFlag } from './evmVariance';
 import { buildWorkPlan, type WbsItemInput, type BudgetItemInput } from '@/lib/project-management/workPlan';
+import { createProjectStage, updateProjectStageMetadata, archiveProjectStage, reorderProjectStages } from '@/lib/project-management/stageRpc';
 import { appStylesheetTags, finalizePrintWindow } from '@/lib/print/printWindow';
 import { persistTargetBudgetForLfaProject, resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 import { evaluateMirrorBudgetModel } from '@/lib/budget/mirrorBudgetModel';
@@ -1908,12 +1909,12 @@ export default function WBSBuilder({
     if (!stageFormTitle.trim() || !projectId) return;
     setStageSaving(true);
     try {
-      const { error: rpcError } = await (supabase.rpc as any)('create_project_stage', {
-        p_project_id: projectId,
-        p_title: stageFormTitle.trim(),
-        p_description: stageFormDesc || null,
-        p_planned_start_date: stageFormPlannedStart || null,
-        p_planned_end_date: stageFormPlannedEnd || null,
+      const { error: rpcError } = await createProjectStage({
+        projectId,
+        title: stageFormTitle.trim(),
+        description: stageFormDesc || null,
+        plannedStartDate: stageFormPlannedStart || null,
+        plannedEndDate: stageFormPlannedEnd || null,
       });
       if (rpcError) throw rpcError;
       toast({ title: 'Stage Ditambahkan' });
@@ -1930,12 +1931,12 @@ export default function WBSBuilder({
     if (!editingStageId || !stageFormTitle.trim()) return;
     setStageSaving(true);
     try {
-      const { error: rpcError } = await (supabase.rpc as any)('update_project_stage_metadata', {
-        p_stage_id: editingStageId,
-        p_title: stageFormTitle.trim(),
-        p_description: stageFormDesc || null,
-        p_planned_start_date: stageFormPlannedStart || null,
-        p_planned_end_date: stageFormPlannedEnd || null,
+      const { error: rpcError } = await updateProjectStageMetadata({
+        stageId: editingStageId,
+        title: stageFormTitle.trim(),
+        description: stageFormDesc || null,
+        plannedStartDate: stageFormPlannedStart || null,
+        plannedEndDate: stageFormPlannedEnd || null,
       });
       if (rpcError) throw rpcError;
       toast({ title: 'Stage Diperbarui' });
