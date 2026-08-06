@@ -2441,6 +2441,7 @@ export type Database = {
           expires_at: string
           id: string
           invited_by: string | null
+          job_title: string | null
           organization_id: string
           role: Database["public"]["Enums"]["org_role"]
           status: string
@@ -2452,6 +2453,7 @@ export type Database = {
           expires_at?: string
           id?: string
           invited_by?: string | null
+          job_title?: string | null
           organization_id: string
           role?: Database["public"]["Enums"]["org_role"]
           status?: string
@@ -2463,6 +2465,7 @@ export type Database = {
           expires_at?: string
           id?: string
           invited_by?: string | null
+          job_title?: string | null
           organization_id?: string
           role?: Database["public"]["Enums"]["org_role"]
           status?: string
