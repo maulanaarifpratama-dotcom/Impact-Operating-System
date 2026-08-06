@@ -3,13 +3,15 @@ import { cn } from '@/lib/utils';
 
 /**
  * Shared tab strip for a Project Management project's sub-pages. PM-1B added
- * Objectives, PM-1C adds Stages -- both need a way to reach the other, since
- * neither page's route implies the sibling exists.
+ * Objectives, PM-1C adds Stages, PM-2 adds WBS and Budget -- each needs a way
+ * to reach the others, since no single page's route implies the rest exist.
  */
 export function ProjectWorkspaceNav({ projectId }: { projectId: string }) {
   const tabs = [
     { name: 'Objectives', href: `/dashboard/project-management/${projectId}/objectives` },
     { name: 'Stages', href: `/dashboard/project-management/${projectId}/stages` },
+    { name: 'WBS', href: `/dashboard/project-management/${projectId}/wbs` },
+    { name: 'Budget', href: `/dashboard/project-management/${projectId}/budget` },
   ];
 
   return (

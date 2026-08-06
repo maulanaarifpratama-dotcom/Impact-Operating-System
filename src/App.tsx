@@ -69,6 +69,12 @@ const ProjectObjectivesPage = lazy(
 const ProjectStagesPage = lazy(
   () => import('./pages/dashboard/project-management/stages/ProjectStagesPage'),
 );
+const ProjectWBSPage = lazy(
+  () => import('./pages/dashboard/project-management/wbs/ProjectWBSPage'),
+);
+const ProjectBudgetPage = lazy(
+  () => import('./pages/dashboard/project-management/budget/ProjectBudgetPage'),
+);
 
 function RouteFallback() {
   return (
@@ -235,6 +241,14 @@ const App = () => (
               <Route
                 path="/dashboard/project-management/:projectId/stages"
                 element={<ProjectStagesPage />}
+              />
+              <Route
+                path="/dashboard/project-management/:projectId/wbs"
+                element={<ProjectWBSPage />}
+              />
+              <Route
+                path="/dashboard/project-management/:projectId/budget"
+                element={<ProjectBudgetPage />}
               />
               <Route path="/dashboard/sroi" element={<SROIStandalone />} />
               <Route path="/dashboard/eroi" element={<EROIStandalone />} />

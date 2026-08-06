@@ -56,6 +56,7 @@ export interface WbsItem {
   lfa_entry_id?: string | null;
   owner_id?: string | null;
   reviewer_id?: string | null;
+  stage_id?: string | null;
   financial_status?: WbsFinancialStatus | null;
   blocker_category?: WbsBlockerCategory | null;
   blocker_notes?: string | null;
