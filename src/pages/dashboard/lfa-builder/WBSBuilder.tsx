@@ -12,7 +12,7 @@ import { CARBON_FACTORS_INDONESIA } from '@/data/carbon-factors-indonesia';
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
   AlertTriangle, Milestone, Calendar, User, AlignLeft, Flag, Network, Wallet, ExternalLink,
-  ClipboardCheck, FileText, CheckCircle2, XCircle, AlertCircle, Link2, ShieldAlert, FileUp, Filter
+  ClipboardCheck, FileText, CheckCircle2, XCircle, AlertCircle, Link2, ShieldAlert, FileUp, Filter, Settings
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -209,6 +209,12 @@ interface WbsStageOption {
   id: string;
   title: string;
   archived_at: string | null;
+  planned_start_date?: string | null;
+  planned_end_date?: string | null;
+  actual_start_date?: string | null;
+  actual_end_date?: string | null;
+  status?: string;
+  description?: string | null;
 }
 
 export default function WBSBuilder({
@@ -781,7 +787,7 @@ export default function WBSBuilder({
       // change), so this one query is narrowly cast.
       const { data, error: stagesError } = await (supabase as any)
         .from('project_stages')
-        .select('id, title, archived_at')
+        .select('id, title, archived_at, planned_start_date, planned_end_date, actual_start_date, actual_end_date, status, description')
         .eq('project_id', projectId)
         .order('sort_order', { ascending: true });
 
@@ -3590,6 +3596,20 @@ export default function WBSBuilder({
                         >
                           Edit
                         </Button>
+                        {productMode === 'project_management' && isOwner && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 text-[10px] text-amber-700 border-amber-300"
+                            onClick={() => {
+                              const s = stages.find((st) => st.id === group.stageId);
+                              if (s) openStageEdit(s);
+                            }}
+                            title="Atur Jadwal Stage"
+                          >
+                            <Settings className="h-3 w-3 mr-0.5" /> Jadwal
+                          </Button>
+                        )}
                         <Button
                           variant="outline"
                           size="icon"
@@ -3783,7 +3803,7 @@ export default function WBSBuilder({
         <div className="border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
           <ProjectTimelineView
             wbsItems={wbsItems}
-            stages={stages.map((s) => ({ ...s, planned_start_date: (s as any).planned_start_date, planned_end_date: (s as any).planned_end_date }))}
+            stages={stages}
             orgMembers={orgMembers}
             orgMemberLookup={orgMemberLookup}
             isOwner={isOwner}
