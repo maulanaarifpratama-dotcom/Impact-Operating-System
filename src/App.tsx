@@ -66,6 +66,9 @@ const ProjectManagementIndex = lazy(
 const ProjectObjectivesPage = lazy(
   () => import('./pages/dashboard/project-management/objectives/ProjectObjectivesPage'),
 );
+const ProjectStagesPage = lazy(
+  () => import('./pages/dashboard/project-management/stages/ProjectStagesPage'),
+);
 
 function RouteFallback() {
   return (
@@ -228,6 +231,10 @@ const App = () => (
               <Route
                 path="/dashboard/project-management/:projectId/objectives"
                 element={<ProjectObjectivesPage />}
+              />
+              <Route
+                path="/dashboard/project-management/:projectId/stages"
+                element={<ProjectStagesPage />}
               />
               <Route path="/dashboard/sroi" element={<SROIStandalone />} />
               <Route path="/dashboard/eroi" element={<EROIStandalone />} />

@@ -24,6 +24,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrgRole } from '@/hooks/useOrgRole';
+import { ProjectWorkspaceNav } from '../ProjectWorkspaceNav';
 
 /**
  * PM-1B scope only: Objective CRUD/reorder/archive/restore via RPC. All
@@ -221,6 +222,8 @@ export default function ProjectObjectivesPage() {
           Kembali
         </Button>
       </div>
+
+      {projectId && <ProjectWorkspaceNav projectId={projectId} />}
 
       <div className="flex items-center justify-between">
         <div>
