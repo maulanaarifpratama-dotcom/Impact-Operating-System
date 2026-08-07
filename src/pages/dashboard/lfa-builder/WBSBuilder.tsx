@@ -2509,7 +2509,8 @@ export default function WBSBuilder({
                     className={`${rowStyle} ${indentStyle}`}
                   >
                     {/* Row Body Left Side */}
-                    <div className="flex-1 flex items-start gap-1.5 min-w-[280px]">
+                    <div className="flex-1 min-w-[280px]">
+                      <div className="flex items-start gap-1.5">
                       {/* Row level tag -- Project Management spells the
                           level out (Activity/Task/Subtask) rather than
                           relying on an unlabeled single letter or
@@ -2563,6 +2564,8 @@ export default function WBSBuilder({
                           }`}
                         />
                       )}
+
+                      </div>
 
                       {/* PM Activity duration — editable inline + date fields */}
                       {productMode === 'project_management' && (item.level === 2 || item.level === 3) && (
