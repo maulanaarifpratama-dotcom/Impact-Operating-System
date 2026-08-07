@@ -28,20 +28,18 @@ interface Props {
   stages: DBStage[];
   isOwner: boolean;
   scheduleMode: ScheduleMode;
-  onScheduleModeChange?: (mode: ScheduleMode) => void;
   onStagesRefresh?: () => void;
   onDurationChange?: (wbsId: string, weeks: number) => void;
   onAddActivity?: (stageId: string) => void;
-  onOpenActivity?: (activityId: string) => void;
 }
 
 // ── Constants ──
 
-const MW = 76;
-const LH = 38;
-const LW = 360;
+const MONTH_W = 200;
+const ROW_H = 40;
+const LEFT_W = 420;
 
-const MONTHS = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
+const MONTHS_ID = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'];
 
 // ── Helpers ──
 
@@ -50,24 +48,19 @@ function sl(s: string) {
   return m[s] || s;
 }
 
-function fmtDate(d: string | null | undefined): string {
-  if (!d) return '—';
-  return new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 function fmtShort(d: string | null | undefined): string {
   if (!d) return '';
   return new Date(d).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
 }
 
-function stageStartDate(s: DBStage, mode: ScheduleMode): string | null {
+function stageStart(s: DBStage, mode: ScheduleMode): string | null {
   return mode === 'plan' ? s.planned_start_date ?? null : s.actual_start_date ?? null;
 }
-function stageEndDate(s: DBStage, mode: ScheduleMode): string | null {
+function stageEnd(s: DBStage, mode: ScheduleMode): string | null {
   return mode === 'plan' ? s.planned_end_date ?? null : s.actual_end_date ?? null;
 }
 function hasDates(s: DBStage, mode: ScheduleMode): boolean {
-  return !!(stageStartDate(s, mode) && stageEndDate(s, mode));
+  return !!(stageStart(s, mode) && stageEnd(s, mode));
 }
 
 function weeksBetween(start: Date, end: Date): number {
@@ -87,22 +80,11 @@ interface FlatRow {
   hasOverflow: boolean;
 }
 
-interface PhaseMeta {
-  stage: DBStage;
-  startDate: string | null;
-  endDate: string | null;
-  calStart: Date | null;
-  calEnd: Date | null;
-  totalActivityWeeks: number;
-  activities: WbsItem[];
-}
-
 // ── Component ──
 
 export default function ProjectTimelineView({
   wbsItems, stages, isOwner, scheduleMode,
-  onScheduleModeChange, onStagesRefresh, onDurationChange,
-  onAddActivity, onOpenActivity,
+  onStagesRefresh, onDurationChange, onAddActivity,
 }: Props) {
   const { toast } = useToast();
   const [rh, setRh] = useState<Record<string, number>>({});
@@ -110,12 +92,25 @@ export default function ProjectTimelineView({
   const lp = useRef<HTMLDivElement>(null);
   const rp = useRef<HTMLDivElement>(null);
 
-  // Schedule dialog
   const [dlg, setDlg] = useState(false);
   const [ds, setDs] = useState<DBStage | null>(null);
   const [d1, setD1] = useState(''); const [d2, setD2] = useState('');
   const [d3, setD3] = useState(''); const [d4, setD4] = useState('');
   const [sv, setSv] = useState(false);
+
+  // ── Resolve stage_id via Level-1 ancestor ──
+
+  const resolveStageId = useCallback((item: WbsItem): string | null => {
+    let cur: WbsItem | undefined = item;
+    const seen = new Set<string>();
+    while (cur) {
+      if (cur.level === 1) return cur.stage_id ?? null;
+      if (!cur.parent_id || seen.has(cur.id)) return null;
+      seen.add(cur.id);
+      cur = wbsItems.find((p) => p.id === cur!.parent_id);
+    }
+    return null;
+  }, [wbsItems]);
 
   // ── Compute rows, calendar range, months ──
 
@@ -123,39 +118,26 @@ export default function ProjectTimelineView({
     const activeStages = stages.filter((s) => !s.archived_at);
     const stageMap = new Map(activeStages.map((s) => [s.id, s]));
 
-    // Resolve stage_id for any WBS item by walking up to Level-1 ancestor
-    const resolveStageId = (item: WbsItem): string | null => {
-      let cur: WbsItem | undefined = item;
-      const seen = new Set<string>();
-      while (cur) {
-        if (cur.level === 1) return cur.stage_id ?? null;
-        if (!cur.parent_id || seen.has(cur.id)) return null;
-        seen.add(cur.id);
-        cur = wbsItems.find((p) => p.id === cur!.parent_id);
-      }
-      return null;
-    };
-
-    // Group Activities by stage
+    // Group Activities by resolved stage — filter empty names
     const phaseActs = new Map<string, WbsItem[]>();
     for (const s of activeStages) phaseActs.set(s.id, []);
+
     for (const w of wbsItems) {
       if (w.level !== 2) continue;
+      if (!w.name || w.name.trim() === '') continue; // skip unnamed
       const sid = resolveStageId(w);
       if (sid && phaseActs.has(sid)) phaseActs.get(sid)!.push(w);
     }
 
-    // Build Phase metadata
-    const phases: PhaseMeta[] = [];
-    let calMin: Date | null = null;
-    let calMax: Date | null = null;
+    // Build Phase metadata — sort chronologically by start date
+    const phases: { stage: DBStage; startStr: string | null; endStr: string | null; calStart: Date | null; calEnd: Date | null; totalWeeks: number; activities: WbsItem[] }[] = [];
 
     for (const stage of activeStages) {
       const activities = phaseActs.get(stage.id) || [];
       if (activities.length === 0) continue;
 
-      const startStr = stageStartDate(stage, scheduleMode);
-      const endStr = stageEndDate(stage, scheduleMode);
+      const startStr = stageStart(stage, scheduleMode);
+      const endStr = stageEnd(stage, scheduleMode);
       const calStart = startStr ? new Date(startStr) : null;
       const calEnd = endStr ? new Date(endStr) : null;
 
@@ -164,91 +146,94 @@ export default function ProjectTimelineView({
         totalWeeks += a.duration_weeks && a.duration_weeks > 0 ? a.duration_weeks : 0;
       }
 
-      phases.push({ stage, startDate: startStr, endDate: endStr, calStart, calEnd, totalActivityWeeks: totalWeeks, activities });
-
-      if (calStart && (!calMin || calStart < calMin)) calMin = calStart;
-      if (calEnd && (!calMax || calEnd > calMax)) calMax = calEnd;
+      phases.push({ stage, startStr, endStr, calStart, calEnd, totalWeeks, activities });
     }
 
-    // If no phases with dates, show empty
+    // Sort phases chronologically by start date
+    phases.sort((a, b) => {
+      if (a.calStart && b.calStart) return a.calStart.getTime() - b.calStart.getTime();
+      if (a.calStart) return -1;
+      if (b.calStart) return 1;
+      return 0;
+    });
+
+    // Calendar range
+    let calMin: Date | null = null;
+    let calMax: Date | null = null;
+    for (const ph of phases) {
+      if (ph.calStart && (!calMin || ph.calStart < calMin)) calMin = ph.calStart;
+      if (ph.calEnd && (!calMax || ph.calEnd > calMax)) calMax = ph.calEnd;
+    }
+
     if (!calMin || !calMax) {
-      const schedPhases = activeStages.filter((s) => phaseActs.get(s.id)?.length);
-      return { rows: [], monthLabels: [], empty: schedPhases.length > 0 };
+      return { rows: [], monthLabels: [], empty: phases.length > 0 };
     }
 
-    // Extend by one month on each side for visual padding
     calMin = new Date(calMin.getFullYear(), calMin.getMonth(), 1);
     calMax = new Date(calMax.getFullYear(), calMax.getMonth() + 2, 0);
 
     const totalDays = Math.max(1, Math.round((calMax.getTime() - calMin.getTime()) / 86400000));
     const totalMonths = (calMax.getFullYear() - calMin.getFullYear()) * 12 + (calMax.getMonth() - calMin.getMonth()) + 1;
-    const ganttPx = totalMonths * MW;
+    const ganttPx = totalMonths * MONTH_W;
     const pxPerDay = ganttPx / totalDays;
 
     function dateToPx(d: Date): number {
-      const offset = Math.round((d.getTime() - calMin!.getTime()) / 86400000);
-      return offset * pxPerDay;
+      return Math.round((d.getTime() - calMin!.getTime()) / 86400000) * pxPerDay;
     }
 
-    // Generate month labels
     const labels: string[] = [];
     const c = new Date(calMin);
     while (c <= calMax) {
-      labels.push(`${MONTHS[c.getMonth()]} ${c.getFullYear()}`);
+      labels.push(`${MONTHS_ID[c.getMonth()]} ${c.getFullYear()}`);
       c.setMonth(c.getMonth() + 1);
     }
 
-    // Build rows
+    // Build flat rows
     const result: FlatRow[] = [];
-
     for (const ph of phases) {
       if (!ph.calStart || !ph.calEnd) continue;
 
-      const phasePxStart = dateToPx(ph.calStart);
-      const phasePxEnd = dateToPx(ph.calEnd);
-      const phasePxWidth = Math.max(16, phasePxEnd - phasePxStart);
+      const phasePx = dateToPx(ph.calStart);
+      const phaseW = Math.max(16, dateToPx(ph.calEnd) - phasePx);
       const phaseWeeks = weeksBetween(ph.calStart, ph.calEnd);
-      const scaleWeeks = Math.max(ph.totalActivityWeeks, phaseWeeks);
-      const pxPerWeek = phasePxWidth / scaleWeeks;
+      const scaleWeeks = Math.max(ph.totalWeeks, phaseWeeks);
+      const pxPerWeek = phaseW / scaleWeeks;
 
       result.push({
         key: `p-${ph.stage.id}`, type: 'phase', item: null, stage: ph.stage,
-        depth: 0, barLeft: phasePxStart, barWidth: phasePxWidth, hasOverflow: ph.totalActivityWeeks > phaseWeeks,
+        depth: 0, barLeft: phasePx, barWidth: phaseW, hasOverflow: ph.totalWeeks > phaseWeeks,
       });
 
       let cumWeeks = 0;
       for (const act of ph.activities) {
         const dw = act.duration_weeks && act.duration_weeks > 0 ? act.duration_weeks : 0;
-        const actPxStart = phasePxStart + cumWeeks * pxPerWeek;
-        const actPxWidth = Math.max(8, dw * pxPerWeek);
-        // Clamp to phase boundary
-        const clampedEnd = Math.min(actPxStart + actPxWidth, phasePxEnd);
-        const clampedWidth = Math.max(4, clampedEnd - actPxStart);
+        const actStart = phasePx + cumWeeks * pxPerWeek;
+        const actW = Math.max(8, dw * pxPerWeek);
+        const clamped = Math.max(4, Math.min(actStart + actW, phasePx + phaseW) - actStart);
 
         result.push({
           key: `a-${act.id}`, type: 'activity', item: act, stage: ph.stage,
-          depth: 2, barLeft: actPxStart, barWidth: clampedWidth, hasOverflow: false,
+          depth: 2, barLeft: actStart, barWidth: clamped, hasOverflow: false,
         });
         cumWeeks += dw;
 
-        // Tasks under this activity
-        const tasks = wbsItems.filter((w) => w.parent_id === act.id);
+        const tasks = wbsItems.filter((w) => w.parent_id === act.id && w.name?.trim());
         for (const t of tasks) {
-          const tDw = t.duration_weeks && t.duration_weeks > 0 ? t.duration_weeks : 0;
-          const tStart = phasePxStart + cumWeeks * pxPerWeek;
-          const tWidth = Math.max(4, tDw * pxPerWeek);
-          const tEnd = Math.min(tStart + tWidth, phasePxEnd);
+          const td = t.duration_weeks && t.duration_weeks > 0 ? t.duration_weeks : 0;
+          const tStart = phasePx + cumWeeks * pxPerWeek;
+          const tW = Math.max(4, td * pxPerWeek);
+          const tEnd = Math.min(tStart + tW, phasePx + phaseW);
           result.push({
             key: `t-${t.id}`, type: 'task', item: t, stage: ph.stage,
             depth: 3, barLeft: tStart, barWidth: Math.max(4, tEnd - tStart), hasOverflow: false,
           });
-          cumWeeks += tDw;
+          cumWeeks += td;
         }
       }
     }
 
     return { rows: result, monthLabels: labels, empty: false };
-  }, [wbsItems, stages, scheduleMode]);
+  }, [wbsItems, stages, scheduleMode, resolveStageId]);
 
   // ── Scroll sync ──
 
@@ -274,7 +259,7 @@ export default function ProjectTimelineView({
     if (ch) setRh((p) => ({ ...p, ...nh }));
   });
 
-  // ── Schedule dialog handlers ──
+  // ── Schedule dialog ──
 
   const openDlg = useCallback((s: DBStage) => {
     setDs(s);
@@ -299,12 +284,7 @@ export default function ProjectTimelineView({
     finally { setSv(false); }
   }, [ds, d1, d2, d3, d4, toast, onStagesRefresh]);
 
-  // ── Empty state ──
-
-  const activeStages = stages.filter((s) => !s.archived_at);
-  const stagesWithActivities = activeStages.filter((s) =>
-    wbsItems.some((w) => w.level === 2 && w.stage_id === s.id)
-  );
+  // ── Empty states ──
 
   if (empty) {
     return (
@@ -312,14 +292,8 @@ export default function ProjectTimelineView({
         <div className="text-center">
           <Calendar className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
           <h3 className="text-lg font-bold">Jadwal proyek belum diatur</h3>
-          <p className="text-sm text-muted-foreground">Atur tanggal mulai dan selesai setiap Phase.</p>
+          <p className="text-sm text-muted-foreground">Atur tanggal mulai dan selesai setiap Phase di tab Structure.</p>
         </div>
-        {stagesWithActivities.map((s) => (
-          <div key={s.id} className="flex items-center justify-between p-3 border rounded bg-slate-50 max-w-lg mx-auto">
-            <span className="text-sm font-medium">{s.title}</span>
-            {isOwner && <Button size="sm" variant="outline" className="text-[10px] h-7" onClick={() => openDlg(s)}>Atur Jadwal</Button>}
-          </div>
-        ))}
       </div>
     );
   }
@@ -329,35 +303,26 @@ export default function ProjectTimelineView({
       <div className="border rounded-lg bg-white dark:bg-slate-900 p-8 text-center">
         <Calendar className="h-10 w-10 mx-auto text-muted-foreground mb-2" />
         <h3 className="text-lg font-bold">Belum ada Activity</h3>
-        <p className="text-sm text-muted-foreground">Tambahkan Activity pada Phase melalui tombol + di header Phase.</p>
+        <p className="text-sm text-muted-foreground">Tambahkan Activity melalui tab Structure.</p>
       </div>
     );
   }
 
+  const ganttMinWidth = monthLabels.length * MONTH_W;
+
   // ── Render ──
 
   return (
-    <div className="border rounded-lg bg-white dark:bg-slate-900 flex flex-col" style={{ height: 'calc(100vh - 200px)', minHeight: 500 }}>
-      {/* Controls */}
-      <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-50 border-b shrink-0">
-        <span className="text-[10px] font-bold uppercase text-slate-500">Schedule</span>
-        <div className="flex bg-slate-200 dark:bg-slate-700 rounded p-0.5">
-          {(['plan', 'actual'] as ScheduleMode[]).map((m) => (
-            <button key={m} onClick={() => onScheduleModeChange?.(m)}
-              className={`px-2.5 py-0.5 text-[10px] font-bold rounded ${scheduleMode === m ? 'bg-white dark:bg-slate-950 text-primary shadow-sm' : 'text-muted-foreground'}`}>
-              {m === 'plan' ? 'Plan' : 'Actual'}
-            </button>
-          ))}
-        </div>
-      </div>
-
+    <div className="border rounded-lg bg-white dark:bg-slate-900 flex flex-col" style={{ height: 'calc(100vh - 260px)', minHeight: 500 }}>
       {/* Month header */}
       <div className="flex border-b bg-slate-50 shrink-0">
-        <div className="py-2 px-3 text-[10px] font-bold uppercase text-slate-500 border-r flex items-center shrink-0" style={{ width: LW }}>Work Plan</div>
+        <div className="py-2 px-3 text-[11px] font-bold uppercase text-slate-500 border-r flex items-center shrink-0" style={{ width: LEFT_W }}>
+          {scheduleMode === 'plan' ? 'Timeline Plan' : 'Timeline Actual'}
+        </div>
         <div id="pm-month-header" className="flex-1 overflow-hidden">
-          <div className="flex" style={{ minWidth: monthLabels.length * MW }}>
+          <div className="flex" style={{ minWidth: ganttMinWidth }}>
             {monthLabels.map((m, i) => (
-              <div key={i} className="shrink-0 text-center py-2 text-[10px] font-bold text-slate-500 border-r" style={{ width: MW }}>{m}</div>
+              <div key={i} className="shrink-0 text-center py-2 text-[10px] font-bold text-slate-500 border-r" style={{ width: MONTH_W }}>{m}</div>
             ))}
           </div>
         </div>
@@ -365,23 +330,22 @@ export default function ProjectTimelineView({
 
       {/* Body */}
       <div className="flex flex-1 overflow-hidden">
-        {/* Left: Work Plan hierarchy */}
-        <div className="overflow-y-auto overflow-x-hidden border-r shrink-0" ref={lp} style={{ width: LW }}>
+        {/* Left: Structure pane (sticky) */}
+        <div className="overflow-y-auto overflow-x-hidden border-r shrink-0" ref={lp} style={{ width: LEFT_W }}>
           {rows.map((row) => {
             const dw = row.item?.duration_weeks;
             return (
               <div key={row.key} ref={(el) => { refs.current[row.key] = el; }}
                 className={`flex items-center gap-1 px-2 py-1 border-b ${row.type === 'phase' ? 'bg-slate-50 font-bold' : row.depth === 2 ? 'pl-6' : 'pl-10'}`}
-                style={{ minHeight: LH }}>
+                style={{ minHeight: ROW_H }}>
                 <div className="flex-1 min-w-0">
-                  {/* Phase row */}
                   {row.type === 'phase' && row.stage && (
                     <div className="flex items-center justify-between w-full gap-1">
                       <div className="min-w-0">
                         <span className="text-[11px] font-bold uppercase truncate block">{row.stage.title}</span>
-                        {(stageStartDate(row.stage, scheduleMode)) && (
+                        {(stageStart(row.stage, scheduleMode)) && (
                           <span className="text-[9px] text-muted-foreground">
-                            {fmtShort(stageStartDate(row.stage, scheduleMode))} — {fmtShort(stageEndDate(row.stage, scheduleMode))}
+                            {fmtShort(stageStart(row.stage, scheduleMode))} — {fmtShort(stageEnd(row.stage, scheduleMode))}
                           </span>
                         )}
                       </div>
@@ -403,19 +367,13 @@ export default function ProjectTimelineView({
                     </div>
                   )}
 
-                  {/* Activity / Task row */}
                   {(row.type === 'activity' || row.type === 'task') && row.item && (
                     <div>
                       <div className="flex items-center gap-1">
                         <Badge variant="outline" className={`text-[7px] py-0 h-4 shrink-0 ${row.type === 'activity' ? 'bg-emerald-50 text-emerald-700' : 'bg-indigo-50 text-indigo-700'}`}>
                           {row.type === 'activity' ? 'A' : 'T'}
                         </Badge>
-                        <button
-                          className="text-[11px] font-medium truncate text-left hover:text-primary transition-colors"
-                          onClick={() => onOpenActivity?.(row.item!.id)}
-                          title="Buka Rincian">
-                          {row.item.name}
-                        </button>
+                        <span className="text-[11px] font-medium truncate">{row.item.name}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 text-[9px] text-muted-foreground">
                         {isOwner ? (
@@ -446,26 +404,24 @@ export default function ProjectTimelineView({
 
         {/* Right: Gantt */}
         <div className="flex-1 overflow-y-auto overflow-x-auto" ref={rp}>
-          <div style={{ minWidth: monthLabels.length * MW }}>
+          <div style={{ minWidth: ganttMinWidth }}>
             {rows.map((row) => {
-              const h = rh[row.key] || LH;
+              const h = rh[row.key] || ROW_H;
               return (
                 <div key={`g-${row.key}`} className="border-b relative flex items-center" style={{ height: h }}>
                   {monthLabels.map((_, i) => (
-                    <div key={i} className="shrink-0 h-full border-r border-slate-50" style={{ width: MW }} />
+                    <div key={i} className="shrink-0 h-full border-r border-slate-50" style={{ width: MONTH_W }} />
                   ))}
 
-                  {/* Phase bar */}
                   {row.type === 'phase' && row.barWidth > 0 && (
-                    <div className={`absolute top-1.5 h-5 rounded border flex items-center px-2 ${row.hasOverflow ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/30' : 'border-slate-200 bg-slate-100 dark:bg-slate-800'}`}
+                    <div className={`absolute top-1.5 h-5 rounded border flex items-center px-2 ${row.hasOverflow ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-100'}`}
                       style={{ left: row.barLeft, width: Math.max(row.barWidth, 16) }}>
-                      <span className={`text-[9px] font-bold uppercase truncate ${row.hasOverflow ? 'text-amber-600' : 'text-slate-400 dark:text-slate-500'}`}>
+                      <span className={`text-[9px] font-bold uppercase truncate ${row.hasOverflow ? 'text-amber-600' : 'text-slate-400'}`}>
                         {row.stage?.title || '—'}
                       </span>
                     </div>
                   )}
 
-                  {/* Activity / Task bar */}
                   {row.barWidth > 0 && row.type !== 'phase' && row.item && (
                     <div
                       className={`absolute ${row.type === 'activity' ? 'top-2.5 h-4 rounded bg-emerald-500/70 border border-emerald-600 shadow-sm' : 'top-3 h-3 rounded bg-indigo-400/60 border border-indigo-500'}`}

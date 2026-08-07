@@ -268,6 +268,7 @@ export default function WBSBuilder({
     productMode === 'project_management' ? 'outline' : 'timeline'
   );
   const [scheduleMode, setScheduleMode] = useState<'plan' | 'actual'>('plan');
+  const [pmTab, setPmTab] = useState<'structure' | 'plan' | 'actual'>('structure');
 
   // Budget drawer (PM mode)
   const [budgetDrawerActivityId, setBudgetDrawerActivityId] = useState<string | null>(null);
@@ -2408,8 +2409,7 @@ export default function WBSBuilder({
           scroll (overflow-x-auto) since only the Timeline needs to scroll
           sideways for long programs. Applies to both Programme Design and
           Project Management -- this structure is unconditional. */}
-      {productMode !== 'project_management' && (
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 border rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-900 max-h-[600px] overflow-y-auto">
+      <div className={`grid grid-cols-1 lg:grid-cols-5 gap-4 border rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-900 max-h-[600px] overflow-y-auto ${productMode === 'project_management' && pmTab !== 'structure' ? 'hidden' : ''}`}>
 
         {/* LEFT COLUMN (60%): Interactive Tree Sheet. Full width in Outline mode. */}
         <div className={`${viewMode === 'outline' ? 'lg:col-span-5' : 'lg:col-span-3'} border-r divide-y overflow-x-auto min-w-0`}>
@@ -3775,36 +3775,52 @@ export default function WBSBuilder({
         </div>
         )}
       </div>
-      )}
 
-      {/* PM Work Plan + Gantt — Project Management unified view */}
+      {/* PM tabs: Structure / Timeline Plan / Timeline Actual */}
       {productMode === 'project_management' && (
-        <div className="border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-          <ProjectTimelineView
-            wbsItems={wbsItems}
-            stages={stages}
-            isOwner={isOwner}
-            scheduleMode={scheduleMode}
-            onScheduleModeChange={setScheduleMode}
-            onStagesRefresh={() => { void loadStages(); }}
-            onAddActivity={(stageId) => { void handleAddActivityToStage(stageId); }}
-            onOpenActivity={(activityId) => {
-              const item = wbsItems.find((w) => w.id === activityId);
-              if (item) {
-                const el = document.getElementById(`wbs-row-${activityId}`);
-                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              }
-            }}
-            onDurationChange={(wbsId, weeks) => {
-              const item = wbsItems.find((w) => w.id === wbsId);
-              if (item) {
-                const updated = { ...item, duration_weeks: weeks };
-                updateItemLocally(updated);
-                triggerAutosave(updated);
-              }
-            }}
-          />
-        </div>
+        <>
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
+            {([
+              { key: 'structure', label: 'Structure' },
+              { key: 'plan', label: 'Timeline Plan' },
+              { key: 'actual', label: 'Timeline Actual' },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => {
+                  setPmTab(t.key);
+                  if (t.key === 'plan') setScheduleMode('plan');
+                  if (t.key === 'actual') setScheduleMode('actual');
+                }}
+                className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
+                  pmTab === t.key ? 'bg-white dark:bg-slate-950 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {(pmTab === 'plan' || pmTab === 'actual') && (
+            <div className="border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+              <ProjectTimelineView
+                wbsItems={wbsItems}
+                stages={stages}
+                isOwner={isOwner}
+                scheduleMode={pmTab === 'plan' ? 'plan' : 'actual'}
+                onStagesRefresh={() => { void loadStages(); }}
+                onAddActivity={(stageId) => { void handleAddActivityToStage(stageId); }}
+                onDurationChange={(wbsId, weeks) => {
+                  const item = wbsItems.find((w) => w.id === wbsId);
+                  if (item) {
+                    const updated = { ...item, duration_weeks: weeks };
+                    updateItemLocally(updated);
+                    triggerAutosave(updated);
+                  }
+                }}
+              />
+            </div>
+          )}
+        </>
       )}
 
       {/* RENDER SYSTEM OVERLAYS: SVG DEPENDENCY ARROWS (Professional Mode only) */}
