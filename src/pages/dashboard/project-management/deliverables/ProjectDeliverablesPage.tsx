@@ -309,6 +309,23 @@ export default function ProjectDeliverablesPage() {
 
       {projectId && <ProjectWorkspaceNav projectId={projectId} />}
 
+      {prefillActId && !autoCreate && prefillActName && (
+        <div className="flex items-center gap-2 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-800 rounded-lg px-4 py-2.5 text-sm">
+          <ArrowLeft className="h-4 w-4 text-violet-600" />
+          <span className="text-violet-700 dark:text-violet-300">
+            Dikonversi dari Activity: <strong>{prefillActName}</strong>
+          </span>
+          <Button
+            variant="link"
+            size="sm"
+            className="text-xs h-auto p-0 text-violet-600"
+            onClick={() => navigate(`/dashboard/project-management/${projectId}/wbs`)}
+          >
+            Kembali ke Work Plan
+          </Button>
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Deliverables</h1>

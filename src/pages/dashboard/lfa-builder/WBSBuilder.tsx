@@ -2866,12 +2866,16 @@ export default function WBSBuilder({
                                     }
                                     if (linked.length === 0) {
                                       return (
-                                        <div className="flex items-center justify-between pt-0.5">
-                                          <span className="text-[9px] text-muted-foreground">Belum ada Deliverable.</span>
+                                        <div className="space-y-1.5 pt-0.5">
+                                          <div className="flex items-center justify-between">
+                                            <span className="text-[9px] text-muted-foreground">
+                                              Activity ini belum dikonversi menjadi Deliverable.
+                                            </span>
+                                          </div>
                                           <Button
-                                            variant="outline"
+                                            variant="default"
                                             size="sm"
-                                            className="h-5 text-[8px] px-1.5"
+                                            className="h-6 text-[9px] px-2 w-full"
                                             onClick={() => {
                                               const actName = encodeURIComponent(item.name);
                                               const actPic = encodeURIComponent(item.pic || '');
@@ -2879,20 +2883,30 @@ export default function WBSBuilder({
                                               navigate(`/dashboard/project-management/${projectId}/deliverables?create=1&actId=${item.id}&actName=${actName}&actPic=${actPic}&actDate=${actDate}`);
                                             }}
                                           >
-                                            <Plus className="mr-0.5 h-2.5 w-2.5" />
-                                            Buat Deliverable
+                                            <Plus className="mr-1 h-3 w-3" />
+                                            Konversi Menjadi Deliverable
                                           </Button>
                                         </div>
                                       );
                                     }
                                     return (
-                                      <div className="pt-0.5 space-y-1">
+                                      <div className="pt-0.5 space-y-1.5">
                                         {linked.map((d) => (
-                                          <div key={d.id} className="flex items-center gap-1.5">
-                                            <Badge variant="outline" className={`text-[9px] py-0 h-auto ${d.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : d.status === 'submitted' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-violet-50 text-violet-700 border-violet-200'}`}>
-                                              {d.status === 'approved' ? 'Disetujui' : d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Not Started'}
-                                            </Badge>
-                                            <span className="text-[9px] truncate">{d.name}</span>
+                                          <div key={d.id} className="flex items-center justify-between gap-1">
+                                            <div className="flex items-center gap-1.5 min-w-0">
+                                              <Badge variant="outline" className={`text-[9px] py-0 h-auto shrink-0 ${d.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : d.status === 'submitted' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-violet-50 text-violet-700 border-violet-200'}`}>
+                                                {d.status === 'approved' ? 'Disetujui' : d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Not Started'}
+                                              </Badge>
+                                              <span className="text-[9px] truncate">{d.name}</span>
+                                            </div>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              className="h-5 text-[8px] px-1 shrink-0"
+                                              onClick={() => navigate(`/dashboard/project-management/${projectId}/deliverables?actId=${item.id}`)}
+                                            >
+                                              Lihat
+                                            </Button>
                                           </div>
                                         ))}
                                       </div>
