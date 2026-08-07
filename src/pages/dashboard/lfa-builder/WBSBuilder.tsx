@@ -2332,6 +2332,46 @@ export default function WBSBuilder({
         </div>
       )}
 
+      {/* PM tabs: Structure / Timeline */}
+      {productMode === 'project_management' && (
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
+          {([
+            { key: 'structure', label: 'Structure' },
+            { key: 'timeline', label: 'Timeline' },
+          ] as const).map((t) => (
+            <button
+              key={t.key}
+              onClick={() => setPmTab(t.key)}
+              className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
+                pmTab === t.key ? 'bg-white dark:bg-slate-950 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Timeline view — replaces grid when active */}
+      {productMode === 'project_management' && pmTab === 'timeline' && (
+        <div className="border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+          <ProjectTimelineView
+            wbsItems={wbsItems}
+            stages={stages}
+            isOwner={isOwner}
+            onStagesRefresh={() => { void loadStages(); }}
+            onAddActivity={(stageId) => { void handleAddActivityToStage(stageId); }}
+            onDurationChange={(wbsId, weeks) => {
+              const item = wbsItems.find((w) => w.id === wbsId);
+              if (item) {
+                const updated = { ...item, duration_weeks: weeks };
+                updateItemLocally(updated);
+                triggerAutosave(updated);
+              }
+            }}
+          />
+        </div>
+      )}
+
       {/* PROGRAM-LEVEL MIRROR BUDGET SUMMARY -- Programme Design only.
           Project Management already has its own dedicated Budget tab
           (ProjectWorkspaceNav); duplicating this large summary here would
@@ -2401,47 +2441,6 @@ export default function WBSBuilder({
           </div>
         </div>
       </div>
-      )}
-
-      {/* PM tabs: Structure / Timeline — primary view mode switcher */}
-      {productMode === 'project_management' && (
-        <>
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
-            {([
-              { key: 'structure', label: 'Structure' },
-              { key: 'timeline', label: 'Timeline' },
-            ] as const).map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setPmTab(t.key)}
-                className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
-                  pmTab === t.key ? 'bg-white dark:bg-slate-950 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                }`}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {pmTab === 'timeline' && (
-            <div className="border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-              <ProjectTimelineView
-                wbsItems={wbsItems}
-                stages={stages}
-                isOwner={isOwner}
-                onStagesRefresh={() => { void loadStages(); }}
-                onAddActivity={(stageId) => { void handleAddActivityToStage(stageId); }}
-                onDurationChange={(wbsId, weeks) => {
-                  const item = wbsItems.find((w) => w.id === wbsId);
-                  if (item) {
-                    const updated = { ...item, duration_weeks: weeks };
-                    updateItemLocally(updated);
-                    triggerAutosave(updated);
-                  }
-                }}
-              />
-            </div>
-          )}
-        </>
       )}
 
       {/* CORE WORKSPACE GRID */}
