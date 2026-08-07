@@ -71,8 +71,6 @@ export function ProjectWorkspaceNav({ projectId }: { projectId: string }) {
     { name: 'Work Plan', href: `/dashboard/project-management/${projectId}/wbs` },
     { name: 'Budget', href: `/dashboard/project-management/${projectId}/budget` },
     { name: 'MEAL', href: `/dashboard/project-management/${projectId}/meal` },
-    { name: 'Deliverables', href: `/dashboard/project-management/${projectId}/deliverables` },
-    { name: 'Milestones', href: `/dashboard/project-management/${projectId}/milestones` },
   ];
 
   return (

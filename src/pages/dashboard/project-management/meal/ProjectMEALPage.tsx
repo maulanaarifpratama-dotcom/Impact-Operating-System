@@ -43,18 +43,14 @@ import { resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 import { useOrgRole } from '@/hooks/useOrgRole';
 import CompletionClaimReviewDialog from '@/components/verification/CompletionClaimReviewDialog';
 
-type MealTab = 'control-center' | 'deliverables' | 'evidence' | 'activity';
+type MealTab = 'control-center' | 'deliverables' | 'milestones' | 'evidence' | 'activity';
 
 const TABS: { key: MealTab; label: string }[] = [
   { key: 'control-center', label: 'Control Center' },
   { key: 'deliverables', label: 'Deliverables' },
+  { key: 'milestones', label: 'Milestones' },
   { key: 'evidence', label: 'Evidence & Verification' },
   { key: 'activity', label: 'Activity Log' },
-];
-
-const LIFECYCLE_STATUSES = [
-  'DRAFT', 'PLANNED', 'IN_PROGRESS', 'READY_FOR_REVIEW', 'CHANGES_REQUESTED',
-  'APPROVED', 'SUBMITTED', 'ACCEPTED', 'CANCELLED',
 ];
 
 const EVENT_LABELS: Record<string, string> = {
@@ -466,21 +462,28 @@ function ControlCenterTab({ projectId, orgId }: { projectId: string; orgId: stri
 }
 
 function DeliverablesTab({ projectId }: { projectId: string }) {
-  const { toast } = useToast();
   const [deliverables, setDeliverables] = useState<any[]>([]);
+  const [activityMap, setActivityMap] = useState<Record<string, string[]>>({});
   const [loading, setLoading] = useState(true);
-  const [transitionTarget, setTransitionTarget] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await (supabase as any)
-        .from('programme_deliverables')
-        .select('id, title, description, deliverable_type, lifecycle_status, wbs_item_id, stage_id, target_date, archived_at')
-        .eq('lfa_project_id', projectId)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      setDeliverables((data || []) as any[]);
+      const [delivRes, linkRes, wbsRes] = await Promise.all([
+        (supabase as any).from('project_deliverables').select('id, name, description, status, due_date, owner').eq('project_id', projectId).is('archived_at', null).order('created_at', { ascending: false }),
+        (supabase as any).from('project_deliverable_activities').select('deliverable_id, wbs_item_id'),
+        (supabase as any).from('lfa_wbs_items').select('id, name, level').eq('lfa_project_id', projectId),
+      ]);
+      setDeliverables(delivRes.data || []);
+      if (linkRes.data && wbsRes.data) {
+        const wbsNames = new Map(wbsRes.data.map((w: any) => [w.id, w.name]));
+        const map: Record<string, string[]> = {};
+        for (const link of linkRes.data) {
+          if (!map[link.deliverable_id]) map[link.deliverable_id] = [];
+          map[link.deliverable_id].push(wbsNames.get(link.wbs_item_id) || link.wbs_item_id);
+        }
+        setActivityMap(map);
+      }
     } catch {
       // silent
     } finally {
@@ -489,24 +492,6 @@ function DeliverablesTab({ projectId }: { projectId: string }) {
   }, [projectId]);
 
   useEffect(() => { void load(); }, [load]);
-
-  const handleTransition = async (deliverableId: string) => {
-    const target = transitionTarget[deliverableId];
-    if (!target) return;
-    try {
-      const { error } = await (supabase.rpc as any)('transition_programme_deliverable', {
-        p_deliverable_id: deliverableId,
-        p_to_status: target,
-        p_reason: null,
-        p_submitted_at: null,
-      });
-      if (error) throw error;
-      toast({ title: 'Status Diperbarui' });
-      void load();
-    } catch (err: any) {
-      toast({ title: 'Gagal mengubah status', description: err?.message, variant: 'destructive' });
-    }
-  };
 
   const active = deliverables.filter((d: any) => !d.archived_at);
 
@@ -524,7 +509,10 @@ function DeliverablesTab({ projectId }: { projectId: string }) {
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
             <CardTitle className="text-lg">Belum ada Deliverable</CardTitle>
-            <CardDescription>Deliverable dapat dibuat dari Activity di Work Plan.</CardDescription>
+            <CardDescription>
+              Deliverable adalah output dari Activity yang selesai.<br />
+              Buka <strong>Work Plan → Activity → Rincian → Buat Deliverable</strong>
+            </CardDescription>
           </CardContent>
         </Card>
       ) : (
@@ -533,34 +521,106 @@ function DeliverablesTab({ projectId }: { projectId: string }) {
             <CardContent className="space-y-2 py-4">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-base">{d.title}</CardTitle>
-                  <Badge variant="secondary">{d.lifecycle_status}</Badge>
-                  <Badge variant="outline">{d.deliverable_type}</Badge>
+                  <CardTitle className="text-base">{d.name}</CardTitle>
+                  <Badge variant={d.status === 'approved' ? 'default' : d.status === 'submitted' ? 'outline' : d.status === 'in_progress' ? 'default' : 'secondary'}>
+                    {d.status === 'approved' ? 'Disetujui' : d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Not Started'}
+                  </Badge>
                 </div>
+                {d.due_date && <span className="text-xs text-muted-foreground">Due: {d.due_date}</span>}
               </div>
               {d.description && <p className="text-sm text-muted-foreground">{d.description}</p>}
-              <p className="text-xs text-muted-foreground">Target: {d.target_date}</p>
-              <div className="flex items-center gap-2 pt-1">
-                <Select
-                  value={transitionTarget[d.id] || ''}
-                  onValueChange={(v) => setTransitionTarget((prev) => ({ ...prev, [d.id]: v }))}
-                >
-                  <SelectTrigger className="h-8 w-48 text-xs">
-                    <SelectValue placeholder="Transisi ke..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LIFECYCLE_STATUSES.map((s) => (
-                      <SelectItem key={s} value={s}>{s}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button size="sm" variant="outline" onClick={() => void handleTransition(d.id)}>
-                  Terapkan
-                </Button>
-              </div>
+              {d.owner && <p className="text-xs text-muted-foreground">Owner: {d.owner}</p>}
+              {(activityMap[d.id]?.length ?? 0) > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {activityMap[d.id].map((name: string) => (
+                    <Badge key={name} variant="outline" className="text-[9px]">{name}</Badge>
+                  ))}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))
+      )}
+    </div>
+  );
+}
+
+function MilestonesTab({ projectId }: { projectId: string }) {
+  const [milestones, setMilestones] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await (supabase as any)
+        .from('project_milestones')
+        .select('id, name, target_date, status, notes')
+        .eq('project_id', projectId)
+        .is('archived_at', null)
+        .order('target_date', { ascending: true, nullsFirst: false });
+      setMilestones(data || []);
+    } catch {
+      // silent
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-16 text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin" />
+      </div>
+    );
+  }
+
+  const achieved = milestones.filter((m: any) => m.status === 'achieved');
+  const notAchieved = milestones.filter((m: any) => m.status !== 'achieved');
+  const delayed = notAchieved.filter((m: any) => m.target_date && new Date(m.target_date) < new Date());
+  const upcoming = notAchieved.filter((m: any) => !m.target_date || new Date(m.target_date) >= new Date());
+
+  const renderSection = (title: string, items: any[], variant: 'default' | 'secondary' | 'destructive') => (
+    <div className="space-y-2" key={title}>
+      <h3 className="text-sm font-semibold text-muted-foreground">{title} ({items.length})</h3>
+      {items.map((m: any) => (
+        <Card key={m.id}>
+          <CardContent className="flex items-start justify-between gap-3 py-4">
+            <div className="flex-1 space-y-1">
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base">{m.name}</CardTitle>
+                <Badge variant={variant}>
+                  {variant === 'destructive' ? 'Terlambat' : variant === 'default' ? 'Tercapai' : 'Upcoming'}
+                </Badge>
+              </div>
+              {m.target_date && <p className="text-xs text-muted-foreground">Target: {m.target_date}</p>}
+              {m.notes && <p className="text-sm text-muted-foreground">{m.notes}</p>}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {milestones.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+            <CardTitle className="text-lg">Belum ada Milestone</CardTitle>
+            <CardDescription>
+              Milestone adalah checkpoint tata kelola proyek.<br />
+              Owner dapat menambahkan di halaman Milestones.
+            </CardDescription>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {delayed.length > 0 && renderSection('Terlambat', delayed, 'destructive')}
+          {upcoming.length > 0 && renderSection('Upcoming', upcoming, 'secondary')}
+          {achieved.length > 0 && renderSection('Tercapai', achieved, 'default')}
+        </>
       )}
     </div>
   );
@@ -909,6 +969,8 @@ export default function ProjectMEALPage() {
         return <ControlCenterTab projectId={projectId} orgId={orgId} />;
       case 'deliverables':
         return <DeliverablesTab projectId={projectId} />;
+      case 'milestones':
+        return <MilestonesTab projectId={projectId} />;
       case 'evidence':
         return <EvidenceVerificationTab projectId={projectId} />;
       case 'activity':
