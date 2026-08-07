@@ -46,6 +46,7 @@ interface Stage {
   actual_start_date: string | null;
   actual_end_date: string | null;
   archived_at: string | null;
+  stage_owner: string | null;
 }
 
 interface ObjectiveOption {
@@ -54,7 +55,13 @@ interface ObjectiveOption {
   archived_at: string | null;
 }
 
+interface OrgMember {
+  user_id: string;
+  display_name: string;
+}
+
 const NO_OBJECTIVE = '__none__';
+const NO_OWNER = '__none__';
 
 export default function ProjectStagesPage() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -65,6 +72,7 @@ export default function ProjectStagesPage() {
 
   const [stages, setStages] = useState<Stage[]>([]);
   const [objectives, setObjectives] = useState<ObjectiveOption[]>([]);
+  const [members, setMembers] = useState<OrgMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,6 +88,7 @@ export default function ProjectStagesPage() {
   const [plannedEnd, setPlannedEnd] = useState('');
   const [actualStart, setActualStart] = useState('');
   const [actualEnd, setActualEnd] = useState('');
+  const [stageOwner, setStageOwner] = useState<string>(NO_OWNER);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const loadData = useCallback(async () => {
@@ -94,7 +103,7 @@ export default function ProjectStagesPage() {
         (supabase as any)
           .from('project_stages')
           .select(
-            'id, title, description, primary_objective_id, status, sort_order, planned_start_date, planned_end_date, actual_start_date, actual_end_date, archived_at',
+            'id, title, description, primary_objective_id, status, sort_order, planned_start_date, planned_end_date, actual_start_date, actual_end_date, archived_at, stage_owner',
           )
           .eq('project_id', projectId)
           .order('archived_at', { ascending: true, nullsFirst: true })
@@ -109,6 +118,12 @@ export default function ProjectStagesPage() {
       if (objectivesRes.error) throw objectivesRes.error;
       setStages((stagesRes.data || []) as Stage[]);
       setObjectives((objectivesRes.data || []) as ObjectiveOption[]);
+
+      const { data: memberData } = await supabase
+        .from('organization_members')
+        .select('user_id, display_name')
+        .eq('organization_id', (stagesRes.data?.[0] as any)?.org_id || '');
+      setMembers((memberData || []) as OrgMember[]);
     } catch (err) {
       const e = err as Error;
       setError(e.message);
@@ -136,6 +151,7 @@ export default function ProjectStagesPage() {
     setPlannedEnd('');
     setActualStart('');
     setActualEnd('');
+    setStageOwner(NO_OWNER);
     setAdvancedOpen(false);
   };
 
@@ -149,9 +165,7 @@ export default function ProjectStagesPage() {
     setPlannedEnd(stage.planned_end_date || '');
     setActualStart(stage.actual_start_date || '');
     setActualEnd(stage.actual_end_date || '');
-    // Existing Stages likely already carry some of these fields -- open the
-    // advanced section by default when editing so nothing already set is
-    // hidden from view, while a brand-new Stage still starts collapsed.
+    setStageOwner(stage.stage_owner || NO_OWNER);
     setAdvancedOpen(Boolean(
       stage.description || stage.primary_objective_id || stage.planned_start_date || stage.planned_end_date,
     ));
@@ -168,6 +182,7 @@ export default function ProjectStagesPage() {
         p_primary_objective_id: primaryObjectiveId === NO_OBJECTIVE ? null : primaryObjectiveId,
         p_planned_start_date: plannedStart || null,
         p_planned_end_date: plannedEnd || null,
+        p_stage_owner: stageOwner === NO_OWNER ? null : stageOwner,
       });
       if (rpcError) throw rpcError;
 
@@ -197,6 +212,7 @@ export default function ProjectStagesPage() {
         p_planned_end_date: plannedEnd || null,
         p_actual_start_date: actualStart || null,
         p_actual_end_date: actualEnd || null,
+        p_stage_owner: stageOwner === NO_OWNER ? null : stageOwner,
       });
       if (rpcError) throw rpcError;
 
@@ -334,6 +350,11 @@ export default function ProjectStagesPage() {
                       Rencana: {stage.planned_start_date || '?'} — {stage.planned_end_date || '?'}
                     </p>
                   )}
+                  {stage.stage_owner && (
+                    <p className="text-xs text-muted-foreground">
+                      Owner: {members.find((m) => m.user_id === stage.stage_owner)?.display_name || stage.stage_owner}
+                    </p>
+                  )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   {isOwner && (
@@ -437,6 +458,22 @@ export default function ProjectStagesPage() {
                 <div>
                   <Label htmlFor="stage-desc">Deskripsi</Label>
                   <Textarea id="stage-desc" value={description} onChange={(e) => setDescription(e.target.value)} />
+                </div>
+                <div>
+                  <Label htmlFor="stage-owner">Stage Owner</Label>
+                  <Select value={stageOwner} onValueChange={setStageOwner}>
+                    <SelectTrigger id="stage-owner">
+                      <SelectValue placeholder="Pilih Stage Owner..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={NO_OWNER}>Tidak ada</SelectItem>
+                      {members.map((m) => (
+                        <SelectItem key={m.user_id} value={m.user_id}>
+                          {m.display_name || m.user_id}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="stage-objective">Primary Objective</Label>
