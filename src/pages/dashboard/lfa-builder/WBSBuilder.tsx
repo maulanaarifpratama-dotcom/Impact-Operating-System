@@ -2527,11 +2527,24 @@ export default function WBSBuilder({
                         />
                       )}
 
-                      {/* PM Activity duration label */}
+                      {/* PM Activity duration — editable inline */}
                       {productMode === 'project_management' && (item.level === 2 || item.level === 3) && (
-                        <span className="text-[8px] text-muted-foreground mt-0.5 block truncate">
-                          {item.duration_weeks ? `${item.duration_weeks} Minggu` : 'Durasi belum diisi'}
-                        </span>
+                        <div className="flex items-center gap-0.5 mt-0.5">
+                          <input
+                            type="number"
+                            min={0}
+                            max={52}
+                            value={item.duration_weeks}
+                            onChange={(e) => {
+                              const val = Math.max(0, parseInt(e.target.value) || 0);
+                              const updated = { ...item, duration_weeks: val };
+                              updateItemLocally(updated);
+                              triggerAutosave(updated);
+                            }}
+                            className="w-12 h-5 text-[9px] px-1 text-center border rounded bg-transparent dark:border-slate-700"
+                          />
+                          <span className="text-[8px] text-muted-foreground">Minggu</span>
+                        </div>
                       )}
 
                       {/* On-Demand Detail Popover Button */}
@@ -3529,6 +3542,20 @@ export default function WBSBuilder({
                     </span>
                     {!isUnassigned && (
                       <div className="flex items-center gap-2 text-[10px] text-slate-500 shrink-0">
+                        {/* Phase date range */}
+                        {(() => {
+                          const s = stages.find((st) => st.id === group.stageId);
+                          if (s?.planned_start_date && s?.planned_end_date) {
+                            return (
+                              <span className="text-[9px] text-slate-400">
+                                {new Date(s.planned_start_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                                {' — '}
+                                {new Date(s.planned_end_date).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                              </span>
+                            );
+                          }
+                          return null;
+                        })()}
                         <span className="font-semibold" title="Progress Stage dihitung dari rata-rata Activity non-cancelled">
                           {progressPct}%
                         </span>
