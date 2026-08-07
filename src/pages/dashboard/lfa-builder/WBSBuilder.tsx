@@ -2403,12 +2403,48 @@ export default function WBSBuilder({
       </div>
       )}
 
-      {/* CORE WORKSPACE GRID -- both columns share ONE vertical scroll
-          container (this grid itself) so the tree and the Gantt chart always
-          scroll together. Each column keeps its own independent horizontal
-          scroll (overflow-x-auto) since only the Timeline needs to scroll
-          sideways for long programs. Applies to both Programme Design and
-          Project Management -- this structure is unconditional. */}
+      {/* PM tabs: Structure / Timeline — primary view mode switcher */}
+      {productMode === 'project_management' && (
+        <>
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
+            {([
+              { key: 'structure', label: 'Structure' },
+              { key: 'timeline', label: 'Timeline' },
+            ] as const).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setPmTab(t.key)}
+                className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
+                  pmTab === t.key ? 'bg-white dark:bg-slate-950 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
+                }`}>
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          {pmTab === 'timeline' && (
+            <div className="border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+              <ProjectTimelineView
+                wbsItems={wbsItems}
+                stages={stages}
+                isOwner={isOwner}
+                onStagesRefresh={() => { void loadStages(); }}
+                onAddActivity={(stageId) => { void handleAddActivityToStage(stageId); }}
+                onDurationChange={(wbsId, weeks) => {
+                  const item = wbsItems.find((w) => w.id === wbsId);
+                  if (item) {
+                    const updated = { ...item, duration_weeks: weeks };
+                    updateItemLocally(updated);
+                    triggerAutosave(updated);
+                  }
+                }}
+              />
+            </div>
+          )}
+        </>
+      )}
+
+      {/* CORE WORKSPACE GRID */}
       <div className={`grid grid-cols-1 lg:grid-cols-5 gap-4 border rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-900 max-h-[600px] overflow-y-auto ${productMode === 'project_management' && pmTab !== 'structure' ? 'hidden' : ''}`}>
 
         {/* LEFT COLUMN (60%): Interactive Tree Sheet. Full width in Outline mode. */}
@@ -3802,47 +3838,6 @@ export default function WBSBuilder({
         </div>
         )}
       </div>
-
-      {/* PM tabs: Structure / Timeline (Timeline has internal Plan/Actual/Overlay toggle) */}
-      {productMode === 'project_management' && (
-        <>
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
-            {([
-              { key: 'structure', label: 'Structure' },
-              { key: 'timeline', label: 'Timeline' },
-            ] as const).map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setPmTab(t.key)}
-                className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
-                  pmTab === t.key ? 'bg-white dark:bg-slate-950 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                }`}>
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          {pmTab === 'timeline' && (
-            <div className="border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-              <ProjectTimelineView
-                wbsItems={wbsItems}
-                stages={stages}
-                isOwner={isOwner}
-                onStagesRefresh={() => { void loadStages(); }}
-                onAddActivity={(stageId) => { void handleAddActivityToStage(stageId); }}
-                onDurationChange={(wbsId, weeks) => {
-                  const item = wbsItems.find((w) => w.id === wbsId);
-                  if (item) {
-                    const updated = { ...item, duration_weeks: weeks };
-                    updateItemLocally(updated);
-                    triggerAutosave(updated);
-                  }
-                }}
-              />
-            </div>
-          )}
-        </>
-      )}
 
       {/* RENDER SYSTEM OVERLAYS: SVG DEPENDENCY ARROWS (Professional Mode only) */}
       {globalMode === 'professional' && wbsItems.length > 0 && (
