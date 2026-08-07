@@ -12,7 +12,7 @@ import { CARBON_FACTORS_INDONESIA } from '@/data/carbon-factors-indonesia';
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
   AlertTriangle, Milestone, Calendar, User, AlignLeft, Flag, Network, Wallet, ExternalLink,
-  ClipboardCheck, FileText, CheckCircle2, XCircle, AlertCircle, Link2, ShieldAlert, FileUp, Filter, Settings
+  ClipboardCheck, FileText, CheckCircle2, XCircle, AlertCircle, Link2, ShieldAlert, FileUp, Filter, Settings, Package
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -255,6 +255,7 @@ export default function WBSBuilder({
   const [targetBudgetInput, setTargetBudgetInput] = useState('');
   const [savingTargetBudget, setSavingTargetBudget] = useState(false);
   const [carbonMode, setCarbonMode] = useState(false);
+  const [deliverableActivityMap, setDeliverableActivityMap] = useState<Record<string, { id: string; name: string; status: string }[]>>({});
 
   // Stage inline CRUD (Project Management only)
   const [stageDialogOpen, setStageDialogOpen] = useState(false);
@@ -536,6 +537,29 @@ export default function WBSBuilder({
     }
   }, [projectId]);
 
+  const loadDeliverableLinks = async () => {
+    if (productMode !== 'project_management') return;
+    try {
+      const [delivRes, linkRes] = await Promise.all([
+        (supabase as any).from('project_deliverables').select('id, name, status').eq('project_id', projectId).is('archived_at', null),
+        (supabase as any).from('project_deliverable_activities').select('deliverable_id, wbs_item_id'),
+      ]);
+      if (delivRes.data && linkRes.data) {
+        const delivById = new Map(delivRes.data.map((d: any) => [d.id, d]));
+        const map: Record<string, { id: string; name: string; status: string }[]> = {};
+        for (const link of linkRes.data) {
+          const d = delivById.get(link.deliverable_id);
+          if (!d) continue;
+          if (!map[link.wbs_item_id]) map[link.wbs_item_id] = [];
+          map[link.wbs_item_id].push({ id: d.id, name: d.name, status: d.status });
+        }
+        setDeliverableActivityMap(map);
+      }
+    } catch {
+      // silent
+    }
+  };
+
   const openTargetBudgetDialog = useCallback(() => {
     setTargetBudgetInput(targetBudget ? String(Math.round(targetBudget)) : '');
     setTargetBudgetDialogOpen(true);
@@ -741,6 +765,7 @@ export default function WBSBuilder({
       void loadBudgetTotals();
       void loadClaimsAndEvidence();
       void loadOrgMembers();
+      void loadDeliverableLinks();
 
       const { data, error: wbsError } = await supabase
         .from('lfa_wbs_items')
@@ -2814,6 +2839,65 @@ export default function WBSBuilder({
                                       </Badge>
                                     )}
                                   </div>
+                                </div>
+                              )}
+
+                              {/* Deliverable Linking Section (PM only) */}
+                              {productMode === 'project_management' && item.level === 2 && (
+                                <div className="space-y-1.5 bg-violet-50/50 dark:bg-violet-950/20 p-2 rounded border border-violet-200 dark:border-violet-900/40">
+                                  <div className="text-[10px] font-bold text-violet-700 dark:text-violet-400 uppercase tracking-wider flex items-center gap-1">
+                                    <Package className="h-3 w-3 text-violet-600" />
+                                    Deliverables
+                                  </div>
+                                  {(() => {
+                                    const subIds = getSubtreeWbsIds(item.id);
+                                    const allDeliverableIds = new Set<string>();
+                                    const linked: { id: string; name: string; status: string }[] = [];
+                                    for (const sid of subIds) {
+                                      const items = deliverableActivityMap[sid];
+                                      if (items) {
+                                        for (const d of items) {
+                                          if (!allDeliverableIds.has(d.id)) {
+                                            allDeliverableIds.add(d.id);
+                                            linked.push(d);
+                                          }
+                                        }
+                                      }
+                                    }
+                                    if (linked.length === 0) {
+                                      return (
+                                        <div className="flex items-center justify-between pt-0.5">
+                                          <span className="text-[9px] text-muted-foreground">Belum ada Deliverable.</span>
+                                          <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-5 text-[8px] px-1.5"
+                                            onClick={() => {
+                                              const actName = encodeURIComponent(item.name);
+                                              const actPic = encodeURIComponent(item.pic || '');
+                                              const actDate = item.planned_end_date || '';
+                                              navigate(`/dashboard/project-management/${projectId}/deliverables?create=1&actId=${item.id}&actName=${actName}&actPic=${actPic}&actDate=${actDate}`);
+                                            }}
+                                          >
+                                            <Plus className="mr-0.5 h-2.5 w-2.5" />
+                                            Buat Deliverable
+                                          </Button>
+                                        </div>
+                                      );
+                                    }
+                                    return (
+                                      <div className="pt-0.5 space-y-1">
+                                        {linked.map((d) => (
+                                          <div key={d.id} className="flex items-center gap-1.5">
+                                            <Badge variant="outline" className={`text-[9px] py-0 h-auto ${d.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : d.status === 'submitted' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-violet-50 text-violet-700 border-violet-200'}`}>
+                                              {d.status === 'approved' ? 'Disetujui' : d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Not Started'}
+                                            </Badge>
+                                            <span className="text-[9px] truncate">{d.name}</span>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    );
+                                  })()}
                                 </div>
                               )}
 

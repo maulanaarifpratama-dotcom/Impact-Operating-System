@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
-  ArrowLeft, Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronRight, CheckCircle2,
+  ArrowLeft, Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronRight, CheckCircle2, Package,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -53,6 +53,13 @@ export default function ProjectDeliverablesPage() {
   const { toast } = useToast();
   const { role: orgRole } = useOrgRole();
   const isOwner = orgRole === 'owner';
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const autoCreate = searchParams.get('create') === '1';
+  const prefillActId = searchParams.get('actId');
+  const prefillActName = searchParams.get('actName');
+  const prefillActPic = searchParams.get('actPic');
+  const prefillActDate = searchParams.get('actDate');
 
   const [deliverables, setDeliverables] = useState<ProjectDeliverable[]>([]);
   const [activitiesMap, setActivitiesMap] = useState<Record<string, string[]>>({});
@@ -135,6 +142,17 @@ export default function ProjectDeliverablesPage() {
 
   useEffect(() => { void loadOrgId(); }, [loadOrgId]);
   useEffect(() => { if (orgId) void loadData(); }, [loadData, orgId]);
+
+  useEffect(() => {
+    if (autoCreate && isOwner && prefillActId && prefillActName) {
+      setName(prefillActName);
+      if (prefillActPic) setOwner(prefillActPic);
+      if (prefillActDate) setDueDate(prefillActDate);
+      setSelectedActivityIds([prefillActId]);
+      setDialogOpen(true);
+      setSearchParams({}, { replace: true });
+    }
+  }, [autoCreate, isOwner, prefillActId, prefillActName]);
 
   const resetForm = () => {
     setName('');
@@ -319,8 +337,12 @@ export default function ProjectDeliverablesPage() {
       ) : deliverables.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+            <Package className="h-10 w-10 text-muted-foreground" />
             <CardTitle className="text-lg">Belum ada Deliverable</CardTitle>
-            <CardDescription>Tambahkan deliverable pertama untuk proyek ini.</CardDescription>
+            <CardDescription>
+              Deliverable adalah output dari Activity yang sudah selesai.<br />
+              Dari Work Plan, klik <strong>Buat Deliverable</strong> di bagian Rincian Activity.
+            </CardDescription>
             {isOwner && (
               <Button onClick={openCreate} className="mt-2">
                 <Plus className="mr-2 h-4 w-4" />
