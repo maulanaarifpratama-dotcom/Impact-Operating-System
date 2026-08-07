@@ -90,10 +90,7 @@ export default function ProjectTimelineView({
 }: Props) {
   const { toast } = useToast();
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('plan');
-  const [rh, setRh] = useState<Record<string, number>>({});
-  const refs = useRef<Record<string, HTMLDivElement | null>>({});
-  const lp = useRef<HTMLDivElement>(null);
-  const rp = useRef<HTMLDivElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
 
   const [dlg, setDlg] = useState(false);
   const [ds, setDs] = useState<DBStage | null>(null);
@@ -127,7 +124,7 @@ export default function ProjectTimelineView({
 
     for (const w of wbsItems) {
       if (w.level !== 2) continue;
-      if (!w.name || w.name.trim() === '') continue; // skip unnamed
+      if (!w.name || w.name.trim() === '') continue;
       const sid = resolveStageId(w);
       if (sid && phaseActs.has(sid)) phaseActs.get(sid)!.push(w);
     }
@@ -160,7 +157,7 @@ export default function ProjectTimelineView({
       return 0;
     });
 
-    // Calendar range — use plan dates for refererence, expand if actual dates extend further
+    // Calendar range — use plan dates for reference, expand if actual dates extend further
     let calMin: Date | null = null;
     let calMax: Date | null = null;
     for (const ph of phases) {
@@ -260,29 +257,16 @@ export default function ProjectTimelineView({
     return { rows: result, monthLabels: labels, empty: false };
   }, [wbsItems, stages, scheduleMode, resolveStageId]);
 
-  // ── Scroll sync ──
+  // ── Sync month header horizontal scroll with body ──
 
   useLayoutEffect(() => {
-    const l = lp.current; const r = rp.current; if (!l || !r) return;
-    const s = () => { r.scrollTop = l.scrollTop; };
-    l.addEventListener('scroll', s, { passive: true });
-    return () => l.removeEventListener('scroll', s);
-  }, []);
-  useLayoutEffect(() => {
-    const r = rp.current;
+    const body = bodyRef.current;
     const mh = document.getElementById('pm-month-header');
-    if (!r || !mh) return;
-    const s = () => { mh.scrollLeft = r.scrollLeft; };
-    r.addEventListener('scroll', s, { passive: true });
-    return () => r.removeEventListener('scroll', s);
+    if (!body || !mh) return;
+    const s = () => { mh.scrollLeft = body.scrollLeft; };
+    body.addEventListener('scroll', s, { passive: true });
+    return () => body.removeEventListener('scroll', s);
   }, []);
-  useLayoutEffect(() => {
-    const nh: Record<string, number> = {}; let ch = false;
-    Object.entries(refs.current).forEach(([k, e]) => {
-      if (e) { const h = e.offsetHeight; if (h && rh[k] !== h) { nh[k] = h; ch = true; } }
-    });
-    if (ch) setRh((p) => ({ ...p, ...nh }));
-  });
 
   // ── Schedule dialog ──
 
@@ -340,9 +324,9 @@ export default function ProjectTimelineView({
   return (
     <div className="border rounded-lg bg-white dark:bg-slate-900 flex flex-col" style={{ height: 'calc(100vh - 260px)', minHeight: 500 }}>
       {/* Toggle + Month header */}
-      <div className="flex border-b bg-slate-50 shrink-0">
-        <div className="py-2 px-3 border-r flex items-center gap-2 shrink-0" style={{ width: LEFT_W }}>
-          <span className="text-[11px] font-bold uppercase text-slate-500">Timeline</span>
+      <div className="flex border-b bg-slate-50 dark:bg-slate-800 shrink-0">
+        <div className="py-2 px-3 border-r flex items-center gap-2 shrink-0 sticky left-0 z-20 bg-slate-50 dark:bg-slate-800" style={{ width: LEFT_W }}>
+          <span className="text-[11px] font-bold uppercase text-slate-500 dark:text-slate-400">Timeline</span>
           <div className="flex bg-slate-200 dark:bg-slate-700 rounded p-0.5">
             {(['plan', 'actual', 'overlay'] as ScheduleMode[]).map((m) => (
               <button key={m} onClick={() => setScheduleMode(m)}
@@ -355,22 +339,21 @@ export default function ProjectTimelineView({
         <div id="pm-month-header" className="flex-1 overflow-hidden">
           <div className="flex" style={{ minWidth: ganttMinWidth }}>
             {monthLabels.map((m, i) => (
-              <div key={i} className="shrink-0 text-center py-2 text-[10px] font-bold text-slate-500 border-r" style={{ width: MONTH_W }}>{m}</div>
+              <div key={i} className="shrink-0 text-center py-2 text-[10px] font-bold text-slate-500 dark:text-slate-400 border-r border-slate-200 dark:border-slate-700" style={{ width: MONTH_W }}>{m}</div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Body */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left: Structure pane (sticky) */}
-        <div className="overflow-y-auto overflow-x-hidden border-r shrink-0" ref={lp} style={{ width: LEFT_W }}>
-          {rows.map((row) => {
-            const dw = row.item?.duration_weeks;
-            return (
-              <div key={row.key} ref={(el) => { refs.current[row.key] = el; }}
-                className={`flex items-center gap-1 px-2 py-1 border-b ${row.type === 'phase' ? 'bg-slate-50 font-bold' : row.depth === 2 ? 'pl-6' : 'pl-10'}`}
-                style={{ minHeight: ROW_H }}>
+      {/* Body — unified scroll container for row locking */}
+      <div className="flex-1 overflow-auto" ref={bodyRef}>
+        <div style={{ minWidth: LEFT_W + ganttMinWidth }}>
+          {rows.map((row) => (
+            <div key={row.key} className="flex border-b border-slate-100 dark:border-slate-800" style={{ minHeight: ROW_H }}>
+              {/* Left column — sticky */}
+              <div
+                className={`sticky left-0 z-10 shrink-0 flex items-start border-r border-slate-200 dark:border-slate-700 px-2 py-1 ${row.type === 'phase' ? 'bg-slate-50 dark:bg-slate-800 font-bold' : row.depth === 2 ? 'pl-6 bg-white dark:bg-slate-900' : 'pl-10 bg-white dark:bg-slate-900'}`}
+                style={{ width: LEFT_W }}>
                 <div className="flex-1 min-w-0">
                   {row.type === 'phase' && row.stage && (
                     <div className="flex items-center justify-between w-full gap-1">
@@ -409,7 +392,6 @@ export default function ProjectTimelineView({
                         <span className="text-[11px] font-medium truncate">{row.item.name}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 text-[9px] text-muted-foreground">
-                        <span>{dw && dw > 0 ? `${dw} Minggu` : '—'}</span>
                         <span className={row.item.status === 'completed' ? 'text-emerald-700' : row.item.status === 'blocked' ? 'text-red-700' : ''}>
                           {sl(row.item.status)}
                         </span>
@@ -419,58 +401,50 @@ export default function ProjectTimelineView({
                   )}
                 </div>
               </div>
-            );
-          })}
-        </div>
 
-        {/* Right: Gantt */}
-        <div className="flex-1 overflow-y-auto overflow-x-auto" ref={rp}>
-          <div style={{ minWidth: ganttMinWidth }}>
-            {rows.map((row) => {
-              const h = rh[row.key] || ROW_H;
-              return (
-                <div key={`g-${row.key}`} className="border-b relative flex items-center" style={{ height: h }}>
-                  {monthLabels.map((_, i) => (
-                    <div key={i} className="shrink-0 h-full border-r border-slate-50" style={{ width: MONTH_W }} />
-                  ))}
+              {/* Right column — gantt bars */}
+              <div className="flex-1 relative">
+                {/* Month grid lines */}
+                {monthLabels.map((_, i) => (
+                  <div key={i} className="absolute top-0 h-full border-r border-slate-50 dark:border-slate-800 pointer-events-none" style={{ width: MONTH_W, left: i * MONTH_W }} />
+                ))}
 
-                  {row.type === 'phase' && row.barWidth > 0 && (
-                    <>
-                      {/* Plan bar (background/outline in overlay mode) */}
-                      <div className={`absolute top-1.5 h-5 rounded border flex items-center px-2 ${scheduleMode === 'overlay' ? 'border-slate-300 border-dashed bg-slate-50/50' : row.hasOverflow ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-100'}`}
-                        style={{ left: row.barLeft, width: Math.max(row.barWidth, 16) }}>
-                        {scheduleMode !== 'overlay' && (
-                          <span className={`text-[9px] font-bold uppercase truncate ${row.hasOverflow ? 'text-amber-600' : 'text-slate-400'}`}>
-                            {row.stage?.title || '—'}
-                          </span>
-                        )}
-                      </div>
-                      {/* Actual bar (foreground in overlay mode) */}
-                      {scheduleMode === 'overlay' && row.actualLeft != null && row.actualWidth != null && row.actualWidth > 0 && (
-                        <div className={`absolute top-1.5 h-5 rounded border flex items-center px-2 ${row.isDelayed ? 'border-red-400 bg-red-100' : 'border-emerald-400 bg-emerald-100'}`}
-                          style={{ left: row.actualLeft, width: Math.max(row.actualWidth, 16) }}>
-                          <span className={`text-[9px] font-bold uppercase truncate ${row.isDelayed ? 'text-red-600' : 'text-emerald-600'}`}>
-                            {row.stage?.title || '—'}
-                          </span>
-                          {row.isDelayed && <span className="text-[7px] text-red-500 ml-1">delay</span>}
-                        </div>
+                {row.type === 'phase' && row.barWidth > 0 && (
+                  <>
+                    {/* Plan bar */}
+                    <div className={`absolute top-1.5 h-5 rounded border flex items-center px-2 z-[5] ${scheduleMode === 'overlay' ? 'border-slate-300 border-dashed bg-slate-50/50' : row.hasOverflow ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-100'}`}
+                      style={{ left: row.barLeft, width: Math.max(row.barWidth, 16) }}>
+                      {scheduleMode !== 'overlay' && (
+                        <span className={`text-[9px] font-bold uppercase truncate ${row.hasOverflow ? 'text-amber-600' : 'text-slate-400'}`}>
+                          {row.stage?.title || '—'}
+                        </span>
                       )}
-                    </>
-                  )}
-
-                  {row.barWidth > 0 && row.type !== 'phase' && row.item && (
-                    <div
-                      className={`absolute ${row.type === 'activity' ? 'top-2.5 h-4 rounded bg-emerald-500/70 border border-emerald-600 shadow-sm' : 'top-3 h-3 rounded bg-indigo-400/60 border border-indigo-500'}`}
-                      style={{ left: row.barLeft, width: row.barWidth }}>
-                      {row.item.progress_percent ? row.item.progress_percent > 0 && (
-                        <div className="absolute inset-y-0 left-0 bg-white/40 rounded-l" style={{ width: `${Math.min(row.item.progress_percent, 100)}%` }} />
-                      ) : null}
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                    {/* Actual bar (overlay mode) */}
+                    {scheduleMode === 'overlay' && row.actualLeft != null && row.actualWidth != null && row.actualWidth > 0 && (
+                      <div className={`absolute top-1.5 h-5 rounded border flex items-center px-2 z-[5] ${row.isDelayed ? 'border-red-400 bg-red-100' : 'border-emerald-400 bg-emerald-100'}`}
+                        style={{ left: row.actualLeft, width: Math.max(row.actualWidth, 16) }}>
+                        <span className={`text-[9px] font-bold uppercase truncate ${row.isDelayed ? 'text-red-600' : 'text-emerald-600'}`}>
+                          {row.stage?.title || '—'}
+                        </span>
+                        {row.isDelayed && <span className="text-[7px] text-red-500 ml-1">delay</span>}
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {row.barWidth > 0 && row.type !== 'phase' && row.item && (
+                  <div
+                    className={`absolute z-[5] ${row.type === 'activity' ? 'top-2.5 h-4 rounded bg-emerald-500/70 border border-emerald-600 shadow-sm' : 'top-3 h-3 rounded bg-indigo-400/60 border border-indigo-500'}`}
+                    style={{ left: row.barLeft, width: row.barWidth }}>
+                    {row.item.progress_percent ? row.item.progress_percent > 0 && (
+                      <div className="absolute inset-y-0 left-0 bg-white/40 rounded-l" style={{ width: `${Math.min(row.item.progress_percent, 100)}%` }} />
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
