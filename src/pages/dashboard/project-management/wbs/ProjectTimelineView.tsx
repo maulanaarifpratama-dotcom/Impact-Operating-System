@@ -21,13 +21,12 @@ interface DBStage {
   actual_start_date?: string | null; actual_end_date?: string | null;
 }
 
-type ScheduleMode = 'plan' | 'actual';
+type ScheduleMode = 'plan' | 'actual' | 'overlay';
 
 interface Props {
   wbsItems: WbsItem[];
   stages: DBStage[];
   isOwner: boolean;
-  scheduleMode: ScheduleMode;
   onStagesRefresh?: () => void;
   onDurationChange?: (wbsId: string, weeks: number) => void;
   onAddActivity?: (stageId: string) => void;
@@ -78,15 +77,19 @@ interface FlatRow {
   barLeft: number;
   barWidth: number;
   hasOverflow: boolean;
+  actualLeft?: number;
+  actualWidth?: number;
+  isDelayed?: boolean;
 }
 
 // ── Component ──
 
 export default function ProjectTimelineView({
-  wbsItems, stages, isOwner, scheduleMode,
+  wbsItems, stages, isOwner,
   onStagesRefresh, onDurationChange, onAddActivity,
 }: Props) {
   const { toast } = useToast();
+  const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('plan');
   const [rh, setRh] = useState<Record<string, number>>({});
   const refs = useRef<Record<string, HTMLDivElement | null>>({});
   const lp = useRef<HTMLDivElement>(null);
@@ -157,12 +160,19 @@ export default function ProjectTimelineView({
       return 0;
     });
 
-    // Calendar range
+    // Calendar range — use plan dates for refererence, expand if actual dates extend further
     let calMin: Date | null = null;
     let calMax: Date | null = null;
     for (const ph of phases) {
       if (ph.calStart && (!calMin || ph.calStart < calMin)) calMin = ph.calStart;
       if (ph.calEnd && (!calMax || ph.calEnd > calMax)) calMax = ph.calEnd;
+      // In overlay mode, also consider actual dates
+      if (scheduleMode === 'overlay') {
+        const actualStart = stageStart(ph.stage, 'actual');
+        const actualEnd = stageEnd(ph.stage, 'actual');
+        if (actualStart) { const d = new Date(actualStart); if (!calMin || d < calMin) calMin = d; }
+        if (actualEnd) { const d = new Date(actualEnd); if (!calMax || d > calMax) calMax = d; }
+      }
     }
 
     if (!calMin || !calMax) {
@@ -199,9 +209,24 @@ export default function ProjectTimelineView({
       const scaleWeeks = Math.max(ph.totalWeeks, phaseWeeks);
       const pxPerWeek = phaseW / scaleWeeks;
 
+      // Compute overlay actual bar for Phase
+      let actualLeft: number | undefined;
+      let actualWidth: number | undefined;
+      let isDelayed: boolean | undefined;
+      if (scheduleMode === 'overlay') {
+        const actStart = stageStart(ph.stage, 'actual');
+        const actEnd = stageEnd(ph.stage, 'actual');
+        if (actStart && actEnd) {
+          actualLeft = dateToPx(new Date(actStart));
+          actualWidth = Math.max(16, dateToPx(new Date(actEnd)) - actualLeft);
+          isDelayed = new Date(actEnd) > ph.calEnd!;
+        }
+      }
+
       result.push({
         key: `p-${ph.stage.id}`, type: 'phase', item: null, stage: ph.stage,
         depth: 0, barLeft: phasePx, barWidth: phaseW, hasOverflow: ph.totalWeeks > phaseWeeks,
+        actualLeft, actualWidth, isDelayed,
       });
 
       let cumWeeks = 0;
@@ -314,10 +339,18 @@ export default function ProjectTimelineView({
 
   return (
     <div className="border rounded-lg bg-white dark:bg-slate-900 flex flex-col" style={{ height: 'calc(100vh - 260px)', minHeight: 500 }}>
-      {/* Month header */}
+      {/* Toggle + Month header */}
       <div className="flex border-b bg-slate-50 shrink-0">
-        <div className="py-2 px-3 text-[11px] font-bold uppercase text-slate-500 border-r flex items-center shrink-0" style={{ width: LEFT_W }}>
-          {scheduleMode === 'plan' ? 'Timeline Plan' : 'Timeline Actual'}
+        <div className="py-2 px-3 border-r flex items-center gap-2 shrink-0" style={{ width: LEFT_W }}>
+          <span className="text-[11px] font-bold uppercase text-slate-500">Timeline</span>
+          <div className="flex bg-slate-200 dark:bg-slate-700 rounded p-0.5">
+            {(['plan', 'actual', 'overlay'] as ScheduleMode[]).map((m) => (
+              <button key={m} onClick={() => setScheduleMode(m)}
+                className={`px-2 py-0.5 text-[10px] font-bold rounded capitalize ${scheduleMode === m ? 'bg-white dark:bg-slate-950 text-primary shadow-sm' : 'text-muted-foreground'}`}>
+                {m}
+              </button>
+            ))}
+          </div>
         </div>
         <div id="pm-month-header" className="flex-1 overflow-hidden">
           <div className="flex" style={{ minWidth: ganttMinWidth }}>
@@ -414,12 +447,27 @@ export default function ProjectTimelineView({
                   ))}
 
                   {row.type === 'phase' && row.barWidth > 0 && (
-                    <div className={`absolute top-1.5 h-5 rounded border flex items-center px-2 ${row.hasOverflow ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-100'}`}
-                      style={{ left: row.barLeft, width: Math.max(row.barWidth, 16) }}>
-                      <span className={`text-[9px] font-bold uppercase truncate ${row.hasOverflow ? 'text-amber-600' : 'text-slate-400'}`}>
-                        {row.stage?.title || '—'}
-                      </span>
-                    </div>
+                    <>
+                      {/* Plan bar (background/outline in overlay mode) */}
+                      <div className={`absolute top-1.5 h-5 rounded border flex items-center px-2 ${scheduleMode === 'overlay' ? 'border-slate-300 border-dashed bg-slate-50/50' : row.hasOverflow ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-slate-100'}`}
+                        style={{ left: row.barLeft, width: Math.max(row.barWidth, 16) }}>
+                        {scheduleMode !== 'overlay' && (
+                          <span className={`text-[9px] font-bold uppercase truncate ${row.hasOverflow ? 'text-amber-600' : 'text-slate-400'}`}>
+                            {row.stage?.title || '—'}
+                          </span>
+                        )}
+                      </div>
+                      {/* Actual bar (foreground in overlay mode) */}
+                      {scheduleMode === 'overlay' && row.actualLeft != null && row.actualWidth != null && row.actualWidth > 0 && (
+                        <div className={`absolute top-1.5 h-5 rounded border flex items-center px-2 ${row.isDelayed ? 'border-red-400 bg-red-100' : 'border-emerald-400 bg-emerald-100'}`}
+                          style={{ left: row.actualLeft, width: Math.max(row.actualWidth, 16) }}>
+                          <span className={`text-[9px] font-bold uppercase truncate ${row.isDelayed ? 'text-red-600' : 'text-emerald-600'}`}>
+                            {row.stage?.title || '—'}
+                          </span>
+                          {row.isDelayed && <span className="text-[7px] text-red-500 ml-1">delay</span>}
+                        </div>
+                      )}
+                    </>
                   )}
 
                   {row.barWidth > 0 && row.type !== 'phase' && row.item && (

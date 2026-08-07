@@ -268,7 +268,7 @@ export default function WBSBuilder({
     productMode === 'project_management' ? 'outline' : 'timeline'
   );
   const [scheduleMode, setScheduleMode] = useState<'plan' | 'actual'>('plan');
-  const [pmTab, setPmTab] = useState<'structure' | 'plan' | 'actual'>('structure');
+  const [pmTab, setPmTab] = useState<'structure' | 'timeline'>('structure');
 
   // Budget drawer (PM mode)
   const [budgetDrawerActivityId, setBudgetDrawerActivityId] = useState<string | null>(null);
@@ -3776,22 +3776,17 @@ export default function WBSBuilder({
         )}
       </div>
 
-      {/* PM tabs: Structure / Timeline Plan / Timeline Actual */}
+      {/* PM tabs: Structure / Timeline (Timeline has internal Plan/Actual/Overlay toggle) */}
       {productMode === 'project_management' && (
         <>
           <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
             {([
               { key: 'structure', label: 'Structure' },
-              { key: 'plan', label: 'Timeline Plan' },
-              { key: 'actual', label: 'Timeline Actual' },
+              { key: 'timeline', label: 'Timeline' },
             ] as const).map((t) => (
               <button
                 key={t.key}
-                onClick={() => {
-                  setPmTab(t.key);
-                  if (t.key === 'plan') setScheduleMode('plan');
-                  if (t.key === 'actual') setScheduleMode('actual');
-                }}
+                onClick={() => setPmTab(t.key)}
                 className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
                   pmTab === t.key ? 'bg-white dark:bg-slate-950 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
                 }`}>
@@ -3800,13 +3795,12 @@ export default function WBSBuilder({
             ))}
           </div>
 
-          {(pmTab === 'plan' || pmTab === 'actual') && (
+          {pmTab === 'timeline' && (
             <div className="border rounded-xl overflow-hidden bg-white dark:bg-slate-900">
               <ProjectTimelineView
                 wbsItems={wbsItems}
                 stages={stages}
                 isOwner={isOwner}
-                scheduleMode={pmTab === 'plan' ? 'plan' : 'actual'}
                 onStagesRefresh={() => { void loadStages(); }}
                 onAddActivity={(stageId) => { void handleAddActivityToStage(stageId); }}
                 onDurationChange={(wbsId, weeks) => {
