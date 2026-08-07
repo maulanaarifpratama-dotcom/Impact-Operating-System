@@ -1215,6 +1215,8 @@ export default function WBSBuilder({
           name: item.name,
           start_month: item.start_month,
           duration_weeks: item.duration_weeks,
+          start_date: item.start_date ?? null,
+          end_date: item.end_date ?? null,
           pic: item.pic,
           method: item.method,
           indicator: item.indicator,
@@ -2562,23 +2564,53 @@ export default function WBSBuilder({
                         />
                       )}
 
-                      {/* PM Activity duration — editable inline */}
+                      {/* PM Activity duration — editable inline + date fields */}
                       {productMode === 'project_management' && (item.level === 2 || item.level === 3) && (
-                        <div className="flex items-center gap-0.5 mt-0.5">
-                          <input
-                            type="number"
-                            min={0}
-                            max={52}
-                            value={item.duration_weeks}
-                            onChange={(e) => {
-                              const val = Math.max(0, parseInt(e.target.value) || 0);
-                              const updated = { ...item, duration_weeks: val };
-                              updateItemLocally(updated);
-                              triggerAutosave(updated);
-                            }}
-                            className="w-12 h-5 text-[9px] px-1 text-center border rounded bg-transparent dark:border-slate-700"
-                          />
-                          <span className="text-[8px] text-muted-foreground">Minggu</span>
+                        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                          <div className="flex items-center gap-0.5">
+                            <input
+                              type="number"
+                              min={0}
+                              max={52}
+                              value={item.duration_weeks}
+                              onChange={(e) => {
+                                const val = Math.max(0, parseInt(e.target.value) || 0);
+                                const updated = { ...item, duration_weeks: val };
+                                updateItemLocally(updated);
+                                triggerAutosave(updated);
+                              }}
+                              className="w-12 h-5 text-[9px] px-1 text-center border rounded bg-transparent dark:border-slate-700"
+                            />
+                            <span className="text-[8px] text-muted-foreground">Minggu</span>
+                          </div>
+                          {item.level === 2 && (
+                            <>
+                              <span className="text-[8px] text-slate-300">|</span>
+                              <input
+                                type="date"
+                                value={item.start_date || ''}
+                                onChange={(e) => {
+                                  const updated = { ...item, start_date: e.target.value || null };
+                                  updateItemLocally(updated);
+                                  triggerAutosave(updated);
+                                }}
+                                className="w-[100px] h-5 text-[8px] px-1 border rounded bg-transparent dark:border-slate-700"
+                                title="Tanggal Mulai"
+                              />
+                              <span className="text-[8px] text-muted-foreground">–</span>
+                              <input
+                                type="date"
+                                value={item.end_date || ''}
+                                onChange={(e) => {
+                                  const updated = { ...item, end_date: e.target.value || null };
+                                  updateItemLocally(updated);
+                                  triggerAutosave(updated);
+                                }}
+                                className="w-[100px] h-5 text-[8px] px-1 border rounded bg-transparent dark:border-slate-700"
+                                title="Tanggal Selesai"
+                              />
+                            </>
+                          )}
                         </div>
                       )}
 

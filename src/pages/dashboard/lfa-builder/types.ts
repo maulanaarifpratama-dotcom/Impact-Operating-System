@@ -64,6 +64,8 @@ export interface WbsItem {
   level: 1 | 2 | 3 | 4;
   parent_id: string | null;
   name: string;
+  start_date?: string | null;
+  end_date?: string | null;
   start_month: number;
   duration_weeks: number;
   pic?: string | null;
