@@ -409,19 +409,7 @@ export default function ProjectTimelineView({
                         <span className="text-[11px] font-medium truncate">{row.item.name}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 text-[9px] text-muted-foreground">
-                        {isOwner ? (
-                          <span className="flex items-center gap-0.5">
-                            <Input type="number" min={0} max={52} value={dw ?? ''} placeholder="0"
-                              onChange={(e) => {
-                                const v = parseInt(e.target.value);
-                                if (!isNaN(v) && v >= 0 && onDurationChange) onDurationChange(row.item!.id, v);
-                              }}
-                              className="w-12 h-5 text-[9px] px-1 text-center" />
-                            <span>Minggu</span>
-                          </span>
-                        ) : (
-                          <span>{dw && dw > 0 ? `${dw} Minggu` : '—'}</span>
-                        )}
+                        <span>{dw && dw > 0 ? `${dw} Minggu` : '—'}</span>
                         <span className={row.item.status === 'completed' ? 'text-emerald-700' : row.item.status === 'blocked' ? 'text-red-700' : ''}>
                           {sl(row.item.status)}
                         </span>

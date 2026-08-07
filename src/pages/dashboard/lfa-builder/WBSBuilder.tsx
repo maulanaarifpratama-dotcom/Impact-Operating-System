@@ -2567,33 +2567,23 @@ export default function WBSBuilder({
 
                       </div>
 
-                      {/* PM Activity duration — editable inline + date fields */}
+                      {/* PM Activity schedule — date-driven, duration derived */}
                       {productMode === 'project_management' && (item.level === 2 || item.level === 3) && (
                         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                          <div className="flex items-center gap-0.5">
-                            <input
-                              type="number"
-                              min={0}
-                              max={52}
-                              value={item.duration_weeks}
-                              onChange={(e) => {
-                                const val = Math.max(0, parseInt(e.target.value) || 0);
-                                const updated = { ...item, duration_weeks: val };
-                                updateItemLocally(updated);
-                                triggerAutosave(updated);
-                              }}
-                              className="w-12 h-5 text-[9px] px-1 text-center border rounded bg-transparent dark:border-slate-700"
-                            />
-                            <span className="text-[8px] text-muted-foreground">Minggu</span>
-                          </div>
-                          {item.level === 2 && (
+                          {item.level === 2 ? (
                             <>
-                              <span className="text-[8px] text-slate-300">|</span>
                               <input
                                 type="date"
                                 value={item.start_date || ''}
                                 onChange={(e) => {
-                                  const updated = { ...item, start_date: e.target.value || null };
+                                  const start = e.target.value || null;
+                                  const end = item.end_date || null;
+                                  let weeks = item.duration_weeks;
+                                  if (start && end) {
+                                    const days = Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000));
+                                    weeks = Math.max(1, Math.ceil(days / 7));
+                                  }
+                                  const updated = { ...item, start_date: start, duration_weeks: weeks };
                                   updateItemLocally(updated);
                                   triggerAutosave(updated);
                                 }}
@@ -2605,14 +2595,32 @@ export default function WBSBuilder({
                                 type="date"
                                 value={item.end_date || ''}
                                 onChange={(e) => {
-                                  const updated = { ...item, end_date: e.target.value || null };
+                                  const end = e.target.value || null;
+                                  const start = item.start_date || null;
+                                  let weeks = item.duration_weeks;
+                                  if (start && end) {
+                                    const days = Math.max(1, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 86400000));
+                                    weeks = Math.max(1, Math.ceil(days / 7));
+                                  }
+                                  const updated = { ...item, end_date: end, duration_weeks: weeks };
                                   updateItemLocally(updated);
                                   triggerAutosave(updated);
                                 }}
                                 className="w-[100px] h-5 text-[8px] px-1 border rounded bg-transparent dark:border-slate-700"
                                 title="Tanggal Selesai"
                               />
+                              <span className="text-[8px] text-muted-foreground ml-1">
+                                {item.start_date && item.end_date
+                                  ? `${Math.max(1, Math.ceil(Math.max(1, Math.round((new Date(item.end_date).getTime() - new Date(item.start_date).getTime()) / 86400000)) / 7))} Minggu`
+                                  : item.duration_weeks && item.duration_weeks > 0
+                                    ? `${item.duration_weeks} Minggu`
+                                    : ''}
+                              </span>
                             </>
+                          ) : (
+                            <span className="text-[8px] text-muted-foreground">
+                              {item.duration_weeks && item.duration_weeks > 0 ? `${item.duration_weeks} Minggu` : ''}
+                            </span>
                           )}
                         </div>
                       )}
