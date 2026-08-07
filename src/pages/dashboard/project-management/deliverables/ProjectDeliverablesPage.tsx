@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-react';
+import {
+  ArrowLeft, Loader2, Plus, Pencil, Trash2, ChevronDown, ChevronRight, CheckCircle2,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -25,189 +27,258 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useOrgRole } from '@/hooks/useOrgRole';
 import { ProjectWorkspaceNav } from '../ProjectWorkspaceNav';
+import type {
+  ProjectDeliverable,
+  DeliverableStatus,
+  WbsItem,
+} from '@/pages/dashboard/lfa-builder/types';
 
-/**
- * PM-3 scope only: Deliverables list/create/lifecycle/archive UI. Reuses
- * programme_deliverables and its existing create/update/transition/archive
- * RPCs unchanged in shape (create/update now also accept an optional
- * p_stage_id, added this sprint). No second Deliverables engine.
- */
-const DELIVERABLE_TYPES = [
-  'REPORT', 'DATASET', 'CODEBOOK', 'INSTRUMENT', 'MATRIX', 'WORKSHOP_OUTPUT',
-  'PRESENTATION', 'COMMUNICATION_PRODUCT', 'CONTRACTUAL_SUBMISSION', 'OTHER',
-];
-const LIFECYCLE_STATUSES = [
-  'DRAFT', 'PLANNED', 'IN_PROGRESS', 'READY_FOR_REVIEW', 'CHANGES_REQUESTED',
-  'APPROVED', 'SUBMITTED', 'ACCEPTED', 'CANCELLED',
-];
-const NONE = '__none__';
+const STATUS_LABELS: Record<DeliverableStatus, string> = {
+  not_started: 'Not Started',
+  in_progress: 'In Progress',
+  submitted: 'Submitted',
+  approved: 'Approved',
+};
 
-interface Deliverable {
-  id: string;
-  title: string;
-  description: string | null;
-  deliverable_type: string;
-  lifecycle_status: string;
-  wbs_item_id: string | null;
-  stage_id: string | null;
-  target_date: string;
-  archived_at: string | null;
-}
-
-interface WbsOption {
-  id: string;
-  name: string;
-  stage_id: string | null;
-}
-
-interface StageOption {
-  id: string;
-  title: string;
-  archived_at: string | null;
-}
+const STATUS_VARIANTS: Record<DeliverableStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  not_started: 'secondary',
+  in_progress: 'default',
+  submitted: 'outline',
+  approved: 'default',
+};
 
 export default function ProjectDeliverablesPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { canDelete } = useOrgRole();
+  const { role: orgRole } = useOrgRole();
+  const isOwner = orgRole === 'owner';
 
-  const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
-  const [wbsOptions, setWbsOptions] = useState<WbsOption[]>([]);
-  const [stageOptions, setStageOptions] = useState<StageOption[]>([]);
+  const [deliverables, setDeliverables] = useState<ProjectDeliverable[]>([]);
+  const [activitiesMap, setActivitiesMap] = useState<Record<string, string[]>>({});
+  const [wbsActivities, setWbsActivities] = useState<WbsItem[]>([]);
+  const [orgId, setOrgId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [createOpen, setCreateOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const [title, setTitle] = useState('');
+  const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [deliverableType, setDeliverableType] = useState('OTHER');
-  const [targetDate, setTargetDate] = useState('');
-  const [wbsItemId, setWbsItemId] = useState<string>(NONE);
-  const [stageId, setStageId] = useState<string>(NONE);
+  const [dueDate, setDueDate] = useState('');
+  const [owner, setOwner] = useState('');
+  const [status, setStatus] = useState<DeliverableStatus>('not_started');
+  const [selectedActivityIds, setSelectedActivityIds] = useState<string[]>([]);
 
-  const [transitionTarget, setTransitionTarget] = useState<Record<string, string>>({});
-  const [archiveTargetId, setArchiveTargetId] = useState<string | null>(null);
-  const [archiveReason, setArchiveReason] = useState('');
+  const loadOrgId = useCallback(async () => {
+    if (!projectId) return;
+    const { data, error: fetchError } = await supabase
+      .from('lfa_projects')
+      .select('org_id')
+      .eq('id', projectId)
+      .single();
+    if (!fetchError && data) setOrgId(data.org_id);
+  }, [projectId]);
 
   const loadData = useCallback(async () => {
     if (!projectId) return;
     setLoading(true);
     setError(null);
     try {
-      const [delivRes, wbsRes, stageRes] = await Promise.all([
-        (supabase as any)
-          .from('programme_deliverables')
-          .select('id, title, description, deliverable_type, lifecycle_status, wbs_item_id, stage_id, target_date, archived_at')
-          .eq('lfa_project_id', projectId)
-          .order('created_at', { ascending: false }),
-        (supabase as any).from('lfa_wbs_items').select('id, name, stage_id').eq('lfa_project_id', projectId),
-        (supabase as any).from('project_stages').select('id, title, archived_at').eq('project_id', projectId),
-      ]);
+      const client = supabase as any;
+
+      const delivRes = await client
+        .from('project_deliverables')
+        .select('*')
+        .eq('project_id', projectId)
+        .is('archived_at', null)
+        .order('created_at', { ascending: false });
+
+      const delivIds = (delivRes.data || []).map((d: any) => d.id);
+
+      const linkRes = delivIds.length > 0
+        ? await client
+            .from('project_deliverable_activities')
+            .select('deliverable_id, wbs_item_id')
+            .in('deliverable_id', delivIds)
+        : { data: [], error: null };
+
+      const wbsRes = await supabase
+        .from('lfa_wbs_items')
+        .select('id, name, level, parent_id, sort_order')
+        .eq('lfa_project_id', projectId)
+        .eq('level', 2)
+        .order('sort_order');
 
       if (delivRes.error) throw delivRes.error;
-      if (wbsRes.error) throw wbsRes.error;
-      if (stageRes.error) throw stageRes.error;
 
-      setDeliverables((delivRes.data || []) as Deliverable[]);
-      setWbsOptions((wbsRes.data || []) as WbsOption[]);
-      setStageOptions((stageRes.data || []) as StageOption[]);
+      setDeliverables((delivRes.data || []) as ProjectDeliverable[]);
+      setWbsActivities((wbsRes.data || []) as WbsItem[]);
+
+      const map: Record<string, string[]> = {};
+      if (linkRes.data) {
+        for (const link of linkRes.data as any[]) {
+          if (!map[link.deliverable_id]) map[link.deliverable_id] = [];
+          map[link.deliverable_id].push(link.wbs_item_id);
+        }
+      }
+      setActivitiesMap(map);
     } catch (err) {
-      const e = err as Error;
-      setError(e.message);
+      setError((err as Error).message);
     } finally {
       setLoading(false);
     }
   }, [projectId]);
 
-  useEffect(() => {
-    void loadData();
-  }, [loadData]);
+  useEffect(() => { void loadOrgId(); }, [loadOrgId]);
+  useEffect(() => { if (orgId) void loadData(); }, [loadData, orgId]);
 
   const resetForm = () => {
-    setTitle('');
+    setName('');
     setDescription('');
-    setDeliverableType('OTHER');
-    setTargetDate('');
-    setWbsItemId(NONE);
-    setStageId(NONE);
+    setDueDate('');
+    setOwner('');
+    setStatus('not_started');
+    setSelectedActivityIds([]);
+    setEditingId(null);
   };
 
-  const inheritedStageId = wbsItemId !== NONE ? wbsOptions.find((w) => w.id === wbsItemId)?.stage_id : null;
+  const openCreate = () => {
+    resetForm();
+    setDialogOpen(true);
+  };
 
-  const handleCreate = async () => {
-    if (!title.trim() || !targetDate || !projectId) return;
+  const openEdit = (d: ProjectDeliverable) => {
+    setName(d.name);
+    setDescription(d.description || '');
+    setDueDate(d.due_date || '');
+    setOwner(d.owner || '');
+    setStatus(d.status);
+    setSelectedActivityIds(activitiesMap[d.id] || []);
+    setEditingId(d.id);
+    setDialogOpen(true);
+  };
+
+  const toggleActivity = (id: string) => {
+    setSelectedActivityIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  };
+
+  const handleSave = async () => {
+    if (!name.trim() || !projectId || !orgId) return;
     setSaving(true);
+    const client = supabase as any;
     try {
-      const { error: rpcError } = await (supabase.rpc as any)('create_programme_deliverable', {
-        p_lfa_project_id: projectId,
-        p_wbs_item_id: wbsItemId === NONE ? null : wbsItemId,
-        p_deliverable_type: deliverableType,
-        p_title: title.trim(),
-        p_description: description || null,
-        p_owner_id: null,
-        p_external_owner_text: null,
-        p_reviewer_id: null,
-        p_target_date: targetDate,
-        p_target_date_is_estimated: false,
-        p_forecast_date: null,
-        p_stage_id: stageId === NONE ? null : stageId,
-      });
-      if (rpcError) throw rpcError;
+      if (editingId) {
+        const { error: updateError } = await client
+          .from('project_deliverables')
+          .update({
+            name: name.trim(),
+            description: description || null,
+            due_date: dueDate || null,
+            owner: owner || null,
+            status,
+          })
+          .eq('id', editingId);
+        if (updateError) throw updateError;
 
-      toast({ title: 'Deliverable Ditambahkan' });
-      setCreateOpen(false);
+        await client
+          .from('project_deliverable_activities')
+          .delete()
+          .eq('deliverable_id', editingId);
+
+        if (selectedActivityIds.length > 0) {
+          const { error: linkError } = await client
+            .from('project_deliverable_activities')
+            .insert(
+              selectedActivityIds.map((wbsId) => ({
+                deliverable_id: editingId,
+                wbs_item_id: wbsId,
+              })),
+            );
+          if (linkError) throw linkError;
+        }
+
+        toast({ title: 'Deliverable diperbarui' });
+      } else {
+        const { data: created, error: insertError } = await client
+          .from('project_deliverables')
+          .insert({
+            org_id: orgId,
+            project_id: projectId,
+            name: name.trim(),
+            description: description || null,
+            due_date: dueDate || null,
+            owner: owner || null,
+            status,
+          })
+          .select('id')
+          .single();
+        if (insertError) throw insertError;
+
+        if (selectedActivityIds.length > 0 && created) {
+          const { error: linkError } = await client
+            .from('project_deliverable_activities')
+            .insert(
+              selectedActivityIds.map((wbsId) => ({
+                deliverable_id: created.id,
+                wbs_item_id: wbsId,
+              })),
+            );
+          if (linkError) throw linkError;
+        }
+
+        toast({ title: 'Deliverable ditambahkan' });
+      }
+
+      setDialogOpen(false);
       resetForm();
       void loadData();
     } catch (err) {
-      const e = err as Error;
-      toast({ title: 'Gagal menambahkan Deliverable', description: e.message, variant: 'destructive' });
+      toast({ title: 'Gagal menyimpan', description: (err as Error).message, variant: 'destructive' });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleTransition = async (deliverableId: string) => {
-    const target = transitionTarget[deliverableId];
-    if (!target) return;
+  const handleArchive = async (id: string) => {
+    if (!confirm('Arsipkan deliverable ini?')) return;
     try {
-      const { error: rpcError } = await (supabase.rpc as any)('transition_programme_deliverable', {
-        p_deliverable_id: deliverableId,
-        p_to_status: target,
-        p_reason: null,
-        p_submitted_at: null,
-      });
-      if (rpcError) throw rpcError;
-      toast({ title: 'Status Diperbarui' });
+      const client = supabase as any;
+      const { error: archiveError } = await client
+        .from('project_deliverables')
+        .update({ archived_at: new Date().toISOString() })
+        .eq('id', id);
+      if (archiveError) throw archiveError;
+      toast({ title: 'Deliverable diarsipkan' });
       void loadData();
     } catch (err) {
-      const e = err as Error;
-      toast({ title: 'Gagal mengubah status', description: e.message, variant: 'destructive' });
+      toast({ title: 'Gagal mengarsipkan', description: (err as Error).message, variant: 'destructive' });
     }
   };
 
-  const handleArchive = async () => {
-    if (!archiveTargetId || !archiveReason.trim()) return;
+  const handleApprove = async (id: string) => {
+    if (!confirm('Approve deliverable ini?')) return;
     try {
-      const { error: rpcError } = await (supabase.rpc as any)('archive_programme_deliverable', {
-        p_deliverable_id: archiveTargetId,
-        p_archive_reason: archiveReason.trim(),
-      });
-      if (rpcError) throw rpcError;
-      toast({ title: 'Deliverable Diarsipkan' });
-      setArchiveTargetId(null);
-      setArchiveReason('');
+      const client = supabase as any;
+      const { error: approveError } = await client
+        .from('project_deliverables')
+        .update({ status: 'approved', updated_at: new Date().toISOString() })
+        .eq('id', id);
+      if (approveError) throw approveError;
+      toast({ title: 'Deliverable disetujui' });
       void loadData();
     } catch (err) {
-      const e = err as Error;
-      toast({ title: 'Gagal mengarsipkan Deliverable', description: e.message, variant: 'destructive' });
+      toast({ title: 'Gagal menyetujui', description: (err as Error).message, variant: 'destructive' });
     }
   };
 
-  const activeDeliverables = deliverables.filter((d) => !d.archived_at);
-  const archivedDeliverables = deliverables.filter((d) => d.archived_at);
+  const getActivityName = (wbsId: string) =>
+    wbsActivities.find((w) => w.id === wbsId)?.name || wbsId;
 
   return (
     <div className="mx-auto max-w-5xl space-y-6 py-2">
@@ -223,12 +294,16 @@ export default function ProjectDeliverablesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Deliverables</h1>
-          <p className="text-sm text-muted-foreground">Hasil kerja proyek yang dapat ditautkan ke WBS dan Stage.</p>
+          <p className="text-sm text-muted-foreground">
+            Output dan hasil kerja proyek yang harus dihasilkan.
+          </p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Deliverable Baru
-        </Button>
+        {isOwner && (
+          <Button onClick={openCreate}>
+            <Plus className="mr-2 h-4 w-4" />
+            Deliverable Baru
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -241,57 +316,81 @@ export default function ProjectDeliverablesPage() {
         <div className="flex items-center justify-center py-16 text-muted-foreground">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
-      ) : activeDeliverables.length === 0 ? (
+      ) : deliverables.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
             <CardTitle className="text-lg">Belum ada Deliverable</CardTitle>
-            <CardDescription>Tambahkan Deliverable pertama untuk proyek ini.</CardDescription>
-            <Button onClick={() => setCreateOpen(true)} className="mt-2">
-              <Plus className="mr-2 h-4 w-4" />
-              Deliverable Baru
-            </Button>
+            <CardDescription>Tambahkan deliverable pertama untuk proyek ini.</CardDescription>
+            {isOwner && (
+              <Button onClick={openCreate} className="mt-2">
+                <Plus className="mr-2 h-4 w-4" />
+                Deliverable Baru
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-3">
-          {activeDeliverables.map((d) => (
+          {deliverables.map((d) => (
             <Card key={d.id}>
               <CardContent className="space-y-2 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-base">{d.title}</CardTitle>
-                    <Badge variant="secondary">{d.lifecycle_status}</Badge>
-                    <Badge variant="outline">{d.deliverable_type}</Badge>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-base">{d.name}</CardTitle>
+                      <Badge variant={STATUS_VARIANTS[d.status]}>
+                        {STATUS_LABELS[d.status]}
+                      </Badge>
+                    </div>
+                    {d.description && (
+                      <p className="text-sm text-muted-foreground">{d.description}</p>
+                    )}
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      {d.due_date && <span>Due: {d.due_date}</span>}
+                      {d.owner && <span>Owner: {d.owner}</span>}
+                    </div>
+                    {(activitiesMap[d.id]?.length ?? 0) > 0 && (
+                      <div>
+                        <button
+                          type="button"
+                          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground mt-1"
+                          onClick={() => setExpandedId(expandedId === d.id ? null : d.id)}
+                        >
+                          {expandedId === d.id ? (
+                            <ChevronDown className="h-3 w-3" />
+                          ) : (
+                            <ChevronRight className="h-3 w-3" />
+                          )}
+                          {activitiesMap[d.id]?.length} aktivitas terkait
+                        </button>
+                        {expandedId === d.id && (
+                          <ul className="mt-1 space-y-0.5 pl-4 text-xs text-muted-foreground list-disc">
+                            {activitiesMap[d.id].map((wbsId) => (
+                              <li key={wbsId}>{getActivityName(wbsId)}</li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {canDelete && (
-                    <Button variant="outline" size="icon" onClick={() => setArchiveTargetId(d.id)}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-                {d.description && <p className="text-sm text-muted-foreground">{d.description}</p>}
-                <p className="text-xs text-muted-foreground">
-                  Target: {d.target_date}
-                  {d.stage_id && ` · Stage: ${stageOptions.find((s) => s.id === d.stage_id)?.title || d.stage_id}`}
-                  {d.wbs_item_id && ` · WBS: ${wbsOptions.find((w) => w.id === d.wbs_item_id)?.name || d.wbs_item_id}`}
-                </p>
-                <div className="flex items-center gap-2 pt-1">
-                  <Select
-                    value={transitionTarget[d.id] || ''}
-                    onValueChange={(v) => setTransitionTarget((prev) => ({ ...prev, [d.id]: v }))}
-                  >
-                    <SelectTrigger className="h-8 w-48 text-xs">
-                      <SelectValue placeholder="Transisi ke..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {LIFECYCLE_STATUSES.map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button size="sm" variant="outline" onClick={() => void handleTransition(d.id)}>
-                    Terapkan
-                  </Button>
+                  <div className="flex items-center gap-1 shrink-0">
+                    {isOwner && d.status === 'submitted' && (
+                      <Button variant="outline" size="sm" onClick={() => handleApprove(d.id)} className="text-xs">
+                        <CheckCircle2 className="mr-1 h-3 w-3" />
+                        Approve
+                      </Button>
+                    )}
+                    {isOwner && (
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(d)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                    {isOwner && (
+                      <Button variant="ghost" size="icon" onClick={() => handleArchive(d.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -299,111 +398,74 @@ export default function ProjectDeliverablesPage() {
         </div>
       )}
 
-      {archivedDeliverables.length > 0 && (
-        <div className="space-y-3 pt-4">
-          <h2 className="text-sm font-semibold text-muted-foreground">Diarsipkan</h2>
-          {archivedDeliverables.map((d) => (
-            <Card key={d.id} className="opacity-70">
-              <CardContent className="flex items-center gap-2 py-4">
-                <CardTitle className="text-base">{d.title}</CardTitle>
-                <Badge variant="outline">archived</Badge>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      <Dialog open={createOpen} onOpenChange={(open) => { if (!open) { setCreateOpen(false); resetForm(); } }}>
-        <DialogContent>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) { setDialogOpen(false); resetForm(); } }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>Deliverable Baru</DialogTitle>
+            <DialogTitle>{editingId ? 'Edit Deliverable' : 'Deliverable Baru'}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="space-y-4 max-h-[60vh] overflow-y-auto">
             <div>
-              <Label htmlFor="deliv-title">Judul</Label>
-              <Input id="deliv-title" value={title} onChange={(e) => setTitle(e.target.value)} />
+              <Label htmlFor="deliv-name">Nama *</Label>
+              <Input id="deliv-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Contoh: Inception Report" />
             </div>
             <div>
               <Label htmlFor="deliv-desc">Deskripsi</Label>
-              <Textarea id="deliv-desc" value={description} onChange={(e) => setDescription(e.target.value)} />
+              <Textarea id="deliv-desc" value={description} onChange={(e) => setDescription(e.target.value)} rows={3} />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="deliv-type">Tipe</Label>
-                <Select value={deliverableType} onValueChange={setDeliverableType}>
-                  <SelectTrigger id="deliv-type"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {DELIVERABLE_TYPES.map((t) => (
-                      <SelectItem key={t} value={t}>{t}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="deliv-due">Due Date</Label>
+                <Input id="deliv-due" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
               </div>
               <div>
-                <Label htmlFor="deliv-target">Target Tanggal</Label>
-                <Input id="deliv-target" type="date" value={targetDate} onChange={(e) => setTargetDate(e.target.value)} />
+                <Label htmlFor="deliv-owner">Owner</Label>
+                <Input id="deliv-owner" value={owner} onChange={(e) => setOwner(e.target.value)} placeholder="Nama PIC" />
               </div>
             </div>
             <div>
-              <Label htmlFor="deliv-wbs">WBS Item (opsional)</Label>
-              <Select value={wbsItemId} onValueChange={setWbsItemId}>
-                <SelectTrigger id="deliv-wbs"><SelectValue /></SelectTrigger>
+              <Label htmlFor="deliv-status">Status</Label>
+              <Select value={status} onValueChange={(v) => setStatus(v as DeliverableStatus)}>
+                <SelectTrigger id="deliv-status">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NONE}>Tidak ada</SelectItem>
-                  {wbsOptions.map((w) => (
-                    <SelectItem key={w.id} value={w.id}>{w.name}</SelectItem>
-                  ))}
+                  <SelectItem value="not_started">Not Started</SelectItem>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="submitted">Submitted</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label htmlFor="deliv-stage">Stage (opsional)</Label>
-              <Select value={stageId} onValueChange={setStageId}>
-                <SelectTrigger id="deliv-stage"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE}>Tidak ada</SelectItem>
-                  {stageOptions.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.title}{s.archived_at ? ' (archived)' : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {inheritedStageId && stageId === NONE && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  WBS item ini sudah tertaut ke Stage: {stageOptions.find((s) => s.id === inheritedStageId)?.title}.
-                  Kosongkan atau pilih Stage yang sama untuk menghindari penolakan.
+              <Label>Related Activities</Label>
+              {wbsActivities.length === 0 ? (
+                <p className="text-xs text-muted-foreground mt-1">
+                  Belum ada activity di Work Plan. Tambahkan activity terlebih dahulu.
                 </p>
+              ) : (
+                <div className="mt-2 max-h-40 overflow-y-auto space-y-1 border rounded-md p-2">
+                  {wbsActivities.map((w) => (
+                    <label key={w.id} className="flex items-center gap-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={selectedActivityIds.includes(w.id)}
+                        onChange={() => toggleActivity(w.id)}
+                        className="h-4 w-4"
+                      />
+                      {w.name}
+                    </label>
+                  ))}
+                </div>
               )}
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" disabled={saving} onClick={() => { setCreateOpen(false); resetForm(); }}>
+            <Button variant="outline" disabled={saving} onClick={() => { setDialogOpen(false); resetForm(); }}>
               Batal
             </Button>
-            <Button onClick={handleCreate} disabled={saving || !title.trim() || !targetDate}>
+            <Button onClick={handleSave} disabled={saving || !name.trim()}>
               {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
               Simpan
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={!!archiveTargetId} onOpenChange={(open) => { if (!open) { setArchiveTargetId(null); setArchiveReason(''); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Arsipkan Deliverable</DialogTitle>
-          </DialogHeader>
-          <div>
-            <Label htmlFor="archive-reason">Alasan (wajib)</Label>
-            <Textarea id="archive-reason" value={archiveReason} onChange={(e) => setArchiveReason(e.target.value)} />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setArchiveTargetId(null); setArchiveReason(''); }}>
-              Batal
-            </Button>
-            <Button onClick={() => void handleArchive()} disabled={!archiveReason.trim()}>
-              Arsipkan
             </Button>
           </DialogFooter>
         </DialogContent>

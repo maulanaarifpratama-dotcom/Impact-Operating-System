@@ -60,7 +60,8 @@ export default function ProjectStagesPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { canDelete } = useOrgRole();
+  const { role: orgRole } = useOrgRole();
+  const isOwner = orgRole === 'owner';
 
   const [stages, setStages] = useState<Stage[]>([]);
   const [objectives, setObjectives] = useState<ObjectiveOption[]>([]);
@@ -280,10 +281,12 @@ export default function ProjectStagesPage() {
           <h1 className="text-2xl font-bold tracking-tight">Stages</h1>
           <p className="text-sm text-muted-foreground">Tahapan pelaksanaan proyek Project Management ini.</p>
         </div>
-        <Button onClick={() => setCreateOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Stage Baru
-        </Button>
+        {isOwner && (
+          <Button onClick={() => setCreateOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Stage Baru
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -302,10 +305,12 @@ export default function ProjectStagesPage() {
             <Waypoints className="h-10 w-10 text-muted-foreground" />
             <CardTitle className="text-lg">Belum ada Stage</CardTitle>
             <CardDescription>Tambahkan Stage pertama untuk proyek ini.</CardDescription>
-            <Button onClick={() => setCreateOpen(true)} className="mt-2">
-              <Plus className="mr-2 h-4 w-4" />
-              Stage Baru
-            </Button>
+            {isOwner && (
+              <Button onClick={() => setCreateOpen(true)} className="mt-2">
+                <Plus className="mr-2 h-4 w-4" />
+                Stage Baru
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -331,17 +336,21 @@ export default function ProjectStagesPage() {
                   )}
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
-                  <Button variant="ghost" size="icon" disabled={index === 0} onClick={() => handleMove(index, -1)}>
-                    <ArrowUp className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    disabled={index === activeStages.length - 1}
-                    onClick={() => handleMove(index, 1)}
-                  >
-                    <ArrowDown className="h-4 w-4" />
-                  </Button>
+                  {isOwner && (
+                    <>
+                      <Button variant="ghost" size="icon" disabled={index === 0} onClick={() => handleMove(index, -1)}>
+                        <ArrowUp className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        disabled={index === activeStages.length - 1}
+                        onClick={() => handleMove(index, 1)}
+                      >
+                        <ArrowDown className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
                   <Button
                     variant="secondary"
                     size="sm"
@@ -350,10 +359,12 @@ export default function ProjectStagesPage() {
                     <ListTodo className="mr-1.5 h-4 w-4" />
                     Tambah Aktivitas
                   </Button>
-                  <Button variant="outline" size="sm" onClick={() => openEdit(stage)}>
-                    Edit
-                  </Button>
-                  {canDelete && (
+                  {isOwner && (
+                    <Button variant="outline" size="sm" onClick={() => openEdit(stage)}>
+                      Edit
+                    </Button>
+                  )}
+                  {isOwner && (
                     <Button variant="outline" size="icon" onClick={() => handleArchive(stage)}>
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -375,7 +386,7 @@ export default function ProjectStagesPage() {
                   <CardTitle className="text-base">{stage.title}</CardTitle>
                   <Badge variant="outline">archived</Badge>
                 </div>
-                {canDelete && (
+                {isOwner && (
                   <Button variant="outline" size="sm" onClick={() => handleRestore(stage)}>
                     <RotateCcw className="mr-2 h-4 w-4" />
                     Kembalikan

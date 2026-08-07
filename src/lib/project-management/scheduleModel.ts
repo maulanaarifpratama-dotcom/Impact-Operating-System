@@ -18,6 +18,7 @@ export interface WbsScheduleInput {
   stageId: string | null;
   name: string;
   status: string;
+  progressPercent: number;
   startMonth: number | null;
   durationWeeks: number | null;
   plannedStartDate: string | null;
@@ -60,32 +61,31 @@ export interface VisibleRow {
 function isCancelled(s: string) { return s === 'cancelled'; }
 function isCompleted(s: string) { return s === 'completed'; }
 
-export function computeLeafProgress(status: string): number {
-  if (isCancelled(status)) return 0;
-  return isCompleted(status) ? 100 : 0;
+export function computeLeafProgress(item: WbsScheduleInput): number {
+  return item.progressPercent ?? 0;
 }
 
 export function computeParentProgress(parentId: string, allItems: WbsScheduleInput[]): number {
   const children = allItems.filter((w) => w.parentId === parentId && w.level > 0);
   if (children.length === 0) {
     const self = allItems.find((w) => w.id === parentId);
-    return self ? computeLeafProgress(self.status) : 0;
+    return self ? (self.progressPercent ?? 0) : 0;
   }
   const grandchildren = allItems.filter((w) => w.parentId && children.some((c) => c.id === w.parentId));
   if (grandchildren.length > 0) {
     const active = grandchildren.filter((g) => !isCancelled(g.status));
     if (active.length === 0) return 0;
-    return Math.round(active.reduce((s, g) => s + computeLeafProgress(g.status), 0) / active.length);
+    return Math.round(active.reduce((s, g) => s + (g.progressPercent ?? 0), 0) / active.length);
   }
   const active = children.filter((c) => !isCancelled(c.status));
   if (active.length === 0) return 0;
-  return Math.round(active.reduce((s, c) => s + computeLeafProgress(c.status), 0) / active.length);
+  return Math.round(active.reduce((s, c) => s + (c.progressPercent ?? 0), 0) / active.length);
 }
 
 export function computeItemProgress(item: WbsScheduleInput, allItems: WbsScheduleInput[]): number {
   const children = allItems.filter((w) => w.parentId === item.id && w.level > 0);
   if (children.length > 0) return computeParentProgress(item.id, allItems);
-  return computeLeafProgress(item.status);
+  return item.progressPercent ?? 0;
 }
 
 function evalDate(

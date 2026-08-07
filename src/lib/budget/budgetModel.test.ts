@@ -101,10 +101,16 @@ describe('computeBudgetSnapshot', () => {
     expect(snap.utilizationPercent).toBe((70_000 / 200_000) * 100);
   });
 
-  test('burn rate uses duration months', () => {
+  test('burn rate uses target budget divided by duration months', () => {
+    const items = [makeBudgetItem('b1', null, 1, 1_200_000)];
+    const snap = computeBudgetSnapshot({ targetBudget: 2_400_000, budgetItems: items, durationMonths: 6 });
+    expect(snap.plannedBurnRate).toBe(400_000);
+  });
+
+  test('burn rate is 0 when no target budget', () => {
     const items = [makeBudgetItem('b1', null, 1, 1_200_000)];
     const snap = computeBudgetSnapshot({ targetBudget: null, budgetItems: items, durationMonths: 6 });
-    expect(snap.plannedBurnRate).toBe(200_000);
+    expect(snap.plannedBurnRate).toBe(0);
   });
 
   test('overhead', () => {

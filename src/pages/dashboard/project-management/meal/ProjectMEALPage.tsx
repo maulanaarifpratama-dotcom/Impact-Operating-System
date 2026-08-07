@@ -108,7 +108,7 @@ function ControlCenterTab({ projectId, orgId }: { projectId: string; orgId: stri
         (supabase as any).from('project_stages').select('id, title, status, planned_start_date, planned_end_date').eq('project_id', projectId),
         (supabase as any).from('lfa_wbs_items').select('id, level, parent_id, stage_id, name, status, progress_percent, pic, start_month, duration_weeks').eq('lfa_project_id', projectId),
         supabase.from('lfa_budget_items').select('id, wbs_item_id, volume, unit_price_idr, actual_amount_idr, cost_category').eq('lfa_project_id', projectId),
-        (supabase as any).from('programme_deliverables').select('id, title, lifecycle_status, stage_id, target_date').eq('lfa_project_id', projectId),
+        (supabase as any).from('project_deliverables').select('id, name as title, status, due_date as target_date').eq('project_id', projectId).is('archived_at', null),
         supabase.from('wbs_completion_claims').select('id, wbs_item_id, status, claimed_progress').eq('lfa_project_id', projectId),
         supabase.from('wbs_completion_evidence').select('id, claim_id').not('claim_id', 'is', null),
         (supabase as any).from('project_activity_events').select('entity_type, entity_id, event_type, created_at').eq('project_id', projectId).order('created_at', { ascending: false }).limit(50),
@@ -163,10 +163,10 @@ function ControlCenterTab({ projectId, orgId }: { projectId: string; orgId: stri
 
       const deliverables: DeliverableSnapshot[] = (delivRes.data || []).map((d: any) => ({
         id: d.id,
-        title: d.title || '',
-        lifecycleStatus: d.lifecycle_status || 'DRAFT',
-        stageId: d.stage_id,
-        targetDate: d.target_date,
+        title: d.title || d.name || '',
+        status: d.status || 'not_started',
+        stageId: null,
+        targetDate: d.target_date || d.due_date || null,
       }));
 
       const claims: ClaimSnapshot[] = (claimsRes.data || []).map((c: any) => ({

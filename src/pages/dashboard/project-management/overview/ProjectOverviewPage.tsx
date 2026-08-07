@@ -44,7 +44,7 @@ export default function ProjectOverviewPage() {
           supabase.from('lfa_wbs_items').select('id, status').eq('lfa_project_id', projectId),
           (supabase as any).from('project_stages').select('id, status').eq('project_id', projectId),
           supabase.from('lfa_budget_items').select('volume, unit_price_idr').eq('lfa_project_id', projectId),
-          (supabase as any).from('programme_deliverables').select('lifecycle_status').eq('lfa_project_id', projectId),
+          (supabase as any).from('project_deliverables').select('status').eq('project_id', projectId).is('archived_at', null),
           supabase.from('lfa_meal_items').select('id').eq('lfa_project_id', projectId),
           (supabase as any)
             .from('project_activity_events')
@@ -66,8 +66,8 @@ export default function ProjectOverviewPage() {
           0,
         );
         const deliverableCounts: Record<string, number> = {};
-        for (const d of (delivRes.data || []) as { lifecycle_status: string }[]) {
-          deliverableCounts[d.lifecycle_status] = (deliverableCounts[d.lifecycle_status] || 0) + 1;
+        for (const d of (delivRes.data || []) as { status: string }[]) {
+          deliverableCounts[d.status] = (deliverableCounts[d.status] || 0) + 1;
         }
 
         setSummary({

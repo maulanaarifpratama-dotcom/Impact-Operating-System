@@ -12,7 +12,8 @@ const STAGE: StageScheduleInput = { id: 's1', title: 'S1', planned_start_date: n
 function makeWbs(overrides: Partial<WbsScheduleInput> = {}): WbsScheduleInput {
   return {
     id: 'w1', level: 2, parentId: null, stageId: 's1', name: 'A1',
-    status: 'not_started', startMonth: null, durationWeeks: null,
+    status: 'not_started', progressPercent: 0,
+    startMonth: null, durationWeeks: null,
     plannedStartDate: '2026-01-01', plannedEndDate: '2026-01-28',
     actualStartDate: null, actualEndDate: null,
     blockedReason: null, ownerId: null, ...overrides,
@@ -20,10 +21,10 @@ function makeWbs(overrides: Partial<WbsScheduleInput> = {}): WbsScheduleInput {
 }
 
 describe('computeLeafProgress', () => {
-  test('incomplete is 0%', () => expect(computeLeafProgress('not_started')).toBe(0));
-  test('completed is 100%', () => expect(computeLeafProgress('completed')).toBe(100));
-  test('cancelled is 0%', () => expect(computeLeafProgress('cancelled')).toBe(0));
-  test('in_progress is 0%', () => expect(computeLeafProgress('in_progress')).toBe(0));
+  test('returns item progressPercent directly', () => expect(computeLeafProgress(makeWbs({ progressPercent: 0 }))).toBe(0));
+  test('completed returns its progressPercent', () => expect(computeLeafProgress(makeWbs({ status: 'completed', progressPercent: 100 }))).toBe(100));
+  test('in_progress returns its progressPercent', () => expect(computeLeafProgress(makeWbs({ status: 'in_progress', progressPercent: 35 }))).toBe(35));
+  test('cancelled returns its progressPercent', () => expect(computeLeafProgress(makeWbs({ status: 'cancelled', progressPercent: 60 }))).toBe(60));
 });
 
 describe('computeWbsSchedule', () => {
@@ -104,29 +105,29 @@ describe('computeStageSchedule', () => {
 });
 
 describe('computeItemProgress', () => {
-  test('completed leaf = 100%', () => {
-    expect(computeItemProgress(makeWbs({ status: 'completed' }), [])).toBe(100);
+  test('completed leaf returns its progressPercent', () => {
+    expect(computeItemProgress(makeWbs({ status: 'completed', progressPercent: 100 }), [])).toBe(100);
   });
-  test('incomplete leaf = 0%', () => {
-    expect(computeItemProgress(makeWbs({ status: 'in_progress' }), [])).toBe(0);
+  test('leaf returns its progressPercent', () => {
+    expect(computeItemProgress(makeWbs({ status: 'in_progress', progressPercent: 35 }), [])).toBe(35);
   });
-  test('task rollup from subtasks', () => {
+  test('task rollup from subtask progressPercents', () => {
     const p = makeWbs({ id: 't1', level: 3, status: 'not_started' });
-    const s1 = makeWbs({ id: 's1', level: 4, parentId: 't1', status: 'completed' });
-    const s2 = makeWbs({ id: 's2', level: 4, parentId: 't1', status: 'not_started' });
+    const s1 = makeWbs({ id: 's1', level: 4, parentId: 't1', status: 'completed', progressPercent: 100 });
+    const s2 = makeWbs({ id: 's2', level: 4, parentId: 't1', status: 'not_started', progressPercent: 0 });
     expect(computeItemProgress(p, [p, s1, s2])).toBe(50);
   });
-  test('cancelled child excluded', () => {
+  test('cancelled child excluded from average', () => {
     const p = makeWbs({ id: 't2', level: 3, status: 'not_started' });
-    const s1 = makeWbs({ id: 's3', level: 4, parentId: 't2', status: 'completed' });
-    const s2 = makeWbs({ id: 's4', level: 4, parentId: 't2', status: 'cancelled' });
+    const s1 = makeWbs({ id: 's3', level: 4, parentId: 't2', status: 'completed', progressPercent: 100 });
+    const s2 = makeWbs({ id: 's4', level: 4, parentId: 't2', status: 'cancelled', progressPercent: 50 });
     expect(computeItemProgress(p, [p, s1, s2])).toBe(100);
   });
-  test('activity rollup from tasks', () => {
+  test('activity rollup from task progressPercents', () => {
     const a = makeWbs({ id: 'a1', level: 2, status: 'not_started' });
-    const t1 = makeWbs({ id: 't1', level: 3, parentId: 'a1', status: 'completed' });
-    const t2 = makeWbs({ id: 't2', level: 3, parentId: 'a1', status: 'not_started' });
-    expect(computeItemProgress(a, [a, t1, t2])).toBe(50);
+    const t1 = makeWbs({ id: 't1', level: 3, parentId: 'a1', status: 'completed', progressPercent: 100 });
+    const t2 = makeWbs({ id: 't2', level: 3, parentId: 'a1', status: 'not_started', progressPercent: 50 });
+    expect(computeItemProgress(a, [a, t1, t2])).toBe(75);
   });
 });
 

@@ -34,7 +34,7 @@ export interface BudgetSnapshot {
 export interface DeliverableSnapshot {
   id: string;
   title: string;
-  lifecycleStatus: string;
+  status: string;
   stageId: string | null;
   targetDate: string | null;
 }
@@ -239,14 +239,13 @@ function computeDeliverableHealth(deliverables: DeliverableSnapshot[]): Delivera
   let planned = 0, inProgress = 0, submitted = 0, needsRevision = 0, accepted = 0, overdue = 0;
 
   for (const d of deliverables) {
-    switch (d.lifecycleStatus) {
-      case 'PLANNED': planned++; break;
-      case 'IN_PROGRESS': inProgress++; break;
-      case 'SUBMITTED': submitted++; break;
-      case 'CHANGES_REQUESTED': needsRevision++; break;
-      case 'ACCEPTED': accepted++; break;
+    switch (d.status) {
+      case 'not_started': planned++; break;
+      case 'in_progress': inProgress++; break;
+      case 'submitted': submitted++; break;
+      case 'approved': accepted++; break;
     }
-    if (d.targetDate && new Date(d.targetDate) < today && d.lifecycleStatus !== 'ACCEPTED' && d.lifecycleStatus !== 'CANCELLED') {
+    if (d.targetDate && new Date(d.targetDate) < today && d.status !== 'approved') {
       overdue++;
     }
   }

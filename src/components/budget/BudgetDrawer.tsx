@@ -17,6 +17,7 @@ interface Props {
   orgId: string;
   activityId: string;
   activityName: string;
+  isOwner?: boolean;
   onChanged?: () => void;
 }
 
@@ -35,6 +36,7 @@ export default function BudgetDrawer({
   orgId,
   activityId,
   activityName,
+  isOwner = false,
   onChanged,
 }: Props) {
   const [summary, setSummary] = useState<{ count: number; total: number } | null>(null);
@@ -85,6 +87,7 @@ export default function BudgetDrawer({
             orgId={orgId}
             activityId={activityId}
             activityName={activityName}
+            isOwner={isOwner}
             onChanged={handleChanged}
           />
         </div>

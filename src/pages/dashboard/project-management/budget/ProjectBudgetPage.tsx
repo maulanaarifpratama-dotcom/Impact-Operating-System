@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useOrgRole } from '@/hooks/useOrgRole';
 import { supabase } from '@/integrations/supabase/client';
 import BudgetCalculator from '@/pages/dashboard/lfa-builder/BudgetCalculator';
 import { ProjectWorkspaceNav } from '../ProjectWorkspaceNav';
@@ -45,6 +46,8 @@ export default function ProjectBudgetPage() {
   const { projectId } = useParams<{ projectId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { role: orgRole } = useOrgRole();
+  const isOwner = orgRole === 'owner';
 
   const [orgId, setOrgId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -249,6 +252,7 @@ export default function ProjectBudgetPage() {
               activityName={rawWbsItems.find((wi) => wi.id === focusedActivityId && wi.level === 2)
                 ? ((rawWbsItems.find((wi) => wi.id === focusedActivityId && wi.level === 2) as any)?.name as string) || focusedActivityId
                 : focusedActivityId}
+              isOwner={isOwner}
               onChanged={onBudgetChanged}
             />
           )}
@@ -257,10 +261,12 @@ export default function ProjectBudgetPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Ringkasan Anggaran</CardTitle>
-              <Button variant="outline" size="sm" onClick={openTargetDialog}>
-                <Edit3 className="mr-1.5 h-3.5 w-3.5" />
-                {snapshot.hasTargetBudget ? 'Edit Target Budget' : 'Set Target Budget'}
-              </Button>
+              {isOwner && (
+                <Button variant="outline" size="sm" onClick={openTargetDialog}>
+                  <Edit3 className="mr-1.5 h-3.5 w-3.5" />
+                  {snapshot.hasTargetBudget ? 'Edit Target Budget' : 'Set Target Budget'}
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -306,8 +312,8 @@ export default function ProjectBudgetPage() {
                   <div className="text-sm font-semibold">{snapshot.utilizationPercent.toFixed(0)}%</div>
                 </div>
                 <div>
-                  <div className="text-xs text-muted-foreground">Burn Rate Bulanan</div>
-                  <div className="text-sm font-semibold">{formatIDR(snapshot.plannedBurnRate)}</div>
+                  <div className="text-xs text-muted-foreground">Burn Rate Bulanan (Target)</div>
+                  <div className="text-sm font-semibold">{snapshot.hasTargetBudget ? formatIDR(snapshot.plannedBurnRate) : '—'}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Overhead</div>

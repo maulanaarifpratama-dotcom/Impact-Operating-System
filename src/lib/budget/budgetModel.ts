@@ -84,7 +84,7 @@ export function computeBudgetSnapshot(params: {
   const overAllocation = hasTargetBudget && targetBudget! < detailedBudget ? detailedBudget - targetBudget! : 0;
   const utilizationPercent = detailedBudget > 0 ? (actualRealization / detailedBudget) * 100 : 0;
   const months = durationMonths > 0 ? durationMonths : 1;
-  const plannedBurnRate = detailedBudget / months;
+  const plannedBurnRate = hasTargetBudget ? targetBudget! / months : 0;
   const actualBurnRate = actualRealization / months;
   const overheadPercent = detailedBudget > 0 ? (overheadAmount / detailedBudget) * 100 : 0;
   const pricedItemCount = budgetItems.filter((b) => toNumber(b.unit_price_idr) > 0).length;

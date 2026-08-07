@@ -4574,6 +4574,7 @@ export default function WBSBuilder({
           orgId={orgId}
           activityId={budgetDrawerActivityId || ''}
           activityName={budgetDrawerActivity?.name || 'Activity'}
+          isOwner={isOwner}
           onChanged={() => {
             void loadBudgetTotals();
             if (onWbsSaved) onWbsSaved();

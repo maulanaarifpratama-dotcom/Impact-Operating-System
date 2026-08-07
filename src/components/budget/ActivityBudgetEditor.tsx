@@ -24,12 +24,13 @@ interface Props {
   orgId: string;
   activityId: string;
   activityName: string;
+  isOwner?: boolean;
   onChanged?: () => void;
 }
 
 const DEFAULT_UNITS = ['Paket', 'Orang', 'Bulan', 'Hari', 'Jam', 'Minggu', 'Kegiatan', 'Unit', 'Lembar', 'Liter', 'Kg'];
 
-export default function ActivityBudgetEditor({ projectId, orgId, activityId, activityName, onChanged }: Props) {
+export default function ActivityBudgetEditor({ projectId, orgId, activityId, activityName, isOwner = false, onChanged }: Props) {
   const { toast } = useToast();
   const [items, setItems] = useState<BudgetItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,6 +142,7 @@ export default function ActivityBudgetEditor({ projectId, orgId, activityId, act
                   value={item.item_name}
                   placeholder="Nama item anggaran"
                   onChange={(e) => updateField(item.id, 'item_name', e.target.value)}
+                  disabled={!isOwner}
                   className="h-7 text-xs bg-transparent border-0 border-b rounded-none px-0 focus-visible:ring-0"
                 />
               </div>
@@ -150,12 +152,14 @@ export default function ActivityBudgetEditor({ projectId, orgId, activityId, act
                   min={0}
                   value={item.volume}
                   onChange={(e) => updateField(item.id, 'volume', Number(e.target.value) || 0)}
+                  disabled={!isOwner}
                   className="w-14 h-7 text-xs text-center"
                   title="Volume"
                 />
                 <select
                   value={item.unit}
                   onChange={(e) => updateField(item.id, 'unit', e.target.value)}
+                  disabled={!isOwner}
                   className="text-[10px] h-7 border rounded bg-transparent px-1"
                 >
                   {DEFAULT_UNITS.map((u) => (
@@ -167,20 +171,23 @@ export default function ActivityBudgetEditor({ projectId, orgId, activityId, act
                   min={0}
                   value={item.unit_price_idr}
                   onChange={(e) => updateField(item.id, 'unit_price_idr', Number(e.target.value) || 0)}
+                  disabled={!isOwner}
                   className="w-24 h-7 text-xs text-right"
                   title="Harga Satuan (IDR)"
                 />
                 <span className="w-20 text-right font-mono text-[10px] font-semibold">
                   {formatIDR(itemTotal(item))}
                 </span>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                  onClick={() => deleteItem(item.id)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
+                {isOwner && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                    onClick={() => deleteItem(item.id)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                )}
               </div>
             </div>
           ))}
@@ -194,10 +201,13 @@ export default function ActivityBudgetEditor({ projectId, orgId, activityId, act
       )}
 
       <div className="flex items-center justify-between px-4 py-2 border-t bg-slate-50/50 dark:bg-slate-900/50">
-        <Button variant="ghost" size="sm" className="h-7 text-[10px]" onClick={addItem} disabled={saving}>
-          <Plus className="mr-1 h-3 w-3" />
-          Tambah Item Anggaran
-        </Button>
+        {isOwner && (
+          <Button variant="ghost" size="sm" className="h-7 text-[10px]" onClick={addItem} disabled={saving}>
+            <Plus className="mr-1 h-3 w-3" />
+            Tambah Item Anggaran
+          </Button>
+        )}
+        {!isOwner && <div />}
         <div className="text-[10px] text-muted-foreground">
           Total: <span className="font-bold text-foreground">{formatIDR(activityTotal)}</span>
         </div>
