@@ -58,6 +58,7 @@ interface ObjectiveOption {
 interface OrgMember {
   user_id: string;
   display_name: string;
+  job_title: string | null;
 }
 
 const NO_OBJECTIVE = '__none__';
@@ -121,7 +122,7 @@ export default function ProjectStagesPage() {
 
       const { data: memberData } = await supabase
         .from('organization_members')
-        .select('user_id, display_name')
+        .select('user_id, display_name, job_title')
         .eq('organization_id', (stagesRes.data?.[0] as any)?.org_id || '');
       setMembers((memberData || []) as OrgMember[]);
     } catch (err) {
@@ -350,11 +351,18 @@ export default function ProjectStagesPage() {
                       Rencana: {stage.planned_start_date || '?'} — {stage.planned_end_date || '?'}
                     </p>
                   )}
-                  {stage.stage_owner && (
-                    <p className="text-xs text-muted-foreground">
-                      Owner: {members.find((m) => m.user_id === stage.stage_owner)?.display_name || stage.stage_owner}
-                    </p>
-                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Owner:{' '}
+                    {stage.stage_owner ? (
+                      <span className="font-medium text-foreground">
+                        {members.find((m) => m.user_id === stage.stage_owner)?.display_name || stage.stage_owner}
+                      </span>
+                    ) : (
+                      <Badge variant="outline" className="text-[9px] py-0 h-auto bg-amber-50 text-amber-700 border-amber-200">
+                        Belum Ditentukan
+                      </Badge>
+                    )}
+                  </p>
                 </div>
                 <div className="flex shrink-0 items-center gap-1">
                   {isOwner && (
@@ -469,7 +477,7 @@ export default function ProjectStagesPage() {
                       <SelectItem value={NO_OWNER}>Tidak ada</SelectItem>
                       {members.map((m) => (
                         <SelectItem key={m.user_id} value={m.user_id}>
-                          {m.display_name || m.user_id}
+                          {m.display_name || m.user_id}{m.job_title ? ` — ${m.job_title}` : ''}
                         </SelectItem>
                       ))}
                     </SelectContent>
