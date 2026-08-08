@@ -647,7 +647,7 @@ function EvidenceVerificationTab({ projectId }: { projectId: string }) {
     try {
       const { data, error: claimsErr } = await supabase
         .from('wbs_completion_claims')
-        .select('id, wbs_item_id, claim_note, claimed_progress, status, submitted_at, review_note, claimed_by, reviewed_by, reviewed_at')
+        .select('id, wbs_item_id, claim_note, claimed_progress, status, submitted_at, review_note, claimed_by, reviewed_by, reviewed_at, facts, lessons_learned, observations, recommendations, next_action')
         .eq('lfa_project_id', projectId)
         .order('created_at', { ascending: false });
       if (claimsErr) throw claimsErr;
@@ -820,6 +820,11 @@ function EvidenceVerificationTab({ projectId }: { projectId: string }) {
             claimedBy: selectedClaim.claimed_by,
             reviewedBy: selectedClaim.reviewed_by,
             reviewedAt: selectedClaim.reviewed_at,
+            facts: selectedClaim.facts,
+            lessonsLearned: selectedClaim.lessons_learned,
+            observations: selectedClaim.observations,
+            recommendations: selectedClaim.recommendations,
+            nextAction: selectedClaim.next_action,
           }}
           wbsContext={{
             id: selectedClaim.wbs_item_id,

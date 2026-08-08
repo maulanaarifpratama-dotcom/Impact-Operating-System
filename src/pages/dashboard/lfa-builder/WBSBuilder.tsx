@@ -6,13 +6,13 @@ import { useAuth } from '@/providers/AuthProvider';
 import {
   WbsItem, WbsStatus, LfaEntry, LfaProject,
   WbsCompletionClaim, WbsCompletionEvidence, WbsCompletionClaimStatus, WbsEvidenceType,
-  WbsFinancialStatus, WbsBlockerCategory
+  WbsFinancialStatus, WbsBlockerCategory, WbsFact
 } from './types';
 import { CARBON_FACTORS_INDONESIA } from '@/data/carbon-factors-indonesia';
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
   AlertTriangle, Milestone, Calendar, User, AlignLeft, Flag, Network, Wallet, ExternalLink,
-  ClipboardCheck, FileText, CheckCircle2, XCircle, AlertCircle, Link2, ShieldAlert, FileUp, Filter, Settings, Package
+  ClipboardCheck, FileText, CheckCircle2, XCircle, AlertCircle, Link2, ShieldAlert, FileUp, Filter, Package
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +46,15 @@ import {
 } from '@/lib/project-management/assignmentModel';
 
 type WbsClaimInsert = Database['public']['Tables']['wbs_completion_claims']['Insert'];
+
+// ACR Facts default rows (PM ACR v1 Phase 1) — simple activity-level counters,
+// not indicator-mapped. Users can add custom rows beyond this list.
+const DEFAULT_ACR_FACT_LABELS = [
+  'Peserta', 'Perempuan', 'Laki-laki', 'Organisasi', 'Desa', 'Rumah Tangga', 'Penerima Manfaat',
+];
+
+const buildDefaultAcrFacts = (): WbsFact[] =>
+  DEFAULT_ACR_FACT_LABELS.map((label) => ({ label, value: '' }));
 
 // Helper: Check if an item is a leaf item (has no children in the WBS tree)
 const isLeafItem = (item: WbsItem, allItems: WbsItem[]): boolean => {
@@ -323,6 +332,13 @@ export default function WBSBuilder({
     selectedFile?: File | null;
   }>>([]);
   const [submittingClaim, setSubmittingClaim] = useState(false);
+
+  // ACR Facts & Reflection State (PM ACR v1 Phase 1)
+  const [acrFacts, setAcrFacts] = useState<WbsFact[]>([]);
+  const [acrLessonsLearned, setAcrLessonsLearned] = useState('');
+  const [acrObservations, setAcrObservations] = useState('');
+  const [acrRecommendations, setAcrRecommendations] = useState('');
+  const [acrNextAction, setAcrNextAction] = useState('');
 
   // Verifier Review Queue States
   const [reviewQueueOpen, setReviewQueueOpen] = useState(false);
@@ -994,7 +1010,50 @@ export default function WBSBuilder({
     setClaimNote(existing?.claim_note || '');
     setClaimedProgress(existing?.claimed_progress ?? item.progress_percent ?? (item.status === 'completed' ? 100 : 0));
     setNewEvidences([]);
+    setAcrFacts(existing?.facts && existing.facts.length > 0 ? existing.facts : buildDefaultAcrFacts());
+    setAcrLessonsLearned(existing?.lessons_learned || '');
+    setAcrObservations(existing?.observations || '');
+    setAcrRecommendations(existing?.recommendations || '');
+    setAcrNextAction(existing?.next_action || '');
     setClaimDialogOpen(true);
+  };
+
+  const handleAcrFactChange = (index: number, field: 'label' | 'value', newValue: string) => {
+    setAcrFacts((prev) => prev.map((f, i) => (i === index ? { ...f, [field]: newValue } : f)));
+  };
+
+  const handleAddCustomAcrFact = () => {
+    setAcrFacts((prev) => [...prev, { label: '', value: '' }]);
+  };
+
+  const handleRemoveAcrFact = (index: number) => {
+    setAcrFacts((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const isAcrEditable = (claim: WbsCompletionClaim | null) =>
+    !claim || claim.status === 'needs_revision' || claim.status === 'draft';
+
+  const getClosureStatus = (claim: WbsCompletionClaim | undefined | null): 'open' | 'documented' | 'closed' => {
+    if (!claim) return 'open';
+    if (claim.status === 'verified') return 'closed';
+    if (claim.status === 'submitted') return 'documented';
+    return 'open'; // draft, needs_revision, rejected, cancelled all revert to Open
+  };
+
+  const getClosureStatusLabel = (status: 'open' | 'documented' | 'closed') => {
+    switch (status) {
+      case 'closed': return 'Closed';
+      case 'documented': return 'Documented';
+      default: return 'Open';
+    }
+  };
+
+  const getClosureStatusBadgeClass = (status: 'open' | 'documented' | 'closed') => {
+    switch (status) {
+      case 'closed': return 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400';
+      case 'documented': return 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-400';
+      default: return 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300';
+    }
   };
 
   const handleAddEvidenceField = () => {
@@ -1011,9 +1070,33 @@ export default function WBSBuilder({
   const handleSubmitClaim = async () => {
     if (!activeTrackingItem || !orgId || !projectId) return;
 
+    if (!acrLessonsLearned.trim()) {
+      toast({
+        title: 'Lessons Learned Diperlukan',
+        description: 'Isi minimal satu kalimat Lessons Learned sebelum mengirim ACR.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    // Drop custom fact rows the user added but never labeled; keep all
+    // default rows even if left blank (an unfilled counter is still signal).
+    const cleanedFacts = acrFacts.filter((f) => f.label.trim().length > 0);
+
     setSubmittingClaim(true);
     try {
       let claimId = existingClaim?.id;
+
+      // ACR Facts & Reflection payload (PM ACR v1 Phase 1). Cast via `as any`:
+      // these columns were added in 20260808070000_add_acr_facts_reflection_to_wbs_completion_claims.sql
+      // and are not yet reflected in the generated Database Insert/Update types.
+      const acrFieldsPayload = {
+        facts: cleanedFacts,
+        lessons_learned: acrLessonsLearned.trim(),
+        observations: acrObservations.trim() || null,
+        recommendations: acrRecommendations.trim() || null,
+        next_action: acrNextAction.trim() || null,
+      };
 
       if (existingClaim && existingClaim.status === 'needs_revision') {
         // Resubmit claim needing revision
@@ -1025,7 +1108,8 @@ export default function WBSBuilder({
             status: 'submitted',
             submitted_at: new Date().toISOString(),
             review_note: null,
-          })
+            ...acrFieldsPayload,
+          } as any)
           .eq('id', existingClaim.id);
 
         if (updateErr) throw updateErr;
@@ -1051,7 +1135,7 @@ export default function WBSBuilder({
         };
         const { data: newClaim, error: insertErr } = await supabase
           .from('wbs_completion_claims')
-          .insert(claimRow as WbsClaimInsert)
+          .insert({ ...claimRow, ...acrFieldsPayload } as any)
           .select()
           .single();
 
@@ -1114,8 +1198,8 @@ export default function WBSBuilder({
       }
 
       toast({
-        title: 'Klaim Penyelesaian Berhasil Diajukan ✨',
-        description: 'Klaim Anda telah dikirim ke antrean verifikasi MEAL/Manajemen.',
+        title: 'ACR Berhasil Diajukan ✨',
+        description: 'Activity Completion Record Anda telah dikirim ke antrean Evidence Verification.',
       });
 
       setClaimDialogOpen(false);
@@ -1139,7 +1223,7 @@ export default function WBSBuilder({
     if (!reviewNote && (actionStatus === 'rejected' || actionStatus === 'needs_revision')) {
       toast({
         title: 'Catatan Diperlukan',
-        description: 'Harap berikan catatan/alasan untuk penolakan atau permintaan perbaikan.',
+        description: 'Harap berikan catatan/alasan untuk Return For More Evidence.',
         variant: 'destructive',
       });
       return;
@@ -2794,12 +2878,22 @@ export default function WBSBuilder({
                                   </div>
                                 )}
 
-                              {/* Verification Claim & Evidence Section for Leaf Items */}
+                              {/* Activity Completion Record (ACR) Section for Leaf Items */}
                               {isLeaf && (
                                 <div className="space-y-1.5 bg-slate-50 dark:bg-slate-950/50 p-2 rounded border border-slate-200 dark:border-slate-800">
-                                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                    <ClipboardCheck className="h-3 w-3 text-amber-600" />
-                                    Status Verifikasi & Bukti
+                                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between gap-1">
+                                    <span className="flex items-center gap-1">
+                                      <ClipboardCheck className="h-3 w-3 text-amber-600" />
+                                      Activity Completion Record (ACR)
+                                    </span>
+                                    <Badge
+                                      variant="outline"
+                                      className={`text-[8px] font-bold py-0 px-1.5 h-auto border ${getClosureStatusBadgeClass(getClosureStatus(activeClaim))}`}
+                                      title="Closure Status: Open (belum ada ACR) / Documented (ACR disubmit) / Closed (Evidence Verification cukup)"
+                                      data-testid={`wbs-closure-status-${getClosureStatus(activeClaim)}`}
+                                    >
+                                      {getClosureStatusLabel(getClosureStatus(activeClaim))}
+                                    </Badge>
                                   </div>
 
                                   <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="wbs-claim-badge-group">
@@ -2808,21 +2902,21 @@ export default function WBSBuilder({
                                         variant="outline"
                                         onClick={() => handleOpenClaimDialog(item, activeClaim)}
                                         className={`text-[9px] font-bold cursor-pointer py-0.5 px-2 h-auto flex items-center gap-1 border ${getClaimBadgeStyle(activeClaim.status)}`}
-                                        title={`Status Klaim Verifikasi: ${getClaimLabel(activeClaim.status)}. Klik untuk lihat detail.`}
+                                        title={`Status Evidence Verification: ${getClaimLabel(activeClaim.status)}. Klik untuk lihat detail.`}
                                         data-testid={`wbs-claim-badge-${activeClaim.status}`}
                                       >
                                         <ClipboardCheck className="h-3 w-3" />
-                                        <span>Klaim: {getClaimLabel(activeClaim.status)}</span>
+                                        <span>ACR: {getClaimLabel(activeClaim.status)}</span>
                                       </Badge>
                                     ) : (
                                       <button
                                         onClick={() => handleOpenClaimDialog(item)}
                                         className="text-[9px] text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-300 border border-amber-200 dark:border-amber-800/50 rounded px-2 py-0.5 font-semibold flex items-center gap-1 transition-colors"
-                                        title="Ajukan Klaim Selesai & Lampirkan Bukti untuk Item Ini"
+                                        title="Isi Activity Completion Record (Evidence, Facts, Reflection) untuk Item Ini"
                                         data-testid="wbs-open-claim-dialog-btn"
                                       >
                                         <Plus className="h-3 w-3" />
-                                        <span>Ajukan Klaim Selesai</span>
+                                        <span>Isi ACR</span>
                                       </button>
                                     )}
 
@@ -3777,20 +3871,6 @@ export default function WBSBuilder({
                         >
                           Edit
                         </Button>
-                        {productMode === 'project_management' && isOwner && (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-6 text-[10px] text-amber-700 border-amber-300"
-                            onClick={() => {
-                              const s = stages.find((st) => st.id === group.stageId);
-                              if (s) openStageEdit(s);
-                            }}
-                            title="Atur Jadwal Stage"
-                          >
-                            <Settings className="h-3 w-3 mr-0.5" /> Jadwal
-                          </Button>
-                        )}
                         <Button
                           variant="outline"
                           size="icon"
@@ -4146,13 +4226,27 @@ export default function WBSBuilder({
             <DialogTitle className="flex items-center gap-2 text-sm uppercase font-bold text-amber-700 dark:text-amber-400">
               <ClipboardCheck className="h-4 w-4 text-amber-600" />
               {existingClaim && existingClaim.status === 'needs_revision'
-                ? 'Revisi & Ajukan Ulang Klaim Penyelesaian'
+                ? 'Revisi & Kirim Ulang ACR'
                 : existingClaim
-                ? 'Detail Klaim Penyelesaian & Bukti'
-                : 'Ajukan Klaim Penyelesaian & Bukti Execution'}
+                ? 'Activity Completion Record (ACR)'
+                : 'Isi Activity Completion Record (ACR)'}
             </DialogTitle>
-            <DialogDescription className="text-xs">
-              {activeTrackingItem?.name} ({activeTrackingItem?.level === 2 ? 'Aktivitas' : activeTrackingItem?.level === 3 ? 'Sub-Aktivitas' : 'Task'})
+            <DialogDescription className="text-xs flex flex-wrap items-center gap-2">
+              <span>{activeTrackingItem?.name} ({activeTrackingItem?.level === 2 ? 'Aktivitas' : activeTrackingItem?.level === 3 ? 'Sub-Aktivitas' : 'Task'})</span>
+              <Badge
+                variant="outline"
+                className={`text-[9px] font-bold py-0 px-1.5 h-auto border ${getClaimBadgeStyle(existingClaim?.status || 'draft')}`}
+                data-testid="wbs-acr-dialog-verification-badge"
+              >
+                Verification: {existingClaim ? getClaimLabel(existingClaim.status) : 'Belum Ada Klaim'}
+              </Badge>
+              <Badge
+                variant="outline"
+                className={`text-[9px] font-bold py-0 px-1.5 h-auto border ${getClosureStatusBadgeClass(getClosureStatus(existingClaim))}`}
+                data-testid="wbs-acr-dialog-closure-badge"
+              >
+                Closure: {getClosureStatusLabel(getClosureStatus(existingClaim))}
+              </Badge>
             </DialogDescription>
           </DialogHeader>
 
@@ -4161,7 +4255,7 @@ export default function WBSBuilder({
             {existingClaim?.review_note && (
               <div className="p-3 bg-orange-50 dark:bg-orange-950/30 border border-orange-200 dark:border-orange-800 rounded-lg space-y-1">
                 <span className="font-bold text-orange-800 dark:text-orange-300 block">
-                  Catatan dari Verifikator MEAL/Manajemen ({getClaimLabel(existingClaim.status)}):
+                  Catatan dari Verifikator ({getClaimLabel(existingClaim.status)}):
                 </span>
                 <p className="text-slate-700 dark:text-slate-300 leading-relaxed italic">
                   "{existingClaim.review_note}"
@@ -4171,10 +4265,10 @@ export default function WBSBuilder({
 
             {/* Claim Note Input */}
             <div className="space-y-1.5">
-              <Label htmlFor="wbs-claim-note" className="text-xs font-bold">Catatan Ringkasan Klaim Execution:</Label>
+              <Label htmlFor="wbs-claim-note" className="text-xs font-bold">Catatan Ringkasan Execution:</Label>
               <Textarea
                 id="wbs-claim-note"
-                aria-label="Catatan Ringkasan Klaim Execution"
+                aria-label="Catatan Ringkasan Execution"
                 value={claimNote}
                 onChange={(e) => setClaimNote(e.target.value)}
                 placeholder="Jelaskan secara singkat pencapaian target, lokasi kegiatan, atau catatan penting lapangan..."
@@ -4199,6 +4293,128 @@ export default function WBSBuilder({
                 disabled={existingClaim && existingClaim.status !== 'needs_revision' && existingClaim.status !== 'draft'}
                 data-testid="wbs-claimed-progress-input"
               />
+            </div>
+
+            {/* ACR Facts (PM ACR v1 Phase 1) — activity-level notes only, no
+                Beneficiary Registry / ESG / Reporting integration. */}
+            <div className="space-y-1.5 pt-2 border-t">
+              <Label className="text-xs font-bold flex items-center gap-1">
+                <FileText className="h-3.5 w-3.5 text-slate-500" />
+                Facts (Catatan Angka Aktivitas):
+              </Label>
+              <div className="space-y-1.5">
+                {acrFacts.map((fact, idx) => {
+                  const isDefaultRow = idx < DEFAULT_ACR_FACT_LABELS.length;
+                  const locked = !isAcrEditable(existingClaim);
+                  return (
+                    <div key={idx} className="flex items-center gap-1.5" data-testid={`wbs-acr-fact-row-${idx}`}>
+                      {isDefaultRow ? (
+                        <span className="w-32 shrink-0 text-[11px] text-slate-600 dark:text-slate-300">{fact.label}</span>
+                      ) : (
+                        <Input
+                          aria-label={`Label Fakta Kustom ${idx + 1}`}
+                          value={fact.label}
+                          onChange={(e) => handleAcrFactChange(idx, 'label', e.target.value)}
+                          placeholder="Nama fakta kustom..."
+                          className="h-7 text-xs w-32"
+                          disabled={locked}
+                        />
+                      )}
+                      <Input
+                        aria-label={`Nilai ${fact.label || 'fakta kustom'}`}
+                        type="number"
+                        value={fact.value}
+                        onChange={(e) => handleAcrFactChange(idx, 'value', e.target.value)}
+                        placeholder="0"
+                        className="h-7 text-xs w-24"
+                        disabled={locked}
+                      />
+                      {!isDefaultRow && !locked && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveAcrFact(idx)}
+                          className="text-slate-400 hover:text-red-500"
+                          title="Hapus fakta kustom ini"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+              {isAcrEditable(existingClaim) && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddCustomAcrFact}
+                  className="h-6 text-[10px] gap-1"
+                  data-testid="wbs-acr-add-custom-fact-btn"
+                >
+                  <Plus className="h-3 w-3" /> Tambah Fakta Kustom
+                </Button>
+              )}
+            </div>
+
+            {/* ACR Reflection (PM ACR v1 Phase 1) */}
+            <div className="space-y-2 pt-2 border-t">
+              <Label className="text-xs font-bold flex items-center gap-1">
+                <AlignLeft className="h-3.5 w-3.5 text-slate-500" />
+                Reflection:
+              </Label>
+              <div className="space-y-1">
+                <Label htmlFor="wbs-acr-lessons" className="text-[10px]">Lessons Learned (wajib diisi):</Label>
+                <Textarea
+                  id="wbs-acr-lessons"
+                  aria-label="Lessons Learned"
+                  value={acrLessonsLearned}
+                  onChange={(e) => setAcrLessonsLearned(e.target.value)}
+                  placeholder="Apa yang perlu diketahui orang lain jika menjalankan aktivitas serupa?"
+                  className="text-xs h-14"
+                  disabled={!isAcrEditable(existingClaim)}
+                  data-testid="wbs-acr-lessons-input"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="wbs-acr-observations" className="text-[10px]">Observations (opsional):</Label>
+                <Textarea
+                  id="wbs-acr-observations"
+                  aria-label="Observations"
+                  value={acrObservations}
+                  onChange={(e) => setAcrObservations(e.target.value)}
+                  placeholder="Apa yang Anda perhatikan di luar rencana selama pelaksanaan?"
+                  className="text-xs h-14"
+                  disabled={!isAcrEditable(existingClaim)}
+                  data-testid="wbs-acr-observations-input"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="wbs-acr-recommendations" className="text-[10px]">Recommendations (opsional):</Label>
+                <Textarea
+                  id="wbs-acr-recommendations"
+                  aria-label="Recommendations"
+                  value={acrRecommendations}
+                  onChange={(e) => setAcrRecommendations(e.target.value)}
+                  placeholder="Apa yang akan Anda lakukan berbeda di kesempatan berikutnya?"
+                  className="text-xs h-14"
+                  disabled={!isAcrEditable(existingClaim)}
+                  data-testid="wbs-acr-recommendations-input"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="wbs-acr-next-action" className="text-[10px]">Next Action (opsional, satu baris):</Label>
+                <Input
+                  id="wbs-acr-next-action"
+                  aria-label="Next Action"
+                  value={acrNextAction}
+                  onChange={(e) => setAcrNextAction(e.target.value)}
+                  placeholder="Ada tindak lanjut yang perlu dilakukan?"
+                  className="h-7 text-xs"
+                  disabled={!isAcrEditable(existingClaim)}
+                  data-testid="wbs-acr-next-action-input"
+                />
+              </div>
             </div>
 
             {/* Existing Attached Evidence List */}
@@ -4414,7 +4630,7 @@ export default function WBSBuilder({
                 data-testid="wbs-submit-claim-confirm-btn"
               >
                 {submittingClaim && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                <span>{existingClaim?.status === 'needs_revision' ? 'Kirim Ulang Hasil Revisi' : 'Kirim Klaim Verifikasi'}</span>
+                <span>{existingClaim?.status === 'needs_revision' ? 'Kirim Ulang ACR' : 'Kirim ACR'}</span>
               </Button>
             )}
           </DialogFooter>
@@ -4427,10 +4643,10 @@ export default function WBSBuilder({
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-sm uppercase font-bold text-slate-800 dark:text-slate-100">
               <ClipboardCheck className="h-4 w-4 text-amber-600" />
-              Antrean Verifikasi Klaim Selesai (MEAL / Manajemen)
+              Antrean Evidence Verification (ACR)
             </DialogTitle>
             <DialogDescription className="text-xs">
-              Daftar klaim penyelesaian WBS yang diajukan oleh tim untuk diverifikasi independen.
+              Daftar Activity Completion Record yang diajukan oleh tim untuk Evidence Verification independen.
             </DialogDescription>
           </DialogHeader>
 
@@ -4561,6 +4777,39 @@ export default function WBSBuilder({
                           )}
                         </div>
 
+                        {/* ACR Facts Section */}
+                        {claim.facts && claim.facts.length > 0 && (
+                          <div className="space-y-1.5 pt-2 border-t text-xs">
+                            <span className="text-[10px] font-bold text-slate-500 block">Facts:</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {claim.facts.filter((f) => f.value !== '' && f.value != null).map((f, i) => (
+                                <Badge key={i} variant="secondary" className="text-[9px] py-0.5 px-1.5 h-auto font-normal">
+                                  {f.label}: <span className="font-bold ml-0.5">{f.value}</span>
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ACR Reflection Section */}
+                        {(claim.lessons_learned || claim.observations || claim.recommendations || claim.next_action) && (
+                          <div className="space-y-1.5 pt-2 border-t text-xs">
+                            <span className="text-[10px] font-bold text-slate-500 block">Reflection:</span>
+                            {claim.lessons_learned && (
+                              <p className="text-slate-700 dark:text-slate-300"><span className="font-bold">Lessons Learned:</span> {claim.lessons_learned}</p>
+                            )}
+                            {claim.observations && (
+                              <p className="text-slate-700 dark:text-slate-300"><span className="font-bold">Observations:</span> {claim.observations}</p>
+                            )}
+                            {claim.recommendations && (
+                              <p className="text-slate-700 dark:text-slate-300"><span className="font-bold">Recommendations:</span> {claim.recommendations}</p>
+                            )}
+                            {claim.next_action && (
+                              <p className="text-slate-700 dark:text-slate-300"><span className="font-bold">Next Action:</span> {claim.next_action}</p>
+                            )}
+                          </div>
+                        )}
+
                         {/* Existing Review Note */}
                         {claim.review_note && (
                           <div className="p-2.5 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 rounded text-xs">
@@ -4585,16 +4834,16 @@ export default function WBSBuilder({
                           claim.status === 'submitted' && (
                             <div className="pt-3 border-t space-y-3">
                               <div className="space-y-1">
-                                <Label htmlFor={`wbs-review-note-${claim.id}`} className="text-xs font-bold">Catatan Peninjau / Verifikator:</Label>
+                                <Label htmlFor={`wbs-review-note-${claim.id}`} className="text-xs font-bold">Catatan Evidence Verification:</Label>
                                 <Textarea
                                   id={`wbs-review-note-${claim.id}`}
-                                  aria-label="Catatan Peninjau / Verifikator"
+                                  aria-label="Catatan Evidence Verification"
                                   value={reviewingClaimId === claim.id ? reviewNote : ''}
                                   onChange={(e) => {
                                     setReviewingClaimId(claim.id);
                                     setReviewNote(e.target.value);
                                   }}
-                                  placeholder="Tuliskan catatan hasil verifikasi (wajib untuk Perlu Perbaikan / Penolakan)..."
+                                  placeholder="Tuliskan catatan (wajib jika Return For More Evidence)..."
                                   className="text-xs h-16"
                                   data-testid={`wbs-review-note-input-${claim.id}`}
                                 />
@@ -4608,17 +4857,7 @@ export default function WBSBuilder({
                                   className="text-xs text-orange-700 border-orange-300 hover:bg-orange-50 dark:text-orange-300"
                                   data-testid={`wbs-review-needs-revision-btn-${claim.id}`}
                                 >
-                                  Perlu Perbaikan
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleReviewClaim(claim, 'rejected')}
-                                  disabled={submittingReview}
-                                  className="text-xs text-red-700 border-red-300 hover:bg-red-50 dark:text-red-300"
-                                  data-testid={`wbs-review-reject-btn-${claim.id}`}
-                                >
-                                  Tolak Klaim
+                                  Return For More Evidence
                                 </Button>
                                 <Button
                                   size="sm"
@@ -4628,7 +4867,7 @@ export default function WBSBuilder({
                                   data-testid={`wbs-review-approve-btn-${claim.id}`}
                                 >
                                   <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                                  Setujui & Verifikasi
+                                  Evidence Sufficient
                                 </Button>
                               </div>
                             </div>

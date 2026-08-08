@@ -263,6 +263,13 @@ export interface LfaSroiOutcome {
 
 export type WbsCompletionClaimStatus = 'draft' | 'submitted' | 'verified' | 'rejected' | 'needs_revision' | 'cancelled';
 
+// ACR Facts (PM ACR v1 Phase 1): simple {label, value} rows — default counters
+// plus custom rows. Activity-level notes only, no indicator mapping in v1.
+export interface WbsFact {
+  label: string;
+  value: string;
+}
+
 export interface WbsCompletionClaim {
   id: string;
   org_id: string;
@@ -279,6 +286,12 @@ export interface WbsCompletionClaim {
   review_note?: string | null;
   created_at?: string;
   updated_at?: string;
+  // ACR Facts & Reflection (PM ACR v1 Phase 1)
+  facts?: WbsFact[] | null;
+  lessons_learned?: string | null;
+  observations?: string | null;
+  recommendations?: string | null;
+  next_action?: string | null;
 }
 
 export type WbsEvidenceType = 'file' | 'link' | 'note' | 'manual_url' | 'onedrive' | 'other';
@@ -293,4 +306,40 @@ export interface WbsCompletionEvidence {
   description?: string | null;
   uploaded_by: string;
   uploaded_at: string;
+}
+
+export type DeliverableStatus = 'not_started' | 'in_progress' | 'submitted' | 'approved';
+
+export interface ProjectDeliverable {
+  id: string;
+  org_id: string;
+  project_id: string;
+  name: string;
+  description: string | null;
+  due_date: string | null;
+  owner: string | null;
+  status: DeliverableStatus;
+  created_at?: string;
+  updated_at?: string;
+  archived_at: string | null;
+}
+
+export interface ProjectDeliverableActivity {
+  deliverable_id: string;
+  wbs_item_id: string;
+}
+
+export type MilestoneStatus = 'upcoming' | 'achieved' | 'delayed';
+
+export interface ProjectMilestone {
+  id: string;
+  org_id: string;
+  project_id: string;
+  name: string;
+  target_date: string | null;
+  status: MilestoneStatus;
+  notes: string | null;
+  created_at?: string;
+  updated_at?: string;
+  archived_at: string | null;
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  CheckCircle2, XCircle, RotateCcw, Loader2, FileText, ShieldAlert,
+  CheckCircle2, RotateCcw, Loader2, FileText, ShieldAlert,
   ClipboardCheck, ExternalLink,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,11 @@ interface Evidence {
   uploaded_at: string;
 }
 
+interface AcrFact {
+  label: string;
+  value: string;
+}
+
 interface ClaimDisplay {
   id: string;
   wbsItemId: string;
@@ -33,6 +38,11 @@ interface ClaimDisplay {
   claimedBy: string | null;
   reviewedBy: string | null;
   reviewedAt: string | null;
+  facts?: AcrFact[] | null;
+  lessonsLearned?: string | null;
+  observations?: string | null;
+  recommendations?: string | null;
+  nextAction?: string | null;
 }
 
 interface WbsContext {
@@ -128,7 +138,7 @@ export default function CompletionClaimReviewDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-sm">
             <ClipboardCheck className="h-4 w-4" />
-            Detail Klaim Penyelesaian
+            Activity Completion Record (ACR) — Evidence Verification
           </DialogTitle>
         </DialogHeader>
 
@@ -197,6 +207,31 @@ export default function CompletionClaimReviewDialog({
             </div>
           )}
 
+          {claim.facts && claim.facts.filter((f) => f.value !== '' && f.value != null).length > 0 && (
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Facts:</Label>
+              <div className="flex flex-wrap gap-1.5">
+                {claim.facts.filter((f) => f.value !== '' && f.value != null).map((f, i) => (
+                  <Badge key={i} variant="secondary" className="text-[9px] py-0.5 px-1.5 h-auto font-normal">
+                    {f.label}: <span className="font-bold ml-0.5">{f.value}</span>
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(claim.lessonsLearned || claim.observations || claim.recommendations || claim.nextAction) && (
+            <div className="space-y-1">
+              <Label className="text-xs font-bold">Reflection:</Label>
+              <div className="space-y-1 text-[11px] text-slate-700 dark:text-slate-300">
+                {claim.lessonsLearned && <p><span className="font-bold">Lessons Learned:</span> {claim.lessonsLearned}</p>}
+                {claim.observations && <p><span className="font-bold">Observations:</span> {claim.observations}</p>}
+                {claim.recommendations && <p><span className="font-bold">Recommendations:</span> {claim.recommendations}</p>}
+                {claim.nextAction && <p><span className="font-bold">Next Action:</span> {claim.nextAction}</p>}
+              </div>
+            </div>
+          )}
+
           {isSelfClaim && claim.status !== 'needs_revision' && (
             <div className="p-2.5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 rounded flex items-start gap-2">
               <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
@@ -225,14 +260,11 @@ export default function CompletionClaimReviewDialog({
           {isOwner && isSubmitted && (
             <>
               <Button variant="outline" size="sm" onClick={() => handleDecision('needs_revision')} disabled={submitting} className="text-xs text-orange-600">
-                <RotateCcw className="mr-1 h-3.5 w-3.5" /> Revisi
-              </Button>
-              <Button variant="outline" size="sm" onClick={() => handleDecision('rejected')} disabled={submitting} className="text-xs text-red-600">
-                <XCircle className="mr-1 h-3.5 w-3.5" /> Tolak
+                <RotateCcw className="mr-1 h-3.5 w-3.5" /> Return For More Evidence
               </Button>
               <Button size="sm" onClick={() => handleDecision('verified')} disabled={submitting} className="text-xs bg-emerald-600 hover:bg-emerald-500">
                 {submitting ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1 h-3.5 w-3.5" />}
-                Verifikasi
+                Evidence Sufficient
               </Button>
             </>
           )}
