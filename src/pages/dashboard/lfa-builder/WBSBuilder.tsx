@@ -12,7 +12,7 @@ import { CARBON_FACTORS_INDONESIA } from '@/data/carbon-factors-indonesia';
 import {
   Plus, Trash2, Sparkles, ChevronDown, ChevronUp, Loader2, Check, Download,
   AlertTriangle, Milestone, Calendar, User, AlignLeft, Flag, Network, Wallet, ExternalLink,
-  ClipboardCheck, FileText, CheckCircle2, XCircle, AlertCircle, Link2, ShieldAlert, FileUp, Filter
+  ClipboardCheck, FileText, XCircle, AlertCircle, Link2, FileUp, Filter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -345,13 +345,6 @@ export default function WBSBuilder({
   };
   const isRelatedExpanded = (itemId: string, section: 'deliverable' | 'bottleneck' | 'finance') =>
     !!relatedExpanded[`${itemId}:${section}`];
-
-  // Verifier Review Queue States
-  const [reviewQueueOpen, setReviewQueueOpen] = useState(false);
-  const [reviewFilter, setReviewFilter] = useState<'submitted' | 'verified' | 'needs_revision' | 'rejected' | 'all'>('submitted');
-  const [reviewingClaimId, setReviewingClaimId] = useState<string | null>(null);
-  const [reviewNote, setReviewNote] = useState('');
-  const [submittingReview, setSubmittingReview] = useState(false);
 
   // Organization Members State for Owner & Reviewer Assignment (Sprint 2)
   const [orgMembers, setOrgMembers] = useState<Array<{
@@ -1173,57 +1166,6 @@ export default function WBSBuilder({
       });
     } finally {
       setSubmittingClaim(false);
-    }
-  };
-
-  const handleReviewClaim = async (
-    claim: WbsCompletionClaim,
-    actionStatus: 'verified' | 'rejected' | 'needs_revision'
-  ) => {
-    if (!reviewNote && (actionStatus === 'rejected' || actionStatus === 'needs_revision')) {
-      toast({
-        title: 'Catatan Diperlukan',
-        description: 'Harap berikan catatan/alasan untuk Return For More Evidence.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
-    setSubmittingReview(true);
-    try {
-      // Note: Client does NOT send reviewed_by or reviewed_at — database trigger handle_wbs_completion_claim_audit
-      // automatically enforces auth.uid(), NOW(), and Separation of Duties!
-      const { error: updateErr } = await supabase
-        .from('wbs_completion_claims')
-        .update({
-          status: actionStatus,
-          review_note: reviewNote || null,
-        })
-        .eq('id', claim.id);
-
-      if (updateErr) throw updateErr;
-
-      toast({
-        title: actionStatus === 'verified'
-          ? 'ACR Terverifikasi ✨'
-          : actionStatus === 'needs_revision'
-          ? 'Permintaan Perbaikan Terkirim'
-          : 'ACR Ditolak',
-        description: 'Status Evidence Verification telah diperbarui.',
-      });
-
-      setReviewingClaimId(null);
-      setReviewNote('');
-      await loadClaimsAndEvidence();
-    } catch (err: any) {
-      console.error('[Impactory] Failed to review completion claim:', err);
-      toast({
-        title: 'Gagal Memproses Verifikasi',
-        description: err?.message || 'Separation of Duties violation atau kesalahan server.',
-        variant: 'destructive',
-      });
-    } finally {
-      setSubmittingReview(false);
     }
   };
 
@@ -2287,34 +2229,11 @@ export default function WBSBuilder({
             </div>
           )}
 
-          {/* Verifier Review Queue Button (WBS-P1A-3B) -- Programme Design
-              only. Per-item completion claims/evidence stay available in
-              both modes via each row's own "Rincian" popover; only this
-              cross-project aggregate review queue is hidden for Project
-              Management. */}
-          {productMode !== 'project_management' && (() => {
-            const pendingCount = claims.filter((c) => c.status === 'submitted').length;
-            return (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setReviewQueueOpen(true)}
-                className="text-xs font-semibold relative bg-amber-50/60 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/60 hover:bg-amber-100 dark:hover:bg-amber-900/40"
-                data-testid="wbs-review-queue-btn"
-              >
-                <ClipboardCheck className="mr-1.5 h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                <span>Antrean Verifikasi</span>
-                {pendingCount > 0 && (
-                  <Badge
-                    className="ml-1.5 bg-amber-600 text-white text-[9px] h-4 px-1.5 py-0 rounded-full font-bold"
-                    data-testid="wbs-pending-claims-badge"
-                  >
-                    {pendingCount}
-                  </Badge>
-                )}
-              </Button>
-            );
-          })()}
+          {/* PM-P3: legacy "Antrean Verifikasi" review queue removed entirely — it
+              duplicated MEAL > ACR's review workflow (same table, same statuses,
+              an older direct-update path instead of the hardened
+              review_wbs_completion_claim RPC) with no Programme Design ownership.
+              MEAL > ACR is now the sole reviewer surface for both modes. */}
 
           {productMode === 'project_management' && (
             <Button size="sm" onClick={openStageCreate} className="text-xs font-semibold">
@@ -4529,247 +4448,6 @@ export default function WBSBuilder({
                 <span>{existingClaim?.status === 'needs_revision' ? 'Kirim Ulang ACR' : 'Kirim ACR'}</span>
               </Button>
             )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* VERIFIER REVIEW QUEUE DIALOG (WBS-P1A-3B) */}
-      <Dialog open={reviewQueueOpen} onOpenChange={setReviewQueueOpen}>
-        <DialogContent className="sm:max-w-3xl max-h-[85vh] overflow-y-auto" data-testid="wbs-review-queue-dialog">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2 text-sm uppercase font-bold text-slate-800 dark:text-slate-100">
-              <ClipboardCheck className="h-4 w-4 text-amber-600" />
-              Antrean Evidence Verification (ACR)
-            </DialogTitle>
-            <DialogDescription className="text-xs">
-              Daftar Activity Completion Record yang diajukan oleh tim untuk Evidence Verification independen.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-2">
-            {/* Filter Tabs */}
-            <div className="flex flex-wrap items-center gap-1.5 pb-2 border-b">
-              {(['submitted', 'verified', 'needs_revision', 'rejected', 'all'] as const).map((filterKey) => {
-                const count = filterKey === 'all'
-                  ? claims.length
-                  : claims.filter((c) => c.status === filterKey).length;
-
-                return (
-                  <Button
-                    key={filterKey}
-                    variant={reviewFilter === filterKey ? 'default' : 'outline'}
-                    size="sm"
-                    onClick={() => setReviewFilter(filterKey)}
-                    className="h-7 text-[11px] gap-1 px-2.5"
-                  >
-                    <span>
-                      {filterKey === 'submitted' ? 'Menunggu Verifikasi' :
-                       filterKey === 'verified' ? 'Terverifikasi' :
-                       filterKey === 'needs_revision' ? 'Perlu Perbaikan' :
-                       filterKey === 'rejected' ? 'Ditolak' : 'Semua'}
-                    </span>
-                    <Badge variant="secondary" className="text-[9px] h-4 px-1 py-0">
-                      {count}
-                    </Badge>
-                  </Button>
-                );
-              })}
-            </div>
-
-            {/* Claims List */}
-            {(() => {
-              const filteredClaims = claims.filter((c) =>
-                reviewFilter === 'all' ? true : c.status === reviewFilter
-              );
-
-              if (filteredClaims.length === 0) {
-                return (
-                  <div className="p-8 text-center text-xs text-muted-foreground italic">
-                    Tidak ada klaim dalam kategori ini.
-                  </div>
-                );
-              }
-
-              return (
-                <div className="space-y-4">
-                  {filteredClaims.map((claim) => {
-                    const targetItem = wbsItems.find((i) => i.id === claim.wbs_item_id);
-                    const evidences = getEvidenceForClaim(claim.id);
-                    const isSelfClaim = user?.id && user.id === claim.claimed_by;
-
-                    return (
-                      <div
-                        key={claim.id}
-                        className="p-4 bg-white dark:bg-slate-900 border rounded-xl shadow-sm space-y-3"
-                        data-testid={`wbs-review-card-${claim.id}`}
-                      >
-                        {/* Header Info */}
-                        <div className="flex flex-wrap items-start justify-between gap-2 border-b pb-2">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <Badge variant="outline" className="text-[9px] uppercase font-bold">
-                                {targetItem?.level === 2 ? 'Aktivitas' : targetItem?.level === 3 ? 'Sub' : 'Task'}
-                              </Badge>
-                              <h5 className="font-bold text-xs text-slate-800 dark:text-slate-100">
-                                {targetItem?.name || 'WBS Item'}
-                              </h5>
-                            </div>
-                            <span className="text-[10px] text-slate-400 block mt-0.5">
-                              Diajukan: {new Date(claim.submitted_at || claim.created_at).toLocaleString('id-ID')}
-                            </span>
-                          </div>
-
-                          <Badge className={`text-[10px] font-bold py-0.5 px-2 ${getClaimBadgeStyle(claim.status)}`}>
-                            {getClaimLabel(claim.status)}
-                          </Badge>
-                        </div>
-
-                        {/* Claim Content */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                          <div>
-                            <span className="text-[10px] font-bold text-slate-400 block">Progres:</span>
-                            <span className="font-bold text-emerald-600 text-sm">{claim.claimed_progress}%</span>
-                          </div>
-                          <div className="sm:col-span-2">
-                            <span className="text-[10px] font-bold text-slate-400 block">Activity Summary:</span>
-                            <p className="text-slate-700 dark:text-slate-300 italic bg-slate-50 dark:bg-slate-800/40 p-2 rounded border border-slate-100 text-xs">
-                              {claim.claim_note || 'Tanpa catatan tambahan.'}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Evidence Section */}
-                        <div className="space-y-1.5 pt-2 border-t text-xs">
-                          <span className="text-[10px] font-bold text-slate-500 flex items-center gap-1">
-                            <FileText className="h-3 w-3" />
-                            Bukti Terlampir ({evidences.length}):
-                          </span>
-                          {evidences.length === 0 ? (
-                            <p className="text-slate-400 italic text-[11px]">Belum ada bukti terlampir.</p>
-                          ) : (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              {evidences.map((ev) => (
-                                <div key={ev.id} className="p-2 bg-slate-50 dark:bg-slate-800/50 border rounded text-[11px]">
-                                  <div className="flex items-center gap-1 font-bold text-slate-800 dark:text-slate-200">
-                                    <Badge variant="outline" className="text-[8px] uppercase">{ev.evidence_type}</Badge>
-                                    <span className="truncate">{ev.title}</span>
-                                  </div>
-                                  {ev.storage_reference && (
-                                    <a
-                                      href={ev.storage_reference.startsWith('http') ? ev.storage_reference : '#'}
-                                      target={ev.storage_reference.startsWith('http') ? '_blank' : '_self'}
-                                      rel="noreferrer"
-                                      className="text-emerald-600 hover:underline flex items-center gap-1 mt-1 font-mono text-[10px] truncate"
-                                    >
-                                      <ExternalLink className="h-2.5 w-2.5 shrink-0" />
-                                      {ev.evidence_type === 'onedrive' || ev.storage_reference.startsWith('http')
-                                        ? '📄 Buka/Pratinjau File OneDrive'
-                                        : ev.storage_reference}
-                                    </a>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        {/* ACR Facts Section */}
-                        {claim.facts && claim.facts.length > 0 && (
-                          <div className="space-y-1.5 pt-2 border-t text-xs">
-                            <span className="text-[10px] font-bold text-slate-500 block">Facts:</span>
-                            <div className="flex flex-wrap gap-1.5">
-                              {claim.facts.filter((f) => f.value !== '' && f.value != null).map((f, i) => (
-                                <Badge key={i} variant="secondary" className="text-[9px] py-0.5 px-1.5 h-auto font-normal">
-                                  {f.label}: <span className="font-bold ml-0.5">{f.value}</span>
-                                </Badge>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* ACR Notes / Observations */}
-                        {claim.observations && (
-                          <div className="space-y-1 pt-2 border-t text-xs">
-                            <span className="text-[10px] font-bold text-slate-500 block">Notes / Observations:</span>
-                            <p className="text-slate-700 dark:text-slate-300">{claim.observations}</p>
-                          </div>
-                        )}
-
-                        {/* Existing Review Note */}
-                        {claim.review_note && (
-                          <div className="p-2.5 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 rounded text-xs">
-                            <span className="font-bold text-orange-800 dark:text-orange-300 block text-[10px]">Catatan Verifikator:</span>
-                            <p className="text-slate-700 dark:text-slate-300">{claim.review_note}</p>
-                          </div>
-                        )}
-
-                        {/* Separation of Duties & Verifier Action Controls */}
-                        {isSelfClaim ? (
-                          <div className="p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
-                            <ShieldAlert className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-                            <div>
-                              <span className="font-bold block">Verifikasi Dibatasi (Separation of Duties)</span>
-                              <span>
-                                Anda adalah pengaju klaim ini. Sesuai aturan Separation of Duties, verifikasi harus dilakukan oleh verifikator / anggota tim lain.
-                              </span>
-                              {/* NOTE: Real security protection is enforced server-side by trigger handle_wbs_completion_claim_audit in Postgres */}
-                            </div>
-                          </div>
-                        ) : isOwner && (
-                          claim.status === 'submitted' && (
-                            <div className="pt-3 border-t space-y-3">
-                              <div className="space-y-1">
-                                <Label htmlFor={`wbs-review-note-${claim.id}`} className="text-xs font-bold">Catatan Evidence Verification:</Label>
-                                <Textarea
-                                  id={`wbs-review-note-${claim.id}`}
-                                  aria-label="Catatan Evidence Verification"
-                                  value={reviewingClaimId === claim.id ? reviewNote : ''}
-                                  onChange={(e) => {
-                                    setReviewingClaimId(claim.id);
-                                    setReviewNote(e.target.value);
-                                  }}
-                                  placeholder="Tuliskan catatan (wajib jika Return For More Evidence)..."
-                                  className="text-xs h-16"
-                                  data-testid={`wbs-review-note-input-${claim.id}`}
-                                />
-                              </div>
-                              <div className="flex flex-wrap items-center justify-end gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleReviewClaim(claim, 'needs_revision')}
-                                  disabled={submittingReview}
-                                  className="text-xs text-orange-700 border-orange-300 hover:bg-orange-50 dark:text-orange-300"
-                                  data-testid={`wbs-review-needs-revision-btn-${claim.id}`}
-                                >
-                                  Return For More Evidence
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  onClick={() => handleReviewClaim(claim, 'verified')}
-                                  disabled={submittingReview}
-                                  className="text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-semibold"
-                                  data-testid={`wbs-review-approve-btn-${claim.id}`}
-                                >
-                                  <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
-                                  Evidence Sufficient
-                                </Button>
-                              </div>
-                            </div>
-                          )
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })()}
-          </div>
-
-          <DialogFooter className="sm:justify-end">
-            <Button variant="outline" size="sm" onClick={() => setReviewQueueOpen(false)} className="text-xs">
-              Tutup
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
