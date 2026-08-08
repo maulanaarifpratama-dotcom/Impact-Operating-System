@@ -43,14 +43,17 @@ import { resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 import { useOrgRole } from '@/hooks/useOrgRole';
 import CompletionClaimReviewDialog from '@/components/verification/CompletionClaimReviewDialog';
 
-type MealTab = 'control-center' | 'deliverables' | 'milestones' | 'evidence' | 'activity';
+// PM + MEAL Canonicalization: ACR is the single source of truth. 'activity' stays a valid
+// tab (reachable via ?tab=activity from Control Center) but is deliberately left out of the
+// primary TABS bar below — it's an audit utility, not a workflow screen. 'milestones' and
+// 'evidence' are removed entirely: Evidence & Verification duplicated ACR (folded into the
+// ACR tab's status filter), and Milestones duplicated Stage/Timeline/Deliverables progress.
+type MealTab = 'control-center' | 'acr' | 'deliverables' | 'activity';
 
 const TABS: { key: MealTab; label: string }[] = [
   { key: 'control-center', label: 'Control Center' },
+  { key: 'acr', label: 'ACR' },
   { key: 'deliverables', label: 'Deliverables' },
-  { key: 'milestones', label: 'Milestones' },
-  { key: 'evidence', label: 'Evidence & Verification' },
-  { key: 'activity', label: 'Activity Log' },
 ];
 
 const EVENT_LABELS: Record<string, string> = {
@@ -91,7 +94,7 @@ function formatIDR(n: number) {
   return `Rp ${n.toLocaleString('id-ID')}`;
 }
 
-function ControlCenterTab({ projectId, orgId }: { projectId: string; orgId: string }) {
+function ControlCenterTab({ projectId, orgId, onOpenActivityLog }: { projectId: string; orgId: string; onOpenActivityLog: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [monitoring, setMonitoring] = useState<MonitoringOutput | null>(null);
@@ -433,11 +436,18 @@ function ControlCenterTab({ projectId, orgId }: { projectId: string; orgId: stri
         </Card>
 
         <Card>
-          <CardHeader className="pb-2">
+          <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
             <CardTitle className="text-sm flex items-center gap-2">
               <History className="h-4 w-4 text-muted-foreground" />
               Aktivitas Terbaru
             </CardTitle>
+            <button
+              onClick={onOpenActivityLog}
+              className="text-[10px] text-primary hover:underline font-semibold"
+              data-testid="meal-open-activity-log-link"
+            >
+              Lihat Audit Log Lengkap →
+            </button>
           </CardHeader>
           <CardContent className="space-y-1 text-xs max-h-48 overflow-y-auto">
             {m.recentEvents.slice(0, 8).map((ev, i) => (
@@ -464,19 +474,24 @@ function ControlCenterTab({ projectId, orgId }: { projectId: string; orgId: stri
 function DeliverablesTab({ projectId }: { projectId: string }) {
   const [deliverables, setDeliverables] = useState<any[]>([]);
   const [activityMap, setActivityMap] = useState<Record<string, string[]>>({});
+  const [outputCandidates, setOutputCandidates] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [delivRes, linkRes, wbsRes] = await Promise.all([
+      const [delivRes, linkRes, wbsRes, claimsRes] = await Promise.all([
         (supabase as any).from('project_deliverables').select('id, name, description, status, due_date, owner').eq('project_id', projectId).is('archived_at', null).order('created_at', { ascending: false }),
         (supabase as any).from('project_deliverable_activities').select('deliverable_id, wbs_item_id'),
         (supabase as any).from('lfa_wbs_items').select('id, name, level').eq('lfa_project_id', projectId),
+        supabase.from('wbs_completion_claims').select('id, wbs_item_id, status').eq('lfa_project_id', projectId).eq('status', 'verified'),
       ]);
       setDeliverables(delivRes.data || []);
+
+      const wbsNames = new Map((wbsRes.data || []).map((w: any) => [w.id, w.name]));
+      const linkedWbsIds = new Set((linkRes.data || []).map((l: any) => l.wbs_item_id));
+
       if (linkRes.data && wbsRes.data) {
-        const wbsNames = new Map(wbsRes.data.map((w: any) => [w.id, w.name]));
         const map: Record<string, string[]> = {};
         for (const link of linkRes.data) {
           if (!map[link.deliverable_id]) map[link.deliverable_id] = [];
@@ -484,6 +499,15 @@ function DeliverablesTab({ projectId }: { projectId: string }) {
         }
         setActivityMap(map);
       }
+
+      // Output view (PM + MEAL Canonicalization): Activities whose ACR reached
+      // Closed (Evidence Verified) but that aren't linked to any Deliverable yet —
+      // this is the derived-from-ACR list, no manual conversion required.
+      const candidates = (claimsRes.data || [])
+        .filter((c: any) => c.wbs_item_id && !linkedWbsIds.has(c.wbs_item_id))
+        .map((c: any) => ({ id: c.wbs_item_id as string, name: (wbsNames.get(c.wbs_item_id) as string) || c.wbs_item_id }));
+      const dedupedCandidates = Array.from(new Map(candidates.map((c) => [c.id, c])).values());
+      setOutputCandidates(dedupedCandidates);
     } catch {
       // silent
     } finally {
@@ -504,129 +528,68 @@ function DeliverablesTab({ projectId }: { projectId: string }) {
   }
 
   return (
-    <div className="space-y-3">
-      {active.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <CardTitle className="text-lg">Belum ada Deliverable</CardTitle>
-            <CardDescription>
-              Deliverable adalah output dari Activity yang selesai.<br />
-              Buka <strong>Work Plan → Activity → Rincian → Buat Deliverable</strong>
-            </CardDescription>
-          </CardContent>
-        </Card>
-      ) : (
-        active.map((d: any) => (
-          <Card key={d.id}>
-            <CardContent className="space-y-2 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <CardTitle className="text-base">{d.name}</CardTitle>
-                  <Badge variant={d.status === 'approved' ? 'default' : d.status === 'submitted' ? 'outline' : d.status === 'in_progress' ? 'default' : 'secondary'}>
-                    {d.status === 'approved' ? 'Disetujui' : d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Not Started'}
-                  </Badge>
-                </div>
-                {d.due_date && <span className="text-xs text-muted-foreground">Due: {d.due_date}</span>}
-              </div>
-              {d.description && <p className="text-sm text-muted-foreground">{d.description}</p>}
-              {d.owner && <p className="text-xs text-muted-foreground">Owner: {d.owner}</p>}
-              {(activityMap[d.id]?.length ?? 0) > 0 && (
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {activityMap[d.id].map((name: string) => (
-                    <Badge key={name} variant="outline" className="text-[9px]">{name}</Badge>
-                  ))}
-                </div>
-              )}
+    <div className="space-y-6">
+      <div className="space-y-3">
+        {active.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+              <CardTitle className="text-lg">Belum ada Deliverable</CardTitle>
+              <CardDescription>
+                Deliverable adalah output view dari Activity yang ACR-nya sudah Closed (Evidence Verified).<br />
+                Lihat daftar "Output dari ACR" di bawah untuk Activity yang siap ditandai sebagai Deliverable.
+              </CardDescription>
             </CardContent>
           </Card>
-        ))
-      )}
-    </div>
-  );
-}
-
-function MilestonesTab({ projectId }: { projectId: string }) {
-  const [milestones, setMilestones] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const { data } = await (supabase as any)
-        .from('project_milestones')
-        .select('id, name, target_date, status, notes')
-        .eq('project_id', projectId)
-        .is('archived_at', null)
-        .order('target_date', { ascending: true, nullsFirst: false });
-      setMilestones(data || []);
-    } catch {
-      // silent
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center py-16 text-muted-foreground">
-        <Loader2 className="h-6 w-6 animate-spin" />
+        ) : (
+          active.map((d: any) => (
+            <Card key={d.id}>
+              <CardContent className="space-y-2 py-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base">{d.name}</CardTitle>
+                    <Badge variant={d.status === 'approved' ? 'default' : d.status === 'submitted' ? 'outline' : d.status === 'in_progress' ? 'default' : 'secondary'}>
+                      {d.status === 'approved' ? 'Disetujui' : d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Not Started'}
+                    </Badge>
+                  </div>
+                  {d.due_date && <span className="text-xs text-muted-foreground">Due: {d.due_date}</span>}
+                </div>
+                {d.description && <p className="text-sm text-muted-foreground">{d.description}</p>}
+                {d.owner && <p className="text-xs text-muted-foreground">Owner: {d.owner}</p>}
+                {(activityMap[d.id]?.length ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-1 pt-1">
+                    {activityMap[d.id].map((name: string) => (
+                      <Badge key={name} variant="outline" className="text-[9px]">{name}</Badge>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))
+        )}
       </div>
-    );
-  }
 
-  const achieved = milestones.filter((m: any) => m.status === 'achieved');
-  const notAchieved = milestones.filter((m: any) => m.status !== 'achieved');
-  const delayed = notAchieved.filter((m: any) => m.target_date && new Date(m.target_date) < new Date());
-  const upcoming = notAchieved.filter((m: any) => !m.target_date || new Date(m.target_date) >= new Date());
-
-  const renderSection = (title: string, items: any[], variant: 'default' | 'secondary' | 'destructive') => (
-    <div className="space-y-2" key={title}>
-      <h3 className="text-sm font-semibold text-muted-foreground">{title} ({items.length})</h3>
-      {items.map((m: any) => (
-        <Card key={m.id}>
-          <CardContent className="flex items-start justify-between gap-3 py-4">
-            <div className="flex-1 space-y-1">
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-base">{m.name}</CardTitle>
-                <Badge variant={variant}>
-                  {variant === 'destructive' ? 'Terlambat' : variant === 'default' ? 'Tercapai' : 'Upcoming'}
-                </Badge>
-              </div>
-              {m.target_date && <p className="text-xs text-muted-foreground">Target: {m.target_date}</p>}
-              {m.notes && <p className="text-sm text-muted-foreground">{m.notes}</p>}
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
-
-  return (
-    <div className="space-y-4">
-      {milestones.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-            <CardTitle className="text-lg">Belum ada Milestone</CardTitle>
-            <CardDescription>
-              Milestone adalah checkpoint tata kelola proyek.<br />
-              Owner dapat menambahkan di halaman Milestones.
-            </CardDescription>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {delayed.length > 0 && renderSection('Terlambat', delayed, 'destructive')}
-          {upcoming.length > 0 && renderSection('Upcoming', upcoming, 'secondary')}
-          {achieved.length > 0 && renderSection('Tercapai', achieved, 'default')}
-        </>
+      {outputCandidates.length > 0 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-muted-foreground">
+            Output dari ACR — belum ditautkan ({outputCandidates.length})
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {outputCandidates.map((c) => (
+              <Card key={c.id}>
+                <CardContent className="flex items-center justify-between gap-2 py-3">
+                  <span className="text-sm truncate">{c.name}</span>
+                  <Badge variant="outline" className="text-[9px] shrink-0">ACR Closed</Badge>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
-function EvidenceVerificationTab({ projectId }: { projectId: string }) {
+function AcrTab({ projectId }: { projectId: string }) {
   const { role: orgRole } = useOrgRole();
   const isOwner = orgRole === 'owner';
   const { user } = { user: { id: null } }; // fallback — auth is handled by backend
@@ -744,14 +707,13 @@ function EvidenceVerificationTab({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-3">
-      {/* Filter tabs */}
+      {/* Filter tabs — matches the two-action Evidence Verification model (Sufficient / Return For More Evidence) */}
       <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
         {[
-          { key: 'submitted', label: 'Menunggu Verifikasi' },
-          { key: 'needs_revision', label: 'Perlu Revisi' },
-          { key: 'verified', label: 'Terverifikasi' },
-          { key: 'rejected', label: 'Ditolak' },
-          { key: 'all', label: 'Semua' },
+          { key: 'submitted', label: 'Pending Verification' },
+          { key: 'verified', label: 'Verified' },
+          { key: 'needs_revision', label: 'Returned' },
+          { key: 'all', label: 'All' },
         ].map((f) => (
           <button key={f.key} onClick={() => setFilter(f.key)}
             className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
@@ -971,13 +933,11 @@ export default function ProjectMEALPage() {
     }
     switch (activeTab) {
       case 'control-center':
-        return <ControlCenterTab projectId={projectId} orgId={orgId} />;
+        return <ControlCenterTab projectId={projectId} orgId={orgId} onOpenActivityLog={() => setTab('activity')} />;
+      case 'acr':
+        return <AcrTab projectId={projectId} />;
       case 'deliverables':
         return <DeliverablesTab projectId={projectId} />;
-      case 'milestones':
-        return <MilestonesTab projectId={projectId} />;
-      case 'evidence':
-        return <EvidenceVerificationTab projectId={projectId} />;
       case 'activity':
         return <ActivityLogTab projectId={projectId} />;
       default:
