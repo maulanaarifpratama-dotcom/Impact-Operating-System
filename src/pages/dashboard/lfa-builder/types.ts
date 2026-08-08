@@ -51,7 +51,23 @@ export type WbsStatus = 'draft' | 'not_started' | 'ready' | 'in_progress' | 'blo
 // a financial obstruction is a Bottleneck (category = financial), not a status value.
 export type WbsFinancialStatus = 'draft' | 'committed' | 'disbursement_requested' | 'paid' | 'closed';
 
-export type WbsBlockerCategory = 'donor_disbursement' | 'internal_approval' | 'vendor_delay' | 'field_condition' | 'force_majeure';
+// PM-P4D canonical Bottleneck taxonomy (see src/lib/project-management/bottleneckModel.ts,
+// the single source of truth for labels/options). 'donor_disbursement' -> 'financial',
+// 'vendor_delay' -> 'vendor' (PM-P4D migration); Bottleneck is the risk domain, Finance
+// (financeModel.ts) is the resource-flow domain — a financial obstruction is a Bottleneck
+// with category = 'financial', never a FinancialStatus value.
+export type WbsBlockerCategory =
+  | 'field_condition'
+  | 'financial'
+  | 'procurement'
+  | 'vendor'
+  | 'human_resources'
+  | 'stakeholder'
+  | 'internal_approval'
+  | 'regulatory'
+  | 'security'
+  | 'force_majeure'
+  | 'other';
 
 export interface WbsItem {
   id: string;

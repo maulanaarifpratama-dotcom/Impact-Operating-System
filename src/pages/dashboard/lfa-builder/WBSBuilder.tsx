@@ -46,6 +46,7 @@ import {
 import {
   type FinancialStatus, getFinancialStatusLabel, FINANCIAL_STATUS_OPTIONS, canSetFinancialStatus,
 } from '@/lib/project-management/financeModel';
+import { getBlockerCategoryLabel, BLOCKER_CATEGORY_OPTIONS } from '@/lib/project-management/bottleneckModel';
 
 type WbsClaimInsert = Database['public']['Tables']['wbs_completion_claims']['Insert'];
 
@@ -2839,13 +2840,6 @@ export default function WBSBuilder({
                                   {/* Bottleneck row */}
                                   {(() => {
                                     const expanded = isRelatedExpanded(item.id, 'bottleneck');
-                                    const categoryLabels: Record<string, string> = {
-                                      donor_disbursement: 'Pencairan Donor',
-                                      internal_approval: 'Persetujuan Internal',
-                                      vendor_delay: 'Keterlambatan Vendor',
-                                      field_condition: 'Kondisi Lapangan',
-                                      force_majeure: 'Force Majeure',
-                                    };
                                     return (
                                       <div className="rounded border border-slate-100 dark:border-slate-800">
                                         <div className="w-full flex items-center justify-between gap-1.5 px-1.5 py-1">
@@ -2858,7 +2852,7 @@ export default function WBSBuilder({
                                             <AlertTriangle className="h-3 w-3 text-rose-600 shrink-0" />
                                             <span className="font-semibold shrink-0">Bottleneck:</span>
                                             <span className="truncate text-slate-500">
-                                              {item.blocker_category ? categoryLabels[item.blocker_category] || item.blocker_category : 'None'}
+                                              {getBlockerCategoryLabel(item.blocker_category) || 'None'}
                                             </span>
                                           </button>
                                           {!item.blocker_category && !expanded && (
@@ -2889,11 +2883,9 @@ export default function WBSBuilder({
                                               className="text-xs w-full border bg-white dark:bg-slate-900 rounded p-1 focus:outline-none dark:border-slate-800 text-rose-800 dark:text-rose-300 font-medium"
                                             >
                                               <option value="">-- Pilih Kategori Hambatan --</option>
-                                              <option value="donor_disbursement">🏛️ Pencairan Donor (Donor Disbursement)</option>
-                                              <option value="internal_approval">📑 Persetujuan Internal (Internal Approval)</option>
-                                              <option value="vendor_delay">🚚 Keterlambatan Vendor (Vendor Delay)</option>
-                                              <option value="field_condition">🌧️ Kondisi Lapangan (Field Condition)</option>
-                                              <option value="force_majeure">⚠️ Force Majeure</option>
+                                              {BLOCKER_CATEGORY_OPTIONS.map((opt) => (
+                                                <option key={opt.value} value={opt.value}>{opt.emoji} {opt.label}</option>
+                                              ))}
                                             </select>
                                             <textarea
                                               value={item.blocker_notes || ''}
