@@ -82,21 +82,19 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
     execution: { open: number; inProgress: number; completed: number; overdue: number; blocked: number };
     acr: { documented: number; closed: number; pendingVerification: number };
     recentLearning: { id: string; name: string; observations: string; date: string | null }[];
-    deliverables: { notStarted: number; inProgress: number; submitted: number; approved: number };
+    totalOutputs: number;
   } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [wbsRes, claimsRes, delivRes] = await Promise.all([
+      const [wbsRes, claimsRes] = await Promise.all([
         supabase.from('lfa_wbs_items').select('id, status, end_date, blocker_category').eq('lfa_project_id', projectId).eq('level', 2),
         supabase.from('wbs_completion_claims').select('id, wbs_item_id, status, observations, submitted_at').eq('lfa_project_id', projectId),
-        (supabase as any).from('project_deliverables').select('id, status').eq('project_id', projectId).is('archived_at', null),
       ]);
       if (wbsRes.error) throw wbsRes.error;
       if (claimsRes.error) throw claimsRes.error;
-      if (delivRes.error) throw delivRes.error;
 
       // Work Plan owns execution status (Belum Mulai / Sedang Berjalan / Selesai).
       // Overdue and Blocked are derived, never manual flags: Overdue = today > end_date
@@ -152,19 +150,13 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
           date: c.submitted_at as string | null,
         }));
 
-      const dRows = (delivRes.data || []) as any[];
-      const deliverables = {
-        notStarted: dRows.filter((d) => d.status === 'not_started').length,
-        inProgress: dRows.filter((d) => d.status === 'in_progress').length,
-        submitted: dRows.filter((d) => d.status === 'submitted').length,
-        approved: dRows.filter((d) => d.status === 'approved').length,
-      };
-
       setStats({
         execution: { open: execOpen, inProgress: execInProgress, completed: execCompleted, overdue: execOverdue, blocked: execBlocked },
         acr: { documented: acrDocumented, closed: acrClosed, pendingVerification },
         recentLearning,
-        deliverables,
+        // Deliverable Summary uses the exact same source as the Deliverables page:
+        // a Deliverable is a Closed ACR, nothing else — no separate manual record.
+        totalOutputs: acrClosed,
       });
     } catch (err) {
       setError((err as Error).message);
@@ -227,6 +219,7 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
         </CardContent>
       </Card>
 
+      {/* Same source as the Deliverables page: a Deliverable IS a Closed ACR — no separate manual record. */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -234,11 +227,9 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
             Deliverable Summary
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-1 text-xs">
-          <div className="flex justify-between"><span className="text-muted-foreground">Not Started</span><span>{stats.deliverables.notStarted}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">In Progress</span><span>{stats.deliverables.inProgress}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Submitted</span><span>{stats.deliverables.submitted}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Approved</span><span className="text-emerald-600 font-semibold">{stats.deliverables.approved}</span></div>
+        <CardContent>
+          <span className="text-2xl font-bold">{stats.totalOutputs}</span>
+          <p className="text-xs text-muted-foreground mt-1">Total Outputs — Activities dengan ACR Closed (Evidence Verified).</p>
         </CardContent>
       </Card>
 
@@ -276,53 +267,94 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
   );
 }
 
+interface DeliverableOutput {
+  id: string;
+  activityName: string;
+  stageName: string | null;
+  pic: string | null;
+  evidenceCount: number;
+  completionDate: string | null;
+}
+
+// Deliverables = outputs derived from Closed ACRs. No manual creation, no
+// linking, no conversion — an Activity's output appears here automatically
+// the moment its ACR's Evidence Verification is Sufficient (status='verified').
+// Canonical rule: ACR Open or Documented (submitted, not yet verified) do
+// NOT qualify — only a verified ACR represents a confirmed output.
 function DeliverablesTab({ projectId }: { projectId: string }) {
-  const [deliverables, setDeliverables] = useState<any[]>([]);
-  const [activityMap, setActivityMap] = useState<Record<string, string[]>>({});
-  const [outputCandidates, setOutputCandidates] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
+  const [outputs, setOutputs] = useState<DeliverableOutput[]>([]);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [delivRes, linkRes, wbsRes, claimsRes] = await Promise.all([
-        (supabase as any).from('project_deliverables').select('id, name, description, status, due_date, owner').eq('project_id', projectId).is('archived_at', null).order('created_at', { ascending: false }),
-        (supabase as any).from('project_deliverable_activities').select('deliverable_id, wbs_item_id'),
-        (supabase as any).from('lfa_wbs_items').select('id, name, level').eq('lfa_project_id', projectId),
-        supabase.from('wbs_completion_claims').select('id, wbs_item_id, status').eq('lfa_project_id', projectId).eq('status', 'verified'),
-      ]);
-      setDeliverables(delivRes.data || []);
+      const { data: claims } = await supabase
+        .from('wbs_completion_claims')
+        .select('id, wbs_item_id, reviewed_at, submitted_at')
+        .eq('lfa_project_id', projectId)
+        .eq('status', 'verified')
+        .order('reviewed_at', { ascending: false });
 
-      const wbsNames = new Map((wbsRes.data || []).map((w: any) => [w.id, w.name]));
-      const linkedWbsIds = new Set((linkRes.data || []).map((l: any) => l.wbs_item_id));
-
-      if (linkRes.data && wbsRes.data) {
-        const map: Record<string, string[]> = {};
-        for (const link of linkRes.data) {
-          if (!map[link.deliverable_id]) map[link.deliverable_id] = [];
-          map[link.deliverable_id].push(wbsNames.get(link.wbs_item_id) || link.wbs_item_id);
-        }
-        setActivityMap(map);
+      const claimRows = (claims || []) as any[];
+      if (claimRows.length === 0) {
+        setOutputs([]);
+        return;
       }
 
-      // Output view (PM + MEAL Canonicalization): Activities whose ACR reached
-      // Closed (Evidence Verified) but that aren't linked to any Deliverable yet —
-      // this is the derived-from-ACR list, no manual conversion required.
-      const candidates = (claimsRes.data || [])
-        .filter((c: any) => c.wbs_item_id && !linkedWbsIds.has(c.wbs_item_id))
-        .map((c: any) => ({ id: c.wbs_item_id as string, name: (wbsNames.get(c.wbs_item_id) as string) || c.wbs_item_id }));
-      const dedupedCandidates = Array.from(new Map(candidates.map((c) => [c.id, c])).values());
-      setOutputCandidates(dedupedCandidates);
+      const wbsIds = Array.from(new Set(claimRows.map((c) => c.wbs_item_id).filter(Boolean)));
+      const { data: wbsItems } = await supabase
+        .from('lfa_wbs_items')
+        .select('id, name, pic, parent_id')
+        .in('id', wbsIds);
+      const wbsById = new Map((wbsItems || []).map((w: any) => [w.id, w]));
+
+      // Stage is assigned on the level-1 parent (same convention as Work Plan's Stage Picker).
+      const parentIds = Array.from(new Set((wbsItems || []).map((w: any) => w.parent_id).filter(Boolean)));
+      const stageNameByActivityId = new Map<string, string | null>();
+      if (parentIds.length > 0) {
+        const { data: parents } = await supabase.from('lfa_wbs_items').select('id, stage_id').in('id', parentIds);
+        const stageIdByParent = new Map((parents || []).map((p: any) => [p.id, p.stage_id]));
+        const stageIds = Array.from(new Set(Array.from(stageIdByParent.values()).filter(Boolean))) as string[];
+        let stageTitleById = new Map<string, string>();
+        if (stageIds.length > 0) {
+          const { data: stages } = await (supabase as any).from('project_stages').select('id, title').in('id', stageIds);
+          stageTitleById = new Map((stages || []).map((s: any) => [s.id, s.title]));
+        }
+        for (const w of (wbsItems || [])) {
+          const stageId = w.parent_id ? stageIdByParent.get(w.parent_id) : null;
+          stageNameByActivityId.set(w.id, stageId ? (stageTitleById.get(stageId) || null) : null);
+        }
+      }
+
+      const claimIds = claimRows.map((c) => c.id);
+      const { data: evidenceRows } = await supabase
+        .from('wbs_completion_evidence')
+        .select('id, claim_id')
+        .in('claim_id', claimIds);
+      const evidenceCountByClaim = new Map<string, number>();
+      for (const e of ((evidenceRows || []) as any[])) {
+        evidenceCountByClaim.set(e.claim_id, (evidenceCountByClaim.get(e.claim_id) || 0) + 1);
+      }
+
+      setOutputs(claimRows.map((c) => {
+        const wbs = wbsById.get(c.wbs_item_id);
+        return {
+          id: c.id as string,
+          activityName: wbs?.name || 'Activity',
+          stageName: stageNameByActivityId.get(c.wbs_item_id) || null,
+          pic: wbs?.pic || null,
+          evidenceCount: evidenceCountByClaim.get(c.id) || 0,
+          completionDate: c.reviewed_at || c.submitted_at || null,
+        };
+      }));
     } catch {
-      // silent
+      setOutputs([]);
     } finally {
       setLoading(false);
     }
   }, [projectId]);
 
   useEffect(() => { void load(); }, [load]);
-
-  const active = deliverables.filter((d: any) => !d.archived_at);
 
   if (loading) {
     return (
@@ -332,64 +364,40 @@ function DeliverablesTab({ projectId }: { projectId: string }) {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="space-y-3">
-        {active.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-              <CardTitle className="text-lg">Belum ada Output Ditautkan</CardTitle>
-              <CardDescription>
-                Deliverables adalah output view dari Activity yang ACR-nya sudah Closed (Evidence Verified) —<br />
-                lihat daftar "Output dari ACR" di bawah, yang muncul otomatis begitu ACR selesai diverifikasi.
-              </CardDescription>
-            </CardContent>
-          </Card>
-        ) : (
-          active.map((d: any) => (
-            <Card key={d.id}>
-              <CardContent className="space-y-2 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <CardTitle className="text-base">{d.name}</CardTitle>
-                    <Badge variant={d.status === 'approved' ? 'default' : d.status === 'submitted' ? 'outline' : d.status === 'in_progress' ? 'default' : 'secondary'}>
-                      {d.status === 'approved' ? 'Disetujui' : d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Not Started'}
-                    </Badge>
-                  </div>
-                  {d.due_date && <span className="text-xs text-muted-foreground">Due: {d.due_date}</span>}
-                </div>
-                {d.description && <p className="text-sm text-muted-foreground">{d.description}</p>}
-                {d.owner && <p className="text-xs text-muted-foreground">Owner: {d.owner}</p>}
-                {(activityMap[d.id]?.length ?? 0) > 0 && (
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {activityMap[d.id].map((name: string) => (
-                      <Badge key={name} variant="outline" className="text-[9px]">{name}</Badge>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))
-        )}
-      </div>
+  if (outputs.length === 0) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+          <CardTitle className="text-lg">Belum ada output proyek.</CardTitle>
+          <CardDescription>
+            Output akan muncul otomatis setelah Activity memiliki ACR yang diverifikasi.
+          </CardDescription>
+        </CardContent>
+      </Card>
+    );
+  }
 
-      {outputCandidates.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-muted-foreground">
-            Output dari ACR — belum ditautkan ({outputCandidates.length})
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {outputCandidates.map((c) => (
-              <Card key={c.id}>
-                <CardContent className="flex items-center justify-between gap-2 py-3">
-                  <span className="text-sm truncate">{c.name}</span>
-                  <Badge variant="outline" className="text-[9px] shrink-0">ACR Closed</Badge>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
+  return (
+    <div className="space-y-2">
+      {outputs.map((o) => (
+        <Card key={o.id}>
+          <CardContent className="space-y-1.5 py-4">
+            <div className="flex items-center justify-between gap-3">
+              <CardTitle className="text-base">{o.activityName}</CardTitle>
+              <Badge className="bg-emerald-100 text-emerald-800 border-emerald-300">Closed</Badge>
+            </div>
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              {o.stageName && <span>Stage: {o.stageName}</span>}
+              {o.pic && <span>PIC: {o.pic}</span>}
+              <span>Verification: Verified</span>
+              <span>Evidence: {o.evidenceCount}</span>
+              {o.completionDate && (
+                <span>Completed: {new Date(o.completionDate).toLocaleDateString('id-ID')}</span>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
