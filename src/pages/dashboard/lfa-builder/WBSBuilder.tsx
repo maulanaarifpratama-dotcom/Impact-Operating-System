@@ -340,6 +340,15 @@ export default function WBSBuilder({
   const [acrRecommendations, setAcrRecommendations] = useState('');
   const [acrNextAction, setAcrNextAction] = useState('');
 
+  // Related section collapse state (PM ACR UX Cleanup) — keyed `${itemId}:deliverable|bottleneck|finance`
+  const [relatedExpanded, setRelatedExpanded] = useState<Record<string, boolean>>({});
+  const toggleRelated = (itemId: string, section: 'deliverable' | 'bottleneck' | 'finance') => {
+    const key = `${itemId}:${section}`;
+    setRelatedExpanded((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+  const isRelatedExpanded = (itemId: string, section: 'deliverable' | 'bottleneck' | 'finance') =>
+    !!relatedExpanded[`${itemId}:${section}`];
+
   // Verifier Review Queue States
   const [reviewQueueOpen, setReviewQueueOpen] = useState(false);
   const [reviewFilter, setReviewFilter] = useState<'submitted' | 'verified' | 'needs_revision' | 'rejected' | 'all'>('submitted');
@@ -1055,6 +1064,14 @@ export default function WBSBuilder({
       default: return 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300';
     }
   };
+
+  // Simple two-state Verification signal for the Activity header (PM ACR UX Cleanup)
+  const getVerificationHeaderLabel = (claim: WbsCompletionClaim | undefined | null) =>
+    claim?.status === 'verified' ? 'Sufficient' : 'Pending';
+  const getVerificationHeaderBadgeClass = (claim: WbsCompletionClaim | undefined | null) =>
+    claim?.status === 'verified'
+      ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400'
+      : 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300';
 
   const handleAddEvidenceField = () => {
     setNewEvidences((prev) => [
@@ -2810,11 +2827,35 @@ export default function WBSBuilder({
                                 </button>
                               </PopoverTrigger>
                               <PopoverContent className="w-80 p-3 space-y-3 shadow-lg border text-xs bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800" align="start" side="bottom" sideOffset={4}>
-                                <div className="border-b pb-1.5 font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
-                                  <span className="truncate pr-2">{item.name || 'Detail Item WBS'}</span>
-                                  <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 uppercase text-slate-500 font-semibold shrink-0">
-                                    Level {item.level}
-                                  </span>
+                                <div className="border-b pb-1.5 space-y-1.5">
+                                  <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between">
+                                    <span className="truncate pr-2">{item.name || 'Detail Item WBS'}</span>
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 uppercase text-slate-500 font-semibold shrink-0">
+                                      Level {item.level}
+                                    </span>
+                                  </div>
+                                  {/* Activity Header signals: Progress, Closure, Verification — always visible, no scrolling into ACR needed */}
+                                  {isLeaf && (
+                                    <div className="flex flex-wrap items-center gap-1.5" data-testid="wbs-activity-header-signals">
+                                      <Badge variant="outline" className="text-[8px] font-bold py-0 px-1.5 h-auto bg-slate-50 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300">
+                                        Progress: {physicalPercent}%
+                                      </Badge>
+                                      <Badge
+                                        variant="outline"
+                                        className={`text-[8px] font-bold py-0 px-1.5 h-auto border ${getClosureStatusBadgeClass(getClosureStatus(activeClaim))}`}
+                                        data-testid={`wbs-header-closure-${getClosureStatus(activeClaim)}`}
+                                      >
+                                        Closure: {getClosureStatusLabel(getClosureStatus(activeClaim))}
+                                      </Badge>
+                                      <Badge
+                                        variant="outline"
+                                        className={`text-[8px] font-bold py-0 px-1.5 h-auto border ${getVerificationHeaderBadgeClass(activeClaim)}`}
+                                        data-testid={`wbs-header-verification-${getVerificationHeaderLabel(activeClaim).toLowerCase()}`}
+                                      >
+                                        Verification: {getVerificationHeaderLabel(activeClaim)}
+                                      </Badge>
+                                    </div>
+                                  )}
                                 </div>
 
                                 {/* EVM Variance Warning Banner inside Popover */}
@@ -2835,8 +2876,8 @@ export default function WBSBuilder({
                                   </div>
                                 )}
 
-                                {/* Budget Section */}
-                                {(rollup.plannedTotal > 0 || rollup.itemCount > 0 || item.level === 1 || item.level === 2) && (
+                                {/* Budget Section — for level-2 Activities this rolls into the Finance row under Related */}
+                                {item.level !== 2 && (rollup.plannedTotal > 0 || rollup.itemCount > 0 || item.level === 1) && (
                                   <div className="space-y-1.5 bg-slate-50 dark:bg-slate-950/50 p-2 rounded border border-slate-200 dark:border-slate-800">
                                     <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                                       <span className="flex items-center gap-1">
@@ -2878,22 +2919,14 @@ export default function WBSBuilder({
                                   </div>
                                 )}
 
-                              {/* Activity Completion Record (ACR) Section for Leaf Items */}
+                              {/* Activity Completion Record (ACR) — the dominant, primary card. Closure/Verification
+                                  now live in the popover header above, so this card stays focused on the ACR
+                                  content itself and the single trigger to open it. */}
                               {isLeaf && (
                                 <div className="space-y-1.5 bg-slate-50 dark:bg-slate-950/50 p-2 rounded border border-slate-200 dark:border-slate-800">
-                                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between gap-1">
-                                    <span className="flex items-center gap-1">
-                                      <ClipboardCheck className="h-3 w-3 text-amber-600" />
-                                      Activity Completion Record (ACR)
-                                    </span>
-                                    <Badge
-                                      variant="outline"
-                                      className={`text-[8px] font-bold py-0 px-1.5 h-auto border ${getClosureStatusBadgeClass(getClosureStatus(activeClaim))}`}
-                                      title="Closure Status: Open (belum ada ACR) / Documented (ACR disubmit) / Closed (Evidence Verification cukup)"
-                                      data-testid={`wbs-closure-status-${getClosureStatus(activeClaim)}`}
-                                    >
-                                      {getClosureStatusLabel(getClosureStatus(activeClaim))}
-                                    </Badge>
+                                  <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                    <ClipboardCheck className="h-3 w-3 text-amber-600" />
+                                    Activity Completion Record (ACR)
                                   </div>
 
                                   <div className="flex flex-wrap items-center gap-1.5 pt-0.5" data-testid="wbs-claim-badge-group">
@@ -2936,14 +2969,15 @@ export default function WBSBuilder({
                                 </div>
                               )}
 
-                              {/* Deliverable Linking Section (PM only) */}
-                              {productMode === 'project_management' && item.level === 2 && (
-                                <div className="space-y-1.5 bg-violet-50/50 dark:bg-violet-950/20 p-2 rounded border border-violet-200 dark:border-violet-900/40">
-                                  <div className="text-[10px] font-bold text-violet-700 dark:text-violet-400 uppercase tracking-wider flex items-center gap-1">
-                                    <Package className="h-3 w-3 text-violet-600" />
-                                    Deliverables
-                                  </div>
-                                  {(() => {
+                              {/* Related — one compact section referencing Deliverable/Bottleneck/Finance.
+                                  These stay independent domains; this is a one-line reference each,
+                                  collapsed by default, not a standalone management surface. */}
+                              {item.level === 2 && (
+                                <div className="space-y-1 pt-1 border-t border-slate-200 dark:border-slate-800">
+                                  <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Related</div>
+
+                                  {/* Deliverable row */}
+                                  {productMode === 'project_management' && (() => {
                                     const subIds = getSubtreeWbsIds(item.id);
                                     const allDeliverableIds = new Set<string>();
                                     const linked: { id: string; name: string; status: string }[] = [];
@@ -2958,155 +2992,203 @@ export default function WBSBuilder({
                                         }
                                       }
                                     }
-                                    if (linked.length === 0) {
-                                      return (
-                                        <div className="space-y-1.5 pt-0.5">
-                                          <div className="flex items-center justify-between">
-                                            <span className="text-[9px] text-muted-foreground">
-                                              Activity ini belum dikonversi menjadi Deliverable.
-                                            </span>
-                                          </div>
-                                          <Button
-                                            variant="default"
-                                            size="sm"
-                                            className="h-6 text-[9px] px-2 w-full"
-                                            onClick={() => {
-                                              const actName = encodeURIComponent(item.name);
-                                              const actPic = encodeURIComponent(item.pic || '');
-                                              const actDate = item.planned_end_date || '';
-                                              navigate(`/dashboard/project-management/${projectId}/deliverables?create=1&actId=${item.id}&actName=${actName}&actPic=${actPic}&actDate=${actDate}`);
-                                            }}
-                                          >
-                                            <Plus className="mr-1 h-3 w-3" />
-                                            Konversi Menjadi Deliverable
-                                          </Button>
-                                        </div>
-                                      );
-                                    }
+                                    const expanded = isRelatedExpanded(item.id, 'deliverable');
                                     return (
-                                      <div className="pt-0.5 space-y-1.5">
-                                        {linked.map((d) => (
-                                          <div key={d.id} className="flex items-center justify-between gap-1">
-                                            <div className="flex items-center gap-1.5 min-w-0">
-                                              <Badge variant="outline" className={`text-[9px] py-0 h-auto shrink-0 ${d.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : d.status === 'submitted' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-violet-50 text-violet-700 border-violet-200'}`}>
-                                                {d.status === 'approved' ? 'Disetujui' : d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Not Started'}
-                                              </Badge>
-                                              <span className="text-[9px] truncate">{d.name}</span>
-                                            </div>
-                                            <Button
-                                              variant="ghost"
-                                              size="sm"
-                                              className="h-5 text-[8px] px-1 shrink-0"
-                                              onClick={() => navigate(`/dashboard/project-management/${projectId}/deliverables?actId=${item.id}`)}
-                                            >
-                                              Lihat
-                                            </Button>
+                                      <div className="rounded border border-slate-100 dark:border-slate-800">
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleRelated(item.id, 'deliverable')}
+                                          className="w-full flex items-center justify-between gap-1.5 px-1.5 py-1 text-[10px] hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                                          data-testid="wbs-related-deliverable-toggle"
+                                        >
+                                          <span className="flex items-center gap-1 truncate">
+                                            <Package className="h-3 w-3 text-violet-600 shrink-0" />
+                                            <span className="font-semibold shrink-0">Deliverable:</span>
+                                            <span className="truncate text-slate-500">
+                                              {linked.length === 0 ? '—' : linked.length === 1 ? linked[0].name : `${linked.length} tertaut`}
+                                            </span>
+                                          </span>
+                                          {expanded ? <ChevronUp className="h-3 w-3 shrink-0 text-slate-400" /> : <ChevronDown className="h-3 w-3 shrink-0 text-slate-400" />}
+                                        </button>
+                                        {expanded && (
+                                          <div className="px-1.5 pb-1.5 space-y-1.5">
+                                            {linked.length === 0 ? (
+                                              <Button
+                                                variant="default"
+                                                size="sm"
+                                                className="h-6 text-[9px] px-2 w-full"
+                                                onClick={() => {
+                                                  const actName = encodeURIComponent(item.name);
+                                                  const actPic = encodeURIComponent(item.pic || '');
+                                                  const actDate = item.planned_end_date || '';
+                                                  navigate(`/dashboard/project-management/${projectId}/deliverables?create=1&actId=${item.id}&actName=${actName}&actPic=${actPic}&actDate=${actDate}`);
+                                                }}
+                                              >
+                                                <Plus className="mr-1 h-3 w-3" />
+                                                Konversi Menjadi Deliverable
+                                              </Button>
+                                            ) : (
+                                              linked.map((d) => (
+                                                <div key={d.id} className="flex items-center justify-between gap-1">
+                                                  <div className="flex items-center gap-1.5 min-w-0">
+                                                    <Badge variant="outline" className={`text-[9px] py-0 h-auto shrink-0 ${d.status === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : d.status === 'submitted' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-violet-50 text-violet-700 border-violet-200'}`}>
+                                                      {d.status === 'approved' ? 'Disetujui' : d.status === 'submitted' ? 'Submitted' : d.status === 'in_progress' ? 'In Progress' : 'Not Started'}
+                                                    </Badge>
+                                                    <span className="text-[9px] truncate">{d.name}</span>
+                                                  </div>
+                                                  <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-5 text-[8px] px-1 shrink-0"
+                                                    onClick={() => navigate(`/dashboard/project-management/${projectId}/deliverables?actId=${item.id}`)}
+                                                  >
+                                                    Lihat
+                                                  </Button>
+                                                </div>
+                                              ))
+                                            )}
                                           </div>
-                                        ))}
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
+
+                                  {/* Bottleneck row */}
+                                  {(() => {
+                                    const expanded = isRelatedExpanded(item.id, 'bottleneck');
+                                    const categoryLabels: Record<string, string> = {
+                                      donor_disbursement: 'Pencairan Donor',
+                                      internal_approval: 'Persetujuan Internal',
+                                      vendor_delay: 'Keterlambatan Vendor',
+                                      field_condition: 'Kondisi Lapangan',
+                                      force_majeure: 'Force Majeure',
+                                    };
+                                    return (
+                                      <div className="rounded border border-slate-100 dark:border-slate-800">
+                                        <div className="w-full flex items-center justify-between gap-1.5 px-1.5 py-1">
+                                          <button
+                                            type="button"
+                                            onClick={() => toggleRelated(item.id, 'bottleneck')}
+                                            className="flex items-center gap-1 truncate text-[10px] flex-1 min-w-0 text-left"
+                                            data-testid="wbs-related-bottleneck-toggle"
+                                          >
+                                            <AlertTriangle className="h-3 w-3 text-rose-600 shrink-0" />
+                                            <span className="font-semibold shrink-0">Bottleneck:</span>
+                                            <span className="truncate text-slate-500">
+                                              {item.blocker_category ? categoryLabels[item.blocker_category] || item.blocker_category : 'None'}
+                                            </span>
+                                          </button>
+                                          {!item.blocker_category && !expanded && (
+                                            <button
+                                              type="button"
+                                              onClick={() => toggleRelated(item.id, 'bottleneck')}
+                                              className="text-[9px] text-rose-700 hover:text-rose-800 font-semibold shrink-0"
+                                              data-testid="wbs-related-bottleneck-flag-btn"
+                                            >
+                                              + Flag
+                                            </button>
+                                          )}
+                                          <button type="button" onClick={() => toggleRelated(item.id, 'bottleneck')} className="shrink-0">
+                                            {expanded ? <ChevronUp className="h-3 w-3 text-slate-400" /> : <ChevronDown className="h-3 w-3 text-slate-400" />}
+                                          </button>
+                                        </div>
+                                        {expanded && (
+                                          <div className="px-1.5 pb-1.5 space-y-1.5">
+                                            <select
+                                              value={item.blocker_category || ''}
+                                              data-testid="wbs-blocker-category-select"
+                                              onChange={(e) => {
+                                                const val = (e.target.value || null) as WbsBlockerCategory | null;
+                                                const updated = { ...item, blocker_category: val };
+                                                updateItemLocally(updated);
+                                                triggerAutosave(updated);
+                                              }}
+                                              className="text-xs w-full border bg-white dark:bg-slate-900 rounded p-1 focus:outline-none dark:border-slate-800 text-rose-800 dark:text-rose-300 font-medium"
+                                            >
+                                              <option value="">-- Pilih Kategori Hambatan --</option>
+                                              <option value="donor_disbursement">🏛️ Pencairan Donor (Donor Disbursement)</option>
+                                              <option value="internal_approval">📑 Persetujuan Internal (Internal Approval)</option>
+                                              <option value="vendor_delay">🚚 Keterlambatan Vendor (Vendor Delay)</option>
+                                              <option value="field_condition">🌧️ Kondisi Lapangan (Field Condition)</option>
+                                              <option value="force_majeure">⚠️ Force Majeure</option>
+                                            </select>
+                                            <textarea
+                                              value={item.blocker_notes || ''}
+                                              data-testid="wbs-blocker-notes-input"
+                                              placeholder="Catatan kendala operasional (penjelasan detail penyebab hambatan)..."
+                                              onChange={(e) => {
+                                                const updated = { ...item, blocker_notes: e.target.value || null };
+                                                updateItemLocally(updated);
+                                                triggerAutosave(updated);
+                                              }}
+                                              className="text-xs w-full h-12 border bg-white dark:bg-slate-900 rounded p-1.5 focus:outline-none dark:border-slate-800"
+                                            />
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })()}
+
+                                  {/* Finance row — read-only summary; editing stays in the Budget module */}
+                                  {(() => {
+                                    const expanded = isRelatedExpanded(item.id, 'finance');
+                                    const financialStatusLabels: Record<string, string> = {
+                                      draft: 'Draf Anggaran',
+                                      committed: 'Committed',
+                                      disbursement_requested: 'Disbursement Requested',
+                                      paid: 'Paid',
+                                      blocked_by_finance: 'Blocked by Finance',
+                                    };
+                                    const statusKey = item.financial_status || 'draft';
+                                    return (
+                                      <div className="rounded border border-slate-100 dark:border-slate-800">
+                                        <button
+                                          type="button"
+                                          onClick={() => toggleRelated(item.id, 'finance')}
+                                          className="w-full flex items-center justify-between gap-1.5 px-1.5 py-1 text-[10px] hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                                          data-testid="wbs-related-finance-toggle"
+                                        >
+                                          <span className="flex items-center gap-1 truncate">
+                                            <Wallet className="h-3 w-3 text-indigo-600 shrink-0" />
+                                            <span className="font-semibold shrink-0">Finance:</span>
+                                            <span className="truncate text-slate-500">
+                                              {formatBudgetBadge(rollup.plannedTotal)} · {financialStatusLabels[statusKey] || statusKey}
+                                            </span>
+                                          </span>
+                                          {expanded ? <ChevronUp className="h-3 w-3 shrink-0 text-slate-400" /> : <ChevronDown className="h-3 w-3 shrink-0 text-slate-400" />}
+                                        </button>
+                                        {expanded && (
+                                          <div className="px-1.5 pb-1.5 space-y-1.5">
+                                            <div className="flex flex-wrap items-center gap-1.5">
+                                              <Badge variant="outline" className="text-[9px] font-semibold bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 py-0.5 h-auto">
+                                                Planned: {formatBudgetBadge(rollup.plannedTotal)}
+                                              </Badge>
+                                              {rollup.hasRealization && (
+                                                <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-800 border-blue-200 py-0.5 h-auto">
+                                                  Real: {formatBudgetBadge(rollup.realizedTotal || 0)} {rollup.burnPercent !== null ? `(${rollup.burnPercent}%)` : ''}
+                                                </Badge>
+                                              )}
+                                              <Badge variant="outline" className="text-[8.5px] uppercase font-bold py-0 h-4">
+                                                {financialStatusLabels[statusKey] || statusKey}
+                                              </Badge>
+                                            </div>
+                                            {onNavigateToBudget && (
+                                              <button
+                                                onClick={() => onNavigateToBudget(item.id)}
+                                                className="text-[9px] text-emerald-600 hover:underline flex items-center gap-0.5 font-semibold"
+                                                title="Kelola Anggaran & Status Siklus Keuangan di Modul Anggaran"
+                                              >
+                                                <span>Buka Modul Anggaran untuk Edit</span>
+                                                <ExternalLink className="h-2.5 w-2.5" />
+                                              </button>
+                                            )}
+                                          </div>
+                                        )}
                                       </div>
                                     );
                                   })()}
                                 </div>
                               )}
-
-                               {/* Financial Lifecycle Section (Sprint 3) */}
-                               {item.level === 2 && (
-                                 <div className="space-y-1.5 bg-slate-50 dark:bg-slate-950/50 p-2 rounded border border-slate-200 dark:border-slate-800">
-                                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center justify-between">
-                                     <span className="flex items-center gap-1">
-                                       <Wallet className="h-3 w-3 text-indigo-600" />
-                                       Status Siklus Keuangan WBS
-                                     </span>
-                                     <Badge variant="outline" className="text-[8.5px] uppercase font-bold py-0 h-4">
-                                       {item.financial_status || 'draft'}
-                                     </Badge>
-                                   </div>
-                                   <select
-                                     value={item.financial_status || 'draft'}
-                                     data-testid="wbs-financial-status-select"
-                                     onChange={(e) => {
-                                       const val = e.target.value as WbsFinancialStatus;
-                                       const updated = { ...item, financial_status: val };
-                                       updateItemLocally(updated);
-                                       triggerAutosave(updated);
-                                     }}
-                                     className="text-xs w-full border bg-white dark:bg-slate-900 rounded p-1 focus:outline-none dark:border-slate-800 font-medium"
-                                   >
-                                     <option value="draft">💰 Draf Anggaran</option>
-                                     <option value="committed">📌 Terikat (Committed)</option>
-                                     <option value="disbursement_requested">⏳ Minta Cair (Disbursement Requested)</option>
-                                     <option value="paid">✅ Cair / Paid</option>
-                                     <option value="blocked_by_finance">⛔ Ditahan Keuangan (Blocked by Finance)</option>
-                                   </select>
-                                 </div>
-                               )}
-
-                               {/* Bottleneck Intelligence Section (Sprint 3) */}
-                               {item.level === 2 && (
-                                 <div className="space-y-1.5 bg-rose-50/50 dark:bg-rose-950/20 p-2 rounded border border-rose-200 dark:border-rose-900/40">
-                                   <div className="text-[10px] font-bold text-rose-700 dark:text-rose-400 uppercase tracking-wider flex items-center gap-1">
-                                     <AlertTriangle className="h-3 w-3 text-rose-600" />
-                                     Bottleneck Intelligence (Akar Keterlambatan)
-                                   </div>
-                                   <div className="space-y-1.5">
-                                     <select
-                                       value={item.blocker_category || ''}
-                                       data-testid="wbs-blocker-category-select"
-                                       onChange={(e) => {
-                                         const val = (e.target.value || null) as WbsBlockerCategory | null;
-                                         const updated = { ...item, blocker_category: val };
-                                         updateItemLocally(updated);
-                                         triggerAutosave(updated);
-                                       }}
-                                       className="text-xs w-full border bg-white dark:bg-slate-900 rounded p-1 focus:outline-none dark:border-slate-800 text-rose-800 dark:text-rose-300 font-medium"
-                                     >
-                                       <option value="">-- Pilih Kategori Hambatan --</option>
-                                       <option value="donor_disbursement">🏛️ Pencairan Donor (Donor Disbursement)</option>
-                                       <option value="internal_approval">📑 Persetujuan Internal (Internal Approval)</option>
-                                       <option value="vendor_delay">🚚 Keterlambatan Vendor (Vendor Delay)</option>
-                                       <option value="field_condition">🌧️ Kondisi Lapangan (Field Condition)</option>
-                                       <option value="force_majeure">⚠️ Force Majeure</option>
-                                     </select>
-                                     <textarea
-                                       value={item.blocker_notes || ''}
-                                       data-testid="wbs-blocker-notes-input"
-                                       placeholder="Catatan kendala operasional (penjelasan detail penyebab hambatan)..."
-                                       onChange={(e) => {
-                                         const updated = { ...item, blocker_notes: e.target.value || null };
-                                         updateItemLocally(updated);
-                                         triggerAutosave(updated);
-                                       }}
-                                       className="text-xs w-full h-12 border bg-white dark:bg-slate-900 rounded p-1.5 focus:outline-none dark:border-slate-800"
-                                     />
-                                   </div>
-                                  </div>
-                                )}
-
-                               {/* Pindah Stage (PM mode, Level 2 only) */}
-                               {item.level === 2 && productMode === 'project_management' && (
-                                 <div className="space-y-1.5 bg-slate-50 dark:bg-slate-950/50 p-2 rounded border border-slate-200 dark:border-slate-800">
-                                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                     <span>Pindah Stage</span>
-                                   </div>
-                                   <select
-                                     value={(() => {
-                                       const l1 = item.parent_id ? wbsItems.find((w) => w.id === item.parent_id) : null;
-                                       return l1?.stage_id || '';
-                                     })()}
-                                     onChange={(e) => {
-                                       const newStageId = e.target.value || null;
-                                       const l1 = item.parent_id ? wbsItems.find((w) => w.id === item.parent_id) : null;
-                                       if (l1) { void handleAssignStage(l1.id, newStageId); }
-                                     }}
-                                     className="text-xs w-full border bg-white dark:bg-slate-900 rounded p-1 focus:outline-none dark:border-slate-800"
-                                   >
-                                     <option value="">Unassigned</option>
-                                     {stages.filter((s) => !s.archived_at).map((s) => (
-                                       <option key={s.id} value={s.id}>{s.title}</option>
-                                     ))}
-                                   </select>
-                                 </div>
-                               )}
                               </PopoverContent>
                            </Popover>
                         </div>
