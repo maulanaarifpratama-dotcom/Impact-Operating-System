@@ -23,6 +23,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { ProjectWorkspaceNav } from '../ProjectWorkspaceNav';
 import { useOrgRole } from '@/hooks/useOrgRole';
 import CompletionClaimReviewDialog from '@/components/verification/CompletionClaimReviewDialog';
+import {
+  isOverdue, isBlocked, getExecutionBucket, getClosureStatus, CLOSED_CLAIM_STATUS,
+} from '@/lib/project-management/executionModel';
 
 // PM + MEAL Canonicalization: ACR is the single source of truth. 'activity' stays a valid
 // tab (reachable via ?tab=activity from Control Center) but is deliberately left out of the
@@ -96,26 +99,25 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
       if (wbsRes.error) throw wbsRes.error;
       if (claimsRes.error) throw claimsRes.error;
 
-      // Work Plan owns execution status (Belum Mulai / Sedang Berjalan / Selesai).
-      // Overdue and Blocked are derived, never manual flags: Overdue = today > end_date
-      // AND status != completed; Blocked = an active bottleneck (blocker_category) is set.
+      // Work Plan owns execution status; Overdue/Blocked are derived — all three
+      // via the canonical predicates in executionModel.ts, shared with Work Plan and Timeline.
       const activities = (wbsRes.data || []) as any[];
-      const now = new Date();
       let execOpen = 0, execInProgress = 0, execCompleted = 0, execOverdue = 0, execBlocked = 0;
       for (const a of activities) {
-        if (a.status === 'completed') execCompleted++;
-        else if (a.status === 'in_progress') execInProgress++;
-        else execOpen++; // not_started, or any legacy/non-canonical status, defaults to Open
+        const bucket = getExecutionBucket(a.status);
+        if (bucket === 'completed') execCompleted++;
+        else if (bucket === 'in_progress') execInProgress++;
+        else execOpen++;
 
-        if (a.status !== 'completed' && a.end_date && new Date(a.end_date) < now) execOverdue++;
-        if (a.blocker_category) execBlocked++;
+        if (isOverdue(a)) execOverdue++;
+        if (isBlocked(a)) execBlocked++;
       }
 
       const claims = (claimsRes.data || []) as any[];
 
       // One active (non-cancelled) claim per Activity — takes the most recent by submitted_at.
-      // ACR ownership is separate from execution status: Documented/Closed describe the
-      // completion RECORD (Evidence Verification), never the Activity's own execution status.
+      // ACR ownership is separate from execution status: getClosureStatus (executionModel.ts)
+      // is the single source for Documented/Closed, shared with Work Plan and the ACR tab.
       const latestByItem = new Map<string, any>();
       for (const c of claims) {
         if (c.status === 'cancelled') continue;
@@ -128,8 +130,9 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
       let acrClosed = 0;
       let acrDocumented = 0;
       for (const c of latestByItem.values()) {
-        if (c.status === 'verified') acrClosed++;
-        else if (c.status === 'submitted') acrDocumented++;
+        const closure = getClosureStatus(c);
+        if (closure === 'closed') acrClosed++;
+        else if (closure === 'documented') acrDocumented++;
       }
       const pendingVerification = acrDocumented; // Documented == awaiting Evidence Verification
 
@@ -292,7 +295,7 @@ function DeliverablesTab({ projectId }: { projectId: string }) {
         .from('wbs_completion_claims')
         .select('id, wbs_item_id, reviewed_at, submitted_at')
         .eq('lfa_project_id', projectId)
-        .eq('status', 'verified')
+        .eq('status', CLOSED_CLAIM_STATUS)
         .order('reviewed_at', { ascending: false });
 
       const claimRows = (claims || []) as any[];

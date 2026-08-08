@@ -39,6 +39,10 @@ import ProjectTimelineView from '@/pages/dashboard/project-management/wbs/Projec
 import { useOrgRole } from '@/hooks/useOrgRole';
 import { formatMember, formatMemberCompact, type MemberDisplay } from '@/lib/memberDisplay';
 import { type WorkPlanFilter } from '@/lib/project-management/assignmentModel';
+import {
+  isOverdue, isBlocked, getClosureStatus, getClosureStatusLabel, getClosureStatusBadgeClass,
+  CLOSED_CLAIM_STATUS,
+} from '@/lib/project-management/executionModel';
 
 type WbsClaimInsert = Database['public']['Tables']['wbs_completion_claims']['Insert'];
 
@@ -1014,34 +1018,11 @@ export default function WBSBuilder({
   const isAcrEditable = (claim: WbsCompletionClaim | null) =>
     !claim || claim.status === 'needs_revision' || claim.status === 'draft';
 
-  const getClosureStatus = (claim: WbsCompletionClaim | undefined | null): 'open' | 'documented' | 'closed' => {
-    if (!claim) return 'open';
-    if (claim.status === 'verified') return 'closed';
-    if (claim.status === 'submitted') return 'documented';
-    return 'open'; // draft, needs_revision, rejected, cancelled all revert to Open
-  };
-
-  const getClosureStatusLabel = (status: 'open' | 'documented' | 'closed') => {
-    switch (status) {
-      case 'closed': return 'Closed';
-      case 'documented': return 'Documented';
-      default: return 'Open';
-    }
-  };
-
-  const getClosureStatusBadgeClass = (status: 'open' | 'documented' | 'closed') => {
-    switch (status) {
-      case 'closed': return 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400';
-      case 'documented': return 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-400';
-      default: return 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300';
-    }
-  };
-
   // Simple two-state Verification signal for the Activity header (PM ACR UX Cleanup)
   const getVerificationHeaderLabel = (claim: WbsCompletionClaim | undefined | null) =>
-    claim?.status === 'verified' ? 'Sufficient' : 'Pending';
+    claim?.status === CLOSED_CLAIM_STATUS ? 'Sufficient' : 'Pending';
   const getVerificationHeaderBadgeClass = (claim: WbsCompletionClaim | undefined | null) =>
-    claim?.status === 'verified'
+    claim?.status === CLOSED_CLAIM_STATUS
       ? 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400'
       : 'bg-slate-100 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-300';
 
@@ -1958,14 +1939,10 @@ export default function WBSBuilder({
         if (workPlanFilter === 'all') return true;
         if (workPlanFilter === 'my-work') return user?.id && item.owner_id === user.id;
         if (workPlanFilter === 'unassigned') return !item.owner_id;
-        // Terblokir — derived from the Activity Bottleneck (blocker_category), never a manual toggle.
-        if (workPlanFilter === 'blocked') return !!item.blocker_category;
-        // Terlambat — today > end_date AND execution status != Selesai. Real dates only, no schedule approximation.
-        if (workPlanFilter === 'overdue') {
-          if (item.status === 'completed') return false;
-          if (!item.end_date) return false;
-          return new Date(item.end_date) < new Date();
-        }
+        // Terblokir / Terlambat — canonical predicates from executionModel.ts, the single
+        // source shared with Timeline and Control Center. Never reimplemented locally.
+        if (workPlanFilter === 'blocked') return isBlocked(item);
+        if (workPlanFilter === 'overdue') return isOverdue(item);
         return true;
       })
       .forEach((item) => {
