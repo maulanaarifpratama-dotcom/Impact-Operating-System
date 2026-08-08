@@ -39,10 +39,7 @@ interface ClaimDisplay {
   reviewedBy: string | null;
   reviewedAt: string | null;
   facts?: AcrFact[] | null;
-  lessonsLearned?: string | null;
   observations?: string | null;
-  recommendations?: string | null;
-  nextAction?: string | null;
 }
 
 interface WbsContext {
@@ -220,15 +217,10 @@ export default function CompletionClaimReviewDialog({
             </div>
           )}
 
-          {(claim.lessonsLearned || claim.observations || claim.recommendations || claim.nextAction) && (
+          {claim.observations && (
             <div className="space-y-1">
-              <Label className="text-xs font-bold">Reflection:</Label>
-              <div className="space-y-1 text-[11px] text-slate-700 dark:text-slate-300">
-                {claim.lessonsLearned && <p><span className="font-bold">Lessons Learned:</span> {claim.lessonsLearned}</p>}
-                {claim.observations && <p><span className="font-bold">Observations:</span> {claim.observations}</p>}
-                {claim.recommendations && <p><span className="font-bold">Recommendations:</span> {claim.recommendations}</p>}
-                {claim.nextAction && <p><span className="font-bold">Next Action:</span> {claim.nextAction}</p>}
-              </div>
+              <Label className="text-xs font-bold">Notes / Observations:</Label>
+              <p className="text-[11px] text-slate-700 dark:text-slate-300">{claim.observations}</p>
             </div>
           )}
 

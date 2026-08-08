@@ -286,12 +286,11 @@ export interface WbsCompletionClaim {
   review_note?: string | null;
   created_at?: string;
   updated_at?: string;
-  // ACR Facts & Reflection (PM ACR v1 Phase 1)
+  // ACR Facts & Notes (PM + MEAL v1 Final Simplification). Lessons Learned /
+  // Recommendations / Next Action were removed — Learning is derived later
+  // from Evidence + Facts + Notes, not captured as separate fields here.
   facts?: WbsFact[] | null;
-  lessons_learned?: string | null;
   observations?: string | null;
-  recommendations?: string | null;
-  next_action?: string | null;
 }
 
 export type WbsEvidenceType = 'file' | 'link' | 'note' | 'manual_url' | 'onedrive' | 'other';

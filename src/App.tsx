@@ -78,9 +78,6 @@ const ProjectBudgetPage = lazy(
 const ProjectMEALPage = lazy(
   () => import('./pages/dashboard/project-management/meal/ProjectMEALPage'),
 );
-const ProjectDeliverablesPage = lazy(
-  () => import('./pages/dashboard/project-management/deliverables/ProjectDeliverablesPage'),
-);
 const ProjectActivityPage = lazy(
   () => import('./pages/dashboard/project-management/activity/ProjectActivityPage'),
 );
@@ -273,6 +270,10 @@ const App = () => (
               />
               <Route
                 path="/dashboard/project-management/:projectId/deliverables"
+                element={<RedirectToMeal />}
+              />
+              <Route
+                path="/dashboard/project-management/:projectId/milestones"
                 element={<RedirectToMeal />}
               />
               <Route

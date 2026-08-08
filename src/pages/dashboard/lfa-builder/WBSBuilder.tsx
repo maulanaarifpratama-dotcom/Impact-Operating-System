@@ -47,11 +47,12 @@ import {
 
 type WbsClaimInsert = Database['public']['Tables']['wbs_completion_claims']['Insert'];
 
-// ACR Facts default rows (PM ACR v1 Phase 1) — simple activity-level counters,
-// not indicator-mapped. Users can add custom rows beyond this list.
-const DEFAULT_ACR_FACT_LABELS = [
-  'Peserta', 'Perempuan', 'Laki-laki', 'Organisasi', 'Desa', 'Rumah Tangga', 'Penerima Manfaat',
-];
+// ACR Facts (PM + MEAL v1 Final Simplification) — simple activity-level counters,
+// not indicator-mapped. Only Peserta/Penerima Manfaat show by default; the rest
+// collapse under "More Facts". Users can add custom rows beyond this list.
+const PRIMARY_ACR_FACT_LABELS = ['Peserta', 'Penerima Manfaat'];
+const SECONDARY_ACR_FACT_LABELS = ['Perempuan', 'Laki-laki', 'Organisasi', 'Desa', 'Rumah Tangga'];
+const DEFAULT_ACR_FACT_LABELS = [...PRIMARY_ACR_FACT_LABELS, ...SECONDARY_ACR_FACT_LABELS];
 
 const buildDefaultAcrFacts = (): WbsFact[] =>
   DEFAULT_ACR_FACT_LABELS.map((label) => ({ label, value: '' }));
@@ -334,10 +335,8 @@ export default function WBSBuilder({
 
   // ACR Facts & Reflection State (PM ACR v1 Phase 1)
   const [acrFacts, setAcrFacts] = useState<WbsFact[]>([]);
-  const [acrLessonsLearned, setAcrLessonsLearned] = useState('');
-  const [acrObservations, setAcrObservations] = useState('');
-  const [acrRecommendations, setAcrRecommendations] = useState('');
-  const [acrNextAction, setAcrNextAction] = useState('');
+  const [acrObservations, setAcrObservations] = useState(''); // ACR Notes / Observations (single field)
+  const [acrMoreFactsOpen, setAcrMoreFactsOpen] = useState(false);
 
   // Related section collapse state (PM ACR UX Cleanup) — keyed `${itemId}:deliverable|bottleneck|finance`
   const [relatedExpanded, setRelatedExpanded] = useState<Record<string, boolean>>({});
@@ -994,11 +993,14 @@ export default function WBSBuilder({
     setClaimNote(existing?.claim_note || '');
     setClaimedProgress(existing?.claimed_progress ?? item.progress_percent ?? (item.status === 'completed' ? 100 : 0));
     setNewEvidences([]);
-    setAcrFacts(existing?.facts && existing.facts.length > 0 ? existing.facts : buildDefaultAcrFacts());
-    setAcrLessonsLearned(existing?.lessons_learned || '');
+    const facts = existing?.facts && existing.facts.length > 0 ? existing.facts : buildDefaultAcrFacts();
+    setAcrFacts(facts);
     setAcrObservations(existing?.observations || '');
-    setAcrRecommendations(existing?.recommendations || '');
-    setAcrNextAction(existing?.next_action || '');
+    // Auto-expand "More Facts" if any non-primary fact already has a value, so
+    // reopening an existing ACR never hides data the user already entered.
+    setAcrMoreFactsOpen(
+      facts.some((f, idx) => idx >= PRIMARY_ACR_FACT_LABELS.length && f.value.trim() !== '')
+    );
     setClaimDialogOpen(true);
   };
 
@@ -1062,15 +1064,6 @@ export default function WBSBuilder({
   const handleSubmitClaim = async () => {
     if (!activeTrackingItem || !orgId || !projectId) return;
 
-    if (!acrLessonsLearned.trim()) {
-      toast({
-        title: 'Lessons Learned Diperlukan',
-        description: 'Isi minimal satu kalimat Lessons Learned sebelum mengirim ACR.',
-        variant: 'destructive',
-      });
-      return;
-    }
-
     // Drop custom fact rows the user added but never labeled; keep all
     // default rows even if left blank (an unfilled counter is still signal).
     const cleanedFacts = acrFacts.filter((f) => f.label.trim().length > 0);
@@ -1079,15 +1072,14 @@ export default function WBSBuilder({
     try {
       let claimId = existingClaim?.id;
 
-      // ACR Facts & Reflection payload (PM ACR v1 Phase 1). Cast via `as any`:
-      // these columns were added in 20260808070000_add_acr_facts_reflection_to_wbs_completion_claims.sql
-      // and are not yet reflected in the generated Database Insert/Update types.
+      // ACR Facts & Notes payload (PM + MEAL v1 Final Simplification). Lessons
+      // Learned / Recommendations / Next Action were removed entirely — Notes/
+      // Observations is the only narrative field; Learning is derived later
+      // from Evidence + Facts + Notes, not captured as separate fields here.
+      // Cast via `as any`: these columns predate the generated Insert/Update types.
       const acrFieldsPayload = {
         facts: cleanedFacts,
-        lessons_learned: acrLessonsLearned.trim(),
         observations: acrObservations.trim() || null,
-        recommendations: acrRecommendations.trim() || null,
-        next_action: acrNextAction.trim() || null,
       };
 
       if (existingClaim && existingClaim.status === 'needs_revision') {
@@ -4266,15 +4258,15 @@ export default function WBSBuilder({
               </div>
             )}
 
-            {/* Claim Note Input */}
+            {/* Activity Summary */}
             <div className="space-y-1.5">
-              <Label htmlFor="wbs-claim-note" className="text-xs font-bold">Catatan Ringkasan Execution:</Label>
+              <Label htmlFor="wbs-claim-note" className="text-xs font-bold">Activity Summary:</Label>
               <Textarea
                 id="wbs-claim-note"
-                aria-label="Catatan Ringkasan Execution"
+                aria-label="Activity Summary"
                 value={claimNote}
                 onChange={(e) => setClaimNote(e.target.value)}
-                placeholder="Jelaskan secara singkat pencapaian target, lokasi kegiatan, atau catatan penting lapangan..."
+                placeholder="Apa yang terjadi dalam aktivitas ini?"
                 className="text-xs h-20"
                 disabled={existingClaim && existingClaim.status !== 'needs_revision' && existingClaim.status !== 'draft'}
                 data-testid="wbs-claim-note-input"
@@ -4298,17 +4290,19 @@ export default function WBSBuilder({
               />
             </div>
 
-            {/* ACR Facts (PM ACR v1 Phase 1) — activity-level notes only, no
-                Beneficiary Registry / ESG / Reporting integration. */}
+            {/* ACR Facts — only Peserta/Penerima Manfaat show by default; the
+                rest collapse under "More Facts" (PM + MEAL v1 Final Simplification). */}
             <div className="space-y-1.5 pt-2 border-t">
               <Label className="text-xs font-bold flex items-center gap-1">
                 <FileText className="h-3.5 w-3.5 text-slate-500" />
-                Facts (Catatan Angka Aktivitas):
+                Facts:
               </Label>
               <div className="space-y-1.5">
                 {acrFacts.map((fact, idx) => {
                   const isDefaultRow = idx < DEFAULT_ACR_FACT_LABELS.length;
+                  const isPrimaryRow = idx < PRIMARY_ACR_FACT_LABELS.length;
                   const locked = !isAcrEditable(existingClaim);
+                  if (!isPrimaryRow && !acrMoreFactsOpen) return null;
                   return (
                     <div key={idx} className="flex items-center gap-1.5" data-testid={`wbs-acr-fact-row-${idx}`}>
                       {isDefaultRow ? (
@@ -4346,7 +4340,16 @@ export default function WBSBuilder({
                   );
                 })}
               </div>
-              {isAcrEditable(existingClaim) && (
+              <button
+                type="button"
+                onClick={() => setAcrMoreFactsOpen((v) => !v)}
+                className="text-[10px] text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 font-semibold flex items-center gap-0.5"
+                data-testid="wbs-acr-more-facts-toggle"
+              >
+                {acrMoreFactsOpen ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                More Facts
+              </button>
+              {acrMoreFactsOpen && isAcrEditable(existingClaim) && (
                 <Button
                   type="button"
                   variant="outline"
@@ -4360,64 +4363,23 @@ export default function WBSBuilder({
               )}
             </div>
 
-            {/* ACR Reflection (PM ACR v1 Phase 1) */}
-            <div className="space-y-2 pt-2 border-t">
-              <Label className="text-xs font-bold flex items-center gap-1">
+            {/* ACR Notes / Observations — the only narrative field. Learning is
+                derived later from Evidence + Facts + Notes, not captured here. */}
+            <div className="space-y-1 pt-2 border-t">
+              <Label htmlFor="wbs-acr-observations" className="text-xs font-bold flex items-center gap-1">
                 <AlignLeft className="h-3.5 w-3.5 text-slate-500" />
-                Reflection:
+                Notes / Observations:
               </Label>
-              <div className="space-y-1">
-                <Label htmlFor="wbs-acr-lessons" className="text-[10px]">Lessons Learned (wajib diisi):</Label>
-                <Textarea
-                  id="wbs-acr-lessons"
-                  aria-label="Lessons Learned"
-                  value={acrLessonsLearned}
-                  onChange={(e) => setAcrLessonsLearned(e.target.value)}
-                  placeholder="Apa yang perlu diketahui orang lain jika menjalankan aktivitas serupa?"
-                  className="text-xs h-14"
-                  disabled={!isAcrEditable(existingClaim)}
-                  data-testid="wbs-acr-lessons-input"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="wbs-acr-observations" className="text-[10px]">Observations (opsional):</Label>
-                <Textarea
-                  id="wbs-acr-observations"
-                  aria-label="Observations"
-                  value={acrObservations}
-                  onChange={(e) => setAcrObservations(e.target.value)}
-                  placeholder="Apa yang Anda perhatikan di luar rencana selama pelaksanaan?"
-                  className="text-xs h-14"
-                  disabled={!isAcrEditable(existingClaim)}
-                  data-testid="wbs-acr-observations-input"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="wbs-acr-recommendations" className="text-[10px]">Recommendations (opsional):</Label>
-                <Textarea
-                  id="wbs-acr-recommendations"
-                  aria-label="Recommendations"
-                  value={acrRecommendations}
-                  onChange={(e) => setAcrRecommendations(e.target.value)}
-                  placeholder="Apa yang akan Anda lakukan berbeda di kesempatan berikutnya?"
-                  className="text-xs h-14"
-                  disabled={!isAcrEditable(existingClaim)}
-                  data-testid="wbs-acr-recommendations-input"
-                />
-              </div>
-              <div className="space-y-1">
-                <Label htmlFor="wbs-acr-next-action" className="text-[10px]">Next Action (opsional, satu baris):</Label>
-                <Input
-                  id="wbs-acr-next-action"
-                  aria-label="Next Action"
-                  value={acrNextAction}
-                  onChange={(e) => setAcrNextAction(e.target.value)}
-                  placeholder="Ada tindak lanjut yang perlu dilakukan?"
-                  className="h-7 text-xs"
-                  disabled={!isAcrEditable(existingClaim)}
-                  data-testid="wbs-acr-next-action-input"
-                />
-              </div>
+              <Textarea
+                id="wbs-acr-observations"
+                aria-label="Notes / Observations"
+                value={acrObservations}
+                onChange={(e) => setAcrObservations(e.target.value)}
+                placeholder="Catatan lapangan, kendala, observasi, atau hal penting lainnya."
+                className="text-xs h-16"
+                disabled={!isAcrEditable(existingClaim)}
+                data-testid="wbs-acr-observations-input"
+              />
             </div>
 
             {/* Existing Attached Evidence List */}
@@ -4794,22 +4756,11 @@ export default function WBSBuilder({
                           </div>
                         )}
 
-                        {/* ACR Reflection Section */}
-                        {(claim.lessons_learned || claim.observations || claim.recommendations || claim.next_action) && (
-                          <div className="space-y-1.5 pt-2 border-t text-xs">
-                            <span className="text-[10px] font-bold text-slate-500 block">Reflection:</span>
-                            {claim.lessons_learned && (
-                              <p className="text-slate-700 dark:text-slate-300"><span className="font-bold">Lessons Learned:</span> {claim.lessons_learned}</p>
-                            )}
-                            {claim.observations && (
-                              <p className="text-slate-700 dark:text-slate-300"><span className="font-bold">Observations:</span> {claim.observations}</p>
-                            )}
-                            {claim.recommendations && (
-                              <p className="text-slate-700 dark:text-slate-300"><span className="font-bold">Recommendations:</span> {claim.recommendations}</p>
-                            )}
-                            {claim.next_action && (
-                              <p className="text-slate-700 dark:text-slate-300"><span className="font-bold">Next Action:</span> {claim.next_action}</p>
-                            )}
+                        {/* ACR Notes / Observations */}
+                        {claim.observations && (
+                          <div className="space-y-1 pt-2 border-t text-xs">
+                            <span className="text-[10px] font-bold text-slate-500 block">Notes / Observations:</span>
+                            <p className="text-slate-700 dark:text-slate-300">{claim.observations}</p>
                           </div>
                         )}
 
