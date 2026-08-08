@@ -81,9 +81,6 @@ const ProjectMEALPage = lazy(
 const ProjectActivityPage = lazy(
   () => import('./pages/dashboard/project-management/activity/ProjectActivityPage'),
 );
-const ProjectOverviewPage = lazy(
-  () => import('./pages/dashboard/project-management/overview/ProjectOverviewPage'),
-);
 
 function RedirectToMeal() {
   const { projectId } = useParams<{ projectId: string }>();

@@ -7,15 +7,10 @@ import {
   ClipboardCheck,
   FileText,
   AlertTriangle,
-  Clock,
-  Target,
-  Wallet,
-  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
 import {
   Select,
   SelectContent,
@@ -26,20 +21,6 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { ProjectWorkspaceNav } from '../ProjectWorkspaceNav';
-import {
-  computeMonitoring,
-  type MonitoringOutput,
-  type WbsSnapshot,
-  type DeliverableSnapshot,
-  type ClaimSnapshot,
-  type EvidenceSnapshot,
-  type ActivityEvent,
-} from '@/lib/project-management/monitoringModel';
-import {
-  computeBudgetSnapshot,
-  type BudgetItemInput,
-} from '@/lib/budget/budgetModel';
-import { resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 import { useOrgRole } from '@/hooks/useOrgRole';
 import CompletionClaimReviewDialog from '@/components/verification/CompletionClaimReviewDialog';
 
@@ -90,128 +71,83 @@ const ENTITY_LABELS: Record<string, string> = {
   deliverable: 'Deliverable',
 };
 
-function formatIDR(n: number) {
-  return `Rp ${n.toLocaleString('id-ID')}`;
-}
-
-function ControlCenterTab({ projectId, orgId, onOpenActivityLog }: { projectId: string; orgId: string; onOpenActivityLog: () => void }) {
+// Control Center is a project health SUMMARY only — no duplicate ACR
+// rendering, no giant multi-domain dashboard. Everything here is either a
+// count derived from ACR/Deliverables, or a link out to the screen that
+// owns the detail (ACR tab, Audit Log).
+function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string; onOpenActivityLog: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [monitoring, setMonitoring] = useState<MonitoringOutput | null>(null);
+  const [stats, setStats] = useState<{
+    open: number;
+    documented: number;
+    closed: number;
+    pendingVerification: number;
+    recentLearning: { id: string; name: string; observations: string; date: string | null }[];
+    deliverables: { notStarted: number; inProgress: number; submitted: number; approved: number };
+  } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [stagesRes, wbsRes, budgetRes, delivRes, claimsRes, evidenceRes, eventsRes] = await Promise.all([
-        (supabase as any).from('project_stages').select('id, title, status, planned_start_date, planned_end_date').eq('project_id', projectId),
-        (supabase as any).from('lfa_wbs_items').select('id, level, parent_id, stage_id, name, status, progress_percent, pic, start_month, duration_weeks').eq('lfa_project_id', projectId),
-        supabase.from('lfa_budget_items').select('id, wbs_item_id, volume, unit_price_idr, actual_amount_idr, cost_category').eq('lfa_project_id', projectId),
-        (supabase as any).from('project_deliverables').select('id, name as title, status, due_date as target_date').eq('project_id', projectId).is('archived_at', null),
-        supabase.from('wbs_completion_claims').select('id, wbs_item_id, status, claimed_progress').eq('lfa_project_id', projectId),
-        supabase.from('wbs_completion_evidence').select('id, claim_id').not('claim_id', 'is', null),
-        (supabase as any).from('project_activity_events').select('entity_type, entity_id, event_type, created_at').eq('project_id', projectId).order('created_at', { ascending: false }).limit(50),
+      const [wbsRes, claimsRes, delivRes] = await Promise.all([
+        supabase.from('lfa_wbs_items').select('id').eq('lfa_project_id', projectId).eq('level', 2),
+        supabase.from('wbs_completion_claims').select('id, wbs_item_id, status, observations, submitted_at').eq('lfa_project_id', projectId),
+        (supabase as any).from('project_deliverables').select('id, status').eq('project_id', projectId).is('archived_at', null),
       ]);
-
-      if (stagesRes.error) throw stagesRes.error;
       if (wbsRes.error) throw wbsRes.error;
-      if (budgetRes.error) throw budgetRes.error;
       if (claimsRes.error) throw claimsRes.error;
-      if (evidenceRes.error) throw evidenceRes.error;
-      if (eventsRes.error) throw eventsRes.error;
+      if (delivRes.error) throw delivRes.error;
 
-      const stages = (stagesRes.data || []).map((s: any) => ({
-        id: s.id,
-        title: s.title || '',
-        status: s.status || 'not_started',
-        plannedStartDate: s.planned_start_date,
-        plannedEndDate: s.planned_end_date,
-        progress: 0,
-      }));
+      const totalActivities = (wbsRes.data || []).length;
+      const claims = (claimsRes.data || []) as any[];
 
-      const wbsItems: WbsSnapshot[] = (wbsRes.data || []).map((w: any) => ({
-        id: w.id,
-        level: w.level || 1,
-        parentId: w.parent_id,
-        name: w.name || '',
-        status: w.status || 'not_started',
-        progress: w.progress_percent ?? 0,
-        pic: w.pic,
-        startMonth: w.start_month || 1,
-        durationWeeks: w.duration_weeks || 1,
-        stageId: w.stage_id,
-        blockedReason: w.blocked_reason,
-      }));
+      // One active (non-cancelled) claim per Activity — takes the most recent by submitted_at.
+      const latestByItem = new Map<string, any>();
+      for (const c of claims) {
+        if (c.status === 'cancelled') continue;
+        const existing = latestByItem.get(c.wbs_item_id);
+        if (!existing || (c.submitted_at || '') > (existing.submitted_at || '')) {
+          latestByItem.set(c.wbs_item_id, c);
+        }
+      }
 
-      const budgetItems: BudgetItemInput[] = (budgetRes.data || []).map((b: any) => ({
-        id: b.id,
-        wbs_item_id: b.wbs_item_id,
-        volume: b.volume,
-        unit_price_idr: b.unit_price_idr,
-        actual_amount_idr: b.actual_amount_idr,
-        cost_category: b.cost_category,
-      }));
+      let closed = 0;
+      let documented = 0;
+      for (const c of latestByItem.values()) {
+        if (c.status === 'verified') closed++;
+        else if (c.status === 'submitted') documented++;
+      }
+      const open = Math.max(0, totalActivities - closed - documented);
+      const pendingVerification = documented; // Documented == awaiting Evidence Verification
 
-      const targetBudget = await resolveTargetBudgetForLfaProject(supabase as any, projectId);
+      const withNotes = claims.filter((c) => c.observations && String(c.observations).trim().length > 0);
+      const noteItemIds = Array.from(new Set(withNotes.map((c) => c.wbs_item_id)));
+      const wbsNames = new Map<string, string>();
+      if (noteItemIds.length > 0) {
+        const { data: nameRows } = await supabase.from('lfa_wbs_items').select('id, name').in('id', noteItemIds);
+        for (const r of (nameRows || [])) wbsNames.set(r.id, r.name || 'Activity');
+      }
+      const recentLearning = withNotes
+        .sort((a, b) => String(b.submitted_at || '').localeCompare(String(a.submitted_at || '')))
+        .slice(0, 5)
+        .map((c) => ({
+          id: c.id as string,
+          name: wbsNames.get(c.wbs_item_id) || 'Activity',
+          observations: c.observations as string,
+          date: c.submitted_at as string | null,
+        }));
 
-      const budgetSnapshot = computeBudgetSnapshot({
-        targetBudget,
-        budgetItems,
-        durationMonths: 12,
-      });
+      const dRows = (delivRes.data || []) as any[];
+      const deliverables = {
+        notStarted: dRows.filter((d) => d.status === 'not_started').length,
+        inProgress: dRows.filter((d) => d.status === 'in_progress').length,
+        submitted: dRows.filter((d) => d.status === 'submitted').length,
+        approved: dRows.filter((d) => d.status === 'approved').length,
+      };
 
-      const deliverables: DeliverableSnapshot[] = (delivRes.data || []).map((d: any) => ({
-        id: d.id,
-        title: d.title || d.name || '',
-        status: d.status || 'not_started',
-        stageId: null,
-        targetDate: d.target_date || d.due_date || null,
-      }));
-
-      const claims: ClaimSnapshot[] = (claimsRes.data || []).map((c: any) => ({
-        id: c.id,
-        wbsItemId: c.wbs_item_id,
-        status: c.status,
-        claimedProgress: c.claimed_progress ?? 0,
-      }));
-
-      const evidence: EvidenceSnapshot[] = (evidenceRes.data || []).map((e: any) => ({
-        id: e.id,
-        claimId: e.claim_id,
-      }));
-
-      const events: ActivityEvent[] = (eventsRes.data || []).map((ev: any) => ({
-        entityType: ev.entity_type,
-        entityId: ev.entity_id,
-        eventType: ev.event_type,
-        createdAt: ev.created_at,
-      }));
-
-      const result = computeMonitoring({
-        stages,
-        wbsItems,
-        budget: budgetSnapshot,
-        deliverables,
-        claims,
-        evidence,
-        events,
-        budgetedActivityIds: new Set(
-          budgetItems
-            .filter((b) => b.wbs_item_id)
-            .map((b) => {
-              let cur = wbsItems.find((w) => w.id === b.wbs_item_id);
-              for (let g = 0; g < 10 && cur; g++) {
-                if (cur.level === 2) return cur.id;
-                if (!cur.parentId) break;
-                cur = wbsItems.find((w) => w.id === cur!.parentId);
-              }
-              return null;
-            })
-            .filter(Boolean) as string[],
-        ),
-      });
-
-      setMonitoring(result);
+      setStats({ open, documented, closed, pendingVerification, recentLearning, deliverables });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -229,7 +165,7 @@ function ControlCenterTab({ projectId, orgId, onOpenActivityLog }: { projectId: 
     );
   }
 
-  if (error || !monitoring) {
+  if (error || !stats) {
     return (
       <Card className="border-destructive/50">
         <CardContent className="py-4 text-sm text-destructive">{error || 'Gagal memuat data.'}</CardContent>
@@ -237,236 +173,80 @@ function ControlCenterTab({ projectId, orgId, onOpenActivityLog }: { projectId: 
     );
   }
 
-  const m = monitoring;
-
   return (
-    <div className="space-y-6">
-      {m.warnings.length > 0 && (
-        <Card className="border-amber-200 bg-amber-50/50 dark:bg-amber-950/20">
-          <CardContent className="py-3">
-            <div className="flex items-center gap-2 text-sm font-semibold text-amber-800 dark:text-amber-300 mb-1">
-              <AlertTriangle className="h-4 w-4" />
-              Peringatan
-            </div>
-            <ul className="text-xs text-amber-700 dark:text-amber-400 space-y-0.5">
-              {m.warnings.map((w, i) => <li key={i}>&middot; {w}</li>)}
-            </ul>
-          </CardContent>
-        </Card>
-      )}
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
+            Activity Status
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1 text-xs">
+          <div className="flex justify-between"><span className="text-muted-foreground">Open</span><span className="font-semibold">{stats.open}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Documented</span><span className="font-semibold">{stats.documented}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Closed</span><span className="font-semibold text-emerald-600">{stats.closed}</span></div>
+        </CardContent>
+      </Card>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Clock className="h-4 w-4 text-muted-foreground" />
-              Jadwal
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Stage melewati tenggat</span>
-              <Badge variant={m.schedule.stageOverdue > 0 ? 'destructive' : 'outline'}>{m.schedule.stageOverdue}</Badge>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Activity melewati tenggat</span>
-              <Badge variant={m.schedule.activityOverdue > 0 ? 'destructive' : 'outline'}>{m.schedule.activityOverdue}</Badge>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Item terhambat</span>
-              <Badge variant={m.schedule.blockedWork > 0 ? 'destructive' : 'outline'}>{m.schedule.blockedWork}</Badge>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Tenggat mendatang (14 hari)</span>
-              <span className="font-semibold">{m.schedule.upcomingDeadlines}</span>
-            </div>
-          </CardContent>
-        </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+            Pending Verification
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <span className="text-2xl font-bold">{stats.pendingVerification}</span>
+          <p className="text-xs text-muted-foreground mt-1">ACR menunggu Evidence Verification.</p>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Target className="h-4 w-4 text-muted-foreground" />
-              Eksekusi
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Progres Proyek</span>
-              <span className="font-bold">{m.execution.projectProgress}%</span>
-            </div>
-            <Progress value={m.execution.projectProgress} className="h-1.5 mt-1 mb-2" />
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Activity selesai</span>
-              <span>{m.execution.completedActivities} / {m.execution.totalActivities}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Task selesai</span>
-              <span>{m.execution.completedTasks} / {m.execution.totalTasks}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Tanpa PIC</span>
-              <Badge variant={m.execution.workWithoutPIC > 0 ? 'destructive' : 'outline'}>{m.execution.workWithoutPIC}</Badge>
-            </div>
-          </CardContent>
-        </Card>
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileText className="h-4 w-4 text-muted-foreground" />
+            Deliverable Summary
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1 text-xs">
+          <div className="flex justify-between"><span className="text-muted-foreground">Not Started</span><span>{stats.deliverables.notStarted}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">In Progress</span><span>{stats.deliverables.inProgress}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Submitted</span><span>{stats.deliverables.submitted}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Approved</span><span className="text-emerald-600 font-semibold">{stats.deliverables.approved}</span></div>
+        </CardContent>
+      </Card>
 
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Wallet className="h-4 w-4 text-muted-foreground" />
-              Anggaran
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Target</span>
-              <span className="font-semibold">{m.budget.targetBudget ? formatIDR(m.budget.targetBudget) : '—'}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Detailed</span>
-              <span className="font-semibold">{formatIDR(m.budget.detailedBudget)}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Coverage</span>
-              <span className="font-semibold">{m.budget.coveragePercent.toFixed(0)}%</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Utilisasi</span>
-              <span className="font-semibold">{m.budget.utilizationPercent.toFixed(0)}%</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <FileText className="h-4 w-4 text-muted-foreground" />
-              Deliverables
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Planned</span>
-              <span>{m.deliverables.planned}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">In Progress</span>
-              <span>{m.deliverables.inProgress}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Submitted</span>
-              <span>{m.deliverables.submitted}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Accepted</span>
-              <span>{m.deliverables.accepted}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Overdue</span>
-              <Badge variant={m.deliverables.overdue > 0 ? 'destructive' : 'outline'}>{m.deliverables.overdue}</Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-              Bukti & Verifikasi
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Total Klaim</span>
-              <span>{m.evidence.totalClaims}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Menunggu Verifikasi</span>
-              <Badge variant={m.evidence.pendingVerification > 0 ? 'default' : 'outline'}>{m.evidence.pendingVerification}</Badge>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Terverifikasi</span>
-              <span className="text-emerald-600 font-semibold">{m.evidence.verified}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Ditolak</span>
-              <Badge variant={m.evidence.rejected > 0 ? 'destructive' : 'outline'}>{m.evidence.rejected}</Badge>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Total Bukti</span>
-              <span>{m.evidence.evidenceCount}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <Users className="h-4 w-4 text-muted-foreground" />
-              Assignment
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Tanpa PIC</span>
-              <Badge variant={m.assignment.withoutPIC > 0 ? 'destructive' : 'outline'}>{m.assignment.withoutPIC}</Badge>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Activity tanpa PIC</span>
-              <span>{m.assignment.activitiesWithoutPIC}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Task/Subtask tanpa PIC</span>
-              <span>{m.assignment.tasksWithoutPIC}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Terblokir</span>
-              <Badge variant={m.assignment.blocked > 0 ? 'destructive' : 'outline'}>{m.assignment.blocked}</Badge>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Jatuh tempo 7 hari</span>
-              <span>{m.assignment.dueWithin7Days}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Menunggu verifikasi</span>
-              <span>{m.assignment.submittedForVerification}</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
-            <CardTitle className="text-sm flex items-center gap-2">
-              <History className="h-4 w-4 text-muted-foreground" />
-              Aktivitas Terbaru
-            </CardTitle>
-            <button
-              onClick={onOpenActivityLog}
-              className="text-[10px] text-primary hover:underline font-semibold"
-              data-testid="meal-open-activity-log-link"
-            >
-              Lihat Audit Log Lengkap →
-            </button>
-          </CardHeader>
-          <CardContent className="space-y-1 text-xs max-h-48 overflow-y-auto">
-            {m.recentEvents.slice(0, 8).map((ev, i) => (
-              <div key={i} className="flex items-center gap-2 text-[10px]">
-                <Badge variant="outline" className="text-[8px] py-0 h-4 shrink-0">
-                  {ENTITY_LABELS[ev.entityType] || ev.entityType}
-                </Badge>
-                <span>{EVENT_LABELS[ev.eventType] || ev.eventType}</span>
-                <span className="text-muted-foreground ml-auto">
-                  {new Date(ev.createdAt).toLocaleDateString('id-ID')}
-                </span>
+      <Card className="sm:col-span-2 lg:col-span-3">
+        <CardHeader className="pb-2 flex-row items-center justify-between space-y-0">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <History className="h-4 w-4 text-muted-foreground" />
+            Recent Learning
+          </CardTitle>
+          <button
+            onClick={onOpenActivityLog}
+            className="text-[10px] text-primary hover:underline font-semibold"
+            data-testid="meal-open-activity-log-link"
+          >
+            Audit Log (Admin) →
+          </button>
+        </CardHeader>
+        <CardContent className="space-y-2 text-xs max-h-56 overflow-y-auto">
+          {stats.recentLearning.length === 0 ? (
+            <span className="text-muted-foreground italic">Belum ada Notes / Observations tercatat dari ACR.</span>
+          ) : (
+            stats.recentLearning.map((r) => (
+              <div key={r.id} className="border-b last:border-0 pb-2 last:pb-0">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold truncate">{r.name}</span>
+                  {r.date && <span className="text-muted-foreground shrink-0">{new Date(r.date).toLocaleDateString('id-ID')}</span>}
+                </div>
+                <p className="text-muted-foreground line-clamp-2">{r.observations}</p>
               </div>
-            ))}
-            {m.recentEvents.length === 0 && (
-              <span className="text-muted-foreground italic">Belum ada aktivitas tercatat.</span>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -533,10 +313,10 @@ function DeliverablesTab({ projectId }: { projectId: string }) {
         {active.length === 0 ? (
           <Card>
             <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-              <CardTitle className="text-lg">Belum ada Deliverable</CardTitle>
+              <CardTitle className="text-lg">Belum ada Output Ditautkan</CardTitle>
               <CardDescription>
-                Deliverable adalah output view dari Activity yang ACR-nya sudah Closed (Evidence Verified).<br />
-                Lihat daftar "Output dari ACR" di bawah untuk Activity yang siap ditandai sebagai Deliverable.
+                Deliverables adalah output view dari Activity yang ACR-nya sudah Closed (Evidence Verified) —<br />
+                lihat daftar "Output dari ACR" di bawah, yang muncul otomatis begitu ACR selesai diverifikasi.
               </CardDescription>
             </CardContent>
           </Card>
@@ -930,7 +710,7 @@ export default function ProjectMEALPage() {
     }
     switch (activeTab) {
       case 'control-center':
-        return <ControlCenterTab projectId={projectId} orgId={orgId} onOpenActivityLog={() => setTab('activity')} />;
+        return <ControlCenterTab projectId={projectId} onOpenActivityLog={() => setTab('activity')} />;
       case 'acr':
         return <AcrTab projectId={projectId} />;
       case 'deliverables':
