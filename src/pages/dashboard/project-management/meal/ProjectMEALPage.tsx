@@ -79,10 +79,8 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<{
-    open: number;
-    documented: number;
-    closed: number;
-    pendingVerification: number;
+    execution: { open: number; inProgress: number; completed: number; overdue: number; blocked: number };
+    acr: { documented: number; closed: number; pendingVerification: number };
     recentLearning: { id: string; name: string; observations: string; date: string | null }[];
     deliverables: { notStarted: number; inProgress: number; submitted: number; approved: number };
   } | null>(null);
@@ -92,7 +90,7 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
     setError(null);
     try {
       const [wbsRes, claimsRes, delivRes] = await Promise.all([
-        supabase.from('lfa_wbs_items').select('id').eq('lfa_project_id', projectId).eq('level', 2),
+        supabase.from('lfa_wbs_items').select('id, status, end_date, blocker_category').eq('lfa_project_id', projectId).eq('level', 2),
         supabase.from('wbs_completion_claims').select('id, wbs_item_id, status, observations, submitted_at').eq('lfa_project_id', projectId),
         (supabase as any).from('project_deliverables').select('id, status').eq('project_id', projectId).is('archived_at', null),
       ]);
@@ -100,10 +98,26 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
       if (claimsRes.error) throw claimsRes.error;
       if (delivRes.error) throw delivRes.error;
 
-      const totalActivities = (wbsRes.data || []).length;
+      // Work Plan owns execution status (Belum Mulai / Sedang Berjalan / Selesai).
+      // Overdue and Blocked are derived, never manual flags: Overdue = today > end_date
+      // AND status != completed; Blocked = an active bottleneck (blocker_category) is set.
+      const activities = (wbsRes.data || []) as any[];
+      const now = new Date();
+      let execOpen = 0, execInProgress = 0, execCompleted = 0, execOverdue = 0, execBlocked = 0;
+      for (const a of activities) {
+        if (a.status === 'completed') execCompleted++;
+        else if (a.status === 'in_progress') execInProgress++;
+        else execOpen++; // not_started, or any legacy/non-canonical status, defaults to Open
+
+        if (a.status !== 'completed' && a.end_date && new Date(a.end_date) < now) execOverdue++;
+        if (a.blocker_category) execBlocked++;
+      }
+
       const claims = (claimsRes.data || []) as any[];
 
       // One active (non-cancelled) claim per Activity — takes the most recent by submitted_at.
+      // ACR ownership is separate from execution status: Documented/Closed describe the
+      // completion RECORD (Evidence Verification), never the Activity's own execution status.
       const latestByItem = new Map<string, any>();
       for (const c of claims) {
         if (c.status === 'cancelled') continue;
@@ -113,14 +127,13 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
         }
       }
 
-      let closed = 0;
-      let documented = 0;
+      let acrClosed = 0;
+      let acrDocumented = 0;
       for (const c of latestByItem.values()) {
-        if (c.status === 'verified') closed++;
-        else if (c.status === 'submitted') documented++;
+        if (c.status === 'verified') acrClosed++;
+        else if (c.status === 'submitted') acrDocumented++;
       }
-      const open = Math.max(0, totalActivities - closed - documented);
-      const pendingVerification = documented; // Documented == awaiting Evidence Verification
+      const pendingVerification = acrDocumented; // Documented == awaiting Evidence Verification
 
       const withNotes = claims.filter((c) => c.observations && String(c.observations).trim().length > 0);
       const noteItemIds = Array.from(new Set(withNotes.map((c) => c.wbs_item_id)));
@@ -147,7 +160,12 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
         approved: dRows.filter((d) => d.status === 'approved').length,
       };
 
-      setStats({ open, documented, closed, pendingVerification, recentLearning, deliverables });
+      setStats({
+        execution: { open: execOpen, inProgress: execInProgress, completed: execCompleted, overdue: execOverdue, blocked: execBlocked },
+        acr: { documented: acrDocumented, closed: acrClosed, pendingVerification },
+        recentLearning,
+        deliverables,
+      });
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -175,30 +193,37 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
 
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Work Plan owns execution status — this card never reflects ACR documentation state. */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
             <ClipboardCheck className="h-4 w-4 text-muted-foreground" />
-            Activity Status
+            Activities
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-1 text-xs">
-          <div className="flex justify-between"><span className="text-muted-foreground">Open</span><span className="font-semibold">{stats.open}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Documented</span><span className="font-semibold">{stats.documented}</span></div>
-          <div className="flex justify-between"><span className="text-muted-foreground">Closed</span><span className="font-semibold text-emerald-600">{stats.closed}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Open</span><span className="font-semibold">{stats.execution.open}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">In Progress</span><span className="font-semibold">{stats.execution.inProgress}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Completed</span><span className="font-semibold text-emerald-600">{stats.execution.completed}</span></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Overdue (Terlambat)</span><Badge variant={stats.execution.overdue > 0 ? 'destructive' : 'outline'}>{stats.execution.overdue}</Badge></div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Blocked (Terblokir)</span><Badge variant={stats.execution.blocked > 0 ? 'destructive' : 'outline'}>{stats.execution.blocked}</Badge></div>
         </CardContent>
       </Card>
 
+      {/* ACR owns documentation status — never used to determine execution status above. */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
             <AlertTriangle className="h-4 w-4 text-muted-foreground" />
-            Pending Verification
+            ACR
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <span className="text-2xl font-bold">{stats.pendingVerification}</span>
-          <p className="text-xs text-muted-foreground mt-1">ACR menunggu Evidence Verification.</p>
+        <CardContent className="space-y-1 text-xs">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Pending Verification</span>
+            <Badge variant={stats.acr.pendingVerification > 0 ? 'default' : 'outline'}>{stats.acr.pendingVerification}</Badge>
+          </div>
+          <div className="flex justify-between"><span className="text-muted-foreground">Closed ACRs</span><span className="font-semibold text-emerald-600">{stats.acr.closed}</span></div>
         </CardContent>
       </Card>
 

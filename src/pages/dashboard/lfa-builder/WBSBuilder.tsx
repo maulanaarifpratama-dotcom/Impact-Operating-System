@@ -1291,15 +1291,6 @@ export default function WBSBuilder({
       clearTimeout(debounceTimers.current[item.id]);
     }
 
-    // Validation warning if status is blocked but reason is empty
-    if (item.status === 'blocked' && (!item.blocked_reason || item.blocked_reason.trim() === '')) {
-      toast({
-        title: 'Penjelasan Terhambat Diperlukan',
-        description: 'Mohon isi penjelasan kenapa tugas terhambat.',
-        variant: 'destructive',
-      });
-    }
-
     setSaving(true);
     debounceTimers.current[item.id] = setTimeout(async () => {
       if (!orgId) return;
@@ -1326,7 +1317,6 @@ export default function WBSBuilder({
           carbon_scope: item.carbon_scope,
           status: item.status || 'not_started',
           progress_percent: item.status === 'completed' ? 100 : (item.progress_percent ?? 0),
-          blocked_reason: item.status === 'blocked' ? item.blocked_reason : null,
         };
 
         // NOTE: completed_at and completed_by are omitted intentionally.
@@ -1973,12 +1963,13 @@ export default function WBSBuilder({
         if (workPlanFilter === 'all') return true;
         if (workPlanFilter === 'my-work') return user?.id && item.owner_id === user.id;
         if (workPlanFilter === 'unassigned') return !item.owner_id;
-        if (workPlanFilter === 'blocked') return item.status === 'blocked';
+        // Terblokir — derived from the Activity Bottleneck (blocker_category), never a manual toggle.
+        if (workPlanFilter === 'blocked') return !!item.blocker_category;
+        // Terlambat — today > end_date AND execution status != Selesai. Real dates only, no schedule approximation.
         if (workPlanFilter === 'overdue') {
           if (item.status === 'completed') return false;
-          const endDate = new Date();
-          endDate.setMonth(endDate.getMonth() + (item.start_month ?? 1) - 1 + Math.ceil((item.duration_weeks ?? 4) / 4));
-          return endDate < new Date();
+          if (!item.end_date) return false;
+          return new Date(item.end_date) < new Date();
         }
         return true;
       })
@@ -3178,7 +3169,6 @@ export default function WBSBuilder({
                               ...item,
                               status: newStatus,
                               progress_percent: newStatus === 'completed' ? 100 : (item.progress_percent ?? 0),
-                              blocked_reason: newStatus === 'blocked' ? (item.blocked_reason ?? '') : null,
                             };
                             updateItemLocally(updated);
                             triggerAutosave(updated);
@@ -3187,12 +3177,7 @@ export default function WBSBuilder({
                         >
                           <option value="not_started">Belum Mulai</option>
                           <option value="in_progress">Sedang Berjalan</option>
-                          <option value="blocked">Terhambat</option>
-                          <option value="in_review">Dalam Peninjauan</option>
                           <option value="completed">Selesai</option>
-                          <option value="cancelled">Dibatalkan</option>
-                          <option value="ready">Siap</option>
-                          <option value="draft">Draft</option>
                         </select>
                       )}
                     </div>
@@ -3509,31 +3494,10 @@ export default function WBSBuilder({
                     </div>
                   </div>
 
-                  {/* Blocked Reason Row for leaf items when status === 'blocked' */}
-                  {isLeaf && item.status === 'blocked' && (
-                    <div className={`pl-14 pr-4 py-1.5 bg-red-50/50 dark:bg-red-950/20 border-b border-red-100 dark:border-red-900/30 flex items-center gap-2 ${productMode === 'project_management' ? 'min-w-[480px]' : 'min-w-[850px]'} text-xs`}>
-                      <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-                      <span className="text-[10px] font-bold text-red-700 dark:text-red-400 shrink-0">Alasan Terhambat:</span>
-                      <input
-                        type="text"
-                        value={item.blocked_reason || ''}
-                        placeholder="Ketik penjelasan kenapa tugas terhambat (Wajib diisi)..."
-                        onChange={(e) => {
-                          const updated = { ...item, blocked_reason: e.target.value };
-                          updateItemLocally(updated);
-                          triggerAutosave(updated);
-                        }}
-                        className={`text-xs flex-1 bg-white dark:bg-slate-900 border rounded px-2 py-0.5 focus:outline-none ${
-                          !item.blocked_reason || item.blocked_reason.trim() === ''
-                            ? 'border-red-500 focus:ring-1 focus:ring-red-500'
-                            : 'border-slate-200 dark:border-slate-800'
-                        }`}
-                      />
-                      {(!item.blocked_reason || item.blocked_reason.trim() === '') && (
-                        <span className="text-[9px] text-red-600 font-bold shrink-0">⚠️ Wajib Diisi</span>
-                      )}
-                    </div>
-                  )}
+                  {/* Manual Blocked status/reason UI removed (Canonical Execution Status Model):
+                      Blocked is now derived solely from the Activity Bottleneck (blocker_category),
+                      visible via the Terblokir Work Plan filter and the Related > Bottleneck
+                      disclosure in the ACR panel — never a manually-typed reason here. */}
 
                   {/* Level 2 Carbon tracking fields under carbonMode */}
                   {item.level === 2 && carbonMode && (
@@ -4005,15 +3969,6 @@ export default function WBSBuilder({
                           })()
                         )}
                       </div>
-
-                      {/* Matching Blocked Reason sub-row in Gantt if blocked */}
-                      {isLeafItem(item, wbsItems) && item.status === 'blocked' && (
-                        <div className="h-[32px] bg-red-50/20 dark:bg-red-950/10 border-b border-red-100/50 dark:border-red-900/20 flex items-center">
-                          {Array.from({ length: programDurationMonths }).map((_, idx) => (
-                            <div key={idx} className="w-20 shrink-0 border-r dark:border-slate-800/50 h-full"></div>
-                          ))}
-                        </div>
-                      )}
 
                       {/* Matching Carbon Tracking container in Gantt if carbonMode active */}
                       {item.level === 2 && carbonMode && (
