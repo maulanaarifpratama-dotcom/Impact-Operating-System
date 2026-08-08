@@ -115,7 +115,7 @@ export default function CompletionClaimReviewDialog({
         p_review_note: reviewNote.trim() || null,
       });
       if (error) throw error;
-      toast({ title: decision === 'verified' ? 'Klaim Diverifikasi' : decision === 'rejected' ? 'Klaim Ditolak' : 'Revisi Diminta' });
+      toast({ title: decision === 'verified' ? 'ACR Diverifikasi' : decision === 'rejected' ? 'ACR Ditolak' : 'Revisi Diminta' });
       setReviewNote('');
       if (onReviewed) onReviewed();
     } catch (err: any) {

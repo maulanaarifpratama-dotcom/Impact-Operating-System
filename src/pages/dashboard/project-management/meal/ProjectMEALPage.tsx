@@ -545,7 +545,7 @@ function AcrTab({ projectId }: { projectId: string }) {
             <CardTitle className="text-lg">
               {filter === 'submitted' ? 'Tidak ada klaim yang menunggu verifikasi.' : 'Belum ada klaim'}
             </CardTitle>
-            <CardDescription>Klaim penyelesaian dibuat dari Activity di Work Plan.</CardDescription>
+            <CardDescription>ACR dibuat dari Activity di Work Plan.</CardDescription>
           </CardContent>
         </Card>
       ) : (

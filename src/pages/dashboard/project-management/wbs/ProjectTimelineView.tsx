@@ -13,6 +13,7 @@ import { updateProjectStageMetadata } from '@/lib/project-management/stageRpc';
 interface WbsItem {
   id: string; level: number; parent_id: string | null; stage_id: string | null;
   name: string; status: string; duration_weeks?: number; progress_percent?: number;
+  blocker_category?: string | null;
 }
 
 interface DBStage {
@@ -43,7 +44,7 @@ const MONTHS_ID = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','
 // ── Helpers ──
 
 function sl(s: string) {
-  const m: Record<string, string> = { not_started: 'Belum Mulai', in_progress: 'Berjalan', completed: 'Selesai', blocked: 'Terhambat' };
+  const m: Record<string, string> = { not_started: 'Belum Mulai', in_progress: 'Sedang Berjalan', completed: 'Selesai', blocked: 'Terhambat' };
   return m[s] || s;
 }
 
@@ -392,7 +393,7 @@ export default function ProjectTimelineView({
                         <span className="text-[11px] font-medium truncate">{row.item.name}</span>
                       </div>
                       <div className="flex items-center gap-2 mt-0.5 text-[9px] text-muted-foreground">
-                        <span className={row.item.status === 'completed' ? 'text-emerald-700' : row.item.status === 'blocked' ? 'text-red-700' : ''}>
+                        <span className={row.item.status === 'completed' ? 'text-emerald-700' : row.item.blocker_category ? 'text-red-700' : ''}>
                           {sl(row.item.status)}
                         </span>
                         <span className="font-semibold">{row.item.progress_percent ?? 0}%</span>

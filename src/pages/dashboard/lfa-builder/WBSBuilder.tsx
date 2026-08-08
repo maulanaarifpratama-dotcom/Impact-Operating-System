@@ -38,12 +38,7 @@ import ProjectTimelineView from '@/pages/dashboard/project-management/wbs/Projec
 
 import { useOrgRole } from '@/hooks/useOrgRole';
 import { formatMember, formatMemberCompact, type MemberDisplay } from '@/lib/memberDisplay';
-import {
-  computeGroupedWorkload,
-  type WorkPlanFilter,
-  type GroupedWorkload,
-  type MemberInfo,
-} from '@/lib/project-management/assignmentModel';
+import { type WorkPlanFilter } from '@/lib/project-management/assignmentModel';
 
 type WbsClaimInsert = Database['public']['Tables']['wbs_completion_claims']['Insert'];
 
@@ -313,7 +308,7 @@ export default function WBSBuilder({
     }
   });
 
-  // Completion Claims & Evidence State (WBS-P1A-3B)
+  // ACR (Activity Completion Record) & Evidence State
   const [claims, setClaims] = useState<WbsCompletionClaim[]>([]);
   const [evidenceMap, setEvidenceMap] = useState<Record<string, WbsCompletionEvidence[]>>({});
   const [loadingClaims, setLoadingClaims] = useState(false);
@@ -752,7 +747,7 @@ export default function WBSBuilder({
       case 'rejected': return 'Ditolak';
       case 'draft': return 'Draft';
       case 'cancelled': return 'Dibatalkan';
-      default: return 'Belum Ada Klaim';
+      default: return 'Belum Ada ACR';
     }
   };
 
@@ -1191,7 +1186,7 @@ export default function WBSBuilder({
     } catch (err: any) {
       console.error('[Impactory] Failed to submit completion claim:', err);
       toast({
-        title: 'Gagal Mengajukan Klaim',
+        title: 'Gagal Mengirim ACR',
         description: err?.message || 'Terjadi kesalahan pada server.',
         variant: 'destructive',
       });
@@ -1229,11 +1224,11 @@ export default function WBSBuilder({
 
       toast({
         title: actionStatus === 'verified'
-          ? 'Klaim Terverifikasi ✨'
+          ? 'ACR Terverifikasi ✨'
           : actionStatus === 'needs_revision'
           ? 'Permintaan Perbaikan Terkirim'
-          : 'Klaim Ditolak',
-        description: 'Status verifikasi klaim telah diperbarui.',
+          : 'ACR Ditolak',
+        description: 'Status Evidence Verification telah diperbarui.',
       });
 
       setReviewingClaimId(null);
@@ -4188,7 +4183,7 @@ export default function WBSBuilder({
                 className={`text-[9px] font-bold py-0 px-1.5 h-auto border ${getClaimBadgeStyle(existingClaim?.status || 'draft')}`}
                 data-testid="wbs-acr-dialog-verification-badge"
               >
-                Verification: {existingClaim ? getClaimLabel(existingClaim.status) : 'Belum Ada Klaim'}
+                Verification: {existingClaim ? getClaimLabel(existingClaim.status) : 'Belum Ada ACR'}
               </Badge>
               <Badge
                 variant="outline"
@@ -4651,11 +4646,11 @@ export default function WBSBuilder({
                         {/* Claim Content */}
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                           <div>
-                            <span className="text-[10px] font-bold text-slate-400 block">Progres Diklaim:</span>
+                            <span className="text-[10px] font-bold text-slate-400 block">Progres:</span>
                             <span className="font-bold text-emerald-600 text-sm">{claim.claimed_progress}%</span>
                           </div>
                           <div className="sm:col-span-2">
-                            <span className="text-[10px] font-bold text-slate-400 block">Catatan Klaim:</span>
+                            <span className="text-[10px] font-bold text-slate-400 block">Activity Summary:</span>
                             <p className="text-slate-700 dark:text-slate-300 italic bg-slate-50 dark:bg-slate-800/40 p-2 rounded border border-slate-100 text-xs">
                               {claim.claim_note || 'Tanpa catatan tambahan.'}
                             </p>
