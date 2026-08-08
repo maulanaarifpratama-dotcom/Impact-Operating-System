@@ -3129,7 +3129,9 @@ export default function WBSBuilder({
                                     );
                                   })()}
 
-                                  {/* Finance row — read-only summary; editing stays in the Budget module */}
+                                  {/* Finance row — compact summary collapsed by default; financial_status
+                                      editor restored inside the expanded state only (temporary fix pending
+                                      a proper Budget-module editor for this field). */}
                                   {(() => {
                                     const expanded = isRelatedExpanded(item.id, 'finance');
                                     const financialStatusLabels: Record<string, string> = {
@@ -3172,6 +3174,23 @@ export default function WBSBuilder({
                                                 {financialStatusLabels[statusKey] || statusKey}
                                               </Badge>
                                             </div>
+                                            <select
+                                              value={item.financial_status || 'draft'}
+                                              data-testid="wbs-financial-status-select"
+                                              onChange={(e) => {
+                                                const val = e.target.value as WbsFinancialStatus;
+                                                const updated = { ...item, financial_status: val };
+                                                updateItemLocally(updated);
+                                                triggerAutosave(updated);
+                                              }}
+                                              className="text-xs w-full border bg-white dark:bg-slate-900 rounded p-1 focus:outline-none dark:border-slate-800 font-medium"
+                                            >
+                                              <option value="draft">💰 Draf Anggaran</option>
+                                              <option value="committed">📌 Terikat (Committed)</option>
+                                              <option value="disbursement_requested">⏳ Minta Cair (Disbursement Requested)</option>
+                                              <option value="paid">✅ Cair / Paid</option>
+                                              <option value="blocked_by_finance">⛔ Ditahan Keuangan (Blocked by Finance)</option>
+                                            </select>
                                             {onNavigateToBudget && (
                                               <button
                                                 onClick={() => onNavigateToBudget(item.id)}
