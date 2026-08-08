@@ -2851,8 +2851,10 @@ export default function WBSBuilder({
 
                               {/* Activity Completion Record (ACR) — the dominant, primary card. Closure/Verification
                                   now live in the popover header above, so this card stays focused on the ACR
-                                  content itself and the single trigger to open it. */}
-                              {isLeaf && (
+                                  content itself and the single trigger to open it.
+                                  PM-P1: ACR is a Project Management-only concept — explicitly gated so it
+                                  never renders in Programme Design mode. */}
+                              {productMode === 'project_management' && isLeaf && (
                                 <div className="space-y-1.5 bg-slate-50 dark:bg-slate-950/50 p-2 rounded border border-slate-200 dark:border-slate-800">
                                   <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                                     <ClipboardCheck className="h-3 w-3 text-amber-600" />
@@ -2901,8 +2903,10 @@ export default function WBSBuilder({
 
                               {/* Related — one compact section referencing Deliverable/Bottleneck/Finance.
                                   These stay independent domains; this is a one-line reference each,
-                                  collapsed by default, not a standalone management surface. */}
-                              {item.level === 2 && (
+                                  collapsed by default, not a standalone management surface.
+                                  PM-P1: Bottleneck and Finance are Project Management-only — explicitly
+                                  gated so this section never renders in Programme Design mode. */}
+                              {productMode === 'project_management' && item.level === 2 && (
                                 <div className="space-y-1 pt-1 border-t border-slate-200 dark:border-slate-800">
                                   <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Related</div>
 
