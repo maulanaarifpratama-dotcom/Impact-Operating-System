@@ -7,6 +7,7 @@ import {
   ClipboardCheck,
   FileText,
   AlertTriangle,
+  Wallet,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +27,8 @@ import CompletionClaimReviewDialog from '@/components/verification/CompletionCla
 import {
   isOverdue, isBlocked, getExecutionBucket, getClosureStatus, CLOSED_CLAIM_STATUS,
 } from '@/lib/project-management/executionModel';
+import { computeBudgetSnapshot, formatIDR, type BudgetItemInput } from '@/lib/budget/budgetModel';
+import { resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 
 // PM + MEAL Canonicalization: ACR is the single source of truth. 'activity' stays a valid
 // tab (reachable via ?tab=activity from Control Center) but is deliberately left out of the
@@ -86,18 +89,27 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
     acr: { documented: number; closed: number; pendingVerification: number };
     recentLearning: { id: string; name: string; observations: string; date: string | null }[];
     totalOutputs: number;
+    finance: { plannedBudget: number; actualCost: number; utilizationPercent: number; hasTargetBudget: boolean };
   } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [wbsRes, claimsRes] = await Promise.all([
+      const [wbsRes, claimsRes, budgetRes] = await Promise.all([
         supabase.from('lfa_wbs_items').select('id, status, end_date, blocker_category').eq('lfa_project_id', projectId).eq('level', 2),
         supabase.from('wbs_completion_claims').select('id, wbs_item_id, status, observations, submitted_at').eq('lfa_project_id', projectId),
+        supabase.from('lfa_budget_items').select('id, wbs_item_id, volume, unit_price_idr, actual_amount_idr, cost_category').eq('lfa_project_id', projectId),
       ]);
       if (wbsRes.error) throw wbsRes.error;
       if (claimsRes.error) throw claimsRes.error;
+      if (budgetRes.error) throw budgetRes.error;
+
+      // Finance card reuses the existing Budget calculation engine verbatim
+      // (budgetModel.ts) — no new financial math, per PM-P5A scope.
+      const budgetItems = (budgetRes.data || []) as BudgetItemInput[];
+      const targetBudget = await resolveTargetBudgetForLfaProject(supabase as any, projectId);
+      const budgetSnapshot = computeBudgetSnapshot({ targetBudget, budgetItems, durationMonths: 12 });
 
       // Work Plan owns execution status; Overdue/Blocked are derived — all three
       // via the canonical predicates in executionModel.ts, shared with Work Plan and Timeline.
@@ -160,6 +172,12 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
         // Deliverable Summary uses the exact same source as the Deliverables page:
         // a Deliverable is a Closed ACR, nothing else — no separate manual record.
         totalOutputs: acrClosed,
+        finance: {
+          plannedBudget: budgetSnapshot.detailedBudget,
+          actualCost: budgetSnapshot.actualRealization,
+          utilizationPercent: budgetSnapshot.utilizationPercent,
+          hasTargetBudget: budgetSnapshot.hasTargetBudget,
+        },
       });
     } catch (err) {
       setError((err as Error).message);
@@ -233,6 +251,27 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
         <CardContent>
           <span className="text-2xl font-bold">{stats.totalOutputs}</span>
           <p className="text-xs text-muted-foreground mt-1">Total Outputs — Activities dengan ACR Closed (Evidence Verified).</p>
+        </CardContent>
+      </Card>
+
+      {/* Finance: read-only view of the existing budget engine (computeBudgetSnapshot) — no new calculations. */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Wallet className="h-4 w-4 text-muted-foreground" />
+            Finance
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1 text-xs">
+          {stats.finance.hasTargetBudget ? (
+            <>
+              <div className="flex justify-between"><span className="text-muted-foreground">Planned</span><span className="font-semibold">{formatIDR(stats.finance.plannedBudget)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Actual</span><span className="font-semibold">{formatIDR(stats.finance.actualCost)}</span></div>
+              <div className="flex justify-between"><span className="text-muted-foreground">Budget Utilization</span><span className="font-semibold">{stats.finance.utilizationPercent.toFixed(0)}%</span></div>
+            </>
+          ) : (
+            <span className="text-muted-foreground italic">Belum ada Target Budget untuk proyek ini.</span>
+          )}
         </CardContent>
       </Card>
 

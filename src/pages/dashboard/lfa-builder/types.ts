@@ -46,7 +46,10 @@ export interface AiActivity {
 
 export type WbsStatus = 'draft' | 'not_started' | 'ready' | 'in_progress' | 'blocked' | 'in_review' | 'completed' | 'cancelled';
 
-export type WbsFinancialStatus = 'draft' | 'committed' | 'disbursement_requested' | 'paid' | 'blocked_by_finance';
+// PM-P5 canonical Finance lifecycle (see src/lib/project-management/financeModel.ts,
+// the single source of truth for labels/validation). 'blocked_by_finance' removed —
+// a financial obstruction is a Bottleneck (category = financial), not a status value.
+export type WbsFinancialStatus = 'draft' | 'committed' | 'disbursement_requested' | 'paid' | 'closed';
 
 export type WbsBlockerCategory = 'donor_disbursement' | 'internal_approval' | 'vendor_delay' | 'field_condition' | 'force_majeure';
 

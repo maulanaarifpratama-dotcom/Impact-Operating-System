@@ -6,7 +6,7 @@ import { useAuth } from '@/providers/AuthProvider';
 import {
   WbsItem, WbsStatus, LfaEntry, LfaProject,
   WbsCompletionClaim, WbsCompletionEvidence, WbsCompletionClaimStatus, WbsEvidenceType,
-  WbsFinancialStatus, WbsBlockerCategory, WbsFact
+  WbsBlockerCategory, WbsFact
 } from './types';
 import { CARBON_FACTORS_INDONESIA } from '@/data/carbon-factors-indonesia';
 import {
@@ -43,6 +43,9 @@ import {
   isOverdue, isBlocked, getClosureStatus, getClosureStatusLabel, getClosureStatusBadgeClass,
   CLOSED_CLAIM_STATUS,
 } from '@/lib/project-management/executionModel';
+import {
+  type FinancialStatus, getFinancialStatusLabel, FINANCIAL_STATUS_OPTIONS, canSetFinancialStatus,
+} from '@/lib/project-management/financeModel';
 
 type WbsClaimInsert = Database['public']['Tables']['wbs_completion_claims']['Insert'];
 
@@ -2914,14 +2917,9 @@ export default function WBSBuilder({
                                       a proper Budget-module editor for this field). */}
                                   {(() => {
                                     const expanded = isRelatedExpanded(item.id, 'finance');
-                                    const financialStatusLabels: Record<string, string> = {
-                                      draft: 'Draf Anggaran',
-                                      committed: 'Committed',
-                                      disbursement_requested: 'Disbursement Requested',
-                                      paid: 'Paid',
-                                      blocked_by_finance: 'Blocked by Finance',
-                                    };
-                                    const statusKey = item.financial_status || 'draft';
+                                    const statusKey = (item.financial_status || 'draft') as FinancialStatus;
+                                    const plannedBudget = rollup.plannedTotal;
+                                    const actualCost = rollup.realizedTotal;
                                     return (
                                       <div className="rounded border border-slate-100 dark:border-slate-800">
                                         <button
@@ -2934,7 +2932,7 @@ export default function WBSBuilder({
                                             <Wallet className="h-3 w-3 text-indigo-600 shrink-0" />
                                             <span className="font-semibold shrink-0">Finance:</span>
                                             <span className="truncate text-slate-500">
-                                              {formatBudgetBadge(rollup.plannedTotal)} · {financialStatusLabels[statusKey] || statusKey}
+                                              {formatBudgetBadge(plannedBudget)} · {getFinancialStatusLabel(statusKey)}
                                             </span>
                                           </span>
                                           {expanded ? <ChevronUp className="h-3 w-3 shrink-0 text-slate-400" /> : <ChevronDown className="h-3 w-3 shrink-0 text-slate-400" />}
@@ -2943,33 +2941,40 @@ export default function WBSBuilder({
                                           <div className="px-1.5 pb-1.5 space-y-1.5">
                                             <div className="flex flex-wrap items-center gap-1.5">
                                               <Badge variant="outline" className="text-[9px] font-semibold bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/30 dark:text-emerald-400 py-0.5 h-auto">
-                                                Planned: {formatBudgetBadge(rollup.plannedTotal)}
+                                                Planned: {formatBudgetBadge(plannedBudget)}
                                               </Badge>
                                               {rollup.hasRealization && (
                                                 <Badge variant="outline" className="text-[9px] bg-blue-50 text-blue-800 border-blue-200 py-0.5 h-auto">
-                                                  Real: {formatBudgetBadge(rollup.realizedTotal || 0)} {rollup.burnPercent !== null ? `(${rollup.burnPercent}%)` : ''}
+                                                  Real: {formatBudgetBadge(actualCost || 0)} {rollup.burnPercent !== null ? `(${rollup.burnPercent}%)` : ''}
                                                 </Badge>
                                               )}
                                               <Badge variant="outline" className="text-[8.5px] uppercase font-bold py-0 h-4">
-                                                {financialStatusLabels[statusKey] || statusKey}
+                                                {getFinancialStatusLabel(statusKey)}
                                               </Badge>
                                             </div>
                                             <select
-                                              value={item.financial_status || 'draft'}
+                                              value={statusKey}
                                               data-testid="wbs-financial-status-select"
                                               onChange={(e) => {
-                                                const val = e.target.value as WbsFinancialStatus;
+                                                const val = e.target.value as FinancialStatus;
+                                                const guard = canSetFinancialStatus(val, { plannedBudget, actualCost });
+                                                if (!guard.valid) {
+                                                  toast({
+                                                    title: 'Perubahan Status Ditolak',
+                                                    description: guard.reason,
+                                                    variant: 'destructive',
+                                                  });
+                                                  return;
+                                                }
                                                 const updated = { ...item, financial_status: val };
                                                 updateItemLocally(updated);
                                                 triggerAutosave(updated);
                                               }}
                                               className="text-xs w-full border bg-white dark:bg-slate-900 rounded p-1 focus:outline-none dark:border-slate-800 font-medium"
                                             >
-                                              <option value="draft">💰 Draf Anggaran</option>
-                                              <option value="committed">📌 Terikat (Committed)</option>
-                                              <option value="disbursement_requested">⏳ Minta Cair (Disbursement Requested)</option>
-                                              <option value="paid">✅ Cair / Paid</option>
-                                              <option value="blocked_by_finance">⛔ Ditahan Keuangan (Blocked by Finance)</option>
+                                              {FINANCIAL_STATUS_OPTIONS.map((opt) => (
+                                                <option key={opt.value} value={opt.value}>{opt.emoji} {opt.label}</option>
+                                              ))}
                                             </select>
                                             {onNavigateToBudget && (
                                               <button
