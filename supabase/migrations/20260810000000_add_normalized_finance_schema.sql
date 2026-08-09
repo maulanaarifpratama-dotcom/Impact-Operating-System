@@ -25,16 +25,35 @@ COMMENT ON COLUMN public.lfa_budget_items.actual_amount_idr IS
 -- lfa_budget_items needs a composite unique so child tables can reference
 -- (budget_item_id, lfa_project_id) — same pattern as PD-M2's
 -- lfa_wbs_items(id, lfa_project_id) composite UNIQUE.
-ALTER TABLE public.lfa_budget_items
-  ADD CONSTRAINT IF NOT EXISTS lfa_budget_items_id_lfa_project_id_key
-  UNIQUE (id, lfa_project_id);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'lfa_budget_items_id_lfa_project_id_key'
+      AND conrelid = 'public.lfa_budget_items'::regclass
+  ) THEN
+    ALTER TABLE public.lfa_budget_items
+      ADD CONSTRAINT lfa_budget_items_id_lfa_project_id_key
+      UNIQUE (id, lfa_project_id);
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'lfa_budget_items_id_project_org_key'
+      AND conrelid = 'public.lfa_budget_items'::regclass
+  ) THEN
+    ALTER TABLE public.lfa_budget_items
+      ADD CONSTRAINT lfa_budget_items_id_project_org_key
+      UNIQUE (id, lfa_project_id, org_id);
+  END IF;
+END;
+$$;
 
 -- ─── 3. Create project_budget_commitments ─────────────────────────────────
 
 CREATE TABLE public.project_budget_commitments (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  lfa_project_id UUID NOT NULL REFERENCES public.lfa_projects(id) ON DELETE CASCADE,
+  org_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
+  lfa_project_id UUID NOT NULL REFERENCES public.lfa_projects(id) ON DELETE RESTRICT,
   budget_item_id UUID NOT NULL,
   amount_idr NUMERIC NOT NULL CHECK (amount_idr > 0),
   workflow_status TEXT NOT NULL DEFAULT 'draft'
@@ -74,10 +93,14 @@ CREATE TABLE public.project_budget_commitments (
     )),
 
   -- Project-scoped composite FK: commitment → budget_item in the same project
-  CONSTRAINT fk_commitment_budget_item_project
-    FOREIGN KEY (budget_item_id, lfa_project_id)
-    REFERENCES public.lfa_budget_items(id, lfa_project_id)
-    ON DELETE CASCADE
+  CONSTRAINT project_budget_commitments_id_project_key
+    UNIQUE (id, lfa_project_id),
+  CONSTRAINT project_budget_commitments_identity_key
+    UNIQUE (id, lfa_project_id, org_id, budget_item_id),
+  CONSTRAINT fk_commitment_budget_item_project_org
+    FOREIGN KEY (budget_item_id, lfa_project_id, org_id)
+    REFERENCES public.lfa_budget_items(id, lfa_project_id, org_id)
+    ON DELETE RESTRICT
 );
 
 CREATE INDEX IF NOT EXISTS idx_commitments_org_id ON public.project_budget_commitments(org_id);
@@ -92,8 +115,8 @@ COMMENT ON TABLE public.project_budget_commitments IS
 
 CREATE TABLE public.project_budget_expenditures (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  org_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
-  lfa_project_id UUID NOT NULL REFERENCES public.lfa_projects(id) ON DELETE CASCADE,
+  org_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
+  lfa_project_id UUID NOT NULL REFERENCES public.lfa_projects(id) ON DELETE RESTRICT,
   budget_item_id UUID NOT NULL,
   commitment_id UUID,
   amount_idr NUMERIC NOT NULL CHECK (amount_idr > 0),
@@ -133,16 +156,22 @@ CREATE TABLE public.project_budget_expenditures (
     CHECK (reversal_of_id IS NULL OR reversal_of_id <> id),
 
   -- Project-scoped composite FK: expenditure → budget_item in same project
-  CONSTRAINT fk_expenditure_budget_item_project
-    FOREIGN KEY (budget_item_id, lfa_project_id)
-    REFERENCES public.lfa_budget_items(id, lfa_project_id)
-    ON DELETE CASCADE,
+  CONSTRAINT project_budget_expenditures_id_identity_key
+    UNIQUE (id, lfa_project_id, org_id, budget_item_id),
+  CONSTRAINT fk_expenditure_budget_item_project_org
+    FOREIGN KEY (budget_item_id, lfa_project_id, org_id)
+    REFERENCES public.lfa_budget_items(id, lfa_project_id, org_id)
+    ON DELETE RESTRICT,
 
   -- Project-scoped composite FK: expenditure → commitment in same project
-  CONSTRAINT fk_expenditure_commitment_project
-    FOREIGN KEY (commitment_id, lfa_project_id)
-    REFERENCES public.project_budget_commitments(id, lfa_project_id)
-    ON DELETE SET NULL
+  CONSTRAINT fk_expenditure_commitment_identity
+    FOREIGN KEY (commitment_id, lfa_project_id, org_id, budget_item_id)
+    REFERENCES public.project_budget_commitments(id, lfa_project_id, org_id, budget_item_id)
+    ON DELETE RESTRICT,
+  CONSTRAINT fk_expenditure_reversal_identity
+    FOREIGN KEY (reversal_of_id, lfa_project_id, org_id, budget_item_id)
+    REFERENCES public.project_budget_expenditures(id, lfa_project_id, org_id, budget_item_id)
+    ON DELETE RESTRICT
 );
 
 CREATE INDEX IF NOT EXISTS idx_expenditures_org_id ON public.project_budget_expenditures(org_id);
@@ -165,55 +194,40 @@ CREATE POLICY "commitments_select" ON public.project_budget_commitments
   FOR SELECT
   USING (public.is_org_member(org_id, auth.uid()));
 
--- Commitment INSERT: owner only
-CREATE POLICY "commitments_insert" ON public.project_budget_commitments
-  FOR INSERT
-  WITH CHECK (
-    public.is_org_member(org_id, auth.uid())
-    AND public.get_org_role(org_id, auth.uid()) = 'owner'
-  );
+-- Direct client writes are intentionally unavailable. All lifecycle changes use
+-- SECURITY DEFINER RPCs that derive organization identity from the budget item.
+REVOKE ALL ON TABLE public.project_budget_commitments FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON TABLE public.project_budget_expenditures FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.project_budget_commitments TO authenticated, service_role;
+GRANT SELECT ON TABLE public.project_budget_expenditures TO authenticated, service_role;
+GRANT ALL ON TABLE public.project_budget_commitments TO service_role;
+GRANT ALL ON TABLE public.project_budget_expenditures TO service_role;
 
--- Commitment UPDATE: owner only (immutability for approved/rejected/cancelled enforced by RPC, not RLS)
-CREATE POLICY "commitments_update" ON public.project_budget_commitments
-  FOR UPDATE
-  USING (
-    public.is_org_member(org_id, auth.uid())
-    AND public.get_org_role(org_id, auth.uid()) = 'owner'
-  );
-
--- Commitment DELETE: owner only (soft-delete via cancel; direct delete only for draft)
-CREATE POLICY "commitments_delete" ON public.project_budget_commitments
-  FOR DELETE
-  USING (
-    public.is_org_member(org_id, auth.uid())
-    AND public.get_org_role(org_id, auth.uid()) = 'owner'
-  );
-
--- Expenditure SELECT: any org member can read
-CREATE POLICY "expenditures_select" ON public.project_budget_expenditures
-  FOR SELECT
-  USING (public.is_org_member(org_id, auth.uid()));
-
--- Expenditure INSERT: owner only
-CREATE POLICY "expenditures_insert" ON public.project_budget_expenditures
-  FOR INSERT
-  WITH CHECK (
-    public.is_org_member(org_id, auth.uid())
-    AND public.get_org_role(org_id, auth.uid()) = 'owner'
-  );
-
--- Expenditure UPDATE: owner only
-CREATE POLICY "expenditures_update" ON public.project_budget_expenditures
-  FOR UPDATE
-  USING (
-    public.is_org_member(org_id, auth.uid())
-    AND public.get_org_role(org_id, auth.uid()) = 'owner'
-  );
-
--- Expenditure DELETE: owner only (direct delete only for draft)
-CREATE POLICY "expenditures_delete" ON public.project_budget_expenditures
-  FOR DELETE
-  USING (
-    public.is_org_member(org_id, auth.uid())
-    AND public.get_org_role(org_id, auth.uid()) = 'owner'
-  );
+-- Dedicated immutable audit ledger. This avoids replacing the evolving CHECK
+-- allowlists on project_activity_events during a Production migration.
+CREATE TABLE public.project_budget_finance_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id UUID NOT NULL REFERENCES public.organizations(id) ON DELETE RESTRICT,
+  lfa_project_id UUID NOT NULL REFERENCES public.lfa_projects(id) ON DELETE RESTRICT,
+  actor_id UUID NOT NULL REFERENCES auth.users(id),
+  entity_type TEXT NOT NULL CHECK (entity_type IN ('budget_commitment', 'budget_expenditure')),
+  entity_id UUID NOT NULL,
+  event_type TEXT NOT NULL CHECK (event_type IN (
+    'budget_commitment_created', 'budget_commitment_updated',
+    'budget_commitment_submitted', 'budget_commitment_approved',
+    'budget_commitment_rejected', 'budget_commitment_cancelled',
+    'budget_expenditure_created', 'budget_expenditure_updated',
+    'budget_expenditure_submitted', 'budget_expenditure_posted',
+    'budget_expenditure_rejected', 'budget_expenditure_reversed'
+  )),
+  safe_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_budget_finance_events_scope
+  ON public.project_budget_finance_events(org_id, lfa_project_id, created_at DESC);
+ALTER TABLE public.project_budget_finance_events ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "budget_finance_events_select" ON public.project_budget_finance_events
+  FOR SELECT USING (public.is_org_member(org_id, auth.uid()));
+REVOKE ALL ON TABLE public.project_budget_finance_events FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON TABLE public.project_budget_finance_events TO authenticated, service_role;
+GRANT ALL ON TABLE public.project_budget_finance_events TO service_role;

@@ -3,67 +3,10 @@
 -- Transactional SECURITY DEFINER RPCs for commitment and expenditure
 -- lifecycle operations. All actor/timestamp metadata is server-controlled.
 -- Direct UPDATE on posted/approved/rejected/cancelled records is prevented
--- by RPC-mediated transitions. Audit events are written to the existing
--- project_activity_events table.
+-- by RPC-mediated transitions. Audit events are written to the dedicated immutable
+-- project_budget_finance_events table.
 
--- ─── 1. Extend project_activity_events for Finance entity/event types ─────
-
--- Postgres does not allow ALTERing a CHECK constraint directly; we drop and re-add.
-ALTER TABLE public.project_activity_events
-  DROP CONSTRAINT IF EXISTS project_activity_events_entity_type_check;
-
-ALTER TABLE public.project_activity_events
-  ADD CONSTRAINT project_activity_events_entity_type_check
-  CHECK (entity_type IN (
-    'project',
-    'objective',
-    'stage',
-    'wbs_item',
-    'meal_item',
-    'deliverable',
-    'budget_commitment',
-    'budget_expenditure'
-  ));
-
-ALTER TABLE public.project_activity_events
-  DROP CONSTRAINT IF EXISTS project_activity_events_event_type_check;
-
-ALTER TABLE public.project_activity_events
-  ADD CONSTRAINT project_activity_events_event_type_check
-  CHECK (event_type IN (
-    'project_created',
-    'objective_created',
-    'objective_updated',
-    'objective_reordered',
-    'objective_archived',
-    'objective_restored',
-    'stage_created',
-    'stage_updated',
-    'stage_reordered',
-    'stage_status_changed',
-    'stage_archived',
-    'stage_restored',
-    'wbs_stage_assigned',
-    'wbs_stage_unassigned',
-    'meal_context_changed',
-    'deliverable_created',
-    'deliverable_status_changed',
-    'deliverable_archived',
-    'deliverable_stage_assigned',
-    'deliverable_stage_unassigned',
-    'budget_commitment_created',
-    'budget_commitment_updated',
-    'budget_commitment_submitted',
-    'budget_commitment_approved',
-    'budget_commitment_rejected',
-    'budget_commitment_cancelled',
-    'budget_expenditure_created',
-    'budget_expenditure_updated',
-    'budget_expenditure_submitted',
-    'budget_expenditure_posted',
-    'budget_expenditure_rejected',
-    'budget_expenditure_reversed'
-  ));
+-- ─── 1. Finance audit uses project_budget_finance_events ────────────────
 
 -- ─── 2. Helper: assert owner for a given org_id ───────────────────────────
 
@@ -82,13 +25,12 @@ END;
 $$;
 
 REVOKE ALL ON FUNCTION public.assert_finance_owner(UUID, UUID) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.assert_finance_owner(UUID, UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.assert_finance_owner(UUID, UUID) TO service_role;
 
 -- ─── 3. Commitment RPCs ───────────────────────────────────────────────────
 
 -- 3a. Create draft commitment
 CREATE OR REPLACE FUNCTION public.create_commitment_draft(
-  p_org_id UUID,
   p_lfa_project_id UUID,
   p_budget_item_id UUID,
   p_amount_idr NUMERIC,
@@ -105,29 +47,38 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_actor UUID := auth.uid();
+  v_org_id UUID;
   v_row public.project_budget_commitments;
 BEGIN
   IF v_actor IS NULL THEN
     RAISE EXCEPTION 'AUTHENTICATION_REQUIRED' USING ERRCODE = '42501';
   END IF;
 
-  PERFORM public.assert_finance_owner(p_org_id, v_actor);
+  SELECT bi.org_id INTO v_org_id
+  FROM public.lfa_budget_items bi
+  WHERE bi.id = p_budget_item_id
+    AND bi.lfa_project_id = p_lfa_project_id
+  FOR UPDATE;
+  IF v_org_id IS NULL THEN
+    RAISE EXCEPTION 'BUDGET_ITEM_NOT_FOUND_OR_WRONG_PROJECT' USING ERRCODE = '02000';
+  END IF;
+  PERFORM public.assert_finance_owner(v_org_id, v_actor);
 
   INSERT INTO public.project_budget_commitments (
     org_id, lfa_project_id, budget_item_id, amount_idr,
     workflow_status, description, counterparty_name, reference_number,
     expected_realization_date, evidence_url, created_by
   ) VALUES (
-    p_org_id, p_lfa_project_id, p_budget_item_id, p_amount_idr,
+    v_org_id, p_lfa_project_id, p_budget_item_id, p_amount_idr,
     'draft', p_description, p_counterparty_name, p_reference_number,
     p_expected_realization_date, p_evidence_url, v_actor
   )
   RETURNING * INTO v_row;
 
-  INSERT INTO public.project_activity_events (
-    org_id, project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
+  INSERT INTO public.project_budget_finance_events (
+    org_id, lfa_project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
   ) VALUES (
-    p_org_id, p_lfa_project_id, v_actor, 'budget_commitment', v_row.id,
+    v_org_id, p_lfa_project_id, v_actor, 'budget_commitment', v_row.id,
     'budget_commitment_created',
     jsonb_build_object('amount_idr', p_amount_idr)
   );
@@ -142,12 +93,7 @@ GRANT EXECUTE ON FUNCTION public.create_commitment_draft TO authenticated, servi
 -- 3b. Update draft commitment
 CREATE OR REPLACE FUNCTION public.update_commitment_draft(
   p_commitment_id UUID,
-  p_amount_idr NUMERIC DEFAULT NULL,
-  p_description TEXT DEFAULT NULL,
-  p_counterparty_name TEXT DEFAULT NULL,
-  p_reference_number TEXT DEFAULT NULL,
-  p_expected_realization_date DATE DEFAULT NULL,
-  p_evidence_url TEXT DEFAULT NULL
+  p_patch JSONB
 )
 RETURNS public.project_budget_commitments
 LANGUAGE plpgsql
@@ -157,10 +103,15 @@ AS $$
 DECLARE
   v_actor UUID := auth.uid();
   v_row public.project_budget_commitments;
-  v_changed BOOLEAN := false;
 BEGIN
   IF v_actor IS NULL THEN
     RAISE EXCEPTION 'AUTHENTICATION_REQUIRED' USING ERRCODE = '42501';
+  END IF;
+  IF p_patch IS NULL OR jsonb_typeof(p_patch) <> 'object' THEN
+    RAISE EXCEPTION 'INVALID_PATCH' USING ERRCODE = '22023';
+  END IF;
+  IF p_patch - ARRAY['amount_idr','description','counterparty_name','reference_number','expected_realization_date','evidence_url'] <> '{}'::jsonb THEN
+    RAISE EXCEPTION 'PATCH_FIELD_NOT_ALLOWED' USING ERRCODE = '22023';
   END IF;
 
   SELECT * INTO v_row
@@ -168,78 +119,39 @@ BEGIN
   WHERE c.id = p_commitment_id
     AND public.is_org_member(c.org_id, v_actor)
   FOR UPDATE;
-
   IF v_row IS NULL THEN
-    RAISE EXCEPTION 'COMMITMENT_NOT_FOUND' USING ERRCODE = '02000';
+    RAISE EXCEPTION 'COMMITMENT_NOT_FOUND' USING ERRCODE = 'P0002';
   END IF;
-
   PERFORM public.assert_finance_owner(v_row.org_id, v_actor);
-
   IF v_row.workflow_status <> 'draft' THEN
-    RAISE EXCEPTION 'COMMITMENT_NOT_DRAFT: only draft commitments can be updated directly'
-      USING ERRCODE = '23000';
+    RAISE EXCEPTION 'COMMITMENT_NOT_DRAFT' USING ERRCODE = '23000';
+  END IF;
+  IF p_patch ? 'amount_idr' AND (p_patch->>'amount_idr')::numeric <= 0 THEN
+    RAISE EXCEPTION 'INVALID_AMOUNT' USING ERRCODE = '22000';
   END IF;
 
-  IF p_amount_idr IS NOT NULL AND p_amount_idr <> v_row.amount_idr THEN
-    IF p_amount_idr <= 0 THEN
-      RAISE EXCEPTION 'INVALID_AMOUNT: amount_idr must be positive' USING ERRCODE = '22000';
-    END IF;
-    v_row.amount_idr := p_amount_idr;
-    v_changed := true;
-  END IF;
+  UPDATE public.project_budget_commitments
+  SET amount_idr = CASE WHEN p_patch ? 'amount_idr' THEN (p_patch->>'amount_idr')::numeric ELSE amount_idr END,
+      description = CASE WHEN p_patch ? 'description' THEN p_patch->>'description' ELSE description END,
+      counterparty_name = CASE WHEN p_patch ? 'counterparty_name' THEN p_patch->>'counterparty_name' ELSE counterparty_name END,
+      reference_number = CASE WHEN p_patch ? 'reference_number' THEN p_patch->>'reference_number' ELSE reference_number END,
+      expected_realization_date = CASE WHEN p_patch ? 'expected_realization_date' THEN (p_patch->>'expected_realization_date')::date ELSE expected_realization_date END,
+      evidence_url = CASE WHEN p_patch ? 'evidence_url' THEN p_patch->>'evidence_url' ELSE evidence_url END,
+      updated_at = now()
+  WHERE id = p_commitment_id
+  RETURNING * INTO v_row;
 
-  IF p_description IS DISTINCT FROM v_row.description THEN
-    v_row.description := p_description;
-    v_changed := true;
-  END IF;
-
-  IF p_counterparty_name IS DISTINCT FROM v_row.counterparty_name THEN
-    v_row.counterparty_name := p_counterparty_name;
-    v_changed := true;
-  END IF;
-
-  IF p_reference_number IS DISTINCT FROM v_row.reference_number THEN
-    v_row.reference_number := p_reference_number;
-    v_changed := true;
-  END IF;
-
-  IF p_expected_realization_date IS DISTINCT FROM v_row.expected_realization_date THEN
-    v_row.expected_realization_date := p_expected_realization_date;
-    v_changed := true;
-  END IF;
-
-  IF p_evidence_url IS DISTINCT FROM v_row.evidence_url THEN
-    v_row.evidence_url := p_evidence_url;
-    v_changed := true;
-  END IF;
-
-  IF v_changed THEN
-    v_row.updated_at := now();
-    UPDATE public.project_budget_commitments
-    SET amount_idr = v_row.amount_idr,
-        description = v_row.description,
-        counterparty_name = v_row.counterparty_name,
-        reference_number = v_row.reference_number,
-        expected_realization_date = v_row.expected_realization_date,
-        evidence_url = v_row.evidence_url,
-        updated_at = v_row.updated_at
-    WHERE id = p_commitment_id;
-
-    INSERT INTO public.project_activity_events (
-      org_id, project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
-    ) VALUES (
-      v_row.org_id, v_row.lfa_project_id, v_actor, 'budget_commitment', v_row.id,
-      'budget_commitment_updated',
-      jsonb_build_object('amount_idr', v_row.amount_idr)
-    );
-  END IF;
-
+  INSERT INTO public.project_budget_finance_events (
+    org_id, lfa_project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
+  ) VALUES (
+    v_row.org_id, v_row.lfa_project_id, v_actor, 'budget_commitment', v_row.id,
+    'budget_commitment_updated', jsonb_build_object('changed_fields', to_jsonb(ARRAY(SELECT jsonb_object_keys(p_patch))))
+  );
   RETURN v_row;
 END;
 $$;
-
-REVOKE ALL ON FUNCTION public.update_commitment_draft FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.update_commitment_draft TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.update_commitment_draft(UUID, JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.update_commitment_draft(UUID, JSONB) TO authenticated, service_role;
 
 -- 3c. Submit commitment
 CREATE OR REPLACE FUNCTION public.submit_commitment(p_commitment_id UUID)
@@ -285,8 +197,8 @@ BEGIN
   v_row.submitted_at := now();
   v_row.updated_at := now();
 
-  INSERT INTO public.project_activity_events (
-    org_id, project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
+  INSERT INTO public.project_budget_finance_events (
+    org_id, lfa_project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
   ) VALUES (
     v_row.org_id, v_row.lfa_project_id, v_actor, 'budget_commitment', v_row.id,
     'budget_commitment_submitted',
@@ -349,8 +261,8 @@ BEGIN
   v_row.approved_at := v_now;
   v_row.updated_at := v_now;
 
-  INSERT INTO public.project_activity_events (
-    org_id, project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
+  INSERT INTO public.project_budget_finance_events (
+    org_id, lfa_project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
   ) VALUES (
     v_row.org_id, v_row.lfa_project_id, v_actor, 'budget_commitment', v_row.id,
     'budget_commitment_approved',
@@ -413,8 +325,8 @@ BEGIN
   v_row.rejected_at := v_now;
   v_row.updated_at := v_now;
 
-  INSERT INTO public.project_activity_events (
-    org_id, project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
+  INSERT INTO public.project_budget_finance_events (
+    org_id, lfa_project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
   ) VALUES (
     v_row.org_id, v_row.lfa_project_id, v_actor, 'budget_commitment', v_row.id,
     'budget_commitment_rejected',
@@ -442,6 +354,7 @@ DECLARE
   v_actor UUID := auth.uid();
   v_row public.project_budget_commitments;
   v_now TIMESTAMPTZ := now();
+  v_net_posted NUMERIC := 0;
 BEGIN
   IF v_actor IS NULL THEN
     RAISE EXCEPTION 'AUTHENTICATION_REQUIRED' USING ERRCODE = '42501';
@@ -464,6 +377,18 @@ BEGIN
       USING ERRCODE = '23000';
   END IF;
 
+  IF v_row.workflow_status = 'approved' THEN
+    SELECT coalesce(sum(CASE WHEN e.reversal_of_id IS NULL THEN e.amount_idr ELSE -e.amount_idr END), 0)
+      INTO v_net_posted
+    FROM public.project_budget_expenditures e
+    WHERE e.commitment_id = v_row.id
+      AND e.workflow_status = 'posted';
+    IF v_net_posted > 0 THEN
+      RAISE EXCEPTION 'COMMITMENT_HAS_POSTED_ACTUAL: approved commitment with net posted actual cannot be cancelled'
+        USING ERRCODE = '23000';
+    END IF;
+  END IF;
+
   UPDATE public.project_budget_commitments
   SET workflow_status = 'cancelled',
       cancelled_by = v_actor,
@@ -477,8 +402,8 @@ BEGIN
   v_row.cancelled_at := v_now;
   v_row.updated_at := v_now;
 
-  INSERT INTO public.project_activity_events (
-    org_id, project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
+  INSERT INTO public.project_budget_finance_events (
+    org_id, lfa_project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
   ) VALUES (
     v_row.org_id, v_row.lfa_project_id, v_actor, 'budget_commitment', v_row.id,
     'budget_commitment_cancelled',
@@ -496,7 +421,6 @@ GRANT EXECUTE ON FUNCTION public.cancel_commitment TO authenticated, service_rol
 
 -- 4a. Create draft expenditure
 CREATE OR REPLACE FUNCTION public.create_expenditure_draft(
-  p_org_id UUID,
   p_lfa_project_id UUID,
   p_budget_item_id UUID,
   p_amount_idr NUMERIC,
@@ -513,6 +437,7 @@ SET search_path = public, pg_temp
 AS $$
 DECLARE
   v_actor UUID := auth.uid();
+  v_org_id UUID;
   v_row public.project_budget_expenditures;
   v_commitment_status TEXT;
 BEGIN
@@ -520,12 +445,20 @@ BEGIN
     RAISE EXCEPTION 'AUTHENTICATION_REQUIRED' USING ERRCODE = '42501';
   END IF;
 
-  PERFORM public.assert_finance_owner(p_org_id, v_actor);
+  SELECT bi.org_id INTO v_org_id
+  FROM public.lfa_budget_items bi
+  WHERE bi.id = p_budget_item_id
+    AND bi.lfa_project_id = p_lfa_project_id
+  FOR UPDATE;
+  IF v_org_id IS NULL THEN
+    RAISE EXCEPTION 'BUDGET_ITEM_NOT_FOUND_OR_WRONG_PROJECT' USING ERRCODE = '02000';
+  END IF;
+  PERFORM public.assert_finance_owner(v_org_id, v_actor);
 
   IF p_commitment_id IS NOT NULL THEN
     SELECT workflow_status INTO v_commitment_status
     FROM public.project_budget_commitments
-    WHERE id = p_commitment_id AND lfa_project_id = p_lfa_project_id
+    WHERE id = p_commitment_id AND lfa_project_id = p_lfa_project_id AND org_id = v_org_id AND budget_item_id = p_budget_item_id
     FOR UPDATE;
 
     IF v_commitment_status IS NULL THEN
@@ -544,16 +477,16 @@ BEGIN
     workflow_status, description, transaction_date, reference_number,
     evidence_url, created_by
   ) VALUES (
-    p_org_id, p_lfa_project_id, p_budget_item_id, p_commitment_id, p_amount_idr,
+    v_org_id, p_lfa_project_id, p_budget_item_id, p_commitment_id, p_amount_idr,
     'draft', p_description, p_transaction_date, p_reference_number,
     p_evidence_url, v_actor
   )
   RETURNING * INTO v_row;
 
-  INSERT INTO public.project_activity_events (
-    org_id, project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
+  INSERT INTO public.project_budget_finance_events (
+    org_id, lfa_project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
   ) VALUES (
-    p_org_id, p_lfa_project_id, v_actor, 'budget_expenditure', v_row.id,
+    v_org_id, p_lfa_project_id, v_actor, 'budget_expenditure', v_row.id,
     'budget_expenditure_created',
     jsonb_build_object('amount_idr', p_amount_idr, 'commitment_id', p_commitment_id)
   );
@@ -568,12 +501,7 @@ GRANT EXECUTE ON FUNCTION public.create_expenditure_draft TO authenticated, serv
 -- 4b. Update draft expenditure
 CREATE OR REPLACE FUNCTION public.update_expenditure_draft(
   p_expenditure_id UUID,
-  p_amount_idr NUMERIC DEFAULT NULL,
-  p_commitment_id UUID DEFAULT NULL,
-  p_description TEXT DEFAULT NULL,
-  p_transaction_date DATE DEFAULT NULL,
-  p_reference_number TEXT DEFAULT NULL,
-  p_evidence_url TEXT DEFAULT NULL
+  p_patch JSONB
 )
 RETURNS public.project_budget_expenditures
 LANGUAGE plpgsql
@@ -583,11 +511,16 @@ AS $$
 DECLARE
   v_actor UUID := auth.uid();
   v_row public.project_budget_expenditures;
-  v_changed BOOLEAN := false;
-  v_commitment_status TEXT;
+  v_commitment public.project_budget_commitments;
 BEGIN
   IF v_actor IS NULL THEN
     RAISE EXCEPTION 'AUTHENTICATION_REQUIRED' USING ERRCODE = '42501';
+  END IF;
+  IF p_patch IS NULL OR jsonb_typeof(p_patch) <> 'object' THEN
+    RAISE EXCEPTION 'INVALID_PATCH' USING ERRCODE = '22023';
+  END IF;
+  IF p_patch - ARRAY['amount_idr','commitment_id','description','transaction_date','reference_number','evidence_url'] <> '{}'::jsonb THEN
+    RAISE EXCEPTION 'PATCH_FIELD_NOT_ALLOWED' USING ERRCODE = '22023';
   END IF;
 
   SELECT * INTO v_row
@@ -595,91 +528,55 @@ BEGIN
   WHERE e.id = p_expenditure_id
     AND public.is_org_member(e.org_id, v_actor)
   FOR UPDATE;
-
   IF v_row IS NULL THEN
-    RAISE EXCEPTION 'EXPENDITURE_NOT_FOUND' USING ERRCODE = '02000';
+    RAISE EXCEPTION 'EXPENDITURE_NOT_FOUND' USING ERRCODE = 'P0002';
   END IF;
-
   PERFORM public.assert_finance_owner(v_row.org_id, v_actor);
-
   IF v_row.workflow_status <> 'draft' THEN
-    RAISE EXCEPTION 'EXPENDITURE_NOT_DRAFT: only draft expenditures can be updated directly'
-      USING ERRCODE = '23000';
+    RAISE EXCEPTION 'EXPENDITURE_NOT_DRAFT' USING ERRCODE = '23000';
+  END IF;
+  IF p_patch ? 'amount_idr' AND (p_patch->>'amount_idr')::numeric <= 0 THEN
+    RAISE EXCEPTION 'INVALID_AMOUNT' USING ERRCODE = '22000';
   END IF;
 
-  IF p_amount_idr IS NOT NULL AND p_amount_idr <> v_row.amount_idr THEN
-    IF p_amount_idr <= 0 THEN
-      RAISE EXCEPTION 'INVALID_AMOUNT: amount_idr must be positive' USING ERRCODE = '22000';
+  IF p_patch ? 'commitment_id' AND p_patch->>'commitment_id' IS NOT NULL THEN
+    SELECT * INTO v_commitment
+    FROM public.project_budget_commitments c
+    WHERE c.id = (p_patch->>'commitment_id')::uuid
+      AND c.lfa_project_id = v_row.lfa_project_id
+      AND c.org_id = v_row.org_id
+      AND c.budget_item_id = v_row.budget_item_id
+    FOR UPDATE;
+    IF v_commitment IS NULL THEN
+      RAISE EXCEPTION 'COMMITMENT_NOT_FOUND_OR_WRONG_SCOPE' USING ERRCODE = 'P0002';
     END IF;
-    v_row.amount_idr := p_amount_idr;
-    v_changed := true;
-  END IF;
-
-  IF p_commitment_id IS DISTINCT FROM v_row.commitment_id THEN
-    IF p_commitment_id IS NOT NULL THEN
-      SELECT workflow_status INTO v_commitment_status
-      FROM public.project_budget_commitments
-      WHERE id = p_commitment_id AND lfa_project_id = v_row.lfa_project_id
-      FOR UPDATE;
-
-      IF v_commitment_status IS NULL THEN
-        RAISE EXCEPTION 'COMMITMENT_NOT_FOUND_OR_WRONG_PROJECT' USING ERRCODE = '02000';
-      END IF;
-      IF v_commitment_status <> 'approved' THEN
-        RAISE EXCEPTION 'EXPENDITURE_COMMITMENT_NOT_APPROVED' USING ERRCODE = '23000';
-      END IF;
+    IF v_commitment.workflow_status <> 'approved' THEN
+      RAISE EXCEPTION 'EXPENDITURE_COMMITMENT_NOT_APPROVED' USING ERRCODE = '23000';
     END IF;
-    v_row.commitment_id := p_commitment_id;
-    v_changed := true;
   END IF;
 
-  IF p_description IS DISTINCT FROM v_row.description THEN
-    v_row.description := p_description;
-    v_changed := true;
-  END IF;
+  UPDATE public.project_budget_expenditures
+  SET amount_idr = CASE WHEN p_patch ? 'amount_idr' THEN (p_patch->>'amount_idr')::numeric ELSE amount_idr END,
+      commitment_id = CASE WHEN p_patch ? 'commitment_id' THEN nullif(p_patch->>'commitment_id','')::uuid ELSE commitment_id END,
+      description = CASE WHEN p_patch ? 'description' THEN p_patch->>'description' ELSE description END,
+      transaction_date = CASE WHEN p_patch ? 'transaction_date' THEN nullif(p_patch->>'transaction_date','')::date ELSE transaction_date END,
+      reference_number = CASE WHEN p_patch ? 'reference_number' THEN p_patch->>'reference_number' ELSE reference_number END,
+      evidence_url = CASE WHEN p_patch ? 'evidence_url' THEN p_patch->>'evidence_url' ELSE evidence_url END,
+      updated_at = now()
+  WHERE id = p_expenditure_id
+  RETURNING * INTO v_row;
 
-  IF p_transaction_date IS DISTINCT FROM v_row.transaction_date THEN
-    v_row.transaction_date := p_transaction_date;
-    v_changed := true;
-  END IF;
-
-  IF p_reference_number IS DISTINCT FROM v_row.reference_number THEN
-    v_row.reference_number := p_reference_number;
-    v_changed := true;
-  END IF;
-
-  IF p_evidence_url IS DISTINCT FROM v_row.evidence_url THEN
-    v_row.evidence_url := p_evidence_url;
-    v_changed := true;
-  END IF;
-
-  IF v_changed THEN
-    v_row.updated_at := now();
-    UPDATE public.project_budget_expenditures
-    SET amount_idr = v_row.amount_idr,
-        commitment_id = v_row.commitment_id,
-        description = v_row.description,
-        transaction_date = v_row.transaction_date,
-        reference_number = v_row.reference_number,
-        evidence_url = v_row.evidence_url,
-        updated_at = v_row.updated_at
-    WHERE id = p_expenditure_id;
-
-    INSERT INTO public.project_activity_events (
-      org_id, project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
-    ) VALUES (
-      v_row.org_id, v_row.lfa_project_id, v_actor, 'budget_expenditure', v_row.id,
-      'budget_expenditure_updated',
-      jsonb_build_object('amount_idr', v_row.amount_idr, 'commitment_id', v_row.commitment_id)
-    );
-  END IF;
-
+  INSERT INTO public.project_budget_finance_events (
+    org_id, lfa_project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
+  ) VALUES (
+    v_row.org_id, v_row.lfa_project_id, v_actor, 'budget_expenditure', v_row.id,
+    'budget_expenditure_updated', jsonb_build_object('changed_fields', to_jsonb(ARRAY(SELECT jsonb_object_keys(p_patch))))
+  );
   RETURN v_row;
 END;
 $$;
-
-REVOKE ALL ON FUNCTION public.update_expenditure_draft FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.update_expenditure_draft TO authenticated, service_role;
+REVOKE ALL ON FUNCTION public.update_expenditure_draft(UUID, JSONB) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.update_expenditure_draft(UUID, JSONB) TO authenticated, service_role;
 
 -- 4c. Submit expenditure
 CREATE OR REPLACE FUNCTION public.submit_expenditure(p_expenditure_id UUID)
@@ -725,8 +622,8 @@ BEGIN
   v_row.submitted_at := now();
   v_row.updated_at := now();
 
-  INSERT INTO public.project_activity_events (
-    org_id, project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
+  INSERT INTO public.project_budget_finance_events (
+    org_id, lfa_project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
   ) VALUES (
     v_row.org_id, v_row.lfa_project_id, v_actor, 'budget_expenditure', v_row.id,
     'budget_expenditure_submitted',
@@ -822,7 +719,7 @@ BEGIN
     v_total_after := v_net_existing + v_row.amount_idr;
 
     IF v_total_after > v_commitment.amount_idr THEN
-      RAISE EXCEPTION 'COMMITMENT_OVER_REALIZATION: total posted (% ) + this expenditure (%s) exceeds commitment amount (%s)',
+      RAISE EXCEPTION 'COMMITMENT_OVER_REALIZATION: total posted (%) + this expenditure (%) exceeds commitment amount (%)',
         v_net_existing, v_row.amount_idr, v_commitment.amount_idr
         USING ERRCODE = '23000';
     END IF;
@@ -841,8 +738,8 @@ BEGIN
   v_row.posted_at := v_now;
   v_row.updated_at := v_now;
 
-  INSERT INTO public.project_activity_events (
-    org_id, project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
+  INSERT INTO public.project_budget_finance_events (
+    org_id, lfa_project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
   ) VALUES (
     v_row.org_id, v_row.lfa_project_id, v_actor, 'budget_expenditure', v_row.id,
     'budget_expenditure_posted',
@@ -905,8 +802,8 @@ BEGIN
   v_row.rejected_at := v_now;
   v_row.updated_at := v_now;
 
-  INSERT INTO public.project_activity_events (
-    org_id, project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
+  INSERT INTO public.project_budget_finance_events (
+    org_id, lfa_project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
   ) VALUES (
     v_row.org_id, v_row.lfa_project_id, v_actor, 'budget_expenditure', v_row.id,
     'budget_expenditure_rejected',
@@ -975,13 +872,12 @@ BEGIN
   SELECT coalesce(sum(r.amount_idr), 0) INTO v_existing_reversals
   FROM public.project_budget_expenditures r
   WHERE r.reversal_of_id = p_original_expenditure_id
-    AND r.workflow_status = 'posted'
-  FOR UPDATE;
+    AND r.workflow_status = 'posted';
 
   v_total_after := v_existing_reversals + p_reversal_amount_idr;
 
   IF v_total_after > v_original.amount_idr THEN
-    RAISE EXCEPTION 'REVERSAL_EXCEEDS_ORIGINAL: total reversals (%s) + this reversal (%s) exceeds original amount (%s)',
+    RAISE EXCEPTION 'REVERSAL_EXCEEDS_ORIGINAL: total reversals (%) + this reversal (%) exceeds original amount (%)',
       v_existing_reversals, p_reversal_amount_idr, v_original.amount_idr
       USING ERRCODE = '23000';
   END IF;
@@ -1000,8 +896,8 @@ BEGIN
   )
   RETURNING * INTO v_reversal;
 
-  INSERT INTO public.project_activity_events (
-    org_id, project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
+  INSERT INTO public.project_budget_finance_events (
+    org_id, lfa_project_id, actor_id, entity_type, entity_id, event_type, safe_metadata
   ) VALUES (
     v_original.org_id, v_original.lfa_project_id, v_actor, 'budget_expenditure',
     v_reversal.id, 'budget_expenditure_reversed',
@@ -1114,7 +1010,16 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION public.compute_budget_aggregates(UUID) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.compute_budget_aggregates(UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.compute_budget_aggregates(UUID) TO authenticated;
 
 COMMENT ON FUNCTION public.compute_budget_aggregates(UUID) IS
   'PM-F2 read-only aggregate helper. Returns per-budget-item planned, net actual, approved commitment, and committed outstanding for a given project. Tenant-scoped via is_org_member.';
+
+
+-- Defense in depth: clients read normalized ledgers directly but mutate only via RPC.
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+  ON TABLE public.project_budget_commitments FROM PUBLIC, anon, authenticated;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+  ON TABLE public.project_budget_expenditures FROM PUBLIC, anon, authenticated;
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+  ON TABLE public.project_budget_finance_events FROM PUBLIC, anon, authenticated;
