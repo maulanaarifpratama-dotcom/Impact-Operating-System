@@ -1189,6 +1189,14 @@ function ProjectLearningTab({ projectId }: { projectId: string }) {
           published.map(renderEntry)
         )}
       </div>
+
+      {/* The sidebar Learning module was removed entirely — this is now the
+          only entry point into the cross-project Library. */}
+      <div className="pt-2 border-t">
+        <Link to="/dashboard/learning" className="text-xs font-semibold text-primary hover:underline">
+          Browse Organization Learning →
+        </Link>
+      </div>
     </div>
   );
 }
