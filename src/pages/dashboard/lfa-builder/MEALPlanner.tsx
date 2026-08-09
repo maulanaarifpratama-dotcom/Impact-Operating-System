@@ -1607,31 +1607,37 @@ export default function MEALPlanner({
                     <td className="p-3.5">
                       <div className="space-y-2">
                         {globalMode === 'simple' ? (
-                          <div className="flex gap-1">
-                            <Input
-                              type="number"
-                              value={item.target_value ?? ''}
-                              data-testid="meal-target-input"
-                              onChange={(e) => {
-                                const val = e.target.value === '' ? null : Number(e.target.value);
-                                setMealItems(prev => prev.map(m => m.id === item.id ? { ...m, target_value: val } : m));
-                                const target = { ...item, target_value: val };
-                                queueAutosave('items', item.id, () => saveMealItem(target));
-                              }}
-                              placeholder="Target"
-                              className="text-xs h-7.5 w-16 px-1"
-                            />
-                            <Input
-                              value={item.target_unit ?? ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setMealItems(prev => prev.map(m => m.id === item.id ? { ...m, target_unit: val } : m));
-                                const target = { ...item, target_unit: val };
-                                queueAutosave('items', item.id, () => saveMealItem(target));
-                              }}
-                              placeholder="Satuan (mis. %)"
-                              className="text-xs h-7.5 flex-1 px-1.5"
-                            />
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-[9px] text-slate-400 uppercase block mb-0.5">Target</Label>
+                              <Input
+                                type="number"
+                                value={item.target_value ?? ''}
+                                data-testid="meal-target-input"
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? null : Number(e.target.value);
+                                  setMealItems(prev => prev.map(m => m.id === item.id ? { ...m, target_value: val } : m));
+                                  const target = { ...item, target_value: val };
+                                  queueAutosave('items', item.id, () => saveMealItem(target));
+                                }}
+                                placeholder="0"
+                                className="text-[10px] h-7 px-2"
+                              />
+                            </div>
+                            <div>
+                              <Label className="text-[9px] text-slate-400 uppercase block mb-0.5">Satuan</Label>
+                              <Input
+                                value={item.target_unit ?? ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setMealItems(prev => prev.map(m => m.id === item.id ? { ...m, target_unit: val } : m));
+                                  const target = { ...item, target_unit: val };
+                                  queueAutosave('items', item.id, () => saveMealItem(target));
+                                }}
+                                placeholder="mis. orang, %"
+                                className="text-[10px] h-7 px-2"
+                              />
+                            </div>
                           </div>
                         ) : (
                           <div className="space-y-1.5 text-[10px]">
@@ -1667,17 +1673,20 @@ export default function MEALPlanner({
                                 />
                               </div>
                             </div>
-                            <Input
-                              value={item.target_unit ?? ''}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                setMealItems(prev => prev.map(m => m.id === item.id ? { ...m, target_unit: val } : m));
-                                const target = { ...item, target_unit: val };
-                                queueAutosave('items', item.id, () => saveMealItem(target));
-                              }}
-                              placeholder="Satuan (mis. orang)"
-                              className="text-[10px] h-6.5"
-                            />
+                            <div>
+                              <Label className="text-[9px] text-slate-400 uppercase block mb-0.5">Satuan Target</Label>
+                              <Input
+                                value={item.target_unit ?? ''}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setMealItems(prev => prev.map(m => m.id === item.id ? { ...m, target_unit: val } : m));
+                                  const target = { ...item, target_unit: val };
+                                  queueAutosave('items', item.id, () => saveMealItem(target));
+                                }}
+                                placeholder="mis. orang"
+                                className="text-[10px] h-7 px-2"
+                              />
+                            </div>
                           </div>
                         )}
                       </div>
