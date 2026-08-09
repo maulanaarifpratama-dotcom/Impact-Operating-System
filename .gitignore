@@ -26,6 +26,7 @@ dist-ssr
 # Playwright artifacts
 playwright-report/
 test-results/
+tests/e2e/screenshots/
 .env.e2e
 
 # Local environment secrets

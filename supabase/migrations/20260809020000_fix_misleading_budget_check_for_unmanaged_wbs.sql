@@ -11,8 +11,8 @@
 -- (MEAL, SROI) proceed.
 create or replace function public.materialize_grantwriter_document(
   p_source_document_id uuid,
-  p_expected_document_version integer,
-  p_existing_lfa_project_id uuid default null
+  p_expected_document_version integer DEFAULT NULL::integer,
+  p_existing_lfa_project_id uuid DEFAULT NULL::uuid
 ) returns jsonb
 language plpgsql
 security definer

@@ -220,6 +220,11 @@ export default function Settings() {
       toast.error('Gagal: Hanya Owner atau Admin yang dapat merubah hak akses pengelola');
       return;
     }
+    const targetMember = teamMembers?.find(m => m.id === memberId);
+    if (targetMember?.role === 'owner') {
+      toast.error('Tidak dapat merubah hak akses pemilik (Owner).');
+      return;
+    }
     try {
       const { error } = await supabase
         .from('organization_members')
@@ -271,6 +276,14 @@ export default function Settings() {
   const executeDeleteMember = async () => {
     if (!deleteMemberTarget) return;
     const { id } = deleteMemberTarget;
+
+    const targetMember = teamMembers?.find(m => m.id === id);
+    if (targetMember?.role === 'owner') {
+      toast.error('Tidak dapat menghapus pemilik (Owner) dari organisasi.');
+      setDeleteMemberTarget(null);
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('organization_members')

@@ -1,12 +1,7 @@
 import { useMemo, useRef, useLayoutEffect, useState, useCallback } from 'react';
-import { Calendar, Loader2, Plus } from 'lucide-react';
+import { Calendar, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useToast } from '@/hooks/use-toast';
-import { updateProjectStageMetadata } from '@/lib/project-management/stageRpc';
 import { isBlocked, getExecutionStatusLabel } from '@/lib/project-management/executionModel';
 
 // ── Types ──
@@ -29,7 +24,6 @@ interface Props {
   wbsItems: WbsItem[];
   stages: DBStage[];
   isOwner: boolean;
-  onStagesRefresh?: () => void;
   onDurationChange?: (wbsId: string, weeks: number) => void;
   onAddActivity?: (stageId: string) => void;
 }
@@ -83,17 +77,10 @@ interface FlatRow {
 
 export default function ProjectTimelineView({
   wbsItems, stages, isOwner,
-  onStagesRefresh, onDurationChange, onAddActivity,
+  onDurationChange, onAddActivity,
 }: Props) {
-  const { toast } = useToast();
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('plan');
   const bodyRef = useRef<HTMLDivElement>(null);
-
-  const [dlg, setDlg] = useState(false);
-  const [ds, setDs] = useState<DBStage | null>(null);
-  const [d1, setD1] = useState(''); const [d2, setD2] = useState('');
-  const [d3, setD3] = useState(''); const [d4, setD4] = useState('');
-  const [sv, setSv] = useState(false);
 
   // ── Resolve stage_id via Level-1 ancestor ──
 
@@ -265,31 +252,6 @@ export default function ProjectTimelineView({
     return () => body.removeEventListener('scroll', s);
   }, []);
 
-  // ── Schedule dialog ──
-
-  const openDlg = useCallback((s: DBStage) => {
-    setDs(s);
-    setD1(s.planned_start_date || ''); setD2(s.planned_end_date || '');
-    setD3(s.actual_start_date || ''); setD4(s.actual_end_date || '');
-    setDlg(true);
-  }, []);
-
-  const saveDlg = useCallback(async () => {
-    if (!ds) return;
-    setSv(true);
-    try {
-      const { error } = await updateProjectStageMetadata({
-        stageId: ds.id, title: ds.title,
-        plannedStartDate: d1 || null, plannedEndDate: d2 || null,
-        actualStartDate: d3 || null, actualEndDate: d4 || null,
-      });
-      if (error) throw error;
-      toast({ title: 'Jadwal Phase disimpan' }); setDlg(false); setDs(null);
-      if (onStagesRefresh) onStagesRefresh();
-    } catch (e: any) { toast({ title: 'Gagal', description: e?.message, variant: 'destructive' }); }
-    finally { setSv(false); }
-  }, [ds, d1, d2, d3, d4, toast, onStagesRefresh]);
-
   // ── Empty states ──
 
   if (empty) {
@@ -372,10 +334,6 @@ export default function ProjectTimelineView({
                             <Plus className="h-3 w-3" />
                           </Button>
                         )}
-                        {isOwner && (
-                          <Button size="sm" variant="outline" className="text-[8px] h-5 px-1.5"
-                            onClick={() => openDlg(row.stage!)}>Jadwal</Button>
-                        )}
                       </div>
                     </div>
                   )}
@@ -445,32 +403,7 @@ export default function ProjectTimelineView({
         </div>
       </div>
 
-      {/* Schedule Dialog */}
-      <Dialog open={dlg} onOpenChange={setDlg}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle className="text-sm">Jadwal — {ds?.title}</DialogTitle></DialogHeader>
-          <div className="space-y-4 text-xs">
-            <div className="space-y-2">
-              <Label className="text-[10px] uppercase font-bold text-slate-500">Planning</Label>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-[10px]">Mulai</Label><Input type="date" value={d1} onChange={(e) => setD1(e.target.value)} className="h-8 text-xs" /></div>
-                <div><Label className="text-[10px]">Selesai</Label><Input type="date" value={d2} onChange={(e) => setD2(e.target.value)} className="h-8 text-xs" /></div>
-              </div>
-            </div>
-            <div className="space-y-2 pt-2 border-t">
-              <Label className="text-[10px] uppercase font-bold text-slate-500">Realisasi</Label>
-              <div className="grid grid-cols-2 gap-3">
-                <div><Label className="text-[10px]">Mulai</Label><Input type="date" value={d3} onChange={(e) => setD3(e.target.value)} className="h-8 text-xs" /></div>
-                <div><Label className="text-[10px]">Selesai</Label><Input type="date" value={d4} onChange={(e) => setD4(e.target.value)} className="h-8 text-xs" /></div>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" size="sm" className="text-xs" onClick={() => setDlg(false)}>Tutup</Button>
-            {isOwner && <Button size="sm" className="text-xs" onClick={saveDlg} disabled={sv}>{sv ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}Simpan</Button>}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+
     </div>
   );
 }
