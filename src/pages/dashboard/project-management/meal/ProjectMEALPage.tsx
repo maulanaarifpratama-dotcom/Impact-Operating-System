@@ -14,6 +14,7 @@ import {
   Pencil,
   Search,
   X,
+  ChevronDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1232,12 +1233,12 @@ function LearningInlineEditor({ projectId, learningId, onSaved, onCancel }: {
 
   const [defaultCandidates, setDefaultCandidates] = useState<EvidenceCandidate[]>([]);
   const [loadingDefaults, setLoadingDefaults] = useState(false);
+  const [showExternalSearch, setShowExternalSearch] = useState(false);
 
   useEffect(() => {
-    if (isEdit) return;
     setLoadingDefaults(true);
     loadProjectEvidenceCandidates(projectId).then(setDefaultCandidates).finally(() => setLoadingDefaults(false));
-  }, [isEdit, projectId]);
+  }, [projectId]);
 
   useEffect(() => {
     if (!isEdit || !learningId) return;
@@ -1278,10 +1279,16 @@ function LearningInlineEditor({ projectId, learningId, onSaved, onCancel }: {
   const addEvidence = (c: EvidenceCandidate) => {
     setSelectedEvidence((prev) => [...prev, c]);
     setSearchResults((prev) => prev.filter((r) => !(r.sourceType === c.sourceType && r.sourceId === c.sourceId)));
-    setDefaultCandidates((prev) => prev.filter((r) => !(r.sourceType === c.sourceType && r.sourceId === c.sourceId)));
   };
   const removeEvidence = (c: EvidenceCandidate) => {
     setSelectedEvidence((prev) => prev.filter((r) => !(r.sourceType === c.sourceType && r.sourceId === c.sourceId)));
+  };
+  const toggleEvidence = (c: EvidenceCandidate) => {
+    setSelectedEvidence((prev) =>
+      prev.some((s) => s.sourceType === c.sourceType && s.sourceId === c.sourceId)
+        ? prev.filter((r) => !(r.sourceType === c.sourceType && r.sourceId === c.sourceId))
+        : [...prev, c]
+    );
   };
 
   const relatedProjectNames = Array.from(new Set(selectedEvidence.map((e) => e.projectId)))
@@ -1368,15 +1375,6 @@ function LearningInlineEditor({ projectId, learningId, onSaved, onCancel }: {
 
           <div className="space-y-1.5">
             <Label>Evidence Base</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                className="pl-8"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari Activity atau Project untuk menambahkan bukti..."
-              />
-            </div>
             {selectedEvidence.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {selectedEvidence.map((e) => (
@@ -1387,44 +1385,73 @@ function LearningInlineEditor({ projectId, learningId, onSaved, onCancel }: {
                 ))}
               </div>
             )}
-            {searchQuery.trim().length >= 2 ? (
-              <div className="border rounded max-h-48 overflow-y-auto">
-                {searching ? (
-                  <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
-                ) : searchResults.length === 0 ? (
-                  <div className="py-3 text-center text-xs text-muted-foreground">Tidak ditemukan.</div>
-                ) : (
-                  searchResults.map((r) => (
+            <div className="border rounded overflow-hidden">
+              <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-muted/50">
+                Dari proyek ini
+              </div>
+              {loadingDefaults ? (
+                <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+              ) : defaultCandidates.length === 0 ? (
+                <div className="py-3 text-center text-xs text-muted-foreground">Belum ada ACR terverifikasi atau Finding untuk proyek ini.</div>
+              ) : (
+                defaultCandidates.map((r) => {
+                  const isSelected = selectedEvidence.some((s) => s.sourceType === r.sourceType && s.sourceId === r.sourceId);
+                  return (
                     <button
                       key={`${r.sourceType}-${r.sourceId}`}
-                      className="block w-full text-left px-3 py-2 text-sm hover:bg-muted"
-                      onClick={() => addEvidence(r)}
+                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-left ${isSelected ? 'bg-primary/5' : ''}`}
+                      onClick={() => toggleEvidence(r)}
                     >
-                      {r.label}
+                      <span className={`shrink-0 flex items-center justify-center w-4 h-4 rounded border text-[10px] ${isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/30 text-transparent'}`}>
+                        ✓
+                      </span>
+                      <span className="flex-1 truncate">{r.label}</span>
                     </button>
-                  ))
+                  );
+                })
+              )}
+            </div>
+            <div>
+                <button
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowExternalSearch((v) => !v)}
+                >
+                  <ChevronDown className={`h-3 w-3 transition-transform ${showExternalSearch ? 'rotate-0' : '-rotate-90'}`} />
+                  Cari bukti dari proyek lain
+                </button>
+                {showExternalSearch && (
+                  <div className="mt-2 space-y-2">
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                      <Input
+                        className="pl-8"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="Cari Activity atau Project..."
+                      />
+                    </div>
+                    {searchQuery.trim().length >= 2 && (
+                      <div className="border rounded max-h-48 overflow-y-auto">
+                        {searching ? (
+                          <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                        ) : searchResults.length === 0 ? (
+                          <div className="py-3 text-center text-xs text-muted-foreground">Tidak ditemukan.</div>
+                        ) : (
+                          searchResults.map((r) => (
+                            <button
+                              key={`${r.sourceType}-${r.sourceId}`}
+                              className="block w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                              onClick={() => addEvidence(r)}
+                            >
+                              {r.label}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
-            ) : (loadingDefaults || defaultCandidates.length > 0) ? (
-              <div className="border rounded max-h-48 overflow-y-auto">
-                <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-muted/50">
-                  Dari proyek ini
-                </div>
-                {loadingDefaults ? (
-                  <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
-                ) : (
-                  defaultCandidates.map((r) => (
-                    <button
-                      key={`${r.sourceType}-${r.sourceId}`}
-                      className="block w-full text-left px-3 py-2 text-sm hover:bg-muted"
-                      onClick={() => addEvidence(r)}
-                    >
-                      {r.label}
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
           </div>
 
           <div className="space-y-1.5">
