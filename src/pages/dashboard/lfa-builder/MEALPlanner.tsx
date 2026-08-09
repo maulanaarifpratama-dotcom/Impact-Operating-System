@@ -582,74 +582,45 @@ export default function MEALPlanner({
         return;
       }
 
-      // Map lfa_entries to lfa_meal_items
-      const mealInserts = lfaEntries
-        .filter(entry => entry.indicator && entry.indicator.trim() !== '')
-        .map((entry, index) => {
-          let levelMap: 'goal' | 'purpose' | 'output' = 'output';
-          if (entry.level === 'goal') levelMap = 'goal';
-          if (entry.level === 'purpose') levelMap = 'purpose';
+      // Map lfa_entries to lfa_meal_items. Every Goal/Purpose/Output entry gets a
+      // row, even without an indicator yet — an empty indicator_text surfaces as an
+      // explicit "needs indicator" state in the matrix (PD-M1 P0.4), never a fake string.
+      const mealInserts = lfaEntries.map((entry, index) => {
+        let levelMap: 'goal' | 'purpose' | 'output' = 'output';
+        if (entry.level === 'goal') levelMap = 'goal';
+        if (entry.level === 'purpose') levelMap = 'purpose';
 
-          // Match Level 1 WBS item if entry is output level (ADR-0006 Relational Integrity)
-          const matchedWbs = levelMap === 'output' 
-            ? wbsItems.find((w) => w.level === 1 && (w.lfa_entry_id === entry.id || w.name.toLowerCase().includes((entry.indicator || '').substring(0, 15).toLowerCase())))
-            : null;
+        // Match Level 1 WBS item if entry is output level (ADR-0006 Relational Integrity)
+        const hasIndicatorText = !!(entry.indicator && entry.indicator.trim() !== '');
+        const matchedWbs = levelMap === 'output'
+          ? wbsItems.find((w) => w.level === 1 && (
+              w.lfa_entry_id === entry.id ||
+              (hasIndicatorText && w.name.toLowerCase().includes((entry.indicator || '').substring(0, 15).toLowerCase()))
+            ))
+          : null;
 
-          return {
-            lfa_project_id: projectId,
-            wbs_item_id: matchedWbs?.id || null,
-            org_id: orgId,
-            lfa_level: levelMap,
-            indicator_text: cleanIndicatorText(entry.indicator) || '',
-            baseline: null,
-            target_value: null,
-            target_unit: '',
-            collection_method: null,
-            collection_tool: null,
-            frequency: null,
-            pic: '',
-            status: 'Belum Mulai',
-            secondary_source: entry.means_of_verification || null,
-            data_assumption: entry.assumption || null,
-            monitoring_risk: '',
-            mode: 'simple',
-            sort_order: index,
-            disaggregation: []
-          };
-        });
-
-      if (mealInserts.length === 0) {
-        // Fallback to importing based on descriptions if indicators are completely empty
-        const fallbackInserts = lfaEntries.map((entry, index) => {
-          let levelMap: 'goal' | 'purpose' | 'output' = 'output';
-          if (entry.level === 'goal') levelMap = 'goal';
-          if (entry.level === 'purpose') levelMap = 'purpose';
-
-          return {
-            lfa_project_id: projectId,
-            wbs_item_id: null,
-            org_id: orgId,
-            lfa_level: levelMap,
-            indicator_text: cleanIndicatorText(entry.indicator) || `Indikator untuk: ${entry.description || entry.level}`,
-            baseline: null,
-            target_value: null,
-            target_unit: '',
-            collection_method: null,
-            collection_tool: null,
-            frequency: null,
-            pic: '',
-            status: 'Belum Mulai',
-            secondary_source: entry.means_of_verification || null,
-            data_assumption: entry.assumption || null,
-            monitoring_risk: '',
-            mode: 'simple',
-            sort_order: index,
-            disaggregation: []
-          };
-        });
-        
-        mealInserts.push(...fallbackInserts);
-      }
+        return {
+          lfa_project_id: projectId,
+          wbs_item_id: matchedWbs?.id || null,
+          org_id: orgId,
+          lfa_level: levelMap,
+          indicator_text: cleanIndicatorText(entry.indicator) || '',
+          baseline: null,
+          target_value: null,
+          target_unit: '',
+          collection_method: null,
+          collection_tool: null,
+          frequency: null,
+          pic: '',
+          status: 'Belum Mulai',
+          secondary_source: entry.means_of_verification || null,
+          data_assumption: entry.assumption || null,
+          monitoring_risk: '',
+          mode: 'simple',
+          sort_order: index,
+          disaggregation: []
+        };
+      });
 
       const { data: insertedItems, error: insertErr } = await supabase
         .from('lfa_meal_items')
@@ -1106,6 +1077,21 @@ export default function MEALPlanner({
   };
   const hasMethodCount = mealItems.filter(item => isFilled(item.collection_method) || isFilled(item.collection_tool)).length;
   const hasPicCount = mealItems.filter(item => isFilled(item.pic)).length;
+  const hasMovCount = mealItems.filter(item => isFilled(item.secondary_source)).length;
+
+  // PD-M1 P0.5 — ONE canonical, deterministic row-completeness signal. A row is
+  // complete only when indicator, target, method, frequency, PIC, and MoV are ALL
+  // present. Project readiness is the share of rows meeting that bar — no narrative
+  // regex, no separate AI-derived score competing with this number.
+  const isRowComplete = (item: MealItem) =>
+    isFilled(item.indicator_text) &&
+    (item.target_value !== null && item.target_value !== undefined || isFilled(item.endline_target?.toString())) &&
+    (isFilled(item.collection_method) || isFilled(item.collection_tool)) &&
+    isFilled(item.frequency) &&
+    isFilled(item.pic) &&
+    isFilled(item.secondary_source);
+  const completeRowCount = mealItems.filter(isRowComplete).length;
+  const completenessPercent = totalIndicators > 0 ? Math.round((completeRowCount / totalIndicators) * 100) : 0;
 
   // Print Preview layout generator for High-Fidelity Client-side PDF Exporter
   const handleExportPDF = () => {
@@ -1130,12 +1116,13 @@ export default function MEALPlanner({
         if (!isProf) {
           return `
             <tr style="border-bottom: 1px solid #e2e8f0; font-size: 11px;">
-              <td style="padding: 10px 8px; font-weight: bold; width: 15%;"><span style="padding: 2px 6px; border-radius: 4px; font-size: 9px; uppercase; ${levelBadgeColor}">${levelLabel}</span></td>
-              <td style="padding: 10px 8px; width: 25%;">${item.indicator_text || '-'}</td>
-              <td style="padding: 10px 8px; width: 15%; font-weight: 500;">${item.target_value ? `${item.target_value} ${item.target_unit || ''}` : '-'}</td>
-              <td style="padding: 10px 8px; width: 15%;">${item.collection_method || '-'}</td>
-              <td style="padding: 10px 8px; width: 15%;">${item.frequency || '-'} <br/><span style="font-size: 9px; color: #64748b;">${freqChips.join(', ')}</span></td>
-              <td style="padding: 10px 8px; width: 15%;">${item.pic || '-'}</td>
+              <td style="padding: 10px 8px; font-weight: bold; width: 12%;"><span style="padding: 2px 6px; border-radius: 4px; font-size: 9px; uppercase; ${levelBadgeColor}">${levelLabel}</span></td>
+              <td style="padding: 10px 8px; width: 20%;">${item.indicator_text || '-'}</td>
+              <td style="padding: 10px 8px; width: 12%; font-weight: 500;">${item.target_value ? `${item.target_value} ${item.target_unit || ''}` : '-'}</td>
+              <td style="padding: 10px 8px; width: 14%;">${item.collection_method || '-'}</td>
+              <td style="padding: 10px 8px; width: 14%;">${item.secondary_source || '-'}</td>
+              <td style="padding: 10px 8px; width: 14%;">${item.frequency || '-'} <br/><span style="font-size: 9px; color: #64748b;">${freqChips.join(', ')}</span></td>
+              <td style="padding: 10px 8px; width: 14%;">${item.pic || '-'}</td>
             </tr>
           `;
         } else {
@@ -1145,6 +1132,7 @@ export default function MEALPlanner({
               <td style="padding: 8px 6px; max-width: 150px; word-break: break-word;">${item.indicator_text || '-'}</td>
               <td style="padding: 8px 6px;"><b>B:</b> ${item.baseline ?? '-'}<br/><b>M:</b> ${item.midline_target ?? '-'}<br/><b>E:</b> ${item.endline_target ?? '-'}</td>
               <td style="padding: 8px 6px; max-width: 100px; word-break: break-word;"><b>Metode:</b> ${item.collection_method || '-'}<br/><b>Alat:</b> ${item.collection_tool || '-'}</td>
+              <td style="padding: 8px 6px; max-width: 100px; word-break: break-word;">${item.secondary_source || '-'}</td>
               <td style="padding: 8px 6px;">${item.frequency || '-'}<br/><span style="font-size: 8px; color: #64748b; font-weight: 500;">(${freqChips.join(', ')})</span></td>
               <td style="padding: 8px 6px;">${item.pic || '-'}</td>
               <td style="padding: 8px 6px; max-width: 100px; word-break: break-word;">${(item.disaggregation || []).join(', ') || '-'}</td>
@@ -1296,21 +1284,23 @@ export default function MEALPlanner({
             <thead>
               <tr>
                 ${!isProf ? `
-                  <th style="width: 15%;">Tingkatan LFA</th>
-                  <th style="width: 25%;">Indikator Keberhasilan</th>
-                  <th style="width: 15%;">Target Kuantitatif</th>
-                  <th style="width: 15%;">Metode Pengumpulan</th>
-                  <th style="width: 15%;">Frekuensi</th>
-                  <th style="width: 15%;">PIC</th>
-                ` : `
-                  <th style="width: 10%;">Level LFA</th>
+                  <th style="width: 12%;">Tingkatan LFA</th>
                   <th style="width: 20%;">Indikator Keberhasilan</th>
-                  <th style="width: 12%;">Baseline & Target</th>
-                  <th style="width: 15%;">Metode & Alat</th>
-                  <th style="width: 10%;">Frekuensi</th>
-                  <th style="width: 10%;">PIC</th>
-                  <th style="width: 11%;">Disagregasi</th>
-                  <th style="width: 12%;">Asumsi & Risiko</th>
+                  <th style="width: 12%;">Target Kuantitatif</th>
+                  <th style="width: 14%;">Metode Pengumpulan</th>
+                  <th style="width: 14%;">Sumber Verifikasi (MoV)</th>
+                  <th style="width: 14%;">Frekuensi</th>
+                  <th style="width: 14%;">PIC</th>
+                ` : `
+                  <th style="width: 9%;">Level LFA</th>
+                  <th style="width: 17%;">Indikator Keberhasilan</th>
+                  <th style="width: 11%;">Baseline & Target</th>
+                  <th style="width: 13%;">Metode & Alat</th>
+                  <th style="width: 11%;">Sumber Verifikasi (MoV)</th>
+                  <th style="width: 9%;">Frekuensi</th>
+                  <th style="width: 9%;">PIC</th>
+                  <th style="width: 10%;">Disagregasi</th>
+                  <th style="width: 11%;">Asumsi & Risiko</th>
                 `}
               </tr>
             </thead>
@@ -1509,6 +1499,7 @@ export default function MEALPlanner({
                 {globalMode === 'professional' && <th className="p-3.5 py-4 w-36 shrink-0">Baseline</th>}
                 <th className="p-3.5 py-4 w-44 shrink-0">Target Kuantitatif</th>
                 <th className="p-3.5 py-4 min-w-[180px]">Metode & Alat Pengumpulan</th>
+                <th className="p-3.5 py-4 min-w-[180px]">Sumber Verifikasi (MoV)</th>
                 <th className="p-3.5 py-4 w-48 shrink-0">Frekuensi & Timeline</th>
                 <th className="p-3.5 py-4 w-36 shrink-0">PIC</th>
                 <th className="p-3.5 py-4 w-32 shrink-0">Status</th>
@@ -1580,6 +1571,15 @@ export default function MEALPlanner({
                         rows={2}
                         className="text-xs w-full min-h-[50px] resize-none py-1 bg-transparent border-slate-200 hover:border-slate-300 focus:bg-white dark:focus:bg-slate-950 focus:border-teal-500 rounded"
                       />
+                      {!isFilled(item.indicator_text) && (
+                        <div
+                          data-testid="meal-indicator-needs-input-warning"
+                          className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-amber-600 dark:text-amber-400"
+                        >
+                          <AlertTriangle className="h-3 w-3 shrink-0" />
+                          Indikator belum diisi
+                        </div>
+                      )}
                     </td>
 
                     {/* Baseline (Professional Only) */}
@@ -1749,6 +1749,24 @@ export default function MEALPlanner({
                           </Select>
                         )}
                       </div>
+                    </td>
+
+                    {/* Means of Verification (MoV) — visible & editable in Simple and Professional */}
+                    <td className="p-3.5">
+                      <Textarea
+                        aria-label={`Sumber verifikasi ${item.indicator_text || 'MEAL'}`}
+                        value={item.secondary_source || ''}
+                        data-testid="meal-mov-input"
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setMealItems(prev => prev.map(m => m.id === item.id ? { ...m, secondary_source: val } : m));
+                          const target = { ...item, secondary_source: val };
+                          queueAutosave('items', item.id, () => saveMealItem(target));
+                        }}
+                        placeholder="Mis. Laporan bulanan lapangan, data survei rumah tangga..."
+                        rows={2}
+                        className="text-xs w-full min-h-[50px] resize-none py-1 bg-transparent border-slate-200 hover:border-slate-300 focus:bg-white dark:focus:bg-slate-950 focus:border-teal-500 rounded"
+                      />
                     </td>
 
                     {/* Frequency & Timeline Chips */}
@@ -1975,40 +1993,79 @@ export default function MEALPlanner({
         </div>
       </div>
 
+      {/* PD-M1 P0.5 — the ONE canonical readiness signal: share of rows where
+          indicator + target + method + frequency + PIC + MoV are ALL present.
+          Shown in both modes; not gated to Simple. */}
+      <div
+        data-testid="meal-readiness-canonical"
+        className={`p-4 rounded-xl border flex items-center gap-3 ${
+          completenessPercent >= 80
+            ? 'bg-teal-50/60 dark:bg-teal-950/20 border-teal-200 dark:border-teal-900/40'
+            : 'bg-amber-50/60 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/40'
+        }`}
+      >
+        <div className={`h-10 w-10 rounded-lg flex items-center justify-center font-bold ${
+          completenessPercent >= 80 ? 'bg-teal-500/10 text-teal-600' : 'bg-amber-500/10 text-amber-600'
+        }`}>
+          <ClipboardCheck className="h-5 w-5" />
+        </div>
+        <div>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-bold tracking-wider">Baris Lengkap (Siap)</p>
+          <p className="text-lg font-bold text-slate-800 dark:text-slate-200">
+            {completeRowCount} / {totalIndicators} ({completenessPercent}%)
+          </p>
+          <p className="text-[10px] text-slate-500 dark:text-slate-400">Indikator, Target, Metode, Frekuensi, PIC, dan Sumber Verifikasi (MoV) terisi.</p>
+        </div>
+      </div>
+
       {/* SUMMARY DASHBOARD FOR SIMPLE MODE */}
       {globalMode === 'simple' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-          <div className="bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-teal-500/10 text-teal-600 flex items-center justify-center font-bold">
-              <ClipboardCheck className="h-5 w-5" />
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
+            <div className="bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-teal-500/10 text-teal-600 flex items-center justify-center font-bold">
+                <ClipboardCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Indikator MEAL</p>
+                <p className="text-lg font-bold text-slate-800 dark:text-slate-200">{totalIndicators} Indikator</p>
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Indikator MEAL</p>
-              <p className="text-lg font-bold text-slate-800 dark:text-slate-200">{totalIndicators} Indikator</p>
-            </div>
-          </div>
 
-          <div className="bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-teal-500/10 text-teal-600 flex items-center justify-center font-bold">
-              <CheckCircle2 className="h-5 w-5" />
+            <div className="bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-teal-500/10 text-teal-600 flex items-center justify-center font-bold">
+                <CheckCircle2 className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Sudah Ber-metode</p>
+                <p className="text-lg font-bold text-slate-800 dark:text-slate-200">
+                  {hasMethodCount} / {totalIndicators} ({totalIndicators > 0 ? Math.round((hasMethodCount / totalIndicators) * 100) : 0}%)
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Sudah Ber-metode</p>
-              <p className="text-lg font-bold text-slate-800 dark:text-slate-200">
-                {hasMethodCount} / {totalIndicators} ({totalIndicators > 0 ? Math.round((hasMethodCount / totalIndicators) * 100) : 0}%)
-              </p>
-            </div>
-          </div>
 
-          <div className="bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-3">
-            <div className="h-10 w-10 rounded-lg bg-teal-500/10 text-teal-600 flex items-center justify-center font-bold">
-              <Award className="h-5 w-5" />
+            <div className="bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-teal-500/10 text-teal-600 flex items-center justify-center font-bold">
+                <Award className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Sudah Memiliki PIC</p>
+                <p className="text-lg font-bold text-slate-800 dark:text-slate-200">
+                  {hasPicCount} / {totalIndicators} ({totalIndicators > 0 ? Math.round((hasPicCount / totalIndicators) * 100) : 0}%)
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Sudah Memiliki PIC</p>
-              <p className="text-lg font-bold text-slate-800 dark:text-slate-200">
-                {hasPicCount} / {totalIndicators} ({totalIndicators > 0 ? Math.round((hasPicCount / totalIndicators) * 100) : 0}%)
-              </p>
+
+            <div className="bg-slate-50/50 dark:bg-slate-900/10 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-lg bg-teal-500/10 text-teal-600 flex items-center justify-center font-bold">
+                <FileText className="h-5 w-5" />
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Sudah Ada MoV</p>
+                <p className="text-lg font-bold text-slate-800 dark:text-slate-200">
+                  {hasMovCount} / {totalIndicators} ({totalIndicators > 0 ? Math.round((hasMovCount / totalIndicators) * 100) : 0}%)
+                </p>
+              </div>
             </div>
           </div>
         </div>
