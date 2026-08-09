@@ -173,7 +173,7 @@ CREATE TABLE public.project_funding_receipts (
   CONSTRAINT fk_receipt_installment_identity
     FOREIGN KEY (installment_id, lfa_project_id, org_id)
     REFERENCES public.project_funding_installments(id, lfa_project_id, org_id)
-    ON DELETE SET NULL,
+    ON DELETE RESTRICT,
   CONSTRAINT fk_receipt_reversal_identity
     FOREIGN KEY (reversal_of_id, lfa_project_id, org_id)
     REFERENCES public.project_funding_receipts(id, lfa_project_id, org_id)
