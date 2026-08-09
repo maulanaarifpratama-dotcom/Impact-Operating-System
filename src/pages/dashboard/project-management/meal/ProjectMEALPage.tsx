@@ -1340,11 +1340,11 @@ function LearningInlineEditor({ projectId, learningId, onSaved, onCancel }: {
   }
 
   return (
-    <div className="space-y-4 pb-16">
+    <div className="space-y-4 pb-16 max-w-full">
       <Button variant="ghost" size="sm" onClick={onCancel}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
       </Button>
-      <Card className="overflow-hidden">
+      <Card className="w-full max-w-full box-border overflow-hidden">
         <CardContent className="space-y-4 py-6">
           <h2 className="text-lg font-bold">{isEdit ? 'Edit Learning' : 'New Learning'}</h2>
 
@@ -1473,12 +1473,12 @@ function LearningInlineEditor({ projectId, learningId, onSaved, onCancel }: {
             </div>
           </div>
 
-          <DialogFooter className="pt-2 border-t">
+          <div className="flex flex-wrap justify-end gap-2 pr-6 pb-8 pt-2 border-t w-full">
             <Button variant="outline" onClick={onCancel}>Cancel</Button>
             <Button onClick={handleSave} disabled={!canSave || saving}>
               {saving ? 'Menyimpan...' : isEdit ? 'Save Changes' : 'Save as Draft'}
             </Button>
-          </DialogFooter>
+          </div>
         </CardContent>
       </Card>
     </div>
