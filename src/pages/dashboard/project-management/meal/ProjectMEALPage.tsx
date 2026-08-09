@@ -8,7 +8,6 @@ import {
   FileText,
   AlertTriangle,
   Wallet,
-  Lightbulb,
   Plus,
   Trash2,
 } from 'lucide-react';
@@ -44,22 +43,23 @@ import {
 import { computeBudgetSnapshot, formatIDR, type BudgetItemInput } from '@/lib/budget/budgetModel';
 import { resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 import { getSeverityLabel, getSeverityBadgeClass, SEVERITY_OPTIONS } from '@/lib/project-management/learningModel';
-import type { ProjectLearningEntry, ProjectEvaluationFinding, EvaluationFindingSeverity } from '@/pages/dashboard/lfa-builder/types';
+import type { ProjectEvaluationFinding, EvaluationFindingSeverity } from '@/pages/dashboard/lfa-builder/types';
 
 // PM + MEAL Canonicalization: ACR is the single source of truth. 'activity' stays a valid
 // tab (reachable via ?tab=activity from Control Center) but is deliberately left out of the
 // primary TABS bar below — it's an audit utility, not a workflow screen. 'milestones' and
 // 'evidence' are removed entirely: Evidence & Verification duplicated ACR (folded into the
 // ACR tab's status filter), and Milestones duplicated Stage/Timeline/Deliverables progress.
-// 'learning-evaluation' (MEAL-P1) is ONE tab covering both Learning Entries and Evaluation
-// Findings via an in-tab toggle — not two separate tabs, per the same anti-duplication rule.
-type MealTab = 'control-center' | 'acr' | 'deliverables' | 'learning-evaluation' | 'activity';
+// MEAL-P1 (revised per stop-gate review): Learning is NOT a tab or an entity — it is a
+// derived view inside Control Center's "Recent Learning" card, sourced straight from ACR
+// facts/observations. Evaluation Finding IS a new entity, but it lives inside the ACR tab
+// (Claims/Findings toggle) — the smallest existing surface — never a new top-level tab.
+type MealTab = 'control-center' | 'acr' | 'deliverables' | 'activity';
 
 const TABS: { key: MealTab; label: string }[] = [
   { key: 'control-center', label: 'Control Center' },
   { key: 'acr', label: 'ACR' },
   { key: 'deliverables', label: 'Deliverables' },
-  { key: 'learning-evaluation', label: 'Learning & Evaluation' },
 ];
 
 const EVENT_LABELS: Record<string, string> = {
@@ -115,16 +115,14 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
     setLoading(true);
     setError(null);
     try {
-      const [wbsRes, claimsRes, budgetRes, learningRes] = await Promise.all([
+      const [wbsRes, claimsRes, budgetRes] = await Promise.all([
         supabase.from('lfa_wbs_items').select('id, status, end_date, blocker_category').eq('lfa_project_id', projectId).eq('level', 2),
-        supabase.from('wbs_completion_claims').select('id, wbs_item_id, status, observations, submitted_at').eq('lfa_project_id', projectId),
+        supabase.from('wbs_completion_claims').select('id, wbs_item_id, status, facts, observations, submitted_at').eq('lfa_project_id', projectId),
         supabase.from('lfa_budget_items').select('id, wbs_item_id, volume, unit_price_idr, actual_amount_idr, cost_category').eq('lfa_project_id', projectId),
-        (supabase as any).from('project_learning_entries').select('id, title, learning_note, wbs_item_id, created_at').eq('project_id', projectId).order('created_at', { ascending: false }).limit(5),
       ]);
       if (wbsRes.error) throw wbsRes.error;
       if (claimsRes.error) throw claimsRes.error;
       if (budgetRes.error) throw budgetRes.error;
-      if (learningRes.error) throw learningRes.error;
 
       // Finance card reuses the existing Budget calculation engine verbatim
       // (budgetModel.ts) — no new financial math, per PM-P5A scope.
@@ -169,21 +167,34 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
       }
       const pendingVerification = acrDocumented; // Documented == awaiting Evidence Verification
 
-      // Recent Learning sources from Learning Entries (MEAL-P1), not raw ACR
-      // observations — Learning is the canonical, structured reflection layer.
-      const learningRows = (learningRes.data || []) as { id: string; title: string; learning_note: string; wbs_item_id: string | null; created_at: string }[];
-      const learningItemIds = Array.from(new Set(learningRows.map((l) => l.wbs_item_id).filter(Boolean))) as string[];
+      // Recent Learning (MEAL-P1, revised per stop-gate review): a derived view
+      // over ACR Facts + Observations, not a stored entity. Observations is the
+      // primary text; when a claim has no observations but does have Facts,
+      // those are summarized instead — no Activity is silently skipped just
+      // because its reflection landed in Facts rather than the Notes field.
+      const withLearning = claims
+        .map((c) => {
+          const factsList = (c.facts || []) as { label: string; value: string }[];
+          const text = (c.observations && String(c.observations).trim())
+            || (factsList.length > 0 ? factsList.map((f) => `${f.label}: ${f.value}`).join('; ') : '');
+          return { ...c, learningText: text as string };
+        })
+        .filter((c) => c.learningText.trim().length > 0);
+      const learningItemIds = Array.from(new Set(withLearning.map((c) => c.wbs_item_id)));
       const wbsNames = new Map<string, string>();
       if (learningItemIds.length > 0) {
         const { data: nameRows } = await supabase.from('lfa_wbs_items').select('id, name').in('id', learningItemIds);
         for (const r of (nameRows || [])) wbsNames.set(r.id, r.name || 'Activity');
       }
-      const recentLearning = learningRows.map((l) => ({
-        id: l.id,
-        name: l.wbs_item_id ? (wbsNames.get(l.wbs_item_id) || 'Activity') : l.title,
-        observations: l.learning_note,
-        date: l.created_at,
-      }));
+      const recentLearning = withLearning
+        .sort((a, b) => String(b.submitted_at || '').localeCompare(String(a.submitted_at || '')))
+        .slice(0, 5)
+        .map((c) => ({
+          id: c.id as string,
+          name: wbsNames.get(c.wbs_item_id) || 'Activity',
+          observations: c.learningText,
+          date: c.submitted_at as string | null,
+        }));
 
       setStats({
         execution: { open: execOpen, inProgress: execInProgress, completed: execCompleted, overdue: execOverdue, blocked: execBlocked },
@@ -464,32 +475,32 @@ function DeliverablesTab({ projectId }: { projectId: string }) {
   );
 }
 
-// MEAL-P1 MVP: ONE tab covering both Learning (frequent, low-ceremony, any
-// member) and Evaluation Findings (fewer, formal, owner/admin) via an
-// in-tab toggle. Both build on top of ACR by reference (Activity/Evidence/
-// Deliverable ids) — neither owns a second copy of ACR's Evidence/Facts/
-// Notes/Verification data.
-function LearningEvaluationTab({ projectId }: { projectId: string }) {
-  const { user } = useAuth();
-  const { canDelete: isReviewer } = useOrgRole(); // owner/admin — the "M&E reviewer" gate for Findings
+function AcrTab({ projectId }: { projectId: string }) {
+  const { role: orgRole, canDelete: isReviewer } = useOrgRole();
+  const isOwner = orgRole === 'owner';
+  const { user } = { user: { id: null } }; // fallback — auth is handled by backend
+  const { user: authUser } = useAuth(); // real user id, needed for Evaluation Finding created_by
   const { toast } = useToast();
-  const [view, setView] = useState<'learning' | 'findings'>('learning');
+  const [view, setView] = useState<'claims' | 'findings'>('claims');
+  const [claims, setClaims] = useState<any[]>([]);
+  const [evidenceMap, setEvidenceMap] = useState<Record<string, any[]>>({});
+  const [wbsMap, setWbsMap] = useState<Record<string, { id: string; name: string; level: number }>>({});
+  const [submitterMap, setSubmitterMap] = useState<Record<string, string>>({});
+  const [reviewerMap, setReviewerMap] = useState<Record<string, string>>({});
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<string>('submitted');
+  const [selectedClaim, setSelectedClaim] = useState<any | null>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
 
-  const [activities, setActivities] = useState<{ id: string; name: string }[]>([]);
-  const [stages, setStages] = useState<{ id: string; title: string }[]>([]);
+  // Evaluation Findings (MEAL-P1, revised): the one new PM+MEAL entity —
+  // fewer, formal, owner/admin-only judgments referencing ACR Evidence/
+  // Activity/Deliverable by id. Lives here, not in a separate top-level tab,
+  // because ACR is the smallest existing surface where evidence-based review
+  // already happens.
   const [deliverables, setDeliverables] = useState<{ id: string; name: string }[]>([]);
   const [evidenceOptions, setEvidenceOptions] = useState<{ id: string; wbsItemId: string | null; label: string }[]>([]);
   const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
-
-  const [learningEntries, setLearningEntries] = useState<ProjectLearningEntry[]>([]);
-  const [learningLoading, setLearningLoading] = useState(true);
-  const [learningDialogOpen, setLearningDialogOpen] = useState(false);
-  const [learningTitle, setLearningTitle] = useState('');
-  const [learningNote, setLearningNote] = useState('');
-  const [learningActivityId, setLearningActivityId] = useState<string>('');
-  const [learningStageId, setLearningStageId] = useState<string>('');
-  const [savingLearning, setSavingLearning] = useState(false);
-
   const [findings, setFindings] = useState<ProjectEvaluationFinding[]>([]);
   const [findingsLoading, setFindingsLoading] = useState(true);
   const [findingDialogOpen, setFindingDialogOpen] = useState(false);
@@ -501,429 +512,6 @@ function LearningEvaluationTab({ projectId }: { projectId: string }) {
   const [findingDeliverableId, setFindingDeliverableId] = useState('');
   const [findingEvidenceId, setFindingEvidenceId] = useState('');
   const [savingFinding, setSavingFinding] = useState(false);
-
-  const loadLookups = useCallback(async () => {
-    const client = supabase as any;
-    const [wbsRes, stageRes, delivRes, claimRes] = await Promise.all([
-      supabase.from('lfa_wbs_items').select('id, name').eq('lfa_project_id', projectId).eq('level', 2),
-      client.from('project_stages').select('id, title').eq('project_id', projectId),
-      client.from('project_deliverables').select('id, name').eq('project_id', projectId).is('archived_at', null),
-      supabase.from('wbs_completion_claims').select('id, wbs_item_id').eq('lfa_project_id', projectId),
-    ]);
-    const wbsRows = (wbsRes.data || []) as { id: string; name: string }[];
-    setActivities(wbsRows);
-    setStages((stageRes.data || []) as { id: string; title: string }[]);
-    setDeliverables((delivRes.data || []) as { id: string; name: string }[]);
-
-    const nameByWbsId = new Map(wbsRows.map((w) => [w.id, w.name]));
-    const claimRows = (claimRes.data || []) as { id: string; wbs_item_id: string }[];
-    const wbsIdByClaim = new Map(claimRows.map((c) => [c.id, c.wbs_item_id]));
-    const claimIds = claimRows.map((c) => c.id);
-    if (claimIds.length > 0) {
-      const { data: evData } = await supabase
-        .from('wbs_completion_evidence')
-        .select('id, claim_id, title')
-        .in('claim_id', claimIds);
-      const options = ((evData || []) as { id: string; claim_id: string; title: string | null }[]).map((e) => {
-        const wbsItemId = wbsIdByClaim.get(e.claim_id) || null;
-        const activityName = wbsItemId ? (nameByWbsId.get(wbsItemId) || 'Activity') : 'Activity';
-        return { id: e.id, wbsItemId, label: `${activityName} — ${e.title || 'Bukti tanpa judul'}` };
-      });
-      setEvidenceOptions(options);
-    } else {
-      setEvidenceOptions([]);
-    }
-  }, [projectId]);
-
-  const loadLearning = useCallback(async () => {
-    setLearningLoading(true);
-    const client = supabase as any;
-    const { data, error } = await client
-      .from('project_learning_entries')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false });
-    if (!error) setLearningEntries((data || []) as ProjectLearningEntry[]);
-    setLearningLoading(false);
-  }, [projectId]);
-
-  const loadFindings = useCallback(async () => {
-    setFindingsLoading(true);
-    const client = supabase as any;
-    const { data, error } = await client
-      .from('project_evaluation_findings')
-      .select('*')
-      .eq('project_id', projectId)
-      .order('created_at', { ascending: false });
-    if (!error) setFindings((data || []) as ProjectEvaluationFinding[]);
-    setFindingsLoading(false);
-  }, [projectId]);
-
-  useEffect(() => { void loadLookups(); void loadLearning(); void loadFindings(); }, [loadLookups, loadLearning, loadFindings]);
-
-  useEffect(() => {
-    const creatorIds = Array.from(new Set([
-      ...learningEntries.map((l) => l.created_by),
-      ...findings.map((f) => f.created_by),
-    ].filter(Boolean)));
-    if (creatorIds.length === 0) return;
-    supabase.from('profiles').select('id, full_name').in('id', creatorIds).then(({ data }) => {
-      const names: Record<string, string> = {};
-      for (const p of ((data || []) as { id: string; full_name: string | null }[])) names[p.id] = p.full_name || p.id;
-      setCreatorNames(names);
-    });
-  }, [learningEntries, findings]);
-
-  const activityName = (id: string | null) => activities.find((a) => a.id === id)?.name || null;
-  const stageName = (id: string | null) => stages.find((s) => s.id === id)?.title || null;
-  const deliverableName = (id: string | null) => deliverables.find((d) => d.id === id)?.name || null;
-
-  const resetLearningForm = () => {
-    setLearningTitle('');
-    setLearningNote('');
-    setLearningActivityId('');
-    setLearningStageId('');
-  };
-
-  const handleCreateLearning = async () => {
-    if (!learningTitle.trim() || !learningNote.trim() || !user?.id) return;
-    setSavingLearning(true);
-    try {
-      const { data: project } = await supabase.from('lfa_projects').select('org_id').eq('id', projectId).single();
-      const client = supabase as any;
-      const { error } = await client.from('project_learning_entries').insert({
-        org_id: project?.org_id,
-        project_id: projectId,
-        title: learningTitle.trim(),
-        learning_note: learningNote.trim(),
-        wbs_item_id: learningActivityId || null,
-        stage_id: learningStageId || null,
-        created_by: user.id,
-      });
-      if (error) throw error;
-      toast({ title: 'Learning Entry ditambahkan' });
-      setLearningDialogOpen(false);
-      resetLearningForm();
-      void loadLearning();
-    } catch (err) {
-      toast({ title: 'Gagal menyimpan Learning Entry', description: (err as Error).message, variant: 'destructive' });
-    } finally {
-      setSavingLearning(false);
-    }
-  };
-
-  const handleDeleteLearning = async (id: string) => {
-    const client = supabase as any;
-    const { error } = await client.from('project_learning_entries').delete().eq('id', id);
-    if (error) {
-      toast({ title: 'Gagal menghapus Learning Entry', description: error.message, variant: 'destructive' });
-    } else {
-      void loadLearning();
-    }
-  };
-
-  const resetFindingForm = () => {
-    setFindingTitle('');
-    setFindingText('');
-    setFindingSeverity('minor');
-    setFindingRecommendation('');
-    setFindingActivityId('');
-    setFindingDeliverableId('');
-    setFindingEvidenceId('');
-  };
-
-  const handleCreateFinding = async () => {
-    if (!findingTitle.trim() || !findingText.trim() || !user?.id) return;
-    setSavingFinding(true);
-    try {
-      const { data: project } = await supabase.from('lfa_projects').select('org_id').eq('id', projectId).single();
-      const client = supabase as any;
-      const { error } = await client.from('project_evaluation_findings').insert({
-        org_id: project?.org_id,
-        project_id: projectId,
-        title: findingTitle.trim(),
-        finding: findingText.trim(),
-        severity: findingSeverity,
-        recommendation: findingRecommendation.trim() || null,
-        wbs_item_id: findingActivityId || null,
-        deliverable_id: findingDeliverableId || null,
-        evidence_id: findingEvidenceId || null,
-        created_by: user.id,
-      });
-      if (error) throw error;
-      toast({ title: 'Evaluation Finding ditambahkan' });
-      setFindingDialogOpen(false);
-      resetFindingForm();
-      void loadFindings();
-    } catch (err) {
-      toast({ title: 'Gagal menyimpan Evaluation Finding', description: (err as Error).message, variant: 'destructive' });
-    } finally {
-      setSavingFinding(false);
-    }
-  };
-
-  const handleDeleteFinding = async (id: string) => {
-    const client = supabase as any;
-    const { error } = await client.from('project_evaluation_findings').delete().eq('id', id);
-    if (error) {
-      toast({ title: 'Gagal menghapus Evaluation Finding', description: error.message, variant: 'destructive' });
-    } else {
-      void loadFindings();
-    }
-  };
-
-  const filteredEvidenceOptions = findingActivityId
-    ? evidenceOptions.filter((e) => e.wbsItemId === findingActivityId)
-    : evidenceOptions;
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
-          {[
-            { key: 'learning' as const, label: 'Learning' },
-            { key: 'findings' as const, label: 'Findings' },
-          ].map((v) => (
-            <button key={v.key} onClick={() => setView(v.key)}
-              className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
-                view === v.key ? 'bg-white dark:bg-slate-950 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {v.label}
-            </button>
-          ))}
-        </div>
-        {view === 'learning' && (
-          <Button size="sm" onClick={() => { resetLearningForm(); setLearningDialogOpen(true); }}>
-            <Plus className="mr-1 h-3.5 w-3.5" /> Add Learning
-          </Button>
-        )}
-        {view === 'findings' && isReviewer && (
-          <Button size="sm" onClick={() => { resetFindingForm(); setFindingDialogOpen(true); }}>
-            <Plus className="mr-1 h-3.5 w-3.5" /> Add Finding
-          </Button>
-        )}
-      </div>
-
-      {view === 'learning' && (
-        learningLoading ? (
-          <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>
-        ) : learningEntries.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-              <Lightbulb className="h-10 w-10 text-muted-foreground" />
-              <CardTitle className="text-lg">Belum ada Learning Entry.</CardTitle>
-              <CardDescription>Catat pelajaran praktis dari eksekusi Activity — ringan dan bisa sering.</CardDescription>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {learningEntries.map((l) => (
-              <Card key={l.id}>
-                <CardContent className="space-y-1.5 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <CardTitle className="text-base">{l.title}</CardTitle>
-                    <button
-                      onClick={() => handleDeleteLearning(l.id)}
-                      className="text-muted-foreground hover:text-destructive shrink-0"
-                      title="Hapus"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                  <p className="text-sm text-muted-foreground">{l.learning_note}</p>
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1">
-                    {activityName(l.wbs_item_id) && <span>Activity: {activityName(l.wbs_item_id)}</span>}
-                    {stageName(l.stage_id) && <span>Stage: {stageName(l.stage_id)}</span>}
-                    <span>Oleh: {creatorNames[l.created_by] || '—'}</span>
-                    {l.created_at && <span>{new Date(l.created_at).toLocaleDateString('id-ID')}</span>}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )
-      )}
-
-      {view === 'findings' && (
-        findingsLoading ? (
-          <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>
-        ) : findings.length === 0 ? (
-          <Card>
-            <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
-              <AlertTriangle className="h-10 w-10 text-muted-foreground" />
-              <CardTitle className="text-lg">Belum ada Evaluation Finding.</CardTitle>
-              <CardDescription>
-                {isReviewer
-                  ? 'Judgment formal dan periodik — dibuat oleh Owner/Admin, mensitesis Learning Entries yang ada.'
-                  : 'Evaluation Finding dibuat oleh Owner/Admin sebagai judgment formal dan periodik.'}
-              </CardDescription>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-2">
-            {findings.map((f) => (
-              <Card key={f.id}>
-                <CardContent className="space-y-1.5 py-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <CardTitle className="text-base truncate">{f.title}</CardTitle>
-                      <Badge variant="outline" className={`text-[9px] py-0 h-4 ${getSeverityBadgeClass(f.severity)}`}>
-                        {getSeverityLabel(f.severity)}
-                      </Badge>
-                    </div>
-                    {isReviewer && (
-                      <button
-                        onClick={() => handleDeleteFinding(f.id)}
-                        className="text-muted-foreground hover:text-destructive shrink-0"
-                        title="Hapus"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  <p className="text-sm text-muted-foreground">{f.finding}</p>
-                  {f.recommendation && (
-                    <p className="text-xs italic text-emerald-700 dark:text-emerald-400">Rekomendasi: {f.recommendation}</p>
-                  )}
-                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1">
-                    {activityName(f.wbs_item_id) && <span>Activity: {activityName(f.wbs_item_id)}</span>}
-                    {deliverableName(f.deliverable_id) && <span>Deliverable: {deliverableName(f.deliverable_id)}</span>}
-                    {f.evidence_id && <span>Evidence: terlampir</span>}
-                    <span>Oleh: {creatorNames[f.created_by] || '—'}</span>
-                    {f.created_at && <span>{new Date(f.created_at).toLocaleDateString('id-ID')}</span>}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        )
-      )}
-
-      <Dialog open={learningDialogOpen} onOpenChange={setLearningDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Add Learning Entry</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>Title</Label>
-              <Input value={learningTitle} onChange={(e) => setLearningTitle(e.target.value)} placeholder="Judul singkat" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Learning Note</Label>
-              <Textarea value={learningNote} onChange={(e) => setLearningNote(e.target.value)} placeholder="Apa yang dipelajari?" rows={4} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Related Activity (optional)</Label>
-              <Select value={learningActivityId || '__none__'} onValueChange={(v) => setLearningActivityId(v === '__none__' ? '' : v)}>
-                <SelectTrigger><SelectValue placeholder="Tidak terkait Activity tertentu" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Tidak ada —</SelectItem>
-                  {activities.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Related Stage (optional)</Label>
-              <Select value={learningStageId || '__none__'} onValueChange={(v) => setLearningStageId(v === '__none__' ? '' : v)}>
-                <SelectTrigger><SelectValue placeholder="Tidak terkait Stage tertentu" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Tidak ada —</SelectItem>
-                  {stages.map((s) => <SelectItem key={s.id} value={s.id}>{s.title}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setLearningDialogOpen(false)}>Batal</Button>
-            <Button onClick={handleCreateLearning} disabled={savingLearning || !learningTitle.trim() || !learningNote.trim()}>
-              {savingLearning ? 'Menyimpan...' : 'Simpan'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={findingDialogOpen} onOpenChange={setFindingDialogOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Add Evaluation Finding</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label>Title</Label>
-              <Input value={findingTitle} onChange={(e) => setFindingTitle(e.target.value)} placeholder="Judul singkat" />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Finding</Label>
-              <Textarea value={findingText} onChange={(e) => setFindingText(e.target.value)} placeholder="Apa yang dinilai/ditemukan?" rows={4} />
-            </div>
-            <div className="space-y-1.5">
-              <Label>Severity</Label>
-              <Select value={findingSeverity} onValueChange={(v) => setFindingSeverity(v as EvaluationFindingSeverity)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {SEVERITY_OPTIONS.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.emoji} {opt.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Related Activity (optional)</Label>
-              <Select value={findingActivityId || '__none__'} onValueChange={(v) => { setFindingActivityId(v === '__none__' ? '' : v); setFindingEvidenceId(''); }}>
-                <SelectTrigger><SelectValue placeholder="Tidak terkait Activity tertentu" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Tidak ada —</SelectItem>
-                  {activities.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Related Deliverable (optional)</Label>
-              <Select value={findingDeliverableId || '__none__'} onValueChange={(v) => setFindingDeliverableId(v === '__none__' ? '' : v)}>
-                <SelectTrigger><SelectValue placeholder="Tidak terkait Deliverable tertentu" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Tidak ada —</SelectItem>
-                  {deliverables.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Related Evidence (optional)</Label>
-              <Select value={findingEvidenceId || '__none__'} onValueChange={(v) => setFindingEvidenceId(v === '__none__' ? '' : v)}>
-                <SelectTrigger><SelectValue placeholder="Tidak melampirkan bukti ACR" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Tidak ada —</SelectItem>
-                  {filteredEvidenceOptions.map((e) => <SelectItem key={e.id} value={e.id}>{e.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Recommendation (optional)</Label>
-              <Textarea value={findingRecommendation} onChange={(e) => setFindingRecommendation(e.target.value)} placeholder="Apa yang perlu diperbaiki ke depan?" rows={3} />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setFindingDialogOpen(false)}>Batal</Button>
-            <Button onClick={handleCreateFinding} disabled={savingFinding || !findingTitle.trim() || !findingText.trim()}>
-              {savingFinding ? 'Menyimpan...' : 'Simpan'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
-  );
-}
-
-function AcrTab({ projectId }: { projectId: string }) {
-  const { role: orgRole } = useOrgRole();
-  const isOwner = orgRole === 'owner';
-  const { user } = { user: { id: null } }; // fallback — auth is handled by backend
-  const [claims, setClaims] = useState<any[]>([]);
-  const [evidenceMap, setEvidenceMap] = useState<Record<string, any[]>>({});
-  const [wbsMap, setWbsMap] = useState<Record<string, { id: string; name: string; level: number }>>({});
-  const [submitterMap, setSubmitterMap] = useState<Record<string, string>>({});
-  const [reviewerMap, setReviewerMap] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<string>('submitted');
-  const [selectedClaim, setSelectedClaim] = useState<any | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -989,6 +577,111 @@ function AcrTab({ projectId }: { projectId: string }) {
 
   useEffect(() => { void load(); }, [load]);
 
+  // Findings reuse the same claims/wbsMap already loaded above for their
+  // Evidence picker — no separate ACR fetch.
+  const loadFindingsLookups = useCallback(async () => {
+    const client = supabase as any;
+    const [delivRes] = await Promise.all([
+      client.from('project_deliverables').select('id, name').eq('project_id', projectId).is('archived_at', null),
+    ]);
+    setDeliverables((delivRes.data || []) as { id: string; name: string }[]);
+  }, [projectId]);
+
+  const loadFindings = useCallback(async () => {
+    setFindingsLoading(true);
+    const client = supabase as any;
+    const { data, error: findingsErr } = await client
+      .from('project_evaluation_findings')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: false });
+    if (!findingsErr) setFindings((data || []) as ProjectEvaluationFinding[]);
+    setFindingsLoading(false);
+  }, [projectId]);
+
+  useEffect(() => { void loadFindingsLookups(); void loadFindings(); }, [loadFindingsLookups, loadFindings]);
+
+  // Evidence options derive from the Claims already loaded for this tab —
+  // Findings reference the same wbs_completion_evidence rows, never a copy.
+  useEffect(() => {
+    if (claims.length === 0) { setEvidenceOptions([]); return; }
+    const options: { id: string; wbsItemId: string | null; label: string }[] = [];
+    for (const c of claims) {
+      const wbsItemId = c.wbs_item_id || null;
+      const activityName = wbsItemId ? (wbsMap[wbsItemId]?.name || 'Activity') : 'Activity';
+      for (const ev of (evidenceMap[c.id] || [])) {
+        options.push({ id: ev.id, wbsItemId, label: `${activityName} — ${ev.title || 'Bukti tanpa judul'}` });
+      }
+    }
+    setEvidenceOptions(options);
+  }, [claims, evidenceMap, wbsMap]);
+
+  useEffect(() => {
+    const creatorIds = Array.from(new Set(findings.map((f) => f.created_by).filter(Boolean)));
+    if (creatorIds.length === 0) return;
+    supabase.from('profiles').select('id, full_name').in('id', creatorIds).then(({ data }) => {
+      const names: Record<string, string> = {};
+      for (const p of ((data || []) as { id: string; full_name: string | null }[])) names[p.id] = p.full_name || p.id;
+      setCreatorNames(names);
+    });
+  }, [findings]);
+
+  const deliverableName = (id: string | null) => deliverables.find((d) => d.id === id)?.name || null;
+
+  const resetFindingForm = () => {
+    setFindingTitle('');
+    setFindingText('');
+    setFindingSeverity('minor');
+    setFindingRecommendation('');
+    setFindingActivityId('');
+    setFindingDeliverableId('');
+    setFindingEvidenceId('');
+  };
+
+  const handleCreateFinding = async () => {
+    if (!findingTitle.trim() || !findingText.trim() || !authUser?.id) return;
+    setSavingFinding(true);
+    try {
+      const { data: project } = await supabase.from('lfa_projects').select('org_id').eq('id', projectId).single();
+      const client = supabase as any;
+      const { error: insertErr } = await client.from('project_evaluation_findings').insert({
+        org_id: project?.org_id,
+        project_id: projectId,
+        title: findingTitle.trim(),
+        finding: findingText.trim(),
+        severity: findingSeverity,
+        recommendation: findingRecommendation.trim() || null,
+        wbs_item_id: findingActivityId || null,
+        deliverable_id: findingDeliverableId || null,
+        evidence_id: findingEvidenceId || null,
+        created_by: authUser.id,
+      });
+      if (insertErr) throw insertErr;
+      toast({ title: 'Evaluation Finding ditambahkan' });
+      setFindingDialogOpen(false);
+      resetFindingForm();
+      void loadFindings();
+    } catch (err) {
+      toast({ title: 'Gagal menyimpan Evaluation Finding', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setSavingFinding(false);
+    }
+  };
+
+  const handleDeleteFinding = async (id: string) => {
+    const client = supabase as any;
+    const { error: deleteErr } = await client.from('project_evaluation_findings').delete().eq('id', id);
+    if (deleteErr) {
+      toast({ title: 'Gagal menghapus Evaluation Finding', description: deleteErr.message, variant: 'destructive' });
+    } else {
+      void loadFindings();
+    }
+  };
+
+  const filteredEvidenceOptions = findingActivityId
+    ? evidenceOptions.filter((e) => e.wbsItemId === findingActivityId)
+    : evidenceOptions;
+
   const getClaimBadge = (status: string) => {
     switch (status) {
       case 'verified': return <Badge variant="default" className="bg-emerald-100 text-emerald-800 border-emerald-300">Terverifikasi</Badge>;
@@ -1026,8 +719,36 @@ function AcrTab({ projectId }: { projectId: string }) {
     <Card className="border-destructive/50"><CardContent className="py-4 text-sm text-destructive">{error}</CardContent></Card>
   );
 
+  const activityOptions = Object.values(wbsMap);
+
   return (
     <div className="space-y-3">
+      {/* Claims/Findings — Evaluation Finding lives inside ACR (the smallest existing
+          surface for evidence-based review), not a separate top-level tab. */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
+          {[
+            { key: 'claims' as const, label: 'Claims' },
+            { key: 'findings' as const, label: 'Findings' },
+          ].map((v) => (
+            <button key={v.key} onClick={() => setView(v.key)}
+              className={`px-3 py-1 text-[11px] font-semibold transition-all rounded-md ${
+                view === v.key ? 'bg-white dark:bg-slate-950 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {v.label}
+            </button>
+          ))}
+        </div>
+        {view === 'findings' && isReviewer && (
+          <Button size="sm" onClick={() => { resetFindingForm(); setFindingDialogOpen(true); }}>
+            <Plus className="mr-1 h-3.5 w-3.5" /> Add Finding
+          </Button>
+        )}
+      </div>
+
+      {view === 'claims' && (
+      <>
       {/* Filter tabs — matches the two-action Evidence Verification model (Sufficient / Return For More Evidence) */}
       <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border w-fit">
         {[
@@ -1127,6 +848,128 @@ function AcrTab({ projectId }: { projectId: string }) {
           onReviewed={handleReviewed}
         />
       )}
+      </>
+      )}
+
+      {view === 'findings' && (
+        findingsLoading ? (
+          <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>
+        ) : findings.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+              <AlertTriangle className="h-10 w-10 text-muted-foreground" />
+              <CardTitle className="text-lg">Belum ada Evaluation Finding.</CardTitle>
+              <CardDescription>
+                {isReviewer
+                  ? 'Judgment formal dan periodik — dibuat oleh Owner/Admin, merujuk Evidence/Activity/Deliverable dari ACR.'
+                  : 'Evaluation Finding dibuat oleh Owner/Admin sebagai judgment formal dan periodik.'}
+              </CardDescription>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-2">
+            {findings.map((f) => (
+              <Card key={f.id}>
+                <CardContent className="space-y-1.5 py-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <CardTitle className="text-base truncate">{f.title}</CardTitle>
+                      <Badge variant="outline" className={`text-[9px] py-0 h-4 ${getSeverityBadgeClass(f.severity)}`}>
+                        {getSeverityLabel(f.severity)}
+                      </Badge>
+                    </div>
+                    {isReviewer && (
+                      <button
+                        onClick={() => handleDeleteFinding(f.id)}
+                        className="text-muted-foreground hover:text-destructive shrink-0"
+                        title="Hapus"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-sm text-muted-foreground">{f.finding}</p>
+                  {f.recommendation && (
+                    <p className="text-xs italic text-emerald-700 dark:text-emerald-400">Rekomendasi: {f.recommendation}</p>
+                  )}
+                  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1">
+                    {f.wbs_item_id && wbsMap[f.wbs_item_id] && <span>Activity: {wbsMap[f.wbs_item_id].name}</span>}
+                    {deliverableName(f.deliverable_id) && <span>Deliverable: {deliverableName(f.deliverable_id)}</span>}
+                    {f.evidence_id && <span>Evidence: terlampir</span>}
+                    <span>Oleh: {creatorNames[f.created_by] || '—'}</span>
+                    {f.created_at && <span>{new Date(f.created_at).toLocaleDateString('id-ID')}</span>}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )
+      )}
+
+      <Dialog open={findingDialogOpen} onOpenChange={setFindingDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Add Evaluation Finding</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Title</Label>
+              <Input value={findingTitle} onChange={(e) => setFindingTitle(e.target.value)} placeholder="Judul singkat" />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Finding</Label>
+              <Textarea value={findingText} onChange={(e) => setFindingText(e.target.value)} placeholder="Apa yang dinilai/ditemukan?" rows={4} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Severity</Label>
+              <Select value={findingSeverity} onValueChange={(v) => setFindingSeverity(v as EvaluationFindingSeverity)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {SEVERITY_OPTIONS.map((opt) => <SelectItem key={opt.value} value={opt.value}>{opt.emoji} {opt.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Related Activity (optional)</Label>
+              <Select value={findingActivityId || '__none__'} onValueChange={(v) => { setFindingActivityId(v === '__none__' ? '' : v); setFindingEvidenceId(''); }}>
+                <SelectTrigger><SelectValue placeholder="Tidak terkait Activity tertentu" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Tidak ada —</SelectItem>
+                  {activityOptions.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Related Deliverable (optional)</Label>
+              <Select value={findingDeliverableId || '__none__'} onValueChange={(v) => setFindingDeliverableId(v === '__none__' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Tidak terkait Deliverable tertentu" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Tidak ada —</SelectItem>
+                  {deliverables.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Related Evidence (optional)</Label>
+              <Select value={findingEvidenceId || '__none__'} onValueChange={(v) => setFindingEvidenceId(v === '__none__' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Tidak melampirkan bukti ACR" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Tidak ada —</SelectItem>
+                  {filteredEvidenceOptions.map((e) => <SelectItem key={e.id} value={e.id}>{e.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Recommendation (optional)</Label>
+              <Textarea value={findingRecommendation} onChange={(e) => setFindingRecommendation(e.target.value)} placeholder="Apa yang perlu diperbaiki ke depan?" rows={3} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setFindingDialogOpen(false)}>Batal</Button>
+            <Button onClick={handleCreateFinding} disabled={savingFinding || !findingTitle.trim() || !findingText.trim()}>
+              {savingFinding ? 'Menyimpan...' : 'Simpan'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -1256,8 +1099,6 @@ export default function ProjectMEALPage() {
         return <AcrTab projectId={projectId} />;
       case 'deliverables':
         return <DeliverablesTab projectId={projectId} />;
-      case 'learning-evaluation':
-        return <LearningEvaluationTab projectId={projectId} />;
       case 'activity':
         return <ActivityLogTab projectId={projectId} />;
       default:
