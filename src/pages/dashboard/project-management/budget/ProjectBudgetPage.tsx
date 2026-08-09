@@ -34,6 +34,7 @@ import {
 } from '@/lib/budget/budgetModel';
 import { classifyFinanceHealth, type FinanceHealth, normalizeFinanceItemFromLedger, type BudgetAggregateRow, type FinanceItemViewModel, aggregateProjectFinance } from '@/lib/project-management/financeModel';
 import FinanceCommitmentPanel from './FinanceCommitmentPanel';
+import type { CommitmentRow } from '@/lib/project-management/financeCommitments';
 
 interface ProjectMeta {
   org_id: string;
@@ -67,6 +68,7 @@ export default function ProjectBudgetPage() {
   // Finance Commitment Panel state
   const [financePanelOpen, setFinancePanelOpen] = useState(false);
   const [selectedBudgetItem, setSelectedBudgetItem] = useState<{ id: string; name: string; planned: number } | null>(null);
+  const [commitmentRows, setCommitmentRows] = useState<CommitmentRow[]>([]);
 
   // Target Budget dialog
   const [targetDialogOpen, setTargetDialogOpen] = useState(false);
@@ -580,6 +582,8 @@ export default function ProjectBudgetPage() {
               )
             }
             onMutated={() => void loadAll()}
+            commitments={commitmentRows}
+            setCommitments={setCommitmentRows}
           />
 
           {/* Target Budget Dialog */}
