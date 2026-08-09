@@ -361,3 +361,42 @@ export interface ProjectMilestone {
   updated_at?: string;
   archived_at: string | null;
 }
+
+// MEAL-P1 Learning & Evaluation MVP. Learning Entry is the frequent,
+// low-ceremony record ("what did we observe, what did we learn") built on
+// top of ACR — it does not replace ACR's Evidence/Facts/Notes/Verification,
+// it references the same Activity/Stage those already use. Any project
+// member may create one.
+export interface ProjectLearningEntry {
+  id: string;
+  org_id: string;
+  project_id: string;
+  title: string;
+  learning_note: string;
+  wbs_item_id: string | null;
+  stage_id: string | null;
+  created_by: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type EvaluationFindingSeverity = 'informational' | 'minor' | 'major' | 'critical';
+
+// Evaluation Finding: the fewer, formal, periodic judgment layer above
+// Learning — owner/admin ("M&E reviewer") only, per the canonical contract.
+// References ACR Evidence and Deliverables rather than duplicating them.
+export interface ProjectEvaluationFinding {
+  id: string;
+  org_id: string;
+  project_id: string;
+  title: string;
+  finding: string;
+  severity: EvaluationFindingSeverity;
+  recommendation: string | null;
+  wbs_item_id: string | null;
+  deliverable_id: string | null;
+  evidence_id: string | null;
+  created_by: string;
+  created_at?: string;
+  updated_at?: string;
+}
