@@ -61,7 +61,7 @@ export default function ProjectBudgetPage() {
   const [rawWbsItems, setRawWbsItems] = useState<WbsBudgetInput[]>([]);
   const [rawStages, setRawStages] = useState<StageBudgetInput[]>([]);
   const [ledgerAggregates, setLedgerAggregates] = useState<BudgetAggregateRow[]>([]);
-  const [hasLedgerRecords, setHasLedgerRecords] = useState(false);
+  const [ledgerItemIds, setLedgerItemIds] = useState<Set<string>>(new Set());
 
   // Target Budget dialog
   const [targetDialogOpen, setTargetDialogOpen] = useState(false);
@@ -98,18 +98,21 @@ export default function ProjectBudgetPage() {
         if (!aggErr && aggData) setLedgerAggregates(aggData as BudgetAggregateRow[]);
       } catch { /* ledger may be empty */ }
 
-      // Detect whether any normalized ledger records exist for this project
+      // Detect which budget items have normalized ledger records
       try {
-        const { count: commitmentCount } = await (supabase as any)
+        const { data: commitmentIds } = await (supabase as any)
           .from('project_budget_commitments')
-          .select('*', { count: 'exact', head: true })
+          .select('budget_item_id')
           .eq('lfa_project_id', projectId);
-        const { count: expenditureCount } = await (supabase as any)
+        const { data: expenditureIds } = await (supabase as any)
           .from('project_budget_expenditures')
-          .select('*', { count: 'exact', head: true })
+          .select('budget_item_id')
           .eq('lfa_project_id', projectId);
-        setHasLedgerRecords((commitmentCount ?? 0) > 0 || (expenditureCount ?? 0) > 0);
-      } catch { setHasLedgerRecords(false); }
+        const ids = new Set<string>();
+        for (const r of (commitmentIds || [])) { if (r.budget_item_id) ids.add(r.budget_item_id); }
+        for (const r of (expenditureIds || [])) { if (r.budget_item_id) ids.add(r.budget_item_id); }
+        setLedgerItemIds(ids);
+      } catch { setLedgerItemIds(new Set()); }
 
       const tgt = await resolveTargetBudgetForLfaProject(supabase as any, projectId);
       setTargetBudget(tgt);
@@ -168,10 +171,10 @@ export default function ProjectBudgetPage() {
         },
         agg,
         undefined,
-        hasLedgerRecords,
+        ledgerItemIds,
       );
     }).filter(Boolean) as FinanceItemViewModel[];
-  }, [rawBudgetItems, ledgerAggregates, projectId, hasLedgerRecords]);
+  }, [rawBudgetItems, ledgerAggregates, projectId, ledgerItemIds]);
 
   const ledgerSummary = useMemo(() => aggregateProjectFinance(ledgerItems), [ledgerItems]);
 

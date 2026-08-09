@@ -351,15 +351,17 @@ export function normalizeFinanceItemFromLedger(
   raw: FinanceItemRawInput,
   agg: BudgetAggregateRow,
   wbsProjectId?: string | null,
-  hasLedgerRecords?: boolean,
+  ledgerItemIds?: Set<string>,
 ): FinanceItemViewModel {
   const planned = normalizeFinite(agg.planned > 0 ? agg.planned : null);
 
+  const itemHasLedger = ledgerItemIds?.has(raw.id) ?? false;
+
   const committedOutstanding = normalizeFinite(
-    hasLedgerRecords && agg.committed_outstanding > 0 ? agg.committed_outstanding : null,
+    itemHasLedger && agg.committed_outstanding > 0 ? agg.committed_outstanding : null,
   );
 
-  const netActual = hasLedgerRecords
+  const netActual = itemHasLedger
     ? normalizeFinite(agg.posted_actual_gross > 0 ? agg.net_actual : null)
     : normalizeFinite(raw.actual_amount_idr); // no ledger records → use legacy scalar
 
@@ -388,7 +390,7 @@ export function normalizeFinanceItemFromLedger(
   const canonicalStatus = classifyFinanceItemStatus(raw.mode);
 
   const dataCompleteness: FinanceDataCompleteness =
-    planned !== null && hasLedgerRecords ? 'complete' : planned !== null ? 'partial' : 'insufficient';
+    planned !== null && itemHasLedger ? 'complete' : planned !== null ? 'partial' : 'insufficient';
 
   return {
     id: raw.id,
