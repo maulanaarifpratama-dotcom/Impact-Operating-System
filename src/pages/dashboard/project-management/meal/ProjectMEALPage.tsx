@@ -1399,13 +1399,13 @@ function LearningInlineEditor({ projectId, learningId, onSaved, onCancel }: {
                   return (
                     <button
                       key={`${r.sourceType}-${r.sourceId}`}
-                      className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-left ${isSelected ? 'bg-primary/5' : ''}`}
+                      className={`w-full min-w-0 flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted text-left ${isSelected ? 'bg-primary/5' : ''}`}
                       onClick={() => toggleEvidence(r)}
                     >
                       <span className={`shrink-0 flex items-center justify-center w-4 h-4 rounded border text-[10px] ${isSelected ? 'bg-primary border-primary text-primary-foreground' : 'border-muted-foreground/30 text-transparent'}`}>
                         ✓
                       </span>
-                      <span className="flex-1 truncate">{r.label}</span>
+                      <span className="min-w-0 flex-1 truncate">{r.label}</span>
                     </button>
                   );
                 })
@@ -1440,7 +1440,7 @@ function LearningInlineEditor({ projectId, learningId, onSaved, onCancel }: {
                           searchResults.map((r) => (
                             <button
                               key={`${r.sourceType}-${r.sourceId}`}
-                              className="block w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                              className="block w-full min-w-0 text-left px-3 py-2 text-sm hover:bg-muted truncate"
                               onClick={() => addEvidence(r)}
                             >
                               {r.label}
