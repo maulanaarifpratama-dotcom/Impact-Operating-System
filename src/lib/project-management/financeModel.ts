@@ -103,6 +103,18 @@ export type FinanceItemStatus = 'draft' | 'active' | 'committed' | 'partially_sp
 
 export type FinanceRelationState = 'linked' | 'unlinked' | 'invalid';
 
+// ── Normalized Ledger Aggregate (from compute_budget_aggregates RPC) ──
+
+export interface BudgetAggregateRow {
+  budget_item_id: string;
+  planned: number;
+  posted_actual_gross: number;
+  posted_reversals: number;
+  net_actual: number;
+  approved_commitment: number;
+  committed_outstanding: number;
+}
+
 // ── Input Adapters ──
 
 export interface FinanceItemRawInput {
@@ -317,6 +329,71 @@ export function normalizeFinanceItem(
     planned,
     committed,
     actual,
+    remaining,
+    available,
+    variance,
+    utilizationPct,
+    commitmentPct,
+    health,
+    rawStatus: raw.mode ?? null,
+    canonicalStatus,
+    source,
+    dataCompleteness,
+  };
+}
+
+/**
+ * Builds a canonical FinanceItemViewModel from a raw budget item row
+ * AND a normalized ledger aggregate row (from compute_budget_aggregates RPC).
+ * Committed and actual values come from the normalized ledger, not legacy scalars.
+ */
+export function normalizeFinanceItemFromLedger(
+  raw: FinanceItemRawInput,
+  agg: BudgetAggregateRow,
+  wbsProjectId?: string | null,
+): FinanceItemViewModel {
+  const planned = normalizeFinite(agg.planned > 0 ? agg.planned : null);
+
+  const committedOutstanding = normalizeFinite(agg.committed_outstanding > 0 ? agg.committed_outstanding : null);
+
+  const netActual = normalizeFinite(agg.net_actual > 0 || agg.posted_actual_gross > 0 ? agg.net_actual : null);
+
+  const remaining = planned !== null && netActual !== null ? planned - netActual : null;
+
+  const exposure = netActual !== null && committedOutstanding !== null
+    ? netActual + committedOutstanding
+    : netActual !== null ? netActual : null;
+
+  const available = planned !== null && exposure !== null
+    ? planned - exposure
+    : null;
+
+  const variance = planned !== null && netActual !== null ? planned - netActual : null;
+
+  const utilizationPct = safePct(netActual, planned);
+
+  const commitmentPct = safePct(committedOutstanding, planned);
+
+  const relationState = determineRelationState(raw.lfa_project_id, raw.wbs_item_id, wbsProjectId);
+
+  const health = classifyFinanceHealth(planned, netActual);
+
+  const source = determineFinanceItemSource(raw.mode, raw.funding_source);
+
+  const canonicalStatus = classifyFinanceItemStatus(raw.mode);
+
+  const hasLedgerData = netActual !== null || committedOutstanding !== null;
+  const dataCompleteness: FinanceDataCompleteness =
+    planned !== null && hasLedgerData ? 'complete' : planned !== null ? 'partial' : 'insufficient';
+
+  return {
+    id: raw.id,
+    projectId: raw.lfa_project_id,
+    wbsItemId: raw.wbs_item_id,
+    relationState,
+    planned,
+    committed: committedOutstanding,
+    actual: netActual,
     remaining,
     available,
     variance,

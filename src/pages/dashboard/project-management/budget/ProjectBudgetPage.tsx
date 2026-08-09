@@ -32,7 +32,7 @@ import {
   type WbsBudgetInput,
   type StageBudgetInput,
 } from '@/lib/budget/budgetModel';
-import { classifyFinanceHealth, type FinanceHealth } from '@/lib/project-management/financeModel';
+import { classifyFinanceHealth, type FinanceHealth, normalizeFinanceItemFromLedger, type BudgetAggregateRow, type FinanceItemViewModel, aggregateProjectFinance } from '@/lib/project-management/financeModel';
 
 interface ProjectMeta {
   org_id: string;
@@ -60,6 +60,7 @@ export default function ProjectBudgetPage() {
   const [rawBudgetItems, setRawBudgetItems] = useState<BudgetItemInput[]>([]);
   const [rawWbsItems, setRawWbsItems] = useState<WbsBudgetInput[]>([]);
   const [rawStages, setRawStages] = useState<StageBudgetInput[]>([]);
+  const [ledgerAggregates, setLedgerAggregates] = useState<BudgetAggregateRow[]>([]);
 
   // Target Budget dialog
   const [targetDialogOpen, setTargetDialogOpen] = useState(false);
@@ -74,7 +75,7 @@ export default function ProjectBudgetPage() {
       const [projRes, wbsRes, budgetRes, stagesRes] = await Promise.all([
         supabase.from('lfa_projects').select('org_id, name, duration_months, sector').eq('id', projectId).single(),
         (supabase as any).from('lfa_wbs_items').select('id, level, parent_id, stage_id, name').eq('lfa_project_id', projectId),
-        supabase.from('lfa_budget_items').select('id, wbs_item_id, volume, unit_price_idr, actual_amount_idr, cost_category').eq('lfa_project_id', projectId),
+        supabase.from('lfa_budget_items').select('id, wbs_item_id, volume, unit_price_idr, actual_amount_idr, cost_category, mode, funding_source').eq('lfa_project_id', projectId),
         (supabase as any).from('project_stages').select('id, title, archived_at').eq('project_id', projectId),
       ]);
 
@@ -89,6 +90,12 @@ export default function ProjectBudgetPage() {
       setRawWbsItems((wbsRes.data || []) as WbsBudgetInput[]);
       setRawBudgetItems((budgetRes.data || []) as BudgetItemInput[]);
       setRawStages((stagesRes.data || []) as StageBudgetInput[]);
+
+      // Load normalized ledger aggregates
+      try {
+        const { data: aggData, error: aggErr } = await (supabase as any).rpc('compute_budget_aggregates', { _lfa_project_id: projectId });
+        if (!aggErr && aggData) setLedgerAggregates(aggData as BudgetAggregateRow[]);
+      } catch { /* ledger may be empty */ }
 
       const tgt = await resolveTargetBudgetForLfaProject(supabase as any, projectId);
       setTargetBudget(tgt);
@@ -127,10 +134,37 @@ export default function ProjectBudgetPage() {
     durationMonths: projectMeta?.duration_months || 12,
   }), [targetBudget, rawBudgetItems, projectMeta]);
 
-  const financeHealth = useMemo<FinanceHealth>(
-    () => classifyFinanceHealth(snapshot.detailedBudget, snapshot.actualRealization),
-    [snapshot.detailedBudget, snapshot.actualRealization],
-  );
+  // PM-F2B2: Normalized finance items combining raw budget with ledger aggregates
+  const ledgerItems = useMemo<FinanceItemViewModel[]>(() => {
+    if (ledgerAggregates.length === 0 || !projectId) return [];
+    const aggById = new Map(ledgerAggregates.map((a) => [a.budget_item_id, a]));
+    return rawBudgetItems.map((raw) => {
+      const agg = aggById.get(raw.id);
+      if (!agg) return null;
+      return normalizeFinanceItemFromLedger(
+        {
+          id: raw.id,
+          lfa_project_id: projectId,
+          wbs_item_id: raw.wbs_item_id,
+          volume: raw.volume,
+          unit_price_idr: raw.unit_price_idr,
+          actual_amount_idr: (raw as any).actual_amount_idr ?? null,
+          mode: (raw as any).mode ?? null,
+          funding_source: (raw as any).funding_source ?? null,
+        },
+        agg,
+      );
+    }).filter(Boolean) as FinanceItemViewModel[];
+  }, [rawBudgetItems, ledgerAggregates, projectId]);
+
+  const ledgerSummary = useMemo(() => aggregateProjectFinance(ledgerItems), [ledgerItems]);
+
+  const financeHealth = useMemo<FinanceHealth>(() => {
+    if (ledgerSummary.totalPlanned != null && ledgerSummary.totalActual != null) {
+      return classifyFinanceHealth(ledgerSummary.totalPlanned, ledgerSummary.totalActual);
+    }
+    return classifyFinanceHealth(snapshot.detailedBudget, snapshot.actualRealization);
+  }, [snapshot.detailedBudget, snapshot.actualRealization, ledgerSummary.totalPlanned, ledgerSummary.totalActual]);
 
   const HEALTH_LABEL: Record<FinanceHealth, string> = {
     unknown: 'Tidak Diketahui',
@@ -317,22 +351,51 @@ export default function ProjectBudgetPage() {
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4 border-t pt-4">
-                <div>
-                  <div className="text-xs text-muted-foreground">Realisasi</div>
-                  <div className="text-sm font-semibold">{formatIDR(snapshot.actualRealization)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Utilisasi</div>
-                  <div className="text-sm font-semibold">{snapshot.utilizationPercent.toFixed(0)}%</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Burn Rate Bulanan (Target)</div>
-                  <div className="text-sm font-semibold">{snapshot.hasTargetBudget ? formatIDR(snapshot.plannedBurnRate) : '—'}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Overhead</div>
-                  <div className="text-sm font-semibold">{snapshot.overheadPercent.toFixed(0)}%</div>
-                </div>
+                {ledgerSummary.totalActual != null ? (
+                  <>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Realisasi (Ledger)</div>
+                      <div className="text-sm font-semibold">{formatIDR(ledgerSummary.totalActual!)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Komitmen Outstanding</div>
+                      <div className="text-sm font-semibold">
+                        {ledgerSummary.totalCommitted != null ? formatIDR(ledgerSummary.totalCommitted) : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Utilisasi</div>
+                      <div className="text-sm font-semibold">
+                        {ledgerSummary.utilizationPct != null ? `${ledgerSummary.utilizationPct.toFixed(0)}%` : '—'}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Tersedia</div>
+                      <div className="text-sm font-semibold">
+                        {ledgerSummary.totalAvailable != null ? formatIDR(ledgerSummary.totalAvailable) : '—'}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Realisasi</div>
+                      <div className="text-sm font-semibold">{formatIDR(snapshot.actualRealization)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Utilisasi</div>
+                      <div className="text-sm font-semibold">{snapshot.utilizationPercent.toFixed(0)}%</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Burn Rate Bulanan (Target)</div>
+                      <div className="text-sm font-semibold">{snapshot.hasTargetBudget ? formatIDR(snapshot.plannedBurnRate) : '—'}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Current Budget</div>
+                      <div className="text-sm font-semibold">{formatIDR(snapshot.detailedBudget)}</div>
+                    </div>
+                  </>
+                )}
                 <div>
                   <div className="text-xs text-muted-foreground">Kesehatan Finansial</div>
                   <div className={`text-sm font-semibold ${
