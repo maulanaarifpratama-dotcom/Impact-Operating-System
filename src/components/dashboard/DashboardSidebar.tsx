@@ -20,6 +20,7 @@ import {
   Leaf,
   Globe,
   FolderKanban,
+  Lightbulb,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -72,6 +73,13 @@ const PROGRAM_DESIGN_ITEMS: NavItem[] = [
 
 const PROJECT_MANAGEMENT_ITEMS: NavItem[] = [
   { name: 'Project Management', href: '/dashboard/project-management', icon: FolderKanban },
+];
+
+// MEAL Learning V1 — organization-level knowledge library, a peer to
+// Project Management, not nested inside any single project's MEAL tab bar.
+// Placed immediately after it: the two are closely related domains.
+const LEARNING_ITEMS: NavItem[] = [
+  { name: 'Learning', href: '/dashboard/learning', icon: Lightbulb },
 ];
 
 const IMPACT_ITEMS: NavItem[] = [
@@ -208,6 +216,36 @@ export function DashboardSidebar() {
           <SidebarGroupContent>
             <SidebarMenu>
               {PROJECT_MANAGEMENT_ITEMS.map((item) => {
+                const active = isActive(item);
+                return (
+                  <SidebarMenuItem key={item.href}>
+                    <SidebarMenuButton asChild tooltip={item.name} isActive={active}>
+                      <NavLink
+                        to={item.href}
+                        end={item.exact}
+                        className={linkClass(active)}
+                      >
+                        <item.icon className="h-4 w-4 shrink-0" />
+                        {!collapsed && <span className="truncate">{item.name}</span>}
+                      </NavLink>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        {/* LEARNING Group — org-level, peer to Project Management */}
+        <SidebarGroup>
+          {!collapsed && (
+            <SidebarGroupLabel className="text-sidebar-foreground/60">
+              LEARNING
+            </SidebarGroupLabel>
+          )}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {LEARNING_ITEMS.map((item) => {
                 const active = isActive(item);
                 return (
                   <SidebarMenuItem key={item.href}>

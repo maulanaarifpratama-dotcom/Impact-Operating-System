@@ -81,6 +81,9 @@ const ProjectMEALPage = lazy(
 const ProjectActivityPage = lazy(
   () => import('./pages/dashboard/project-management/activity/ProjectActivityPage'),
 );
+const LearningLibraryPage = lazy(() => import('./pages/dashboard/learning/LearningLibraryPage'));
+const LearningDetailPage = lazy(() => import('./pages/dashboard/learning/LearningDetailPage'));
+const LearningFormPage = lazy(() => import('./pages/dashboard/learning/LearningFormPage'));
 
 function RedirectToMeal() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -281,6 +284,11 @@ const App = () => (
                 path="/dashboard/project-management/:projectId/overview"
                 element={<RedirectToMeal />}
               />
+              {/* MEAL Learning V1 — organization-level, not nested under a project. */}
+              <Route path="/dashboard/learning" element={<LearningLibraryPage />} />
+              <Route path="/dashboard/learning/new" element={<LearningFormPage />} />
+              <Route path="/dashboard/learning/:learningId" element={<LearningDetailPage />} />
+              <Route path="/dashboard/learning/:learningId/edit" element={<LearningFormPage />} />
               <Route path="/dashboard/sroi" element={<SROIStandalone />} />
               <Route path="/dashboard/eroi" element={<EROIStandalone />} />
               <Route path="/dashboard/esg" element={<ESGDashboard />} />

@@ -328,14 +328,11 @@ export interface WbsCompletionEvidence {
 
 export type EvaluationFindingSeverity = 'informational' | 'minor' | 'major' | 'critical';
 
-// MEAL-P1 (revised per stop-gate review): Learning is NOT an independent
-// entity — it is a derived view over wbs_completion_claims.facts/observations
-// (see ControlCenterTab in ProjectMEALPage.tsx). Evaluation Finding is the
-// one genuinely new PM+MEAL entity: the fewer, formal, periodic judgment
-// layer, owner/admin only, referencing ACR Evidence/Activity by id rather
-// than duplicating them. No separate deliverable_id (PM+MEAL V1 debt
-// closure, Task 3): a Deliverable is an Activity whose ACR reached Closed,
-// not a stored entity — wbs_item_id already covers that reference.
+// Evaluation Finding: a fewer, formal, periodic judgment on ONE instance —
+// owner/admin only, referencing ACR Evidence/Activity by id rather than
+// duplicating them. No separate deliverable_id: a Deliverable is an Activity
+// whose ACR reached Closed, not a stored entity — wbs_item_id already covers
+// that reference. Findings require nothing from Learning to remain valid.
 export interface ProjectEvaluationFinding {
   id: string;
   org_id: string;
@@ -349,4 +346,39 @@ export interface ProjectEvaluationFinding {
   created_by: string;
   created_at?: string;
   updated_at?: string;
+}
+
+// MEAL Learning V1 (locked contract). Learning IS an independent,
+// organization-level entity — not a per-project record, not a derived view.
+// It synthesizes a generalizable pattern across multiple ACRs and/or
+// Findings (see OrgLearningEvidence) into a citable knowledge asset that
+// outlives the project(s) it was drawn from. See src/lib/project-management/
+// orgLearningModel.ts for labels/options and permission helpers.
+export type LearningInsightType = 'good_practice' | 'failure_pattern' | 'mixed';
+export type LearningScope = 'project_specific' | 'programme_wide' | 'organization_wide';
+export type LearningStatus = 'draft' | 'published';
+export type LearningEvidenceSourceType = 'acr' | 'finding';
+
+export interface OrgLearningEvidence {
+  id: string;
+  learning_id: string;
+  source_type: LearningEvidenceSourceType;
+  source_id: string;
+  created_at?: string;
+}
+
+export interface OrgLearningEntry {
+  id: string;
+  org_id: string;
+  title: string;
+  insight: string;
+  insight_type: LearningInsightType;
+  recommendation: string;
+  scope: LearningScope;
+  status: LearningStatus;
+  authored_by: string;
+  created_at?: string;
+  updated_at?: string;
+  published_by: string | null;
+  published_at: string | null;
 }

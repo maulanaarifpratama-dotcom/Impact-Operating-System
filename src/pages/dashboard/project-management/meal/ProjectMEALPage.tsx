@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Loader2,
@@ -10,6 +10,7 @@ import {
   Wallet,
   Plus,
   Trash2,
+  Lightbulb,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -109,6 +110,7 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
     recentLearning: { id: string; name: string; observations: string; date: string | null }[];
     totalOutputs: number;
     finance: { plannedBudget: number; actualCost: number; utilizationPercent: number; hasTargetBudget: boolean };
+    relatedLearning: { count: number; items: { id: string; title: string }[] };
   } | null>(null);
 
   const load = useCallback(async () => {
@@ -196,6 +198,30 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
           date: c.submitted_at as string | null,
         }));
 
+      // Related Learning (MEAL Learning V1): org-level knowledge whose
+      // Evidence Base cites this project's Verified ACRs and/or Findings.
+      // RLS already restricts to Published entries visible to this org
+      // member — no separate visibility check needed here.
+      const client = supabase as any;
+      const verifiedAcrIds = claims.filter((c) => c.status === CLOSED_CLAIM_STATUS).map((c) => c.id);
+      const { data: findingRows } = await client.from('project_evaluation_findings').select('id').eq('project_id', projectId);
+      const findingIds = ((findingRows || []) as { id: string }[]).map((f) => f.id);
+      let relatedLearning: { id: string; title: string }[] = [];
+      let relatedLearningCount = 0;
+      if (verifiedAcrIds.length > 0 || findingIds.length > 0) {
+        const evidenceQueries = [];
+        if (verifiedAcrIds.length > 0) evidenceQueries.push(client.from('org_learning_evidence').select('learning_id').eq('source_type', 'acr').in('source_id', verifiedAcrIds));
+        if (findingIds.length > 0) evidenceQueries.push(client.from('org_learning_evidence').select('learning_id').eq('source_type', 'finding').in('source_id', findingIds));
+        const evidenceResults = await Promise.all(evidenceQueries);
+        const learningIds = Array.from(new Set(evidenceResults.flatMap((r) => ((r.data || []) as { learning_id: string }[]).map((e) => e.learning_id))));
+        if (learningIds.length > 0) {
+          const { data: learningRows } = await client.from('org_learning_entries').select('id, title, created_at').in('id', learningIds).eq('status', 'published').order('created_at', { ascending: false });
+          const lRows = (learningRows || []) as { id: string; title: string; created_at: string }[];
+          relatedLearningCount = lRows.length;
+          relatedLearning = lRows.slice(0, 3).map((l) => ({ id: l.id, title: l.title }));
+        }
+      }
+
       setStats({
         execution: { open: execOpen, inProgress: execInProgress, completed: execCompleted, overdue: execOverdue, blocked: execBlocked },
         acr: { documented: acrDocumented, closed: acrClosed, pendingVerification },
@@ -209,6 +235,7 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
           utilizationPercent: budgetSnapshot.utilizationPercent,
           hasTargetBudget: budgetSnapshot.hasTargetBudget,
         },
+        relatedLearning: { count: relatedLearningCount, items: relatedLearning },
       });
     } catch (err) {
       setError((err as Error).message);
@@ -302,6 +329,34 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
             </>
           ) : (
             <span className="text-muted-foreground italic">Belum ada Target Budget untuk proyek ini.</span>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Related Learning (MEAL Learning V1): read-only link into the org-level
+          Learning Library — no authoring surface here, per the locked navigation. */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <Lightbulb className="h-4 w-4 text-amber-500" />
+            Related Learning
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1.5 text-xs">
+          {stats.relatedLearning.count === 0 ? (
+            <span className="text-muted-foreground italic">Belum ada Learning terkait proyek ini.</span>
+          ) : (
+            <>
+              <div className="text-muted-foreground">{stats.relatedLearning.count} entri</div>
+              {stats.relatedLearning.items.map((l) => (
+                <Link key={l.id} to={`/dashboard/learning/${l.id}`} className="block truncate text-primary hover:underline">
+                  {l.title}
+                </Link>
+              ))}
+              <Link to={`/dashboard/learning?project=${projectId}`} className="inline-block text-[10px] font-semibold text-primary hover:underline pt-1">
+                View all →
+              </Link>
+            </>
           )}
         </CardContent>
       </Card>
