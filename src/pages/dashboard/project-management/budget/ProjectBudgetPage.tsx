@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, ChevronDown, ChevronRight, Info, Edit3, Wallet } from 'lucide-react';
+import { ArrowLeft, Loader2, ChevronDown, ChevronRight, Info, Edit3, Wallet, Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -67,6 +67,7 @@ export default function ProjectBudgetPage() {
 
   // Finance Commitment Panel state
   const [financePanelOpen, setFinancePanelOpen] = useState(false);
+  const [projectFinancePanelOpen, setProjectFinancePanelOpen] = useState(false);
   const [selectedBudgetItem, setSelectedBudgetItem] = useState<{ id: string; name: string; planned: number } | null>(null);
   const [commitmentRows, setCommitmentRows] = useState<CommitmentRow[]>([]);
 
@@ -337,6 +338,12 @@ export default function ProjectBudgetPage() {
               <CardTitle className="text-base">Ringkasan Anggaran</CardTitle>
               <div className="flex items-center gap-2">
                 {isOwner && (
+                  <Button variant="outline" size="sm" onClick={() => setProjectFinancePanelOpen(true)}>
+                    <Building2 className="mr-1.5 h-3.5 w-3.5" />
+                    Keuangan Project
+                  </Button>
+                )}
+                {isOwner && (
                   <Button variant="outline" size="sm" onClick={() => {
                     const firstItem = rawBudgetItems.find((b) => (Number(b.volume) || 0) * (Number(b.unit_price_idr) || 0) > 0);
                     if (firstItem) {
@@ -584,6 +591,24 @@ export default function ProjectBudgetPage() {
             onMutated={() => void loadAll()}
             commitments={commitmentRows}
             setCommitments={setCommitmentRows}
+          />
+
+          {/* Project-Level Finance Panel (Sheet) */}
+          <FinanceCommitmentPanel
+            open={projectFinancePanelOpen}
+            onOpenChange={setProjectFinancePanelOpen}
+            supabase={supabase}
+            projectId={projectId!}
+            budgetItem={null}
+            isOwner={isOwner}
+            hasLegacyActual={false}
+            onMutated={() => void loadAll()}
+            commitments={commitmentRows}
+            setCommitments={setCommitmentRows}
+            mode="project"
+            netActual={ledgerSummary.totalActual}
+            plannedBudget={snapshot.detailedBudget}
+            budgetAvailable={ledgerSummary.totalAvailable}
           />
 
           {/* Target Budget Dialog */}

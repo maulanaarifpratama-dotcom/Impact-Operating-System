@@ -34,6 +34,23 @@ import {
   EXPENDITURE_STATUS_LABELS, EXPENDITURE_ACTION_LABELS,
   type ExpenditureRow, type ExpenditureAction, type CreateExpenditureInput,
 } from '@/lib/project-management/financeExpenditures';
+import {
+  fetchProjectFunding, createFundingSourceDraft, updateFundingSourceDraft,
+  submitFundingSource, approveFundingSource, rejectFundingSource, cancelFundingSource,
+  createFundingInstallmentDraft, updateFundingInstallmentDraft,
+  scheduleFundingInstallment, cancelFundingInstallment,
+  createFundingReceiptDraft, updateFundingReceiptDraft,
+  submitFundingReceipt, postFundingReceipt, rejectFundingReceipt, reverseFundingReceipt,
+  buildPatch, getSourceAvailableActions, getInstallmentAvailableActions, getReceiptAvailableActions,
+  computeInstallmentDerivedState, INSTALLMENT_DERIVED_LABELS,
+  calculateReceiptAlreadyReversed, calculateReceiptRemainingReversible,
+  validateFundingAmount, mapFundingError,
+  SOURCE_PATCH_ALLOWED, INSTALLMENT_PATCH_ALLOWED, RECEIPT_PATCH_ALLOWED,
+  FUNDING_TYPE_LABELS, FUNDING_STATUS_LABELS, INSTALLMENT_STATUS_LABELS,
+  RECEIPT_STATUS_LABELS, FUNDING_ACTION_LABELS,
+  type FundingSourceRow, type FundingInstallmentRow, type FundingReceiptRow,
+  type FundingAction, type CreateSourceInput, type CreateInstallmentInput, type CreateReceiptInput,
+} from '@/lib/project-management/projectFunding';
 import type { Database } from '@/integrations/supabase/database.generated';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -47,15 +64,50 @@ interface Props {
   budgetItem: BudgetItemInfo | null; isOwner: boolean;
   hasLegacyActual: boolean; onMutated: () => void;
   commitments: CommitmentRow[]; setCommitments: (c: CommitmentRow[]) => void;
+  mode?: 'project' | 'item';
+  netActual?: number | null;
+  plannedBudget?: number | null;
+  budgetAvailable?: number | null;
 }
 
 export default function FinanceLifecyclePanel({
-  open, onOpenChange, supabase, projectId, budgetItem, isOwner, hasLegacyActual, onMutated, commitments, setCommitments,
+  open, onOpenChange, supabase, projectId, budgetItem, isOwner, hasLegacyActual,
+  onMutated, commitments, setCommitments, mode = 'item', netActual, plannedBudget, budgetAvailable,
 }: Props) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [actioning, setActioning] = useState<string | null>(null);
   const [tab, setTab] = useState('commitments');
+
+  // Funding state (project-level only)
+  const [sources, setSources] = useState<FundingSourceRow[]>([]);
+  const [installments, setInstallments] = useState<FundingInstallmentRow[]>([]);
+  const [receipts, setReceipts] = useState<FundingReceiptRow[]>([]);
+  const [fundingAgg, setFundingAgg] = useState<Record<string, number>>({});
+  const [fundingLoading, setFundingLoading] = useState(false);
+  const [fundingActioning, setFundingActioning] = useState<string | null>(null);
+  // Source form
+  const [showSrcCreate, setShowSrcCreate] = useState(false);
+  const [srcCreate, setSrcCreate] = useState<CreateSourceInput>({ lfa_project_id: '', source_name: '', agreement_amount_idr: 0 });
+  const [srcEditingId, setSrcEditingId] = useState<string | null>(null);
+  const [srcEdit, setSrcEdit] = useState<Partial<FundingSourceRow>>({});
+  // Installment form
+  const [showInstCreate, setShowInstCreate] = useState(false);
+  const [instCreate, setInstCreate] = useState<CreateInstallmentInput & { sourceId?: string }>({ funding_source_id: '', installment_number: 1, scheduled_amount_idr: 0, due_date: '' });
+  const [instEditingId, setInstEditingId] = useState<string | null>(null);
+  const [instEdit, setInstEdit] = useState<Partial<FundingInstallmentRow>>({});
+  // Receipt form
+  const [showRecCreate, setShowRecCreate] = useState(false);
+  const [recCreate, setRecCreate] = useState<CreateReceiptInput & { installment_id?: string | null }>({ funding_source_id: '', amount_idr: 0, receipt_date: new Date().toISOString().slice(0, 10), installment_id: null });
+  const [recEditingId, setRecEditingId] = useState<string | null>(null);
+  const [recEdit, setRecEdit] = useState<Partial<FundingReceiptRow>>({});
+  // Reversal
+  const [recReversalTarget, setRecReversalTarget] = useState<FundingReceiptRow | null>(null);
+  const [recReversalAmount, setRecReversalAmount] = useState<number>(0);
+  const [recReversalDesc, setRecReversalDesc] = useState('');
+  // Shared confirmation
+  const [fundConfirm, setFundConfirm] = useState<{ target: any; action: string; type: string } | null>(null);
+  const [fundDecisionNote, setFundDecisionNote] = useState('');
 
   const [expenditures, setExpenditures] = useState<ExpenditureRow[]>([]);
   const [showExpCreate, setShowExpCreate] = useState(false);
@@ -84,7 +136,21 @@ export default function FinanceLifecyclePanel({
     } catch {} finally { setLoading(false); }
   }, [supabase, projectId]);
 
-  useEffect(() => { if (open) { void load(); setShowCreate(false); setShowExpCreate(false); setEditingId(null); setExpEditingId(null); } }, [open, load]);
+  useEffect(() => { if (open) { void load(); setShowCreate(false); setShowExpCreate(false); setEditingId(null); setExpEditingId(null); setShowSrcCreate(false); setShowInstCreate(false); setShowRecCreate(false); } }, [open, load]);
+
+  // Load funding data for project mode
+  useEffect(() => {
+    if (!open || mode !== 'project' || !projectId) return;
+    setFundingLoading(true);
+    (async () => {
+      try {
+        const data = await fetchProjectFunding(supabase, projectId);
+        setSources(data.sources); setInstallments(data.installments); setReceipts(data.receipts);
+        const { data: agg } = await supabase.rpc('compute_project_funding_aggregates', { _lfa_project_id: projectId });
+        if (agg) setFundingAgg(agg as unknown as Record<string, number>);
+      } catch {} finally { setFundingLoading(false); }
+    })();
+  }, [open, mode, projectId, supabase]);
 
   const filterByItem = (row: { budget_item_id: string }) => budgetItem && row.budget_item_id === budgetItem.id;
   const formatIDR = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
@@ -184,6 +250,9 @@ export default function FinanceLifecyclePanel({
 
           <Tabs value={tab} onValueChange={setTab} className="mt-3">
             <TabsList className="w-full">
+              {mode === 'project' && <TabsTrigger value="funding" className="flex-1 text-xs">Pendanaan</TabsTrigger>}
+              {mode === 'project' && <TabsTrigger value="installments" className="flex-1 text-xs">Termin</TabsTrigger>}
+              {mode === 'project' && <TabsTrigger value="receipts" className="flex-1 text-xs">Penerimaan</TabsTrigger>}
               <TabsTrigger value="commitments" className="flex-1 text-xs">Komitmen</TabsTrigger>
               <TabsTrigger value="expenditures" className="flex-1 text-xs">Realisasi</TabsTrigger>
             </TabsList>
@@ -281,6 +350,55 @@ export default function FinanceLifecyclePanel({
                 );
               })}
             </TabsContent>
+
+            {/* ── PENDANAAN TAB ─────────────────────────────────────── */}
+            {mode === 'project' && (
+              <TabsContent value="funding" className="mt-3 space-y-3">
+                <div className="grid grid-cols-2 gap-2 text-[10px] bg-slate-50 dark:bg-slate-900 rounded p-3">
+                  <div><span className="text-muted-foreground">Total Pendanaan</span><div className="font-bold">{formatIDR(fundingAgg.total_funding_agreement ?? 0)}</div></div>
+                  <div><span className="text-muted-foreground">Kas Diterima</span><div className="font-bold">{formatIDR(fundingAgg.net_received_cash ?? 0)}</div></div>
+                  <div><span className="text-muted-foreground">Belum Dialokasikan</span><div className="font-bold">{formatIDR(fundingAgg.unallocated_received ?? 0)}</div></div>
+                  <div><span className="text-muted-foreground">Piutang Termin</span><div className="font-bold">{formatIDR(fundingAgg.total_outstanding_receivable ?? 0)}</div></div>
+                </div>
+                {fundingLoading && <div className="py-8 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></div>}
+                {!fundingLoading && isOwner && !showSrcCreate && (
+                  <Button size="sm" className="h-8 text-xs w-full" onClick={() => { setShowSrcCreate(true); setSrcCreate({ lfa_project_id: projectId, source_name: '', agreement_amount_idr: 0 }); }}>
+                    <Plus className="mr-1.5 h-3.5 w-3.5" />Tambah Pendanaan</Button>)}
+                {!isOwner && <p className="text-[10px] text-muted-foreground italic text-center py-2">Hanya pemilik organisasi yang dapat mengelola pendanaan project.</p>}
+                {!fundingLoading && sources.map(src => (
+                  <div key={src.id} className="rounded border p-3">
+                    <div className="flex items-start justify-between gap-2"><div><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold">{formatIDR(src.agreement_amount_idr)}</span><span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{FUNDING_STATUS_LABELS[src.workflow_status] || src.workflow_status}</span></div><div className="text-xs font-medium mt-1">{src.source_name}</div><div className="text-[9px] text-muted-foreground">{FUNDING_TYPE_LABELS[src.funding_type] || src.funding_type}{src.agreement_number ? ` · ${src.agreement_number}` : ''}</div></div>{isOwner && <div className="flex gap-1 shrink-0">{getSourceAvailableActions(src.workflow_status).map(a => <Button key={a} variant="ghost" size="sm" className="h-6 text-[10px] px-1.5" disabled={!!fundingActioning} onClick={() => { setFundDecisionNote(''); setFundConfirm({ target: src, action: a, type: 'source' }); }}>{FUNDING_ACTION_LABELS[a] || a}</Button>)}</div>}</div>
+                  </div>
+                ))}
+              </TabsContent>
+            )}
+
+            {/* ── TERMIN TAB ─────────────────────────────────────────── */}
+            {mode === 'project' && (
+              <TabsContent value="installments" className="mt-3 space-y-3">
+                {!fundingLoading && installments.map(inst => {
+                  const derived = computeInstallmentDerivedState(inst, receipts);
+                  const srcName = sources.find(s => s.id === inst.funding_source_id)?.source_name || inst.funding_source_id.slice(0, 8);
+                  return <div key={inst.id} className="rounded border p-3">
+                    <div><div className="flex items-center gap-2 flex-wrap"><span className="text-sm font-bold">{formatIDR(inst.scheduled_amount_idr)}</span><span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{INSTALLMENT_STATUS_LABELS[inst.workflow_status] || inst.workflow_status}</span><span className="text-[9px] text-amber-600">{INSTALLMENT_DERIVED_LABELS[derived] || derived}</span></div><div className="text-xs font-medium">{inst.installment_name || `Termin #${inst.installment_number}`}</div><div className="text-[9px] text-muted-foreground">{srcName} · Jatuh tempo: {fmtDate(inst.due_date)}</div></div>
+                  </div>;
+                })}
+              </TabsContent>
+            )}
+
+            {/* ── PENERIMAAN TAB ─────────────────────────────────────── */}
+            {mode === 'project' && (
+              <TabsContent value="receipts" className="mt-3 space-y-3">
+                {!fundingLoading && receipts.map(rec => {
+                  const isRev = rec.reversal_of_id != null;
+                  const srcName = sources.find(s => s.id === rec.funding_source_id)?.source_name || rec.funding_source_id.slice(0, 8);
+                  return <div key={rec.id} className={`rounded border p-3 ${isRev ? 'bg-red-50/20 border-red-200' : ''}`}>
+                    <div><div className="flex items-center gap-2 flex-wrap"><span className={`text-sm font-bold ${isRev ? 'text-red-600' : ''}`}>{isRev && <span className="text-[10px] bg-red-100 text-red-700 px-1.5 py-0.5 rounded uppercase font-bold mr-1">Pembalikan</span>}{formatIDR(rec.amount_idr)}</span><span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">{RECEIPT_STATUS_LABELS[rec.workflow_status] || rec.workflow_status}</span></div><div className="text-[9px] text-muted-foreground mt-1">{srcName} · {fmtDate(rec.receipt_date)}{rec.installment_id ? ` · Termin ${rec.installment_id.slice(0, 8)}` : ' · Tanpa Termin'}</div>{isRev && <div className="text-[9px] text-muted-foreground mt-0.5 italic">Mengurangi penerimaan</div>}</div>
+                  </div>;
+                })}
+              </TabsContent>
+            )}
+
           </Tabs>
         </SheetContent>
       </Sheet>
