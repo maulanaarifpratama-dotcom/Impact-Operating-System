@@ -142,10 +142,11 @@ function ControlCenterTab({ projectId, onOpenActivityLog, onOpenLearning }: { pr
     setLoading(true);
     setError(null);
     try {
-      const [wbsRes, claimsRes, budgetRes] = await Promise.all([
+      const [wbsRes, claimsRes, budgetRes, projectRes] = await Promise.all([
         supabase.from('lfa_wbs_items').select('id, status, end_date, blocker_category').eq('lfa_project_id', projectId).eq('level', 2),
         supabase.from('wbs_completion_claims').select('id, wbs_item_id, status, facts, observations, submitted_at').eq('lfa_project_id', projectId),
         supabase.from('lfa_budget_items').select('id, wbs_item_id, volume, unit_price_idr, actual_amount_idr, cost_category').eq('lfa_project_id', projectId),
+        supabase.from('lfa_projects').select('duration_months').eq('id', projectId).maybeSingle(),
       ]);
       if (wbsRes.error) throw wbsRes.error;
       if (claimsRes.error) throw claimsRes.error;
@@ -155,7 +156,8 @@ function ControlCenterTab({ projectId, onOpenActivityLog, onOpenLearning }: { pr
       // (budgetModel.ts) — no new financial math, per PM-P5A scope.
       const budgetItems = (budgetRes.data || []) as BudgetItemInput[];
       const targetBudget = await resolveTargetBudgetForLfaProject(supabase as any, projectId);
-      const budgetSnapshot = computeBudgetSnapshot({ targetBudget, budgetItems, durationMonths: 12 });
+      const durationMonths = (projectRes.data as any)?.duration_months || 12;
+      const budgetSnapshot = computeBudgetSnapshot({ targetBudget, budgetItems, durationMonths });
 
       // Work Plan owns execution status; Overdue/Blocked are derived — all three
       // via the canonical predicates in executionModel.ts, shared with Work Plan and Timeline.
