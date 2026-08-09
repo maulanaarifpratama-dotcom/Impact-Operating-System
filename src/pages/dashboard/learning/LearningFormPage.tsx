@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Search, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -107,8 +107,48 @@ async function searchEvidenceCandidates(query: string): Promise<EvidenceCandidat
   return [...acrCandidates, ...findingCandidates].slice(0, 20);
 }
 
+// Evidence selection defaults to the current project first when authoring
+// arrives from a project's MEAL > Learning tab (?project=). This only
+// changes what's shown before the user types a search query — the search
+// itself still reaches every project in the org, unchanged.
+async function loadProjectEvidenceCandidates(projectId: string): Promise<EvidenceCandidate[]> {
+  const client = supabase as any;
+  const [claimsRes, findingsRes, projectRes] = await Promise.all([
+    supabase.from('wbs_completion_claims').select('id, wbs_item_id').eq('lfa_project_id', projectId).eq('status', 'verified').order('submitted_at', { ascending: false }).limit(10),
+    client.from('project_evaluation_findings').select('id, title').eq('project_id', projectId).order('created_at', { ascending: false }).limit(10),
+    supabase.from('lfa_projects').select('name').eq('id', projectId).maybeSingle(),
+  ]);
+  const claims = (claimsRes.data || []) as { id: string; wbs_item_id: string }[];
+  const findings = (findingsRes.data || []) as { id: string; title: string }[];
+  const projectName = (projectRes.data as any)?.name || 'Project';
+
+  const wbsIds = Array.from(new Set(claims.map((c) => c.wbs_item_id)));
+  const wbsNameById = new Map<string, string>();
+  if (wbsIds.length > 0) {
+    const { data } = await supabase.from('lfa_wbs_items').select('id, name').in('id', wbsIds);
+    for (const w of ((data || []) as any[])) wbsNameById.set(w.id, w.name || 'Activity');
+  }
+
+  const acrCandidates: EvidenceCandidate[] = claims.map((c) => ({
+    sourceType: 'acr' as const,
+    sourceId: c.id,
+    label: `ACR: ${wbsNameById.get(c.wbs_item_id) || 'Activity'} — ${projectName}`,
+    projectId,
+  }));
+  const findingCandidates: EvidenceCandidate[] = findings.map((f) => ({
+    sourceType: 'finding' as const,
+    sourceId: f.id,
+    label: `Finding: ${f.title} — ${projectName}`,
+    projectId,
+  }));
+
+  return [...acrCandidates, ...findingCandidates];
+}
+
 export default function LearningFormPage() {
   const { learningId } = useParams<{ learningId: string }>();
+  const [searchParams] = useSearchParams();
+  const projectContext = searchParams.get('project');
   const isEdit = !!learningId;
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -129,6 +169,19 @@ export default function LearningFormPage() {
   const [searchResults, setSearchResults] = useState<EvidenceCandidate[]>([]);
   const [searching, setSearching] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [defaultCandidates, setDefaultCandidates] = useState<EvidenceCandidate[]>([]);
+  const [loadingDefaults, setLoadingDefaults] = useState(false);
+
+  // Evidence selection defaults to the current project when authoring
+  // started from a project's MEAL > Learning tab.
+  useEffect(() => {
+    if (isEdit || !projectContext) return;
+    setLoadingDefaults(true);
+    loadProjectEvidenceCandidates(projectContext)
+      .then(setDefaultCandidates)
+      .finally(() => setLoadingDefaults(false));
+  }, [isEdit, projectContext]);
 
   // Load existing Draft for Edit
   useEffect(() => {
@@ -192,6 +245,7 @@ export default function LearningFormPage() {
   const addEvidence = (c: EvidenceCandidate) => {
     setSelectedEvidence((prev) => [...prev, c]);
     setSearchResults((prev) => prev.filter((r) => !(r.sourceType === c.sourceType && r.sourceId === c.sourceId)));
+    setDefaultCandidates((prev) => prev.filter((r) => !(r.sourceType === c.sourceType && r.sourceId === c.sourceId)));
   };
   const removeEvidence = (c: EvidenceCandidate) => {
     setSelectedEvidence((prev) => prev.filter((r) => !(r.sourceType === c.sourceType && r.sourceId === c.sourceId)));
@@ -233,7 +287,11 @@ export default function LearningFormPage() {
         );
         if (evErr) throw evErr;
         toast({ title: 'Draft Learning dibuat' });
-        navigate(`/dashboard/learning/${newId}`);
+        // Authored from a project's MEAL > Learning tab: stay in that
+        // workflow instead of jumping out to the org-level Detail page.
+        navigate(projectContext
+          ? `/dashboard/project-management/${projectContext}/meal?tab=learning`
+          : `/dashboard/learning/${newId}`);
       }
     } catch (err) {
       toast({ title: 'Gagal menyimpan Learning', description: (err as Error).message, variant: 'destructive' });
@@ -248,7 +306,9 @@ export default function LearningFormPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 py-2">
-      <Button variant="ghost" size="sm" onClick={() => navigate(isEdit ? `/dashboard/learning/${learningId}` : '/dashboard/learning')}>
+      <Button variant="ghost" size="sm" onClick={() => navigate(isEdit
+        ? `/dashboard/learning/${learningId}`
+        : projectContext ? `/dashboard/project-management/${projectContext}/meal?tab=learning` : '/dashboard/learning')}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
       </Button>
 
@@ -302,7 +362,7 @@ export default function LearningFormPage() {
                 ))}
               </div>
             )}
-            {searchQuery.trim().length >= 2 && (
+            {searchQuery.trim().length >= 2 ? (
               <div className="border rounded max-h-48 overflow-y-auto">
                 {searching ? (
                   <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
@@ -320,7 +380,26 @@ export default function LearningFormPage() {
                   ))
                 )}
               </div>
-            )}
+            ) : projectContext && (loadingDefaults || defaultCandidates.length > 0) ? (
+              <div className="border rounded max-h-48 overflow-y-auto">
+                <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-muted/50">
+                  Dari proyek ini
+                </div>
+                {loadingDefaults ? (
+                  <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                ) : (
+                  defaultCandidates.map((r) => (
+                    <button
+                      key={`${r.sourceType}-${r.sourceId}`}
+                      className="block w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                      onClick={() => addEvidence(r)}
+                    >
+                      {r.label}
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : null}
           </div>
 
           <div className="space-y-1.5">
@@ -343,7 +422,9 @@ export default function LearningFormPage() {
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t">
-            <Button variant="outline" onClick={() => navigate(isEdit ? `/dashboard/learning/${learningId}` : '/dashboard/learning')}>Cancel</Button>
+            <Button variant="outline" onClick={() => navigate(isEdit
+              ? `/dashboard/learning/${learningId}`
+              : projectContext ? `/dashboard/project-management/${projectContext}/meal?tab=learning` : '/dashboard/learning')}>Cancel</Button>
             <Button onClick={handleSave} disabled={!canSave || saving}>
               {saving ? 'Menyimpan...' : isEdit ? 'Save Changes' : 'Save as Draft'}
             </Button>

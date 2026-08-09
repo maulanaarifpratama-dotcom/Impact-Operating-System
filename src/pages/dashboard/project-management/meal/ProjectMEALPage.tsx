@@ -44,23 +44,31 @@ import {
 import { computeBudgetSnapshot, formatIDR, type BudgetItemInput } from '@/lib/budget/budgetModel';
 import { resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 import { getSeverityLabel, getSeverityBadgeClass, SEVERITY_OPTIONS } from '@/lib/project-management/learningModel';
-import type { ProjectEvaluationFinding, EvaluationFindingSeverity } from '@/pages/dashboard/lfa-builder/types';
+import { getInsightTypeLabel, getInsightTypeBadgeClass, getLearningStatusBadgeClass } from '@/lib/project-management/orgLearningModel';
+import type { ProjectEvaluationFinding, EvaluationFindingSeverity, OrgLearningEntry } from '@/pages/dashboard/lfa-builder/types';
 
 // PM + MEAL Canonicalization: ACR is the single source of truth. 'activity' stays a valid
 // tab (reachable via ?tab=activity from Control Center) but is deliberately left out of the
 // primary TABS bar below — it's an audit utility, not a workflow screen. 'milestones' and
 // 'evidence' are removed entirely: Evidence & Verification duplicated ACR (folded into the
 // ACR tab's status filter), and Milestones duplicated Stage/Timeline/Deliverables progress.
-// MEAL-P1 (revised per stop-gate review): Learning is NOT a tab or an entity — it is a
-// derived view inside Control Center's "Recent Learning" card, sourced straight from ACR
-// facts/observations. Evaluation Finding IS a new entity, but it lives inside the ACR tab
-// (Claims/Findings toggle) — the smallest existing surface — never a new top-level tab.
-type MealTab = 'control-center' | 'acr' | 'deliverables' | 'activity';
+// Evaluation Finding lives inside the ACR tab (Claims/Findings toggle) — the
+// smallest existing surface — never its own top-level tab.
+//
+// MEAL Learning V1 UX correction: Learning IS an organization-level entity
+// (org_learning_entries/org_learning_evidence, unchanged) but authoring was
+// originally placed only in a top-level sidebar module, forcing users out of
+// the project MEAL workflow to create one. This 'learning' tab is the primary
+// authoring surface — a project-scoped view over the same org-level data, not
+// a second store. The sidebar Learning page remains for cross-project browse/
+// search only.
+type MealTab = 'control-center' | 'acr' | 'deliverables' | 'learning' | 'activity';
 
 const TABS: { key: MealTab; label: string }[] = [
   { key: 'control-center', label: 'Control Center' },
   { key: 'acr', label: 'ACR' },
   { key: 'deliverables', label: 'Deliverables' },
+  { key: 'learning', label: 'Learning' },
 ];
 
 const EVENT_LABELS: Record<string, string> = {
@@ -101,7 +109,7 @@ const ENTITY_LABELS: Record<string, string> = {
 // rendering, no giant multi-domain dashboard. Everything here is either a
 // count derived from ACR/Deliverables, or a link out to the screen that
 // owns the detail (ACR tab, Audit Log).
-function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string; onOpenActivityLog: () => void }) {
+function ControlCenterTab({ projectId, onOpenActivityLog, onOpenLearning }: { projectId: string; onOpenActivityLog: () => void; onOpenLearning: () => void }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState<{
@@ -333,8 +341,9 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
         </CardContent>
       </Card>
 
-      {/* Related Learning (MEAL Learning V1): read-only link into the org-level
-          Learning Library — no authoring surface here, per the locked navigation. */}
+      {/* Related Learning (MEAL Learning V1): read-only teaser that opens the
+          in-project Learning tab — that tab, not the org-level Library, is the
+          primary authoring/browsing surface for this project's Learning. */}
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm flex items-center gap-2">
@@ -353,9 +362,9 @@ function ControlCenterTab({ projectId, onOpenActivityLog }: { projectId: string;
                   {l.title}
                 </Link>
               ))}
-              <Link to={`/dashboard/learning?project=${projectId}`} className="inline-block text-[10px] font-semibold text-primary hover:underline pt-1">
+              <button onClick={onOpenLearning} className="inline-block text-[10px] font-semibold text-primary hover:underline pt-1">
                 View all →
-              </Link>
+              </button>
             </>
           )}
         </CardContent>
@@ -1004,6 +1013,139 @@ function AcrTab({ projectId }: { projectId: string }) {
   );
 }
 
+// MEAL Learning V1 UX correction: this is the primary Learning authoring
+// surface, not a second store — it's a project-scoped view over the same
+// org_learning_entries/org_learning_evidence tables the sidebar Learning
+// Library reads from. "+ New Learning" carries this project as context via
+// a query param so the Evidence Base picker on the Create form can default
+// to this project's own ACR/Findings first; nothing about storage, RLS, or
+// validation changes based on where authoring started.
+function ProjectLearningTab({ projectId }: { projectId: string }) {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { canDelete: isReviewer } = useOrgRole();
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [published, setPublished] = useState<OrgLearningEntry[]>([]);
+  const [myDrafts, setMyDrafts] = useState<OrgLearningEntry[]>([]);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const client = supabase as any;
+      const { data: claims, error: claimsErr } = await supabase
+        .from('wbs_completion_claims')
+        .select('id, status')
+        .eq('lfa_project_id', projectId);
+      if (claimsErr) throw claimsErr;
+      const verifiedAcrIds = ((claims || []) as { id: string; status: string }[])
+        .filter((c) => c.status === CLOSED_CLAIM_STATUS)
+        .map((c) => c.id);
+
+      const { data: findingRows, error: findingErr } = await client.from('project_evaluation_findings').select('id').eq('project_id', projectId);
+      if (findingErr) throw findingErr;
+      const findingIds = ((findingRows || []) as { id: string }[]).map((f) => f.id);
+
+      let learningIds: string[] = [];
+      if (verifiedAcrIds.length > 0 || findingIds.length > 0) {
+        const evidenceQueries = [];
+        if (verifiedAcrIds.length > 0) evidenceQueries.push(client.from('org_learning_evidence').select('learning_id').eq('source_type', 'acr').in('source_id', verifiedAcrIds));
+        if (findingIds.length > 0) evidenceQueries.push(client.from('org_learning_evidence').select('learning_id').eq('source_type', 'finding').in('source_id', findingIds));
+        const evidenceResults = await Promise.all(evidenceQueries);
+        learningIds = Array.from(new Set(evidenceResults.flatMap((r) => ((r.data || []) as { learning_id: string }[]).map((e) => e.learning_id))));
+      }
+
+      if (learningIds.length === 0) {
+        setPublished([]);
+        setMyDrafts([]);
+        return;
+      }
+
+      const { data: entries, error: entriesErr } = await client.from('org_learning_entries').select('*').in('id', learningIds).order('created_at', { ascending: false });
+      if (entriesErr) throw entriesErr;
+      const rows = (entries || []) as OrgLearningEntry[];
+      // RLS already keeps other authors' Drafts out of this result entirely —
+      // the split below is just presentational (Published vs. my own Drafts).
+      setPublished(rows.filter((r) => r.status === 'published'));
+      setMyDrafts(rows.filter((r) => r.status === 'draft' && r.authored_by === user?.id));
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, user?.id]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  }
+
+  if (error) {
+    return <Card className="border-destructive/50"><CardContent className="py-4 text-sm text-destructive">{error}</CardContent></Card>;
+  }
+
+  const renderEntry = (l: OrgLearningEntry) => (
+    <Card key={l.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => navigate(`/dashboard/learning/${l.id}`)}>
+      <CardContent className="space-y-1.5 py-4">
+        <div className="flex items-center gap-2 min-w-0">
+          <CardTitle className="text-base truncate">{l.title}</CardTitle>
+          <Badge variant="outline" className={`text-[9px] py-0 h-4 shrink-0 ${getInsightTypeBadgeClass(l.insight_type)}`}>{getInsightTypeLabel(l.insight_type)}</Badge>
+          <Badge variant="outline" className={`text-[9px] py-0 h-4 shrink-0 ${getLearningStatusBadgeClass(l.status)}`}>{l.status === 'published' ? 'Published' : 'Draft'}</Badge>
+        </div>
+        <CardDescription className="line-clamp-2">{l.insight}</CardDescription>
+      </CardContent>
+    </Card>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <div className="text-xs text-muted-foreground">Institutional knowledge synthesized from this project's ACR and Evaluation Findings.</div>
+        {isReviewer && (
+          <Button size="sm" onClick={() => navigate(`/dashboard/learning/new?project=${projectId}`)}>
+            <Plus className="mr-1 h-3.5 w-3.5" /> New Learning
+          </Button>
+        )}
+      </div>
+
+      {myDrafts.length > 0 && (
+        <div className="space-y-2">
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">My Drafts</div>
+          {myDrafts.map(renderEntry)}
+        </div>
+      )}
+
+      <div className="space-y-2">
+        {published.length > 0 && <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Published</div>}
+        {published.length === 0 && myDrafts.length === 0 ? (
+          <Card>
+            <CardContent className="flex flex-col items-center gap-3 py-16 text-center">
+              <Lightbulb className="h-10 w-10 text-muted-foreground" />
+              <CardTitle className="text-lg">Belum ada Learning terkait proyek ini.</CardTitle>
+              {isReviewer && (
+                <Button onClick={() => navigate(`/dashboard/learning/new?project=${projectId}`)}>
+                  <Plus className="mr-1 h-4 w-4" /> New Learning
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        ) : (
+          published.map(renderEntry)
+        )}
+      </div>
+
+      <div className="pt-2 border-t">
+        <Link to={`/dashboard/learning?project=${projectId}`} className="text-xs font-semibold text-primary hover:underline">
+          Browse full Learning Library →
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 function ActivityLogTab({ projectId }: { projectId: string }) {
   const [events, setEvents] = useState<any[]>([]);
   const [names, setNames] = useState<Record<string, string>>({});
@@ -1124,11 +1266,13 @@ export default function ProjectMEALPage() {
     }
     switch (activeTab) {
       case 'control-center':
-        return <ControlCenterTab projectId={projectId} onOpenActivityLog={() => setTab('activity')} />;
+        return <ControlCenterTab projectId={projectId} onOpenActivityLog={() => setTab('activity')} onOpenLearning={() => setTab('learning')} />;
       case 'acr':
         return <AcrTab projectId={projectId} />;
       case 'deliverables':
         return <DeliverablesTab projectId={projectId} />;
+      case 'learning':
+        return <ProjectLearningTab projectId={projectId} />;
       case 'activity':
         return <ActivityLogTab projectId={projectId} />;
       default:
