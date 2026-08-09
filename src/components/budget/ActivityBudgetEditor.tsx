@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { Plus, Trash2, Loader2, Sparkles, Check, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -46,6 +46,7 @@ export default function ActivityBudgetEditor({ projectId, orgId, activityId, act
   const [autoloadCandidates, setAutoloadCandidates] = useState<AutoloadCandidate[]>([]);
   const [showAutoload, setShowAutoload] = useState(false);
   const [autoloading, setAutoloading] = useState(false);
+  const originalAutoloadPrices = useRef<Map<string, number>>(new Map());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -139,6 +140,13 @@ export default function ActivityBudgetEditor({ projectId, orgId, activityId, act
         activityName,
         existingItemKeys: existingKeys,
       });
+      const prices = new Map<string, number>();
+      for (const c of candidates) {
+        if (c.suggestedUnitPrice != null) {
+          prices.set(c.stableId, c.suggestedUnitPrice);
+        }
+      }
+      originalAutoloadPrices.current = prices;
       setAutoloadCandidates(candidates);
       setShowAutoload(true);
       setAutoloading(false);
@@ -156,6 +164,22 @@ export default function ActivityBudgetEditor({ projectId, orgId, activityId, act
     setAutoloadCandidates((prev) =>
       prev.map((c) => (c.stableId === stableId ? { ...c, selected: !c.selected } : c)),
     );
+  };
+
+  const handleCandidatePriceEdit = (stableId: string, newPrice: number | null) => {
+    setAutoloadCandidates((prev) => {
+      const originalPrice = originalAutoloadPrices.current.get(stableId);
+      return prev.map((c) => {
+        if (c.stableId !== stableId) return c;
+        const changed = originalPrice != null && newPrice !== originalPrice;
+        const reverted = originalPrice != null && newPrice === originalPrice;
+        return {
+          ...c,
+          suggestedUnitPrice: newPrice,
+          provenanceState: changed ? 'USER_PROVIDED' : reverted ? 'ESTIMATE_UNVERIFIED' : c.provenanceState,
+        };
+      });
+    });
   };
 
   const addSelectedCandidates = async () => {
@@ -254,26 +278,40 @@ export default function ActivityBudgetEditor({ projectId, orgId, activityId, act
                     />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{c.itemName}</div>
-                      <div className="text-[9px] text-muted-foreground flex items-center gap-2">
+                      <div className="text-[9px] text-muted-foreground flex items-center gap-1 flex-wrap">
                         <span>{c.category}</span>
                         <span>·</span>
                         <span>Qty: {c.suggestedQuantity}</span>
                         <span>·</span>
                         <span>{c.unit}</span>
-                        {c.suggestedUnitPrice != null && c.suggestedUnitPrice > 0 && (
+                        {c.suggestedUnitPrice != null && (
                           <>
                             <span>·</span>
-                            <span>Rp {c.suggestedUnitPrice.toLocaleString('id-ID')}</span>
+                            <span>Rp</span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={c.suggestedUnitPrice}
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => handleCandidatePriceEdit(c.stableId, e.target.value === '' ? null : Number(e.target.value))}
+                              className="w-24 h-5 text-[9px] border rounded px-1 bg-white/80 text-right"
+                            />
                           </>
                         )}
                         <span>·</span>
-                        <span className="text-amber-600 dark:text-amber-400">
-                          {getProvenanceLabel(c.provenanceState)}
+                        <span className={
+                          c.provenanceState === 'USER_PROVIDED'
+                            ? 'text-blue-600 dark:text-blue-400'
+                            : 'text-amber-600 dark:text-amber-400'
+                        }>
+                          {c.provenanceState === 'USER_PROVIDED'
+                            ? 'Dimasukkan pengguna'
+                            : getProvenanceLabel(c.provenanceState)}
                         </span>
                       </div>
                     </div>
                     <span className="text-[8px] uppercase bg-slate-100 dark:bg-slate-800 px-1 rounded shrink-0">
-                      {c.referenceFamily === 'sbm' ? 'SBM ref' : c.referenceFamily === 'inkindo' ? 'INKINDO ref' : ''}
+                      {c.referenceFamily === 'sbm' ? 'Referensi sementara SBM' : c.referenceFamily === 'inkindo' ? 'Referensi sementara INKINDO' : ''}
                     </span>
                   </div>
                 ))}

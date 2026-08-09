@@ -325,6 +325,14 @@ export default function BudgetCalculator({
         activityName: actName,
         existingItemKeys: existingKeys,
       });
+      // Capture original reference prices for provenance tracking
+      const prices = new Map<string, number>();
+      for (const c of candidates) {
+        if (c.suggestedUnitPrice != null) {
+          prices.set(c.stableId, c.suggestedUnitPrice);
+        }
+      }
+      originalAutoloadPrices.current = prices;
       setAutoloadCandidates(candidates);
       setAutoloading(false);
       if (candidates.length === 0 && actName.trim()) {
@@ -340,6 +348,24 @@ export default function BudgetCalculator({
     setAutoloadCandidates((prev) =>
       prev.map((c) => (c.stableId === stableId ? { ...c, selected: !c.selected } : c)),
     );
+  };
+
+  const originalAutoloadPrices = useRef<Map<string, number>>(new Map());
+
+  const handleCandidatePriceEdit = (stableId: string, newPrice: number | null) => {
+    setAutoloadCandidates((prev) => {
+      const originalPrice = originalAutoloadPrices.current.get(stableId);
+      return prev.map((c) => {
+        if (c.stableId !== stableId) return c;
+        const changed = originalPrice != null && newPrice !== originalPrice;
+        const reverted = originalPrice != null && newPrice === originalPrice;
+        return {
+          ...c,
+          suggestedUnitPrice: newPrice,
+          provenanceState: changed ? 'USER_PROVIDED' : reverted ? 'ESTIMATE_UNVERIFIED' : c.provenanceState,
+        };
+      });
+    });
   };
 
   const addSelectedCandidates = async () => {
@@ -2549,20 +2575,34 @@ export default function BudgetCalculator({
                                 <span>Qty: {c.suggestedQuantity}</span>
                                 <span>·</span>
                                 <span>{c.unit}</span>
-                                {c.suggestedUnitPrice != null && c.suggestedUnitPrice > 0 && (
+                                {c.suggestedUnitPrice != null && (
                                   <>
                                     <span>·</span>
-                                    <span>Rp {c.suggestedUnitPrice.toLocaleString('id-ID')}</span>
+                                    <span>Rp</span>
+                                    <input
+                                      type="number"
+                                      min={0}
+                                      value={c.suggestedUnitPrice}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => handleCandidatePriceEdit(c.stableId, e.target.value === '' ? null : Number(e.target.value))}
+                                      className="w-24 h-5 text-[9px] border rounded px-1 bg-white/80 text-right"
+                                    />
                                   </>
                                 )}
                                 <span>·</span>
-                                <span className="text-amber-600 dark:text-amber-400">
-                                  {getProvenanceLabel(c.provenanceState)}
+                                <span className={
+                                  c.provenanceState === 'USER_PROVIDED'
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : 'text-amber-600 dark:text-amber-400'
+                                }>
+                                  {c.provenanceState === 'USER_PROVIDED'
+                                    ? 'Dimasukkan pengguna'
+                                    : getProvenanceLabel(c.provenanceState)}
                                 </span>
                               </div>
                             </div>
                             <span className="text-[8px] uppercase bg-slate-100 dark:bg-slate-800 px-1 rounded shrink-0">
-                              {c.referenceFamily === 'sbm' ? 'SBM ref' : c.referenceFamily === 'inkindo' ? 'INKINDO ref' : ''}
+                              {c.referenceFamily === 'sbm' ? 'Referensi sementara SBM' : c.referenceFamily === 'inkindo' ? 'Referensi sementara INKINDO' : ''}
                             </span>
                           </div>
                         ))}
