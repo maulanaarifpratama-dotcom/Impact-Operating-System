@@ -5,6 +5,7 @@ import { BudgetItem, WbsItem, LfaProject } from './types';
 import { computeEvmVarianceFlag } from './evmVariance';
 import { SBM_2026, SBM_FLAT_ITEMS, SbmItem } from '@/data/sbm2026';
 import { INKINDO_ROLES, calculateInkindoRate, calculateInkindoProfessionalRate, INKINDO_PROVINCE_MULTIPLIERS, INKINDO_DIRECT_COST_MULTIPLIERS } from '@/data/inkindo2026';
+import { getProvenanceLabel } from '@/lib/grant-writer/deterministic/budget-provenance';
 
 interface AutocompleteItem {
   name: string;
@@ -2471,7 +2472,7 @@ export default function BudgetCalculator({
                                       {isSuggested && filteredSuggestions.length > 0 && (
                                         <div className="absolute z-10 left-3 top-11 w-72 bg-white dark:bg-slate-900 border rounded-lg shadow-xl divide-y text-[11px] overflow-hidden">
                                           <div className="bg-slate-50 dark:bg-slate-950 p-1.5 font-bold text-[9px] text-slate-400 uppercase tracking-widest">
-                                            Rekomendasi Katalog Biaya 2026
+                                            Referensi Anggaran (estimasi, belum terverifikasi)
                                           </div>
                                           {filteredSuggestions.map((sbm, idx) => (
                                             <button
@@ -2482,12 +2483,8 @@ export default function BudgetCalculator({
                                             >
                                               <span className="font-bold text-slate-800 dark:text-slate-200 flex items-center justify-between gap-1">
                                                 <span className="truncate">{sbm.name}</span>
-                                                <span className={`px-1 rounded text-[7px] font-black uppercase flex-shrink-0 ${
-                                                  sbm.source === 'INKINDO'
-                                                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-400 border border-blue-200/40'
-                                                    : 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-400 border border-amber-200/40'
-                                                }`}>
-                                                  {sbm.source}
+                                                <span className="px-1 rounded text-[7px] font-black uppercase flex-shrink-0 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 border border-slate-200/40">
+                                                  referensi
                                                 </span>
                                               </span>
                                               <span className="text-[10px] text-slate-400">

@@ -9,6 +9,7 @@
  */
 
 import { beneficiaryCountOf } from './page1-readers';
+import { safePriceBasisLabel } from './budget-provenance';
 import type {
   Page1Input,
   CanonicalActivityV2,
@@ -267,6 +268,13 @@ export function extractCostDrivers(
       estimated_unit_cost_idr: 5000000,
       price_basis: 'Standard SBM Penyelenggaraan Acara'
     });
+  }
+
+  // GW-B1: fail-closed — mark ALL cost drivers as unverified and downgrade
+  // SBM/IKKINDO labels. Template prices carry no provenance metadata.
+  for (const d of drivers) {
+    d.price_basis = safePriceBasisLabel(d.price_basis) ?? undefined;
+    d.requiresUserConfirmation = true;
   }
 
   return drivers;

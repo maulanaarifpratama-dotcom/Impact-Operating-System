@@ -266,7 +266,10 @@ export interface CostDriverV2 {
   frequency: number;
   duration_days?: number;
   estimated_unit_cost_idr?: number;
-  price_basis?: string;             // e.g., "Standard SBM 2026", "Survei Pasar"
+  /** Source label — may be downgraded if unverified (GW-B1). See budget-provenance.ts. */
+  price_basis?: string;
+  /** GW-B1: true when the price has no verified source and requires human confirmation. */
+  requiresUserConfirmation?: boolean;
 }
 
 export interface IndicatorV2 {
