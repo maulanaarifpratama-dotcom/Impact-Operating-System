@@ -3,9 +3,13 @@
 -- Learning is NOT an independent entity — it is a derived view over
 -- wbs_completion_claims.facts/observations (no schema change). Only
 -- Evaluation Finding is a genuinely new entity: a formal, periodic
--- owner/admin judgment, referencing ACR Evidence/Activity/Deliverable by id
--- rather than duplicating them. Lightweight CRUD table (not a lifecycle
--- engine), same shape as project_deliverables/project_milestones.
+-- owner/admin judgment, referencing ACR Evidence/Activity by id rather than
+-- duplicating them. Lightweight CRUD table (not a lifecycle engine).
+--
+-- No separate Deliverable reference: per PM+MEAL V1 debt closure (Task 3),
+-- "Deliverable" is not a stored entity to reference — a Deliverable IS an
+-- Activity whose ACR reached Closed. wbs_item_id already covers that case;
+-- a distinct deliverable_id would just be a second FK to the same fact.
 --
 -- Supersedes 20260808100000_add_learning_entries_and_evaluation_findings.sql,
 -- which was never applied to production — that file also created
@@ -24,7 +28,6 @@ CREATE TABLE IF NOT EXISTS public.project_evaluation_findings (
     CHECK (severity IN ('informational', 'minor', 'major', 'critical')),
   recommendation TEXT,
   wbs_item_id UUID REFERENCES public.lfa_wbs_items(id) ON DELETE SET NULL,
-  deliverable_id UUID REFERENCES public.project_deliverables(id) ON DELETE SET NULL,
   evidence_id UUID REFERENCES public.wbs_completion_evidence(id) ON DELETE SET NULL,
   created_by UUID NOT NULL REFERENCES auth.users(id),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -38,8 +41,9 @@ CREATE INDEX IF NOT EXISTS idx_project_evaluation_findings_project_created
 
 -- ============================================================================
 -- Integrity trigger: org_id must match the project's org_id, and any
--- optional reference (Activity/Deliverable/Evidence) must belong to the
--- same project/org. Mirrors trg_project_deliverables_integrity.
+-- optional reference (Activity/Evidence) must belong to the same project/org.
+-- Mirrors trg_project_deliverables_integrity (from the now-retired
+-- project_deliverables table — see 20260808120000_drop_deliverable_derivation_zombie.sql).
 -- ============================================================================
 CREATE OR REPLACE FUNCTION public.trg_project_evaluation_findings_integrity()
 RETURNS TRIGGER
@@ -50,7 +54,6 @@ AS $$
 DECLARE
   v_project_org UUID;
   v_wbs_project UUID;
-  v_deliverable_project UUID;
   v_evidence_claim UUID;
   v_evidence_project UUID;
 BEGIN
@@ -66,13 +69,6 @@ BEGIN
     SELECT w.lfa_project_id INTO v_wbs_project FROM public.lfa_wbs_items w WHERE w.id = NEW.wbs_item_id;
     IF v_wbs_project IS NULL OR v_wbs_project <> NEW.project_id THEN
       RAISE EXCEPTION 'INVALID_EVALUATION_FINDING_ACTIVITY';
-    END IF;
-  END IF;
-
-  IF NEW.deliverable_id IS NOT NULL THEN
-    SELECT d.project_id INTO v_deliverable_project FROM public.project_deliverables d WHERE d.id = NEW.deliverable_id;
-    IF v_deliverable_project IS NULL OR v_deliverable_project <> NEW.project_id THEN
-      RAISE EXCEPTION 'INVALID_EVALUATION_FINDING_DELIVERABLE';
     END IF;
   END IF;
 

@@ -26,16 +26,12 @@ interface PdfActivity {
   stage_id: string | null;
 }
 
+// Deliverables = outputs derived from Closed (verified) ACR, same canonical
+// rule as DeliverablesTab in ProjectMEALPage.tsx — no separate storage, no
+// due_date (that concept doesn't apply to an ACR-derived output).
 interface PdfDeliverable {
   name: string;
-  status: string;
-  due_date: string | null;
-}
-
-interface PdfMilestone {
-  name: string;
-  target_date: string | null;
-  status: string;
+  completionDate: string | null;
 }
 
 interface PdfData {
@@ -48,7 +44,6 @@ interface PdfData {
   stages: PdfStage[];
   activities: PdfActivity[];
   deliverables: PdfDeliverable[];
-  milestones: PdfMilestone[];
 }
 
 const STATUS_LABELS: Record<string, string> = {
@@ -60,10 +55,6 @@ const STATUS_LABELS: Record<string, string> = {
   ready: 'Siap',
   cancelled: 'Dibatalkan',
   draft: 'Draft',
-  submitted: 'Submitted',
-  approved: 'Disetujui',
-  upcoming: 'Upcoming',
-  achieved: 'Tercapai',
 };
 
 function fmtDate(d: string | null): string {
@@ -76,7 +67,7 @@ function fmtProgress(p: number): string {
 }
 
 function renderHtml(data: PdfData): string {
-  const { projectName, orgName, generatedDate, baseline, targetBudget, budgetSnapshot, stages, activities, deliverables, milestones } = data;
+  const { projectName, orgName, generatedDate, baseline, targetBudget, budgetSnapshot, stages, activities, deliverables } = data;
 
   const activityByStage = new Map<string, PdfActivity[]>();
   for (const s of stages) activityByStage.set(s.id, []);
@@ -133,27 +124,10 @@ function renderHtml(data: PdfData): string {
       (d) => `
       <tr>
         <td>${esc(d.name)}</td>
-        <td>${STATUS_LABELS[d.status] || d.status}</td>
-        <td>${fmtDate(d.due_date)}</td>
+        <td>Selesai</td>
+        <td>${fmtDate(d.completionDate)}</td>
       </tr>`,
     )
-    .join('');
-
-  const milestoneRows = milestones
-    .map((m) => {
-      const effectiveStatus =
-        m.status === 'achieved'
-          ? 'Tercapai'
-          : m.target_date && new Date(m.target_date) < new Date()
-          ? 'Terlambat'
-          : 'Upcoming';
-      return `
-      <tr>
-        <td>${esc(m.name)}</td>
-        <td>${fmtDate(m.target_date)}</td>
-        <td>${effectiveStatus}</td>
-      </tr>`;
-    })
     .join('');
 
   const baselineSection = baseline
@@ -214,15 +188,8 @@ ${budgetSection}
 ${deliverables.length > 0 ? `
 <h2>4. Deliverables</h2>
 <table>
-  <thead><tr><th>Deliverable</th><th>Status</th><th>Due Date</th></tr></thead>
+  <thead><tr><th>Deliverable</th><th>Status</th><th>Tanggal Selesai</th></tr></thead>
   <tbody>${deliveryRows}</tbody>
-</table>` : ''}
-
-${milestones.length > 0 ? `
-<h2>5. Milestones</h2>
-<table>
-  <thead><tr><th>Milestone</th><th>Target Date</th><th>Status</th></tr></thead>
-  <tbody>${milestoneRows}</tbody>
 </table>` : ''}
 
 </body></html>`;
@@ -233,14 +200,15 @@ function esc(s: string): string {
 }
 
 export async function openPmPdfReport(projectId: string, orgId: string) {
-  const [projRes, orgRes, stagesRes, wbsRes, budgetRes, delivRes, msRes, baseline] = await Promise.all([
+  const [projRes, orgRes, stagesRes, wbsRes, budgetRes, claimsRes, baseline] = await Promise.all([
     supabase.from('lfa_projects').select('name, duration_months').eq('id', projectId).single(),
     supabase.from('organizations').select('name').eq('id', orgId).single(),
     (supabase as any).from('project_stages').select('id, title, sort_order, planned_start_date, planned_end_date').eq('project_id', projectId).is('archived_at', null).order('sort_order'),
     (supabase as any).from('lfa_wbs_items').select('id, name, status, progress_percent, planned_start_date, planned_end_date, pic, parent_id, level').eq('lfa_project_id', projectId).gte('level', 2),
     supabase.from('lfa_budget_items').select('id, volume, unit_price_idr, actual_amount_idr, cost_category').eq('lfa_project_id', projectId),
-    (supabase as any).from('project_deliverables').select('name, status, due_date').eq('project_id', projectId).is('archived_at', null),
-    (supabase as any).from('project_milestones').select('name, target_date, status').eq('project_id', projectId).is('archived_at', null),
+    // Deliverables = outputs derived from Closed (verified) ACR — same canonical
+    // rule as DeliverablesTab, never a separate stored entity.
+    supabase.from('wbs_completion_claims').select('id, wbs_item_id, reviewed_at, submitted_at').eq('lfa_project_id', projectId).eq('status', 'verified'),
     fetchProjectBaseline(projectId).catch(() => null),
   ]);
 
@@ -283,16 +251,10 @@ export async function openPmPdfReport(projectId: string, orgId: string) {
     durationMonths: projRes.data?.duration_months || 12,
   });
 
-  const deliverables: PdfDeliverable[] = (delivRes.data || []).map((d: any) => ({
-    name: d.name || '',
-    status: d.status || 'not_started',
-    due_date: d.due_date || null,
-  }));
-
-  const milestones: PdfMilestone[] = (msRes.data || []).map((m: any) => ({
-    name: m.name || '',
-    target_date: m.target_date || null,
-    status: m.status || 'upcoming',
+  const wbsNameById = new Map(wbsRows.map((w: any) => [w.id, w.name || '']));
+  const deliverables: PdfDeliverable[] = ((claimsRes.data || []) as any[]).map((c) => ({
+    name: wbsNameById.get(c.wbs_item_id) || 'Activity',
+    completionDate: c.reviewed_at || c.submitted_at || null,
   }));
 
   const data: PdfData = {
@@ -305,7 +267,6 @@ export async function openPmPdfReport(projectId: string, orgId: string) {
     stages,
     activities,
     deliverables,
-    milestones,
   };
 
   const win = window.open('', '_blank', 'width=900,height=700');

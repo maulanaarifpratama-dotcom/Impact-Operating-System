@@ -60,7 +60,7 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-1A Real Postgres DB Validation', () 
       SELECT column_name, column_default, is_nullable, data_type
       FROM information_schema.columns
       WHERE table_schema = 'public' AND table_name = 'lfa_wbs_items'
-      AND column_name IN ('status', 'progress_percent', 'blocked_reason', 'completed_at', 'completed_by')
+      AND column_name IN ('status', 'progress_percent', 'completed_at', 'completed_by')
     `);
 
     const colMap = new Map(columnsRes.rows.map(r => [r.column_name, r]));
@@ -71,7 +71,6 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-1A Real Postgres DB Validation', () 
     expect(colMap.has('progress_percent')).toBe(true);
     expect(colMap.get('progress_percent').column_default).toContain('0');
 
-    expect(colMap.has('blocked_reason')).toBe(true);
     expect(colMap.has('completed_at')).toBe(true);
     expect(colMap.has('completed_by')).toBe(true);
 
@@ -110,13 +109,12 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-1A Real Postgres DB Validation', () 
     const insertRes = await pool.query(`
       INSERT INTO public.lfa_wbs_items (lfa_project_id, org_id, level, name, start_month, duration_weeks)
       VALUES ($1, $2, 1, 'Local Postgres Test Item', 1, 4)
-      RETURNING id, status, progress_percent, blocked_reason, completed_at, completed_by
+      RETURNING id, status, progress_percent, completed_at, completed_by
     `, [projectId, orgId]);
 
     const item = insertRes.rows[0];
     expect(item.status).toBe('not_started');
     expect(Number(item.progress_percent)).toBe(0);
-    expect(item.blocked_reason).toBeNull();
     expect(item.completed_at).toBeNull();
     expect(item.completed_by).toBeNull();
 
@@ -241,7 +239,7 @@ describe.skipIf(!canReachPostgres)('WBS-P1A-1A Real Postgres DB Validation', () 
 
     await pool.query(`
       UPDATE public.lfa_wbs_items
-      SET status = 'completed', progress_percent = 100, blocked_reason = 'Resolved'
+      SET status = 'completed', progress_percent = 100
       WHERE id = $1
     `, [wbsItemId]);
 

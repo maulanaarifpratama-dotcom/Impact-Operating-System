@@ -103,7 +103,6 @@ export interface WbsItem {
   carbon_scope?: 'scope_1' | 'scope_2' | 'scope_3' | null;
   status?: WbsStatus;
   progress_percent?: number;
-  blocked_reason?: string | null;
   completed_at?: string | null;
   completed_by?: string | null;
   created_at?: string;
@@ -326,41 +325,6 @@ export interface WbsCompletionEvidence {
   uploaded_at: string;
 }
 
-export type DeliverableStatus = 'not_started' | 'in_progress' | 'submitted' | 'approved';
-
-export interface ProjectDeliverable {
-  id: string;
-  org_id: string;
-  project_id: string;
-  name: string;
-  description: string | null;
-  due_date: string | null;
-  owner: string | null;
-  status: DeliverableStatus;
-  created_at?: string;
-  updated_at?: string;
-  archived_at: string | null;
-}
-
-export interface ProjectDeliverableActivity {
-  deliverable_id: string;
-  wbs_item_id: string;
-}
-
-export type MilestoneStatus = 'upcoming' | 'achieved' | 'delayed';
-
-export interface ProjectMilestone {
-  id: string;
-  org_id: string;
-  project_id: string;
-  name: string;
-  target_date: string | null;
-  status: MilestoneStatus;
-  notes: string | null;
-  created_at?: string;
-  updated_at?: string;
-  archived_at: string | null;
-}
 
 export type EvaluationFindingSeverity = 'informational' | 'minor' | 'major' | 'critical';
 
@@ -368,8 +332,10 @@ export type EvaluationFindingSeverity = 'informational' | 'minor' | 'major' | 'c
 // entity — it is a derived view over wbs_completion_claims.facts/observations
 // (see ControlCenterTab in ProjectMEALPage.tsx). Evaluation Finding is the
 // one genuinely new PM+MEAL entity: the fewer, formal, periodic judgment
-// layer, owner/admin only, referencing ACR Evidence/Activity/Deliverable by
-// id rather than duplicating them.
+// layer, owner/admin only, referencing ACR Evidence/Activity by id rather
+// than duplicating them. No separate deliverable_id (PM+MEAL V1 debt
+// closure, Task 3): a Deliverable is an Activity whose ACR reached Closed,
+// not a stored entity — wbs_item_id already covers that reference.
 export interface ProjectEvaluationFinding {
   id: string;
   org_id: string;
@@ -379,7 +345,6 @@ export interface ProjectEvaluationFinding {
   severity: EvaluationFindingSeverity;
   recommendation: string | null;
   wbs_item_id: string | null;
-  deliverable_id: string | null;
   evidence_id: string | null;
   created_by: string;
   created_at?: string;

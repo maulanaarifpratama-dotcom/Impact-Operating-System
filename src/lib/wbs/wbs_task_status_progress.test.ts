@@ -15,7 +15,6 @@ interface WbsRow {
   id: string;
   status: string;
   progress_percent: number;
-  blocked_reason: string | null;
   completed_at: string | null;
   completed_by: string | null;
   start_month: number;
@@ -35,7 +34,6 @@ function runCompletionTrigger(
       id: 'item-1',
       status: 'not_started',
       progress_percent: 0,
-      blocked_reason: null,
       completed_at: null,
       completed_by: null,
       start_month: 1,
@@ -123,7 +121,6 @@ describe('WBS-P1A-1A Migration SQL Static & Logic Verification', () => {
       id: 'item-1',
       status: 'in_progress',
       progress_percent: 50,
-      blocked_reason: null,
       completed_at: null,
       completed_by: null,
       start_month: 2,
@@ -156,7 +153,6 @@ describe('WBS-P1A-1A Migration SQL Static & Logic Verification', () => {
       id: 'item-1',
       status: 'completed',
       progress_percent: 100,
-      blocked_reason: null,
       completed_at: '2026-07-20T10:00:00.000Z',
       completed_by: 'original-completer-uuid',
       start_month: 2,
@@ -184,7 +180,6 @@ describe('WBS-P1A-1A Migration SQL Static & Logic Verification', () => {
       id: 'item-1',
       status: 'in_progress',
       progress_percent: 80,
-      blocked_reason: null,
       completed_at: '2026-07-20T10:00:00.000Z', // Historical completed_at
       completed_by: 'original-completer-uuid',
       start_month: 2,
@@ -212,7 +207,6 @@ describe('WBS-P1A-1A Migration SQL Static & Logic Verification', () => {
       id: 'item-1',
       status: 'not_started',
       progress_percent: 0,
-      blocked_reason: null,
       completed_at: null,
       completed_by: null,
       start_month: 3,
@@ -237,7 +231,6 @@ describe('WBS-P1A-1A Migration SQL Static & Logic Verification', () => {
       id: 'item-1',
       status: 'in_progress',
       progress_percent: 40,
-      blocked_reason: null,
       completed_at: null,
       completed_by: null,
       start_month: 1,

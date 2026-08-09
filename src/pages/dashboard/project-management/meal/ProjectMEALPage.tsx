@@ -495,10 +495,11 @@ function AcrTab({ projectId }: { projectId: string }) {
 
   // Evaluation Findings (MEAL-P1, revised): the one new PM+MEAL entity —
   // fewer, formal, owner/admin-only judgments referencing ACR Evidence/
-  // Activity/Deliverable by id. Lives here, not in a separate top-level tab,
-  // because ACR is the smallest existing surface where evidence-based review
-  // already happens.
-  const [deliverables, setDeliverables] = useState<{ id: string; name: string }[]>([]);
+  // Activity by id. Lives here, not in a separate top-level tab, because ACR
+  // is the smallest existing surface where evidence-based review already
+  // happens. No Deliverable reference (PM+MEAL V1 debt closure, Task 3): a
+  // Deliverable is an Activity whose ACR reached Closed, not a stored
+  // entity — wbs_item_id already covers that.
   const [evidenceOptions, setEvidenceOptions] = useState<{ id: string; wbsItemId: string | null; label: string }[]>([]);
   const [creatorNames, setCreatorNames] = useState<Record<string, string>>({});
   const [findings, setFindings] = useState<ProjectEvaluationFinding[]>([]);
@@ -509,7 +510,6 @@ function AcrTab({ projectId }: { projectId: string }) {
   const [findingSeverity, setFindingSeverity] = useState<EvaluationFindingSeverity>('minor');
   const [findingRecommendation, setFindingRecommendation] = useState('');
   const [findingActivityId, setFindingActivityId] = useState('');
-  const [findingDeliverableId, setFindingDeliverableId] = useState('');
   const [findingEvidenceId, setFindingEvidenceId] = useState('');
   const [savingFinding, setSavingFinding] = useState(false);
 
@@ -577,16 +577,6 @@ function AcrTab({ projectId }: { projectId: string }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  // Findings reuse the same claims/wbsMap already loaded above for their
-  // Evidence picker — no separate ACR fetch.
-  const loadFindingsLookups = useCallback(async () => {
-    const client = supabase as any;
-    const [delivRes] = await Promise.all([
-      client.from('project_deliverables').select('id, name').eq('project_id', projectId).is('archived_at', null),
-    ]);
-    setDeliverables((delivRes.data || []) as { id: string; name: string }[]);
-  }, [projectId]);
-
   const loadFindings = useCallback(async () => {
     setFindingsLoading(true);
     const client = supabase as any;
@@ -599,7 +589,7 @@ function AcrTab({ projectId }: { projectId: string }) {
     setFindingsLoading(false);
   }, [projectId]);
 
-  useEffect(() => { void loadFindingsLookups(); void loadFindings(); }, [loadFindingsLookups, loadFindings]);
+  useEffect(() => { void loadFindings(); }, [loadFindings]);
 
   // Evidence options derive from the Claims already loaded for this tab —
   // Findings reference the same wbs_completion_evidence rows, never a copy.
@@ -626,15 +616,12 @@ function AcrTab({ projectId }: { projectId: string }) {
     });
   }, [findings]);
 
-  const deliverableName = (id: string | null) => deliverables.find((d) => d.id === id)?.name || null;
-
   const resetFindingForm = () => {
     setFindingTitle('');
     setFindingText('');
     setFindingSeverity('minor');
     setFindingRecommendation('');
     setFindingActivityId('');
-    setFindingDeliverableId('');
     setFindingEvidenceId('');
   };
 
@@ -652,7 +639,6 @@ function AcrTab({ projectId }: { projectId: string }) {
         severity: findingSeverity,
         recommendation: findingRecommendation.trim() || null,
         wbs_item_id: findingActivityId || null,
-        deliverable_id: findingDeliverableId || null,
         evidence_id: findingEvidenceId || null,
         created_by: authUser.id,
       });
@@ -861,7 +847,7 @@ function AcrTab({ projectId }: { projectId: string }) {
               <CardTitle className="text-lg">Belum ada Evaluation Finding.</CardTitle>
               <CardDescription>
                 {isReviewer
-                  ? 'Judgment formal dan periodik — dibuat oleh Owner/Admin, merujuk Evidence/Activity/Deliverable dari ACR.'
+                  ? 'Judgment formal dan periodik — dibuat oleh Owner/Admin, merujuk Evidence/Activity dari ACR.'
                   : 'Evaluation Finding dibuat oleh Owner/Admin sebagai judgment formal dan periodik.'}
               </CardDescription>
             </CardContent>
@@ -894,7 +880,6 @@ function AcrTab({ projectId }: { projectId: string }) {
                   )}
                   <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground pt-1">
                     {f.wbs_item_id && wbsMap[f.wbs_item_id] && <span>Activity: {wbsMap[f.wbs_item_id].name}</span>}
-                    {deliverableName(f.deliverable_id) && <span>Deliverable: {deliverableName(f.deliverable_id)}</span>}
                     {f.evidence_id && <span>Evidence: terlampir</span>}
                     <span>Oleh: {creatorNames[f.created_by] || '—'}</span>
                     {f.created_at && <span>{new Date(f.created_at).toLocaleDateString('id-ID')}</span>}
@@ -934,16 +919,6 @@ function AcrTab({ projectId }: { projectId: string }) {
                 <SelectContent>
                   <SelectItem value="__none__">— Tidak ada —</SelectItem>
                   {activityOptions.map((a) => <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label>Related Deliverable (optional)</Label>
-              <Select value={findingDeliverableId || '__none__'} onValueChange={(v) => setFindingDeliverableId(v === '__none__' ? '' : v)}>
-                <SelectTrigger><SelectValue placeholder="Tidak terkait Deliverable tertentu" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">— Tidak ada —</SelectItem>
-                  {deliverables.map((d) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

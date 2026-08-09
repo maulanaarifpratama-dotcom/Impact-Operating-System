@@ -19,7 +19,6 @@ export interface WbsItemInput {
   duration_weeks?: number;
   stage_id?: string | null;
   dependencies?: string[] | null;
-  blocked_reason?: string | null;
 }
 
 export interface BudgetItemInput {
