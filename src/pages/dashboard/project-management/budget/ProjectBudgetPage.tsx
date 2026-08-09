@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Loader2, ChevronDown, ChevronRight, Info, Edit3 } from 'lucide-react';
+import { ArrowLeft, Loader2, ChevronDown, ChevronRight, Info, Edit3, Wallet } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -33,6 +33,7 @@ import {
   type StageBudgetInput,
 } from '@/lib/budget/budgetModel';
 import { classifyFinanceHealth, type FinanceHealth, normalizeFinanceItemFromLedger, type BudgetAggregateRow, type FinanceItemViewModel, aggregateProjectFinance } from '@/lib/project-management/financeModel';
+import FinanceCommitmentPanel from './FinanceCommitmentPanel';
 
 interface ProjectMeta {
   org_id: string;
@@ -62,6 +63,10 @@ export default function ProjectBudgetPage() {
   const [rawStages, setRawStages] = useState<StageBudgetInput[]>([]);
   const [ledgerAggregates, setLedgerAggregates] = useState<BudgetAggregateRow[]>([]);
   const [ledgerItemIds, setLedgerItemIds] = useState<Set<string>>(new Set());
+
+  // Finance Commitment Panel state
+  const [financePanelOpen, setFinancePanelOpen] = useState(false);
+  const [selectedBudgetItem, setSelectedBudgetItem] = useState<{ id: string; name: string; planned: number } | null>(null);
 
   // Target Budget dialog
   const [targetDialogOpen, setTargetDialogOpen] = useState(false);
@@ -328,12 +333,34 @@ export default function ProjectBudgetPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-base">Ringkasan Anggaran</CardTitle>
-              {isOwner && (
-                <Button variant="outline" size="sm" onClick={openTargetDialog}>
-                  <Edit3 className="mr-1.5 h-3.5 w-3.5" />
-                  {snapshot.hasTargetBudget ? 'Edit Target Budget' : 'Set Target Budget'}
-                </Button>
-              )}
+              <div className="flex items-center gap-2">
+                {isOwner && (
+                  <Button variant="outline" size="sm" onClick={() => {
+                    const firstItem = rawBudgetItems.find((b) => (Number(b.volume) || 0) * (Number(b.unit_price_idr) || 0) > 0);
+                    if (firstItem) {
+                      const planned = (Number(firstItem.volume) || 0) * (Number(firstItem.unit_price_idr) || 0);
+                      const wbs = rawWbsItems.find((w) => w.id === firstItem.wbs_item_id);
+                      setSelectedBudgetItem({
+                        id: firstItem.id,
+                        name: (wbs as any)?.name ?? firstItem.id,
+                        planned,
+                      });
+                      setFinancePanelOpen(true);
+                    } else {
+                      toast({ title: 'Belum ada item anggaran', description: 'Tambahkan item anggaran terlebih dahulu.' });
+                    }
+                  }}>
+                    <Wallet className="mr-1.5 h-3.5 w-3.5" />
+                    Kelola Keuangan
+                  </Button>
+                )}
+                {isOwner && (
+                  <Button variant="outline" size="sm" onClick={openTargetDialog}>
+                    <Edit3 className="mr-1.5 h-3.5 w-3.5" />
+                    {snapshot.hasTargetBudget ? 'Edit Target Budget' : 'Set Target Budget'}
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -536,6 +563,23 @@ export default function ProjectBudgetPage() {
             sector={projectMeta?.sector || 'Sektor Lainnya'}
             onBudgetChanged={onBudgetChanged}
             productMode="project_management"
+          />
+
+          {/* Finance Commitment Panel (Sheet) */}
+          <FinanceCommitmentPanel
+            open={financePanelOpen}
+            onOpenChange={setFinancePanelOpen}
+            supabase={supabase}
+            projectId={projectId!}
+            budgetItem={selectedBudgetItem}
+            isOwner={isOwner}
+            hasLegacyActual={
+              selectedBudgetItem != null &&
+              rawBudgetItems.some(
+                (b) => b.id === selectedBudgetItem.id && (b as any).actual_amount_idr != null && (b as any).actual_amount_idr > 0,
+              )
+            }
+            onMutated={() => void loadAll()}
           />
 
           {/* Target Budget Dialog */}
