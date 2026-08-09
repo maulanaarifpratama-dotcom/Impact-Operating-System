@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Lightbulb, Loader2, Plus } from 'lucide-react';
+import { Lightbulb, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -27,10 +27,11 @@ interface LearningRow extends OrgLearningEntry {
   relatedProjectNames: string[];
 }
 
-// MEAL Learning V1 (Sprint 1). Org-level knowledge library — not nested
-// inside any project. Read access is universal; authoring is owner/admin
-// only. Draft visibility is enforced server-side (RLS), this page's filters
-// are a convenience layer on top, not the actual security boundary.
+// MEAL Learning V1. Org-level, read-only, cross-project browsing surface —
+// authoring (Create/Edit/Publish/Delete) happens exclusively inside each
+// project's MEAL > Learning tab, never here. Draft visibility is enforced
+// server-side (RLS); this page's filters are a convenience layer on top,
+// not the actual security boundary.
 export default function LearningLibraryPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -150,13 +151,8 @@ export default function LearningLibraryPage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2"><Lightbulb className="h-6 w-6 text-amber-500" /> Learning Library</h1>
-          <p className="text-sm text-muted-foreground">Institutional knowledge synthesized from ACR and Evaluation Findings across projects.</p>
+          <p className="text-sm text-muted-foreground">Institutional knowledge synthesized from ACR and Evaluation Findings across projects. To add a new entry, open the relevant project's MEAL &gt; Learning tab.</p>
         </div>
-        {isReviewer && (
-          <Button onClick={() => navigate('/dashboard/learning/new')}>
-            <Plus className="mr-1 h-4 w-4" /> New Learning
-          </Button>
-        )}
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -218,9 +214,6 @@ export default function LearningLibraryPage() {
                 ? 'Belum ada Learning yang dipublikasikan.'
                 : 'Tidak ada Learning yang cocok dengan filter ini.'}
             </CardTitle>
-            {isReviewer && statusFilter === 'published' && insightTypeFilter === 'all' && scopeFilter === 'all' && projectFilter === 'all' && (
-              <Button onClick={() => navigate('/dashboard/learning/new')}><Plus className="mr-1 h-4 w-4" /> New Learning</Button>
-            )}
           </CardContent>
         </Card>
       ) : (

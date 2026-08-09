@@ -83,7 +83,6 @@ const ProjectActivityPage = lazy(
 );
 const LearningLibraryPage = lazy(() => import('./pages/dashboard/learning/LearningLibraryPage'));
 const LearningDetailPage = lazy(() => import('./pages/dashboard/learning/LearningDetailPage'));
-const LearningFormPage = lazy(() => import('./pages/dashboard/learning/LearningFormPage'));
 
 function RedirectToMeal() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -284,11 +283,12 @@ const App = () => (
                 path="/dashboard/project-management/:projectId/overview"
                 element={<RedirectToMeal />}
               />
-              {/* MEAL Learning V1 — organization-level, not nested under a project. */}
+              {/* MEAL Learning V1 — sidebar Learning is a read-only, cross-project
+                  browsing surface only. All authoring (Create/Edit/Publish/Delete)
+                  happens inline inside Project > MEAL > Learning; there is no
+                  /new or /:id/edit route here anymore. */}
               <Route path="/dashboard/learning" element={<LearningLibraryPage />} />
-              <Route path="/dashboard/learning/new" element={<LearningFormPage />} />
               <Route path="/dashboard/learning/:learningId" element={<LearningDetailPage />} />
-              <Route path="/dashboard/learning/:learningId/edit" element={<LearningFormPage />} />
               <Route path="/dashboard/sroi" element={<SROIStandalone />} />
               <Route path="/dashboard/eroi" element={<EROIStandalone />} />
               <Route path="/dashboard/esg" element={<ESGDashboard />} />

@@ -1,39 +1,34 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Lightbulb, Loader2, Pencil, Trash2 } from 'lucide-react';
+import { ArrowLeft, Lightbulb, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-  AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '@/providers/AuthProvider';
 import {
   getInsightTypeLabel, getInsightTypeBadgeClass,
-  getScopeLabel, getLearningStatusBadgeClass, canManageLearning,
+  getScopeLabel, getLearningStatusBadgeClass,
 } from '@/lib/project-management/orgLearningModel';
+import { resolveEvidenceCitations } from '@/lib/project-management/learningEvidencePicker';
 import type { OrgLearningEntry } from '@/pages/dashboard/lfa-builder/types';
 
 interface EvidenceCitation {
   id: string;
-  sourceType: 'acr' | 'finding';
-  sourceId: string;
   label: string;
   projectId: string | null;
 }
 
+// Sidebar Learning is a read-only, cross-project browsing surface only —
+// authoring (Create/Edit/Publish/Delete) happens exclusively inside each
+// project's MEAL > Learning tab. This page never renders those actions,
+// regardless of who is viewing it.
+//
 // Not-found and "it's a Draft you don't own" render identically — a Draft's
 // existence is never confirmed to anyone but its author (RLS enforces this;
 // this page just presents whatever RLS actually returned).
 export default function LearningDetailPage() {
   const { learningId } = useParams<{ learningId: string }>();
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { user } = useAuth();
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,8 +37,6 @@ export default function LearningDetailPage() {
   const [relatedProjects, setRelatedProjects] = useState<{ id: string; name: string }[]>([]);
   const [authorName, setAuthorName] = useState<string | null>(null);
   const [publisherName, setPublisherName] = useState<string | null>(null);
-  const [publishing, setPublishing] = useState(false);
-  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(async () => {
     if (!learningId) return;
@@ -58,50 +51,16 @@ export default function LearningDetailPage() {
 
       const { data: evidenceRows } = await client.from('org_learning_evidence').select('id, source_type, source_id').eq('learning_id', learningId);
       const ev = (evidenceRows || []) as { id: string; source_type: 'acr' | 'finding'; source_id: string }[];
-
-      const acrIds = ev.filter((e) => e.source_type === 'acr').map((e) => e.source_id);
-      const findingIds = ev.filter((e) => e.source_type === 'finding').map((e) => e.source_id);
-
-      const acrById = new Map<string, { wbs_item_id: string; lfa_project_id: string }>();
-      const findingById = new Map<string, { title: string; project_id: string }>();
-      const wbsNameById = new Map<string, string>();
-      const projectNameById = new Map<string, string>();
-
-      if (acrIds.length > 0) {
-        const { data: claims } = await supabase.from('wbs_completion_claims').select('id, wbs_item_id, lfa_project_id').in('id', acrIds);
-        for (const c of ((claims || []) as any[])) acrById.set(c.id, c);
-        const wbsIds = Array.from(new Set(Array.from(acrById.values()).map((c) => c.wbs_item_id)));
-        if (wbsIds.length > 0) {
-          const { data: wbsItems } = await supabase.from('lfa_wbs_items').select('id, name').in('id', wbsIds);
-          for (const w of ((wbsItems || []) as any[])) wbsNameById.set(w.id, w.name || 'Activity');
-        }
-      }
-      if (findingIds.length > 0) {
-        const { data: findings } = await client.from('project_evaluation_findings').select('id, title, project_id').in('id', findingIds);
-        for (const f of ((findings || []) as any[])) findingById.set(f.id, f);
-      }
-
-      const allProjectIds = Array.from(new Set([
-        ...Array.from(acrById.values()).map((c) => c.lfa_project_id),
-        ...Array.from(findingById.values()).map((f) => f.project_id),
-      ]));
+      const resolvedCitations = await resolveEvidenceCitations(ev);
+      setCitations(ev.map((e, i) => ({ id: e.id, label: resolvedCitations[i]?.label || '—', projectId: resolvedCitations[i]?.projectId || null })));
+      const allProjectIds = Array.from(new Set(resolvedCitations.map((c) => c.projectId).filter(Boolean) as string[]));
       if (allProjectIds.length > 0) {
         const { data: projects } = await supabase.from('lfa_projects').select('id, name').in('id', allProjectIds);
-        for (const p of ((projects || []) as any[])) projectNameById.set(p.id, p.name || 'Project');
+        const nameById = new Map(((projects || []) as any[]).map((p) => [p.id, p.name || 'Project']));
+        setRelatedProjects(allProjectIds.map((id) => ({ id, name: nameById.get(id) || 'Project' })));
+      } else {
+        setRelatedProjects([]);
       }
-
-      setCitations(ev.map((e) => {
-        if (e.source_type === 'acr') {
-          const acr = acrById.get(e.source_id);
-          const activityName = acr ? (wbsNameById.get(acr.wbs_item_id) || 'Activity') : 'Activity';
-          const projectName = acr ? (projectNameById.get(acr.lfa_project_id) || 'Project') : 'Project';
-          return { id: e.id, sourceType: 'acr', sourceId: e.source_id, label: `ACR: ${activityName} — ${projectName}`, projectId: acr?.lfa_project_id || null };
-        }
-        const finding = findingById.get(e.source_id);
-        const projectName = finding ? (projectNameById.get(finding.project_id) || 'Project') : 'Project';
-        return { id: e.id, sourceType: 'finding', sourceId: e.source_id, label: `Finding: ${finding?.title || 'Untitled'} — ${projectName}`, projectId: finding?.project_id || null };
-      }));
-      setRelatedProjects(allProjectIds.map((id) => ({ id, name: projectNameById.get(id) || 'Project' })));
 
       const userIds = [data.authored_by, data.published_by].filter(Boolean) as string[];
       if (userIds.length > 0) {
@@ -118,41 +77,6 @@ export default function LearningDetailPage() {
   }, [learningId]);
 
   useEffect(() => { void load(); }, [load]);
-
-  const handlePublish = async () => {
-    if (!entry) return;
-    setPublishing(true);
-    try {
-      const client = supabase as any;
-      const { error: publishErr } = await client.from('org_learning_entries').update({
-        status: 'published',
-        published_by: user?.id,
-        published_at: new Date().toISOString(),
-      }).eq('id', entry.id);
-      if (publishErr) throw publishErr;
-      toast({ title: 'Learning dipublikasikan' });
-      void load();
-    } catch (err) {
-      toast({ title: 'Gagal mempublikasikan Learning', description: (err as Error).message, variant: 'destructive' });
-    } finally {
-      setPublishing(false);
-    }
-  };
-
-  const handleDelete = async () => {
-    if (!entry) return;
-    setDeleting(true);
-    try {
-      const client = supabase as any;
-      const { error: deleteErr } = await client.from('org_learning_entries').delete().eq('id', entry.id);
-      if (deleteErr) throw deleteErr;
-      toast({ title: 'Draft Learning dihapus' });
-      navigate('/dashboard/learning');
-    } catch (err) {
-      toast({ title: 'Gagal menghapus Learning', description: (err as Error).message, variant: 'destructive' });
-      setDeleting(false);
-    }
-  };
 
   if (loading) {
     return <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>;
@@ -175,8 +99,6 @@ export default function LearningDetailPage() {
       </div>
     );
   }
-
-  const canManage = canManageLearning(entry, user?.id || null);
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 py-2">
@@ -230,48 +152,6 @@ export default function LearningDetailPage() {
             <span>Authored by {authorName || '—'}{entry.created_at ? ` on ${new Date(entry.created_at).toLocaleDateString('id-ID')}` : ''}</span>
             {entry.published_at && <span>Published by {publisherName || '—'} on {new Date(entry.published_at).toLocaleDateString('id-ID')}</span>}
           </div>
-
-          {canManage && (
-            <div className="flex gap-2 pt-2 border-t">
-              <Button variant="outline" size="sm" onClick={() => navigate(`/dashboard/learning/${entry.id}/edit`)}>
-                <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button size="sm" disabled={publishing}>Publish</Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Publish this Learning?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Once published, it becomes visible organization-wide and cannot be edited directly.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handlePublish}>Publish</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" disabled={deleting}>
-                    <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete this Draft?</AlertDialogTitle>
-                    <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

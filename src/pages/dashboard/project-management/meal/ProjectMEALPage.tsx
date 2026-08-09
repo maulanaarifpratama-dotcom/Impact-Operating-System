@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -11,6 +11,9 @@ import {
   Plus,
   Trash2,
   Lightbulb,
+  Pencil,
+  Search,
+  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,6 +32,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -44,8 +52,16 @@ import {
 import { computeBudgetSnapshot, formatIDR, type BudgetItemInput } from '@/lib/budget/budgetModel';
 import { resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 import { getSeverityLabel, getSeverityBadgeClass, SEVERITY_OPTIONS } from '@/lib/project-management/learningModel';
-import { getInsightTypeLabel, getInsightTypeBadgeClass, getLearningStatusBadgeClass } from '@/lib/project-management/orgLearningModel';
-import type { ProjectEvaluationFinding, EvaluationFindingSeverity, OrgLearningEntry } from '@/pages/dashboard/lfa-builder/types';
+import {
+  getInsightTypeLabel, getInsightTypeBadgeClass, getLearningStatusBadgeClass,
+  getScopeLabel, canManageLearning, INSIGHT_TYPE_OPTIONS, SCOPE_OPTIONS,
+} from '@/lib/project-management/orgLearningModel';
+import {
+  type EvidenceCandidate, searchEvidenceCandidates, loadProjectEvidenceCandidates, resolveEvidenceCitations,
+} from '@/lib/project-management/learningEvidencePicker';
+import type {
+  ProjectEvaluationFinding, EvaluationFindingSeverity, OrgLearningEntry, LearningInsightType, LearningScope,
+} from '@/pages/dashboard/lfa-builder/types';
 
 // PM + MEAL Canonicalization: ACR is the single source of truth. 'activity' stays a valid
 // tab (reachable via ?tab=activity from Control Center) but is deliberately left out of the
@@ -1013,24 +1029,29 @@ function AcrTab({ projectId }: { projectId: string }) {
   );
 }
 
-// MEAL Learning V1 UX correction: this is the primary Learning authoring
-// surface, not a second store — it's a project-scoped view over the same
-// org_learning_entries/org_learning_evidence tables the sidebar Learning
-// Library reads from. "+ New Learning" carries this project as context via
-// a query param so the Evidence Base picker on the Create form can default
-// to this project's own ACR/Findings first; nothing about storage, RLS, or
-// validation changes based on where authoring started.
+// MEAL Learning V1 — REPLACED workflow (not layered on top of the old one):
+// Create, Edit, Publish, Delete, and browsing this project's own Learning
+// entries all happen INLINE here via local view state. Nothing in this tab
+// ever calls navigate() to /dashboard/learning/* — the browser URL and the
+// sidebar's active section never change while authoring. The sidebar
+// Learning Library still exists as a separate, read-only, cross-project
+// browsing surface (reached only via its own nav item), but it is no longer
+// part of the authoring path at all.
+type ProjectLearningView = 'list' | 'create' | 'edit' | 'detail';
+
 function ProjectLearningTab({ projectId }: { projectId: string }) {
-  const navigate = useNavigate();
   const { user } = useAuth();
   const { canDelete: isReviewer } = useOrgRole();
+
+  const [view, setView] = useState<ProjectLearningView>('list');
+  const [activeId, setActiveId] = useState<string | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [published, setPublished] = useState<OrgLearningEntry[]>([]);
   const [myDrafts, setMyDrafts] = useState<OrgLearningEntry[]>([]);
 
-  const load = useCallback(async () => {
+  const loadList = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -1077,7 +1098,37 @@ function ProjectLearningTab({ projectId }: { projectId: string }) {
     }
   }, [projectId, user?.id]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { if (view === 'list') void loadList(); }, [loadList, view]);
+
+  if (view === 'create') {
+    return (
+      <LearningInlineEditor
+        projectId={projectId}
+        onSaved={(id) => { setActiveId(id); setView('detail'); }}
+        onCancel={() => setView('list')}
+      />
+    );
+  }
+  if (view === 'edit' && activeId) {
+    return (
+      <LearningInlineEditor
+        projectId={projectId}
+        learningId={activeId}
+        onSaved={() => setView('detail')}
+        onCancel={() => setView('detail')}
+      />
+    );
+  }
+  if (view === 'detail' && activeId) {
+    return (
+      <LearningInlineDetail
+        learningId={activeId}
+        onBack={() => { setActiveId(null); setView('list'); }}
+        onEdit={() => setView('edit')}
+        onDeleted={() => { setActiveId(null); setView('list'); }}
+      />
+    );
+  }
 
   if (loading) {
     return <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>;
@@ -1087,8 +1138,10 @@ function ProjectLearningTab({ projectId }: { projectId: string }) {
     return <Card className="border-destructive/50"><CardContent className="py-4 text-sm text-destructive">{error}</CardContent></Card>;
   }
 
+  const openDetail = (id: string) => { setActiveId(id); setView('detail'); };
+
   const renderEntry = (l: OrgLearningEntry) => (
-    <Card key={l.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => navigate(`/dashboard/learning/${l.id}`)}>
+    <Card key={l.id} className="cursor-pointer hover:border-primary/50 transition-colors" onClick={() => openDetail(l.id)}>
       <CardContent className="space-y-1.5 py-4">
         <div className="flex items-center gap-2 min-w-0">
           <CardTitle className="text-base truncate">{l.title}</CardTitle>
@@ -1105,7 +1158,7 @@ function ProjectLearningTab({ projectId }: { projectId: string }) {
       <div className="flex items-center justify-between gap-3">
         <div className="text-xs text-muted-foreground">Institutional knowledge synthesized from this project's ACR and Evaluation Findings.</div>
         {isReviewer && (
-          <Button size="sm" onClick={() => navigate(`/dashboard/learning/new?project=${projectId}`)}>
+          <Button size="sm" onClick={() => setView('create')}>
             <Plus className="mr-1 h-3.5 w-3.5" /> New Learning
           </Button>
         )}
@@ -1126,7 +1179,7 @@ function ProjectLearningTab({ projectId }: { projectId: string }) {
               <Lightbulb className="h-10 w-10 text-muted-foreground" />
               <CardTitle className="text-lg">Belum ada Learning terkait proyek ini.</CardTitle>
               {isReviewer && (
-                <Button onClick={() => navigate(`/dashboard/learning/new?project=${projectId}`)}>
+                <Button onClick={() => setView('create')}>
                   <Plus className="mr-1 h-4 w-4" /> New Learning
                 </Button>
               )}
@@ -1136,12 +1189,480 @@ function ProjectLearningTab({ projectId }: { projectId: string }) {
           published.map(renderEntry)
         )}
       </div>
+    </div>
+  );
+}
 
-      <div className="pt-2 border-t">
-        <Link to={`/dashboard/learning?project=${projectId}`} className="text-xs font-semibold text-primary hover:underline">
-          Browse full Learning Library →
-        </Link>
+// Inline Create/Edit — no route, no navigate() to /dashboard/learning/*.
+// Evidence Base defaults to this project's own Verified ACRs/Findings before
+// any search text is typed; typing still searches every project in the org.
+function LearningInlineEditor({ projectId, learningId, onSaved, onCancel }: {
+  projectId: string;
+  learningId?: string;
+  onSaved: (id: string) => void;
+  onCancel: () => void;
+}) {
+  const isEdit = !!learningId;
+  const { toast } = useToast();
+  const { user } = useAuth();
+  const { organizationId } = useOrgRole();
+
+  const [loading, setLoading] = useState(isEdit);
+  const [saving, setSaving] = useState(false);
+
+  const [title, setTitle] = useState('');
+  const [insight, setInsight] = useState('');
+  const [insightType, setInsightType] = useState<LearningInsightType | ''>('');
+  const [recommendation, setRecommendation] = useState('');
+  const [scope, setScope] = useState<LearningScope | ''>('');
+  const [selectedEvidence, setSelectedEvidence] = useState<EvidenceCandidate[]>([]);
+
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<EvidenceCandidate[]>([]);
+  const [searching, setSearching] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [defaultCandidates, setDefaultCandidates] = useState<EvidenceCandidate[]>([]);
+  const [loadingDefaults, setLoadingDefaults] = useState(false);
+
+  useEffect(() => {
+    if (isEdit) return;
+    setLoadingDefaults(true);
+    loadProjectEvidenceCandidates(projectId).then(setDefaultCandidates).finally(() => setLoadingDefaults(false));
+  }, [isEdit, projectId]);
+
+  useEffect(() => {
+    if (!isEdit || !learningId) return;
+    (async () => {
+      setLoading(true);
+      try {
+        const client = supabase as any;
+        const { data } = await client.from('org_learning_entries').select('*').eq('id', learningId).maybeSingle();
+        if (!data) { onCancel(); return; }
+        const e = data as OrgLearningEntry;
+        setTitle(e.title);
+        setInsight(e.insight);
+        setInsightType(e.insight_type);
+        setRecommendation(e.recommendation);
+        setScope(e.scope);
+        const { data: evidenceRows } = await client.from('org_learning_evidence').select('source_type, source_id').eq('learning_id', learningId);
+        setSelectedEvidence(await resolveEvidenceCitations((evidenceRows || []) as any));
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, learningId]);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (searchQuery.trim().length < 2) { setSearchResults([]); return; }
+    setSearching(true);
+    debounceRef.current = setTimeout(async () => {
+      const results = await searchEvidenceCandidates(searchQuery);
+      setSearchResults(results.filter((r) => !selectedEvidence.some((s) => s.sourceType === r.sourceType && s.sourceId === r.sourceId)));
+      setSearching(false);
+    }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, selectedEvidence.length]);
+
+  const addEvidence = (c: EvidenceCandidate) => {
+    setSelectedEvidence((prev) => [...prev, c]);
+    setSearchResults((prev) => prev.filter((r) => !(r.sourceType === c.sourceType && r.sourceId === c.sourceId)));
+    setDefaultCandidates((prev) => prev.filter((r) => !(r.sourceType === c.sourceType && r.sourceId === c.sourceId)));
+  };
+  const removeEvidence = (c: EvidenceCandidate) => {
+    setSelectedEvidence((prev) => prev.filter((r) => !(r.sourceType === c.sourceType && r.sourceId === c.sourceId)));
+  };
+
+  const relatedProjectNames = Array.from(new Set(selectedEvidence.map((e) => e.projectId)))
+    .map((pid) => selectedEvidence.find((e) => e.projectId === pid)?.label.split(' — ').pop() || pid);
+
+  const canSave = title.trim() && insight.trim() && insightType && recommendation.trim() && scope && selectedEvidence.length > 0;
+
+  const handleSave = async () => {
+    if (!canSave || !user?.id || !organizationId) return;
+    setSaving(true);
+    try {
+      const client = supabase as any;
+      if (isEdit && learningId) {
+        const { error: updateErr } = await client.from('org_learning_entries').update({
+          title: title.trim(), insight: insight.trim(), insight_type: insightType,
+          recommendation: recommendation.trim(), scope,
+        }).eq('id', learningId);
+        if (updateErr) throw updateErr;
+        await client.from('org_learning_evidence').delete().eq('learning_id', learningId);
+        const { error: evErr } = await client.from('org_learning_evidence').insert(
+          selectedEvidence.map((e) => ({ learning_id: learningId, source_type: e.sourceType, source_id: e.sourceId })),
+        );
+        if (evErr) throw evErr;
+        toast({ title: 'Learning diperbarui' });
+        onSaved(learningId);
+      } else {
+        const { data: created, error: insertErr } = await client.from('org_learning_entries').insert({
+          org_id: organizationId, title: title.trim(), insight: insight.trim(), insight_type: insightType,
+          recommendation: recommendation.trim(), scope, authored_by: user.id, status: 'draft',
+        }).select('id').single();
+        if (insertErr) throw insertErr;
+        const newId = (created as any).id;
+        const { error: evErr } = await client.from('org_learning_evidence').insert(
+          selectedEvidence.map((e) => ({ learning_id: newId, source_type: e.sourceType, source_id: e.sourceId })),
+        );
+        if (evErr) throw evErr;
+        toast({ title: 'Draft Learning dibuat' });
+        onSaved(newId);
+      }
+    } catch (err) {
+      toast({ title: 'Gagal menyimpan Learning', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <Button variant="ghost" size="sm" onClick={onCancel}>
+        <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
+      </Button>
+      <Card>
+        <CardContent className="space-y-4 py-6">
+          <h2 className="text-lg font-bold">{isEdit ? 'Edit Learning' : 'New Learning'}</h2>
+
+          <div className="space-y-1.5">
+            <Label>Title</Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Judul singkat pattern" />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Insight</Label>
+            <Textarea value={insight} onChange={(e) => setInsight(e.target.value)} placeholder="Pattern yang teramati across beberapa ACR/Finding" rows={4} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Insight Type</Label>
+            <Select value={insightType} onValueChange={(v) => setInsightType(v as LearningInsightType)}>
+              <SelectTrigger><SelectValue placeholder="Pilih tipe" /></SelectTrigger>
+              <SelectContent>
+                {INSIGHT_TYPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Recommendation</Label>
+            <Textarea value={recommendation} onChange={(e) => setRecommendation(e.target.value)} placeholder="Apa yang harus dilakukan berbeda ke depan" rows={3} />
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Evidence Base</Label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                className="pl-8"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari Activity atau Project untuk menambahkan bukti..."
+              />
+            </div>
+            {selectedEvidence.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {selectedEvidence.map((e) => (
+                  <Badge key={`${e.sourceType}-${e.sourceId}`} variant="secondary" className="flex items-center gap-1">
+                    {e.label}
+                    <button onClick={() => removeEvidence(e)}><X className="h-3 w-3" /></button>
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {searchQuery.trim().length >= 2 ? (
+              <div className="border rounded max-h-48 overflow-y-auto">
+                {searching ? (
+                  <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                ) : searchResults.length === 0 ? (
+                  <div className="py-3 text-center text-xs text-muted-foreground">Tidak ditemukan.</div>
+                ) : (
+                  searchResults.map((r) => (
+                    <button
+                      key={`${r.sourceType}-${r.sourceId}`}
+                      className="block w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                      onClick={() => addEvidence(r)}
+                    >
+                      {r.label}
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : (loadingDefaults || defaultCandidates.length > 0) ? (
+              <div className="border rounded max-h-48 overflow-y-auto">
+                <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider bg-muted/50">
+                  Dari proyek ini
+                </div>
+                {loadingDefaults ? (
+                  <div className="flex items-center justify-center py-4"><Loader2 className="h-4 w-4 animate-spin" /></div>
+                ) : (
+                  defaultCandidates.map((r) => (
+                    <button
+                      key={`${r.sourceType}-${r.sourceId}`}
+                      className="block w-full text-left px-3 py-2 text-sm hover:bg-muted"
+                      onClick={() => addEvidence(r)}
+                    >
+                      {r.label}
+                    </button>
+                  ))
+                )}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Scope of Applicability</Label>
+            <Select value={scope} onValueChange={(v) => setScope(v as LearningScope)}>
+              <SelectTrigger><SelectValue placeholder="Pilih scope" /></SelectTrigger>
+              <SelectContent>
+                {SCOPE_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label>Related Projects</Label>
+            <div className="flex flex-wrap gap-1.5">
+              {relatedProjectNames.length > 0
+                ? relatedProjectNames.map((n) => <Badge key={n} variant="outline">{n}</Badge>)
+                : <span className="text-xs text-muted-foreground">Otomatis terisi dari Evidence Base.</span>}
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t">
+            <Button variant="outline" onClick={onCancel}>Cancel</Button>
+            <Button onClick={handleSave} disabled={!canSave || saving}>
+              {saving ? 'Menyimpan...' : isEdit ? 'Save Changes' : 'Save as Draft'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// Inline Detail — Publish/Edit/Delete stay inside this tab; only the
+// Evidence Base citation links leave (into the cited project's ACR tab,
+// which is not a Learning route and does not touch the sidebar).
+function LearningInlineDetail({ learningId, onBack, onEdit, onDeleted }: {
+  learningId: string;
+  onBack: () => void;
+  onEdit: () => void;
+  onDeleted: () => void;
+}) {
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  const { user } = useAuth();
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [entry, setEntry] = useState<OrgLearningEntry | null>(null);
+  const [citations, setCitations] = useState<{ id: string; label: string; projectId: string | null }[]>([]);
+  const [relatedProjects, setRelatedProjects] = useState<{ id: string; name: string }[]>([]);
+  const [authorName, setAuthorName] = useState<string | null>(null);
+  const [publisherName, setPublisherName] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const client = supabase as any;
+      const { data, error: fetchErr } = await client.from('org_learning_entries').select('*').eq('id', learningId).maybeSingle();
+      if (fetchErr) throw fetchErr;
+      if (!data) { setEntry(null); setLoading(false); return; }
+      setEntry(data as OrgLearningEntry);
+
+      const { data: evidenceRows } = await client.from('org_learning_evidence').select('id, source_type, source_id').eq('learning_id', learningId);
+      const ev = (evidenceRows || []) as { id: string; source_type: 'acr' | 'finding'; source_id: string }[];
+      const resolvedCitations = await resolveEvidenceCitations(ev);
+      setCitations(ev.map((e, i) => ({ id: e.id, label: resolvedCitations[i]?.label || '—', projectId: resolvedCitations[i]?.projectId || null })));
+      const allProjectIds = Array.from(new Set(resolvedCitations.map((c) => c.projectId).filter(Boolean) as string[]));
+      if (allProjectIds.length > 0) {
+        const { data: projects } = await supabase.from('lfa_projects').select('id, name').in('id', allProjectIds);
+        const nameById = new Map(((projects || []) as any[]).map((p) => [p.id, p.name || 'Project']));
+        setRelatedProjects(allProjectIds.map((id) => ({ id, name: nameById.get(id) || 'Project' })));
+      } else {
+        setRelatedProjects([]);
+      }
+
+      const userIds = [data.authored_by, data.published_by].filter(Boolean) as string[];
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase.from('profiles').select('id, full_name').in('id', userIds);
+        const names = new Map((profiles || []).map((p: any) => [p.id, p.full_name || p.id]));
+        setAuthorName(names.get(data.authored_by) || null);
+        if (data.published_by) setPublisherName(names.get(data.published_by) || null);
+      }
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [learningId]);
+
+  useEffect(() => { void load(); }, [load]);
+
+  const handlePublish = async () => {
+    if (!entry) return;
+    setPublishing(true);
+    try {
+      const client = supabase as any;
+      const { error: publishErr } = await client.from('org_learning_entries').update({
+        status: 'published',
+        published_by: user?.id,
+        published_at: new Date().toISOString(),
+      }).eq('id', entry.id);
+      if (publishErr) throw publishErr;
+      toast({ title: 'Learning dipublikasikan' });
+      void load();
+    } catch (err) {
+      toast({ title: 'Gagal mempublikasikan Learning', description: (err as Error).message, variant: 'destructive' });
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!entry) return;
+    setDeleting(true);
+    try {
+      const client = supabase as any;
+      const { error: deleteErr } = await client.from('org_learning_entries').delete().eq('id', entry.id);
+      if (deleteErr) throw deleteErr;
+      toast({ title: 'Draft Learning dihapus' });
+      onDeleted();
+    } catch (err) {
+      toast({ title: 'Gagal menghapus Learning', description: (err as Error).message, variant: 'destructive' });
+      setDeleting(false);
+    }
+  };
+
+  if (loading) {
+    return <div className="flex items-center justify-center py-16"><Loader2 className="h-6 w-6 animate-spin" /></div>;
+  }
+
+  if (error) {
+    return <Card className="border-destructive/50"><CardContent className="py-4 text-sm text-destructive">{error}</CardContent></Card>;
+  }
+
+  if (!entry) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" size="sm" onClick={onBack}><ArrowLeft className="mr-2 h-4 w-4" /> Kembali</Button>
+        <Card><CardContent className="flex flex-col items-center gap-2 py-16 text-center">
+          <CardTitle className="text-lg">Learning tidak ditemukan.</CardTitle>
+        </CardContent></Card>
       </div>
+    );
+  }
+
+  const canManage = canManageLearning(entry, user?.id || null);
+
+  return (
+    <div className="space-y-4">
+      <Button variant="ghost" size="sm" onClick={onBack}>
+        <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
+      </Button>
+      <Card>
+        <CardContent className="space-y-4 py-6">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-lg font-bold flex items-center gap-2">
+              <Lightbulb className="h-5 w-5 text-amber-500 shrink-0" />
+              {entry.title}
+            </h2>
+            <div className="flex gap-1 shrink-0">
+              <Badge variant="outline" className={getInsightTypeBadgeClass(entry.insight_type)}>{getInsightTypeLabel(entry.insight_type)}</Badge>
+              <Badge variant="outline" className={getLearningStatusBadgeClass(entry.status)}>{entry.status === 'published' ? 'Published' : 'Draft'}</Badge>
+            </div>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Insight</div>
+            <p className="text-sm whitespace-pre-wrap">{entry.insight}</p>
+          </div>
+
+          <div className="rounded border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-900 p-3">
+            <div className="text-xs font-semibold text-emerald-800 dark:text-emerald-400 uppercase tracking-wide mb-1">Recommendation</div>
+            <p className="text-sm whitespace-pre-wrap text-emerald-900 dark:text-emerald-300">{entry.recommendation}</p>
+          </div>
+
+          <div>
+            <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Evidence Base</div>
+            <div className="space-y-1">
+              {citations.map((c) => (
+                <button
+                  key={c.id}
+                  className="block text-left text-sm text-primary hover:underline"
+                  onClick={() => c.projectId && navigate(`/dashboard/project-management/${c.projectId}/meal?tab=acr`)}
+                >
+                  → {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground pt-2 border-t">
+            <span>Related Projects: {relatedProjects.map((p) => p.name).join(', ') || '—'}</span>
+            <span>Scope: {getScopeLabel(entry.scope)}</span>
+          </div>
+          <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs text-muted-foreground">
+            <span>Authored by {authorName || '—'}{entry.created_at ? ` on ${new Date(entry.created_at).toLocaleDateString('id-ID')}` : ''}</span>
+            {entry.published_at && <span>Published by {publisherName || '—'} on {new Date(entry.published_at).toLocaleDateString('id-ID')}</span>}
+          </div>
+
+          {canManage && (
+            <div className="flex gap-2 pt-2 border-t">
+              <Button variant="outline" size="sm" onClick={onEdit}>
+                <Pencil className="mr-1 h-3.5 w-3.5" /> Edit
+              </Button>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button size="sm" disabled={publishing}>Publish</Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Publish this Learning?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Once published, it becomes visible organization-wide and cannot be edited directly.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handlePublish}>Publish</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" disabled={deleting}>
+                    <Trash2 className="mr-1 h-3.5 w-3.5" /> Delete
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this Draft?</AlertDialogTitle>
+                    <AlertDialogDescription>This cannot be undone.</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete}>Delete</AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
