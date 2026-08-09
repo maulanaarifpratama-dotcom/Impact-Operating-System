@@ -354,9 +354,15 @@ export function normalizeFinanceItemFromLedger(
 ): FinanceItemViewModel {
   const planned = normalizeFinite(agg.planned > 0 ? agg.planned : null);
 
-  const committedOutstanding = normalizeFinite(agg.committed_outstanding > 0 ? agg.committed_outstanding : null);
+  const ledgerEmpty = agg.posted_actual_gross === 0 && agg.posted_reversals === 0 && agg.approved_commitment === 0;
 
-  const netActual = normalizeFinite(agg.net_actual > 0 || agg.posted_actual_gross > 0 ? agg.net_actual : null);
+  const committedOutstanding = normalizeFinite(
+    !ledgerEmpty && agg.committed_outstanding > 0 ? agg.committed_outstanding : null,
+  );
+
+  const netActual = ledgerEmpty
+    ? normalizeFinite(raw.actual_amount_idr) // fall back to legacy scalar
+    : normalizeFinite(agg.posted_actual_gross > 0 ? agg.net_actual : null);
 
   const remaining = planned !== null && netActual !== null ? planned - netActual : null;
 
@@ -467,21 +473,28 @@ export function aggregateProjectFinance(
   }
 
   let totalPlanned: number | null = null;
+  let totalCommitted: number | null = null;
   let totalActual: number | null = null;
 
   let plannedCount = 0;
   let hasActual = false;
+  let hasCommitted = false;
   let linkedCount = 0;
   let unlinkedCount = 0;
   let invalidCount = 0;
 
   for (const item of items) {
     const p = normalizeFinite(item.planned);
+    const c = normalizeFinite(item.committed);
     const a = normalizeFinite(item.actual);
 
     if (p !== null) {
       totalPlanned = (totalPlanned ?? 0) + p;
       plannedCount++;
+    }
+    if (c !== null) {
+      totalCommitted = (totalCommitted ?? 0) + c;
+      hasCommitted = true;
     }
     if (a !== null) {
       totalActual = (totalActual ?? 0) + a;
@@ -493,14 +506,16 @@ export function aggregateProjectFinance(
     else if (item.relationState === 'invalid') invalidCount++;
   }
 
-  const totalCommitted: number | null = null;
+  const totalExposure = totalActual !== null && totalCommitted !== null
+    ? totalActual + totalCommitted
+    : totalActual !== null ? totalActual : null;
 
   const totalRemaining = totalPlanned !== null && totalActual !== null
     ? totalPlanned - totalActual
     : null;
 
-  const totalAvailable = totalPlanned !== null && totalActual !== null
-    ? totalPlanned - totalActual
+  const totalAvailable = totalPlanned !== null && totalExposure !== null
+    ? totalPlanned - totalExposure
     : null;
 
   const aggVariance = totalPlanned !== null && totalActual !== null
@@ -509,7 +524,7 @@ export function aggregateProjectFinance(
 
   const aggUtilizationPct = safePct(totalActual, totalPlanned);
 
-  const commitmentPct: number | null = null;
+  const commitmentPct = safePct(totalCommitted, totalPlanned);
 
   const health = classifyFinanceHealth(totalPlanned, totalActual);
 
