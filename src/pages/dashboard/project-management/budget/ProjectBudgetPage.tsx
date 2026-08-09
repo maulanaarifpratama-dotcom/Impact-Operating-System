@@ -32,6 +32,7 @@ import {
   type WbsBudgetInput,
   type StageBudgetInput,
 } from '@/lib/budget/budgetModel';
+import { classifyFinanceHealth, type FinanceHealth } from '@/lib/project-management/financeModel';
 
 interface ProjectMeta {
   org_id: string;
@@ -125,6 +126,19 @@ export default function ProjectBudgetPage() {
     budgetItems: rawBudgetItems,
     durationMonths: projectMeta?.duration_months || 12,
   }), [targetBudget, rawBudgetItems, projectMeta]);
+
+  const financeHealth = useMemo<FinanceHealth>(
+    () => classifyFinanceHealth(snapshot.detailedBudget, snapshot.actualRealization),
+    [snapshot.detailedBudget, snapshot.actualRealization],
+  );
+
+  const HEALTH_LABEL: Record<FinanceHealth, string> = {
+    unknown: 'Tidak Diketahui',
+    healthy: 'Sehat',
+    watch: 'Perlu Perhatian',
+    critical: 'Kritis',
+    overspent: 'Melebihi Anggaran',
+  };
 
   const stageResult = useMemo(() => computeStageBudgets({
     budgetItems: rawBudgetItems,
@@ -318,6 +332,18 @@ export default function ProjectBudgetPage() {
                 <div>
                   <div className="text-xs text-muted-foreground">Overhead</div>
                   <div className="text-sm font-semibold">{snapshot.overheadPercent.toFixed(0)}%</div>
+                </div>
+                <div>
+                  <div className="text-xs text-muted-foreground">Kesehatan Finansial</div>
+                  <div className={`text-sm font-semibold ${
+                    financeHealth === 'healthy' ? 'text-emerald-600' :
+                    financeHealth === 'watch' ? 'text-amber-600' :
+                    financeHealth === 'critical' ? 'text-orange-600' :
+                    financeHealth === 'overspent' ? 'text-red-600' :
+                    'text-muted-foreground'
+                  }`}>
+                    {HEALTH_LABEL[financeHealth]}
+                  </div>
                 </div>
               </div>
             </CardContent>
