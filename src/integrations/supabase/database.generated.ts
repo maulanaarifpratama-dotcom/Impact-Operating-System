@@ -3338,6 +3338,361 @@ export type Database = {
           },
         ]
       }
+      project_funding_events: {
+        Row: {
+          actor_id: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id: string
+          lfa_project_id: string
+          org_id: string
+          safe_metadata: Json
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id?: string
+          lfa_project_id: string
+          org_id: string
+          safe_metadata?: Json
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          event_type?: string
+          id?: string
+          lfa_project_id?: string
+          org_id?: string
+          safe_metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_funding_events_lfa_project_id_fkey"
+            columns: ["lfa_project_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_funding_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_funding_installments: {
+        Row: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          due_date: string
+          evidence_url: string | null
+          funding_source_id: string
+          id: string
+          installment_name: string | null
+          installment_number: number
+          lfa_project_id: string
+          org_id: string
+          scheduled_amount_idr: number
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        Insert: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by: string
+          decision_note?: string | null
+          description?: string | null
+          due_date: string
+          evidence_url?: string | null
+          funding_source_id: string
+          id?: string
+          installment_name?: string | null
+          installment_number: number
+          lfa_project_id: string
+          org_id: string
+          scheduled_amount_idr: number
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          workflow_status?: string
+        }
+        Update: {
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string
+          decision_note?: string | null
+          description?: string | null
+          due_date?: string
+          evidence_url?: string | null
+          funding_source_id?: string
+          id?: string
+          installment_name?: string | null
+          installment_number?: number
+          lfa_project_id?: string
+          org_id?: string
+          scheduled_amount_idr?: number
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          workflow_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_installment_funding_source_project_org"
+            columns: ["funding_source_id", "lfa_project_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "project_funding_sources"
+            referencedColumns: ["id", "lfa_project_id", "org_id"]
+          },
+          {
+            foreignKeyName: "project_funding_installments_lfa_project_id_fkey"
+            columns: ["lfa_project_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_funding_installments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_funding_receipts: {
+        Row: {
+          amount_idr: number
+          bank_account_label: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          funding_source_id: string
+          id: string
+          installment_id: string | null
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          receipt_date: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        Insert: {
+          amount_idr: number
+          bank_account_label?: string | null
+          created_at?: string
+          created_by: string
+          currency?: string
+          decision_note?: string | null
+          description?: string | null
+          evidence_url?: string | null
+          funding_source_id: string
+          id?: string
+          installment_id?: string | null
+          lfa_project_id: string
+          org_id: string
+          posted_at?: string | null
+          posted_by?: string | null
+          receipt_date: string
+          reference_number?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          reversal_of_id?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          workflow_status?: string
+        }
+        Update: {
+          amount_idr?: number
+          bank_account_label?: string | null
+          created_at?: string
+          created_by?: string
+          currency?: string
+          decision_note?: string | null
+          description?: string | null
+          evidence_url?: string | null
+          funding_source_id?: string
+          id?: string
+          installment_id?: string | null
+          lfa_project_id?: string
+          org_id?: string
+          posted_at?: string | null
+          posted_by?: string | null
+          receipt_date?: string
+          reference_number?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          reversal_of_id?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          workflow_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_receipt_funding_source_project_org"
+            columns: ["funding_source_id", "lfa_project_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "project_funding_sources"
+            referencedColumns: ["id", "lfa_project_id", "org_id"]
+          },
+          {
+            foreignKeyName: "fk_receipt_installment_identity"
+            columns: ["installment_id", "lfa_project_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "project_funding_installments"
+            referencedColumns: ["id", "lfa_project_id", "org_id"]
+          },
+          {
+            foreignKeyName: "fk_receipt_reversal_identity"
+            columns: ["reversal_of_id", "lfa_project_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "project_funding_receipts"
+            referencedColumns: ["id", "lfa_project_id", "org_id"]
+          },
+          {
+            foreignKeyName: "project_funding_receipts_lfa_project_id_fkey"
+            columns: ["lfa_project_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_funding_receipts_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_funding_sources: {
+        Row: {
+          agreement_amount_idr: number
+          agreement_number: string | null
+          approved_at: string | null
+          approved_by: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          end_date: string | null
+          evidence_url: string | null
+          funding_type: string
+          id: string
+          lfa_project_id: string
+          org_id: string
+          rejected_at: string | null
+          rejected_by: string | null
+          source_name: string
+          start_date: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        Insert: {
+          agreement_amount_idr: number
+          agreement_number?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by: string
+          currency?: string
+          decision_note?: string | null
+          description?: string | null
+          end_date?: string | null
+          evidence_url?: string | null
+          funding_type?: string
+          id?: string
+          lfa_project_id: string
+          org_id: string
+          rejected_at?: string | null
+          rejected_by?: string | null
+          source_name: string
+          start_date?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          workflow_status?: string
+        }
+        Update: {
+          agreement_amount_idr?: number
+          agreement_number?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          created_at?: string
+          created_by?: string
+          currency?: string
+          decision_note?: string | null
+          description?: string | null
+          end_date?: string | null
+          evidence_url?: string | null
+          funding_type?: string
+          id?: string
+          lfa_project_id?: string
+          org_id?: string
+          rejected_at?: string | null
+          rejected_by?: string | null
+          source_name?: string
+          start_date?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          workflow_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_funding_sources_lfa_project_id_fkey"
+            columns: ["lfa_project_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_funding_sources_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_objectives: {
         Row: {
           archived_at: string | null
@@ -4055,6 +4410,42 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      approve_funding_source: {
+        Args: { p_decision_note?: string; p_funding_source_id: string }
+        Returns: {
+          agreement_amount_idr: number
+          agreement_number: string | null
+          approved_at: string | null
+          approved_by: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          end_date: string | null
+          evidence_url: string | null
+          funding_type: string
+          id: string
+          lfa_project_id: string
+          org_id: string
+          rejected_at: string | null
+          rejected_by: string | null
+          source_name: string
+          start_date: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_sources"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       archive_programme_deliverable: {
         Args: { p_archive_reason: string; p_deliverable_id: string }
         Returns: {
@@ -4108,6 +4499,10 @@ export type Database = {
         }[]
       }
       assert_finance_owner: {
+        Args: { _actor_id: string; _org_id: string }
+        Returns: undefined
+      }
+      assert_funding_owner: {
         Args: { _actor_id: string; _org_id: string }
         Returns: undefined
       }
@@ -4184,6 +4579,72 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      cancel_funding_installment: {
+        Args: { p_decision_note?: string; p_installment_id: string }
+        Returns: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          due_date: string
+          evidence_url: string | null
+          funding_source_id: string
+          id: string
+          installment_name: string | null
+          installment_number: number
+          lfa_project_id: string
+          org_id: string
+          scheduled_amount_idr: number
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_installments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      cancel_funding_source: {
+        Args: { p_decision_note?: string; p_funding_source_id: string }
+        Returns: {
+          agreement_amount_idr: number
+          agreement_number: string | null
+          approved_at: string | null
+          approved_by: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          end_date: string | null
+          evidence_url: string | null
+          funding_type: string
+          id: string
+          lfa_project_id: string
+          org_id: string
+          rejected_at: string | null
+          rejected_by: string | null
+          source_name: string
+          start_date: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_sources"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       compute_budget_aggregates: {
         Args: { _lfa_project_id: string }
         Returns: {
@@ -4194,6 +4655,19 @@ export type Database = {
           planned: number
           posted_actual_gross: number
           posted_reversals: number
+        }[]
+      }
+      compute_project_funding_aggregates: {
+        Args: { _lfa_project_id: string }
+        Returns: {
+          allocated_received: number
+          net_received_cash: number
+          total_funding_agreement: number
+          total_outstanding_receivable: number
+          total_receipt_reversals: number
+          total_received_gross: number
+          total_scheduled: number
+          unallocated_received: number
         }[]
       }
       consume_ai_rate_limit: {
@@ -4286,6 +4760,136 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "project_budget_expenditures"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_funding_installment_draft: {
+        Args: {
+          p_description?: string
+          p_due_date?: string
+          p_evidence_url?: string
+          p_funding_source_id: string
+          p_installment_name?: string
+          p_installment_number: number
+          p_scheduled_amount_idr?: number
+        }
+        Returns: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          due_date: string
+          evidence_url: string | null
+          funding_source_id: string
+          id: string
+          installment_name: string | null
+          installment_number: number
+          lfa_project_id: string
+          org_id: string
+          scheduled_amount_idr: number
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_installments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_funding_receipt_draft: {
+        Args: {
+          p_amount_idr?: number
+          p_bank_account_label?: string
+          p_currency?: string
+          p_description?: string
+          p_evidence_url?: string
+          p_funding_source_id: string
+          p_installment_id?: string
+          p_receipt_date?: string
+          p_reference_number?: string
+        }
+        Returns: {
+          amount_idr: number
+          bank_account_label: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          funding_source_id: string
+          id: string
+          installment_id: string | null
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          receipt_date: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_receipts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_funding_source_draft: {
+        Args: {
+          p_agreement_amount_idr?: number
+          p_agreement_number?: string
+          p_currency?: string
+          p_description?: string
+          p_end_date?: string
+          p_evidence_url?: string
+          p_funding_type?: string
+          p_lfa_project_id: string
+          p_source_name: string
+          p_start_date?: string
+        }
+        Returns: {
+          agreement_amount_idr: number
+          agreement_number: string | null
+          approved_at: string | null
+          approved_by: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          end_date: string | null
+          evidence_url: string | null
+          funding_type: string
+          id: string
+          lfa_project_id: string
+          org_id: string
+          rejected_at: string | null
+          rejected_by: string | null
+          source_name: string
+          start_date: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_sources"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -4570,6 +5174,41 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      post_funding_receipt: {
+        Args: { p_decision_note?: string; p_receipt_id: string }
+        Returns: {
+          amount_idr: number
+          bank_account_label: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          funding_source_id: string
+          id: string
+          installment_id: string | null
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          receipt_date: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_receipts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reject_commitment: {
         Args: { p_commitment_id: string; p_decision_note?: string }
         Returns: {
@@ -4633,6 +5272,77 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "project_budget_expenditures"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reject_funding_receipt: {
+        Args: { p_decision_note?: string; p_receipt_id: string }
+        Returns: {
+          amount_idr: number
+          bank_account_label: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          funding_source_id: string
+          id: string
+          installment_id: string | null
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          receipt_date: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_receipts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reject_funding_source: {
+        Args: { p_decision_note?: string; p_funding_source_id: string }
+        Returns: {
+          agreement_amount_idr: number
+          agreement_number: string | null
+          approved_at: string | null
+          approved_by: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          end_date: string | null
+          evidence_url: string | null
+          funding_type: string
+          id: string
+          lfa_project_id: string
+          org_id: string
+          rejected_at: string | null
+          rejected_by: string | null
+          source_name: string
+          start_date: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_sources"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -4703,6 +5413,46 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      reverse_funding_receipt: {
+        Args: {
+          p_description?: string
+          p_evidence_url?: string
+          p_original_receipt_id: string
+          p_reversal_amount_idr: number
+        }
+        Returns: {
+          amount_idr: number
+          bank_account_label: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          funding_source_id: string
+          id: string
+          installment_id: string | null
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          receipt_date: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_receipts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       review_wbs_completion_claim: {
         Args: { p_claim_id: string; p_decision: string; p_review_note?: string }
         Returns: {
@@ -4712,6 +5462,36 @@ export type Database = {
           reviewed_by: string
           status: string
         }[]
+      }
+      schedule_funding_installment: {
+        Args: { p_installment_id: string }
+        Returns: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          due_date: string
+          evidence_url: string | null
+          funding_source_id: string
+          id: string
+          installment_name: string | null
+          installment_number: number
+          lfa_project_id: string
+          org_id: string
+          scheduled_amount_idr: number
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_installments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       submit_commitment: {
         Args: { p_commitment_id: string }
@@ -4776,6 +5556,77 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "project_budget_expenditures"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      submit_funding_receipt: {
+        Args: { p_receipt_id: string }
+        Returns: {
+          amount_idr: number
+          bank_account_label: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          funding_source_id: string
+          id: string
+          installment_id: string | null
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          receipt_date: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_receipts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      submit_funding_source: {
+        Args: { p_funding_source_id: string }
+        Returns: {
+          agreement_amount_idr: number
+          agreement_number: string | null
+          approved_at: string | null
+          approved_by: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          end_date: string | null
+          evidence_url: string | null
+          funding_type: string
+          id: string
+          lfa_project_id: string
+          org_id: string
+          rejected_at: string | null
+          rejected_by: string | null
+          source_name: string
+          start_date: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_sources"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -4896,6 +5747,107 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "project_budget_expenditures"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_funding_installment_draft: {
+        Args: { p_installment_id: string; p_patch: Json }
+        Returns: {
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          due_date: string
+          evidence_url: string | null
+          funding_source_id: string
+          id: string
+          installment_name: string | null
+          installment_number: number
+          lfa_project_id: string
+          org_id: string
+          scheduled_amount_idr: number
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_installments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_funding_receipt_draft: {
+        Args: { p_patch: Json; p_receipt_id: string }
+        Returns: {
+          amount_idr: number
+          bank_account_label: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          funding_source_id: string
+          id: string
+          installment_id: string | null
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          receipt_date: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_receipts"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_funding_source_draft: {
+        Args: { p_funding_source_id: string; p_patch: Json }
+        Returns: {
+          agreement_amount_idr: number
+          agreement_number: string | null
+          approved_at: string | null
+          approved_by: string | null
+          cancelled_at: string | null
+          cancelled_by: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          decision_note: string | null
+          description: string | null
+          end_date: string | null
+          evidence_url: string | null
+          funding_type: string
+          id: string
+          lfa_project_id: string
+          org_id: string
+          rejected_at: string | null
+          rejected_by: string | null
+          source_name: string
+          start_date: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_funding_sources"
           isOneToOne: true
           isSetofReturn: false
         }
