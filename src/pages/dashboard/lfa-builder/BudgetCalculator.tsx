@@ -33,6 +33,7 @@ import { appStylesheetTags, finalizePrintWindow } from '@/lib/print/printWindow'
 import { numericOrNull } from '@/lib/utils';
 import { persistTargetBudgetForLfaProject, resolveTargetBudgetForLfaProject } from '@/lib/budget/targetBudget';
 import { evaluateMirrorBudgetModel } from '@/lib/budget/mirrorBudgetModel';
+import { generateAutoloadCandidates, buildExistingKeys, type AutoloadCandidate } from '@/lib/budget/activityBudgetAutoload';
 
 interface BudgetCalculatorProps {
   projectId: string;
@@ -76,6 +77,12 @@ export default function BudgetCalculator({
   const [sbmLoading, setSbmLoading] = useState(false);
   const [sbmTargetItem, setSbmTargetItem] = useState<BudgetItem | null>(null);
   const [sbmSuggestion, setSbmSuggestion] = useState<{ reference_price: number; explanation: string } | null>(null);
+
+  // Activity-to-Budget autoload state (BUDGET-R2C)
+  const [autoloadActivityId, setAutoloadActivityId] = useState<string | null>(null);
+  const [autoloadActivityName, setAutoloadActivityName] = useState<string>('');
+  const [autoloadCandidates, setAutoloadCandidates] = useState<AutoloadCandidate[]>([]);
+  const [autoloading, setAutoloading] = useState(false);
 
   // NGO Mode active multiplier state (default is true - NGO receives 70% rate discount under Lampiran II.2)
   const [isNgoMode, setIsNgoMode] = useState<boolean>(true);
@@ -303,6 +310,91 @@ export default function BudgetCalculator({
     } finally {
       setSaving(false);
     }
+  };
+
+  // ── Autoload from Activity (BUDGET-R2C) ──────────────────────────────
+
+  const handleAutoload = (actId: string, actName: string) => {
+    setAutoloadActivityId(actId);
+    setAutoloadActivityName(actName);
+    setAutoloading(true);
+    setTimeout(() => {
+      const actItems = budgetItems.filter((i) => i.wbs_item_id === actId);
+      const existingKeys = buildExistingKeys(actItems);
+      const candidates = generateAutoloadCandidates({
+        activityName: actName,
+        existingItemKeys: existingKeys,
+      });
+      setAutoloadCandidates(candidates);
+      setAutoloading(false);
+      if (candidates.length === 0 && actName.trim()) {
+        toast({
+          title: 'Tidak ada kandidat',
+          description: `Tidak ditemukan kebutuhan biaya yang cocok untuk "${actName}". Tambahkan secara manual.`,
+        });
+      }
+    }, 150);
+  };
+
+  const toggleCandidate = (stableId: string) => {
+    setAutoloadCandidates((prev) =>
+      prev.map((c) => (c.stableId === stableId ? { ...c, selected: !c.selected } : c)),
+    );
+  };
+
+  const addSelectedCandidates = async () => {
+    const selected = autoloadCandidates.filter((c) => c.selected);
+    if (selected.length === 0) {
+      toast({ title: 'Pilih minimal satu item', variant: 'destructive' });
+      return;
+    }
+    if (!autoloadActivityId) return;
+
+    setSaving(true);
+    const actItems = budgetItems.filter((i) => i.wbs_item_id === autoloadActivityId);
+    let seq = actItems.length;
+    try {
+      for (const candidate of selected) {
+        const insertPayload: any = {
+          lfa_project_id: projectId,
+          org_id: orgId,
+          wbs_item_id: autoloadActivityId,
+          activity_name: autoloadActivityName,
+          item_name: candidate.itemName,
+          category: candidate.category === 'Sub-Professional' || candidate.category === 'Supporting-Staff'
+            ? 'Honorarium' : candidate.category,
+          cost_category: candidate.referenceFamily === 'inkindo'
+            ? 'Personnel & Consultants' : 'Other Direct Costs',
+          volume: candidate.suggestedQuantity,
+          unit: candidate.unit,
+          unit_price_idr: candidate.suggestedUnitPrice ?? 0,
+          funding_source: 'grant',
+          sort_order: seq,
+          mode: globalMode,
+        };
+        const { error } = await supabase.from('lfa_budget_items').insert(insertPayload);
+        if (error) throw error;
+        seq++;
+      }
+      setAutoloadActivityId(null);
+      setAutoloadCandidates([]);
+      const count = selected.length;
+      toast({
+        title: `${count} item anggaran ditambahkan`,
+        description: `Item dari Activity "${autoloadActivityName}" telah ditambahkan. Semua harga bersifat estimasi dan perlu ditinjau.`,
+      });
+      void loadData();
+      if (onBudgetChanged) onBudgetChanged();
+    } catch (err: any) {
+      toast({ title: 'Gagal menambahkan item', description: err?.message, variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const cancelAutoload = () => {
+    setAutoloadActivityId(null);
+    setAutoloadCandidates([]);
   };
 
   // Delete a budget item
@@ -2401,15 +2493,102 @@ export default function BudgetCalculator({
                         </span>
                       </div>
 
-                      <Button
-                        size="xs"
-                        onClick={() => handleAddItem(act.id, act.name)}
-                        className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-7 py-1 px-3 text-[10px] tracking-wide"
-                      >
-                        <Plus className="mr-1 h-3 w-3" /> Tambah Item
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          size="xs"
+                          onClick={() => handleAddItem(act.id, act.name)}
+                          className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold h-7 py-1 px-3 text-[10px] tracking-wide"
+                        >
+                          <Plus className="mr-1 h-3 w-3" /> Tambah Item
+                        </Button>
+                        <Button
+                          size="xs"
+                          onClick={() => handleAutoload(act.id, act.name)}
+                          disabled={saving || autoloading}
+                          className="bg-amber-600 hover:bg-amber-500 text-white font-bold h-7 py-1 px-3 text-[10px] tracking-wide"
+                        >
+                          {autoloading && autoloadActivityId === act.id ? (
+                            <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          ) : (
+                            <Sparkles className="mr-1 h-3 w-3" />
+                          )}
+                          Muat
+                        </Button>
+                      </div>
                     </div>
                   </div>
+
+                  {/* ── Autoload Review Panel (BUDGET-R2C) ─────────────────── */}
+                  {autoloadActivityId === act.id && autoloadCandidates.length > 0 && (
+                    <div className="border-b bg-amber-50/30 dark:bg-amber-950/10 px-4 py-3">
+                      <div className="text-[10px] text-amber-700 dark:text-amber-400 mb-2 leading-relaxed">
+                        Kandidat dibuat otomatis dari Activity menggunakan pencocokan deterministic. Nilai referensi bersifat <strong>estimasi, belum terverifikasi</strong> dan harus ditinjau sebelum digunakan.
+                      </div>
+                      <div className="space-y-1 max-h-48 overflow-y-auto">
+                        {autoloadCandidates.map((c) => (
+                          <div
+                            key={c.stableId}
+                            className={`flex items-center gap-2 rounded px-2 py-1.5 text-[10px] border cursor-pointer transition-colors ${
+                              c.selected
+                                ? 'border-amber-400 bg-amber-100/60 dark:bg-amber-900/20'
+                                : 'border-transparent bg-white/60 dark:bg-slate-900/40 hover:border-slate-200'
+                            }`}
+                            onClick={() => toggleCandidate(c.stableId)}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={c.selected}
+                              className="h-3.5 w-3.5 shrink-0"
+                              readOnly
+                            />
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium truncate">{c.itemName}</div>
+                              <div className="text-[9px] text-muted-foreground flex items-center gap-1 flex-wrap">
+                                <span>{c.category}</span>
+                                <span>·</span>
+                                <span>Qty: {c.suggestedQuantity}</span>
+                                <span>·</span>
+                                <span>{c.unit}</span>
+                                {c.suggestedUnitPrice != null && c.suggestedUnitPrice > 0 && (
+                                  <>
+                                    <span>·</span>
+                                    <span>Rp {c.suggestedUnitPrice.toLocaleString('id-ID')}</span>
+                                  </>
+                                )}
+                                <span>·</span>
+                                <span className="text-amber-600 dark:text-amber-400">
+                                  {getProvenanceLabel(c.provenanceState)}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-[8px] uppercase bg-slate-100 dark:bg-slate-800 px-1 rounded shrink-0">
+                              {c.referenceFamily === 'sbm' ? 'SBM ref' : c.referenceFamily === 'inkindo' ? 'INKINDO ref' : ''}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="flex items-center gap-2 mt-2">
+                        <Button
+                          size="sm"
+                          className="h-7 text-[10px]"
+                          onClick={addSelectedCandidates}
+                          disabled={saving || !autoloadCandidates.some((c) => c.selected)}
+                        >
+                          <Check className="mr-1 h-3 w-3" />
+                          Tambahkan item terpilih
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 text-[10px]"
+                          onClick={cancelAutoload}
+                          disabled={saving}
+                        >
+                          Batal
+                        </Button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Table of Budget Items inside this activity */}
                   <CardContent className="p-0">

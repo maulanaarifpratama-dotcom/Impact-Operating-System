@@ -273,7 +273,7 @@ export default function ActivityBudgetEditor({ projectId, orgId, activityId, act
                       </div>
                     </div>
                     <span className="text-[8px] uppercase bg-slate-100 dark:bg-slate-800 px-1 rounded shrink-0">
-                      {c.referenceFamily === 'sbm' ? 'SBM' : c.referenceFamily === 'inkindo' ? 'INKINDO' : ''}
+                      {c.referenceFamily === 'sbm' ? 'SBM ref' : c.referenceFamily === 'inkindo' ? 'INKINDO ref' : ''}
                     </span>
                   </div>
                 ))}
