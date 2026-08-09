@@ -61,6 +61,7 @@ export default function ProjectBudgetPage() {
   const [rawWbsItems, setRawWbsItems] = useState<WbsBudgetInput[]>([]);
   const [rawStages, setRawStages] = useState<StageBudgetInput[]>([]);
   const [ledgerAggregates, setLedgerAggregates] = useState<BudgetAggregateRow[]>([]);
+  const [hasLedgerRecords, setHasLedgerRecords] = useState(false);
 
   // Target Budget dialog
   const [targetDialogOpen, setTargetDialogOpen] = useState(false);
@@ -96,6 +97,19 @@ export default function ProjectBudgetPage() {
         const { data: aggData, error: aggErr } = await (supabase as any).rpc('compute_budget_aggregates', { _lfa_project_id: projectId });
         if (!aggErr && aggData) setLedgerAggregates(aggData as BudgetAggregateRow[]);
       } catch { /* ledger may be empty */ }
+
+      // Detect whether any normalized ledger records exist for this project
+      try {
+        const { count: commitmentCount } = await (supabase as any)
+          .from('project_budget_commitments')
+          .select('*', { count: 'exact', head: true })
+          .eq('lfa_project_id', projectId);
+        const { count: expenditureCount } = await (supabase as any)
+          .from('project_budget_expenditures')
+          .select('*', { count: 'exact', head: true })
+          .eq('lfa_project_id', projectId);
+        setHasLedgerRecords((commitmentCount ?? 0) > 0 || (expenditureCount ?? 0) > 0);
+      } catch { setHasLedgerRecords(false); }
 
       const tgt = await resolveTargetBudgetForLfaProject(supabase as any, projectId);
       setTargetBudget(tgt);
@@ -153,9 +167,11 @@ export default function ProjectBudgetPage() {
           funding_source: (raw as any).funding_source ?? null,
         },
         agg,
+        undefined,
+        hasLedgerRecords,
       );
     }).filter(Boolean) as FinanceItemViewModel[];
-  }, [rawBudgetItems, ledgerAggregates, projectId]);
+  }, [rawBudgetItems, ledgerAggregates, projectId, hasLedgerRecords]);
 
   const ledgerSummary = useMemo(() => aggregateProjectFinance(ledgerItems), [ledgerItems]);
 

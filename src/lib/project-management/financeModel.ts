@@ -351,18 +351,17 @@ export function normalizeFinanceItemFromLedger(
   raw: FinanceItemRawInput,
   agg: BudgetAggregateRow,
   wbsProjectId?: string | null,
+  hasLedgerRecords?: boolean,
 ): FinanceItemViewModel {
   const planned = normalizeFinite(agg.planned > 0 ? agg.planned : null);
 
-  const ledgerEmpty = agg.posted_actual_gross === 0 && agg.posted_reversals === 0 && agg.approved_commitment === 0;
-
   const committedOutstanding = normalizeFinite(
-    !ledgerEmpty && agg.committed_outstanding > 0 ? agg.committed_outstanding : null,
+    hasLedgerRecords && agg.committed_outstanding > 0 ? agg.committed_outstanding : null,
   );
 
-  const netActual = ledgerEmpty
-    ? normalizeFinite(raw.actual_amount_idr) // fall back to legacy scalar
-    : normalizeFinite(agg.posted_actual_gross > 0 ? agg.net_actual : null);
+  const netActual = hasLedgerRecords
+    ? normalizeFinite(agg.posted_actual_gross > 0 ? agg.net_actual : null)
+    : normalizeFinite(raw.actual_amount_idr); // no ledger records → use legacy scalar
 
   const remaining = planned !== null && netActual !== null ? planned - netActual : null;
 
@@ -388,9 +387,8 @@ export function normalizeFinanceItemFromLedger(
 
   const canonicalStatus = classifyFinanceItemStatus(raw.mode);
 
-  const hasLedgerData = netActual !== null || committedOutstanding !== null;
   const dataCompleteness: FinanceDataCompleteness =
-    planned !== null && hasLedgerData ? 'complete' : planned !== null ? 'partial' : 'insufficient';
+    planned !== null && hasLedgerRecords ? 'complete' : planned !== null ? 'partial' : 'insufficient';
 
   return {
     id: raw.id,
