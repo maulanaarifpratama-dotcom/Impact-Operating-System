@@ -1344,7 +1344,7 @@ function LearningInlineEditor({ projectId, learningId, onSaved, onCancel }: {
       <Button variant="ghost" size="sm" onClick={onCancel}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
       </Button>
-      <Card>
+      <Card className="overflow-hidden">
         <CardContent className="space-y-4 py-6">
           <h2 className="text-lg font-bold">{isEdit ? 'Edit Learning' : 'New Learning'}</h2>
 
@@ -1378,9 +1378,9 @@ function LearningInlineEditor({ projectId, learningId, onSaved, onCancel }: {
             {selectedEvidence.length > 0 && (
               <div className="flex flex-wrap gap-1.5 pt-1">
                 {selectedEvidence.map((e) => (
-                  <Badge key={`${e.sourceType}-${e.sourceId}`} variant="secondary" className="flex items-center gap-1">
-                    {e.label}
-                    <button onClick={() => removeEvidence(e)}><X className="h-3 w-3" /></button>
+                  <Badge key={`${e.sourceType}-${e.sourceId}`} variant="secondary" className="flex items-center gap-1 max-w-full">
+                    <span className="truncate max-w-[280px]">{e.label}</span>
+                    <button onClick={() => removeEvidence(e)} className="shrink-0"><X className="h-3 w-3" /></button>
                   </Badge>
                 ))}
               </div>
@@ -1468,17 +1468,17 @@ function LearningInlineEditor({ projectId, learningId, onSaved, onCancel }: {
             <Label>Related Projects</Label>
             <div className="flex flex-wrap gap-1.5">
               {relatedProjectNames.length > 0
-                ? relatedProjectNames.map((n) => <Badge key={n} variant="outline">{n}</Badge>)
+                ? relatedProjectNames.map((n) => <Badge key={n} variant="outline" className="max-w-[220px]"><span className="truncate">{n}</span></Badge>)
                 : <span className="text-xs text-muted-foreground">Otomatis terisi dari Evidence Base.</span>}
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2 border-t">
+          <DialogFooter className="pt-2 border-t">
             <Button variant="outline" onClick={onCancel}>Cancel</Button>
             <Button onClick={handleSave} disabled={!canSave || saving}>
               {saving ? 'Menyimpan...' : isEdit ? 'Save Changes' : 'Save as Draft'}
             </Button>
-          </div>
+          </DialogFooter>
         </CardContent>
       </Card>
     </div>
