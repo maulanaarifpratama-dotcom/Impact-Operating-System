@@ -79,10 +79,10 @@ describe('PM-F2B1 migration contract (static)', () => {
     expect(m1).toContain('commitment_draft_no_conflict_metadata');
   });
 
-  test('commitment: composite FK (budget_item_id, lfa_project_id) REFERENCES lfa_budget_items', () => {
-    expect(m1).toContain('fk_commitment_budget_item_project');
-    expect(m1).toContain('FOREIGN KEY (budget_item_id, lfa_project_id)');
-    expect(m1).toContain('REFERENCES public.lfa_budget_items(id, lfa_project_id)');
+  test('commitment: composite FK (budget_item_id, lfa_project_id, org_id) REFERENCES lfa_budget_items', () => {
+    expect(m1).toContain('fk_commitment_budget_item_project_org');
+    expect(m1).toContain('FOREIGN KEY (budget_item_id, lfa_project_id, org_id)');
+    expect(m1).toContain('REFERENCES public.lfa_budget_items(id, lfa_project_id, org_id)');
   });
 
   test('commitment: no scalar committed column on lfa_budget_items', () => {
@@ -128,15 +128,15 @@ describe('PM-F2B1 migration contract (static)', () => {
   });
 
   test('expenditure: composite FK to budget_items', () => {
-    expect(m1).toContain('fk_expenditure_budget_item_project');
+    expect(m1).toContain('fk_expenditure_budget_item_project_org');
   });
 
-  test('expenditure: composite FK to commitments (nullable)', () => {
-    expect(m1).toContain('fk_expenditure_commitment_project');
+  test('expenditure: composite FK to commitments (nullable, org+project+item scoped)', () => {
+    expect(m1).toContain('fk_expenditure_commitment_identity');
   });
 
-  test('expenditure: commitment FK uses ON DELETE SET NULL', () => {
-    expect(m1).toContain('ON DELETE SET NULL');
+  test('expenditure: commitment FK uses ON DELETE RESTRICT (safer than CASCADE or SET NULL)', () => {
+    expect(m1).toContain('ON DELETE RESTRICT');
   });
 
   // ── RLS
@@ -153,17 +153,13 @@ describe('PM-F2B1 migration contract (static)', () => {
     expect(m1).toContain('public.is_org_member(org_id, auth.uid())');
   });
 
-  test('RLS: commitments INSERT requires owner', () => {
-    expect(m1).toContain('commitments_insert');
-    expect(combined).toContain("get_org_role(org_id, auth.uid()) = 'owner'");
+  test('RLS: direct client writes revoked; lifecycle via SECURITY DEFINER RPCs only', () => {
+    expect(m1).toContain('REVOKE ALL ON TABLE public.project_budget_commitments');
+    expect(m1).toContain('SECURITY DEFINER RPCs');
   });
 
   test('RLS: expenditures SELECT uses is_org_member', () => {
-    expect(m1).toContain('expenditures_select');
-  });
-
-  test('RLS: expenditures INSERT requires owner', () => {
-    expect(m1).toContain('expenditures_insert');
+    expect(m1).toContain('public.is_org_member(org_id, auth.uid())');
   });
 
   test('RLS: no admin role in budget RLS policies', () => {
@@ -285,9 +281,9 @@ describe('PM-F2B1 migration contract (static)', () => {
     expect(m1).toContain('ALTER COLUMN actual_amount_idr DROP DEFAULT');
     expect(m1).toContain('lfa_budget_items_id_lfa_project_id_key');
     expect(m1).toContain('UNIQUE (id, lfa_project_id)');
-    // No other ALTER TABLE mutations on lfa_budget_items
+    // Production FINAL adds org-level identity constraint inside DO block
     const alterCount = (m1.match(/ALTER TABLE\s+public\.lfa_budget_items/gi) || []).length;
-    expect(alterCount).toBe(2);
+    expect(alterCount).toBe(3); // DROP DEFAULT + 2 inside DO block
   });
 
   test('programme_design: no UPDATE on existing budget rows', () => {
