@@ -1340,7 +1340,7 @@ function LearningInlineEditor({ projectId, learningId, onSaved, onCancel }: {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 pb-16">
       <Button variant="ghost" size="sm" onClick={onCancel}>
         <ArrowLeft className="mr-2 h-4 w-4" /> Kembali
       </Button>
