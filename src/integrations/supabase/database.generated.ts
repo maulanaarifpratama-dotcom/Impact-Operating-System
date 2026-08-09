@@ -1,4 +1,4 @@
-export type Json =
+﻿export type Json =
   | string
   | number
   | boolean
@@ -1271,10 +1271,10 @@ export type Database = {
           },
           {
             foreignKeyName: "lfa_budget_items_wbs_item_id_fkey"
-            columns: ["wbs_item_id"]
+            columns: ["wbs_item_id", "lfa_project_id"]
             isOneToOne: false
             referencedRelation: "lfa_wbs_items"
-            referencedColumns: ["id"]
+            referencedColumns: ["id", "lfa_project_id"]
           },
         ]
       }
@@ -2042,7 +2042,8 @@ export type Database = {
       }
       lfa_wbs_items: {
         Row: {
-          blocked_reason: string | null
+          actual_end_date: string | null
+          actual_start_date: string | null
           blocker_category: string | null
           blocker_notes: string | null
           carbon_description: string | null
@@ -2057,6 +2058,7 @@ export type Database = {
           created_at: string | null
           dependencies: string[] | null
           duration_weeks: number | null
+          end_date: string | null
           financial_status: string | null
           id: string
           indicator: string | null
@@ -2071,17 +2073,21 @@ export type Database = {
           owner_id: string | null
           parent_id: string | null
           pic: string | null
+          planned_end_date: string | null
+          planned_start_date: string | null
           progress_percent: number
           reviewer_id: string | null
           sort_order: number | null
           source_task_id: string | null
           stage_id: string | null
+          start_date: string | null
           start_month: number | null
           status: string
           updated_at: string | null
         }
         Insert: {
-          blocked_reason?: string | null
+          actual_end_date?: string | null
+          actual_start_date?: string | null
           blocker_category?: string | null
           blocker_notes?: string | null
           carbon_description?: string | null
@@ -2096,6 +2102,7 @@ export type Database = {
           created_at?: string | null
           dependencies?: string[] | null
           duration_weeks?: number | null
+          end_date?: string | null
           financial_status?: string | null
           id?: string
           indicator?: string | null
@@ -2110,17 +2117,21 @@ export type Database = {
           owner_id?: string | null
           parent_id?: string | null
           pic?: string | null
+          planned_end_date?: string | null
+          planned_start_date?: string | null
           progress_percent?: number
           reviewer_id?: string | null
           sort_order?: number | null
           source_task_id?: string | null
           stage_id?: string | null
+          start_date?: string | null
           start_month?: number | null
           status?: string
           updated_at?: string | null
         }
         Update: {
-          blocked_reason?: string | null
+          actual_end_date?: string | null
+          actual_start_date?: string | null
           blocker_category?: string | null
           blocker_notes?: string | null
           carbon_description?: string | null
@@ -2135,6 +2146,7 @@ export type Database = {
           created_at?: string | null
           dependencies?: string[] | null
           duration_weeks?: number | null
+          end_date?: string | null
           financial_status?: string | null
           id?: string
           indicator?: string | null
@@ -2149,11 +2161,14 @@ export type Database = {
           owner_id?: string | null
           parent_id?: string | null
           pic?: string | null
+          planned_end_date?: string | null
+          planned_start_date?: string | null
           progress_percent?: number
           reviewer_id?: string | null
           sort_order?: number | null
           source_task_id?: string | null
           stage_id?: string | null
+          start_date?: string | null
           start_month?: number | null
           status?: string
           updated_at?: string | null
@@ -2433,6 +2448,94 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      org_learning_entries: {
+        Row: {
+          authored_by: string
+          created_at: string
+          id: string
+          insight: string
+          insight_type: string
+          org_id: string
+          published_at: string | null
+          published_by: string | null
+          recommendation: string
+          scope: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          authored_by: string
+          created_at?: string
+          id?: string
+          insight: string
+          insight_type: string
+          org_id: string
+          published_at?: string | null
+          published_by?: string | null
+          recommendation: string
+          scope: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          authored_by?: string
+          created_at?: string
+          id?: string
+          insight?: string
+          insight_type?: string
+          org_id?: string
+          published_at?: string | null
+          published_by?: string | null
+          recommendation?: string
+          scope?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_learning_entries_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      org_learning_evidence: {
+        Row: {
+          created_at: string
+          id: string
+          learning_id: string
+          source_id: string
+          source_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          learning_id: string
+          source_id: string
+          source_type: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          learning_id?: string
+          source_id?: string
+          source_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "org_learning_evidence_learning_id_fkey"
+            columns: ["learning_id"]
+            isOneToOne: false
+            referencedRelation: "org_learning_entries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       organization_invitations: {
         Row: {
@@ -2834,6 +2937,407 @@ export type Database = {
           },
         ]
       }
+      project_baselines: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          org_id: string
+          project_id: string
+          snapshot: Json
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          org_id: string
+          project_id: string
+          snapshot: Json
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          org_id?: string
+          project_id?: string
+          snapshot?: Json
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_baselines_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_baselines_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_budget_commitments: {
+        Row: {
+          amount_idr: number
+          approved_at: string | null
+          approved_by: string | null
+          budget_item_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          counterparty_name: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          expected_realization_date: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        Insert: {
+          amount_idr: number
+          approved_at?: string | null
+          approved_by?: string | null
+          budget_item_id: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          counterparty_name?: string | null
+          created_at?: string
+          created_by: string
+          decision_note?: string | null
+          description?: string | null
+          evidence_url?: string | null
+          expected_realization_date?: string | null
+          id?: string
+          lfa_project_id: string
+          org_id: string
+          reference_number?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          workflow_status?: string
+        }
+        Update: {
+          amount_idr?: number
+          approved_at?: string | null
+          approved_by?: string | null
+          budget_item_id?: string
+          cancelled_at?: string | null
+          cancelled_by?: string | null
+          counterparty_name?: string | null
+          created_at?: string
+          created_by?: string
+          decision_note?: string | null
+          description?: string | null
+          evidence_url?: string | null
+          expected_realization_date?: string | null
+          id?: string
+          lfa_project_id?: string
+          org_id?: string
+          reference_number?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          updated_at?: string
+          workflow_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_commitment_budget_item_project_org"
+            columns: ["budget_item_id", "lfa_project_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_budget_items"
+            referencedColumns: ["id", "lfa_project_id", "org_id"]
+          },
+          {
+            foreignKeyName: "project_budget_commitments_lfa_project_id_fkey"
+            columns: ["lfa_project_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_budget_commitments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_budget_expenditures: {
+        Row: {
+          amount_idr: number
+          budget_item_id: string
+          commitment_id: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          transaction_date: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        Insert: {
+          amount_idr: number
+          budget_item_id: string
+          commitment_id?: string | null
+          created_at?: string
+          created_by: string
+          decision_note?: string | null
+          description?: string | null
+          evidence_url?: string | null
+          id?: string
+          lfa_project_id: string
+          org_id: string
+          posted_at?: string | null
+          posted_by?: string | null
+          reference_number?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          reversal_of_id?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          transaction_date?: string | null
+          updated_at?: string
+          workflow_status?: string
+        }
+        Update: {
+          amount_idr?: number
+          budget_item_id?: string
+          commitment_id?: string | null
+          created_at?: string
+          created_by?: string
+          decision_note?: string | null
+          description?: string | null
+          evidence_url?: string | null
+          id?: string
+          lfa_project_id?: string
+          org_id?: string
+          posted_at?: string | null
+          posted_by?: string | null
+          reference_number?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          reversal_of_id?: string | null
+          submitted_at?: string | null
+          submitted_by?: string | null
+          transaction_date?: string | null
+          updated_at?: string
+          workflow_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_expenditure_budget_item_project_org"
+            columns: ["budget_item_id", "lfa_project_id", "org_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_budget_items"
+            referencedColumns: ["id", "lfa_project_id", "org_id"]
+          },
+          {
+            foreignKeyName: "fk_expenditure_commitment_identity"
+            columns: [
+              "commitment_id",
+              "lfa_project_id",
+              "org_id",
+              "budget_item_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "project_budget_commitments"
+            referencedColumns: [
+              "id",
+              "lfa_project_id",
+              "org_id",
+              "budget_item_id",
+            ]
+          },
+          {
+            foreignKeyName: "fk_expenditure_reversal_identity"
+            columns: [
+              "reversal_of_id",
+              "lfa_project_id",
+              "org_id",
+              "budget_item_id",
+            ]
+            isOneToOne: false
+            referencedRelation: "project_budget_expenditures"
+            referencedColumns: [
+              "id",
+              "lfa_project_id",
+              "org_id",
+              "budget_item_id",
+            ]
+          },
+          {
+            foreignKeyName: "project_budget_expenditures_lfa_project_id_fkey"
+            columns: ["lfa_project_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_budget_expenditures_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_budget_finance_events: {
+        Row: {
+          actor_id: string
+          created_at: string
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id: string
+          lfa_project_id: string
+          org_id: string
+          safe_metadata: Json
+        }
+        Insert: {
+          actor_id: string
+          created_at?: string
+          entity_id: string
+          entity_type: string
+          event_type: string
+          id?: string
+          lfa_project_id: string
+          org_id: string
+          safe_metadata?: Json
+        }
+        Update: {
+          actor_id?: string
+          created_at?: string
+          entity_id?: string
+          entity_type?: string
+          event_type?: string
+          id?: string
+          lfa_project_id?: string
+          org_id?: string
+          safe_metadata?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_budget_finance_events_lfa_project_id_fkey"
+            columns: ["lfa_project_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_budget_finance_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_evaluation_findings: {
+        Row: {
+          created_at: string
+          created_by: string
+          evidence_id: string | null
+          finding: string
+          id: string
+          org_id: string
+          project_id: string
+          recommendation: string | null
+          severity: string
+          title: string
+          updated_at: string
+          wbs_item_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          evidence_id?: string | null
+          finding: string
+          id?: string
+          org_id: string
+          project_id: string
+          recommendation?: string | null
+          severity?: string
+          title: string
+          updated_at?: string
+          wbs_item_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          evidence_id?: string | null
+          finding?: string
+          id?: string
+          org_id?: string
+          project_id?: string
+          recommendation?: string | null
+          severity?: string
+          title?: string
+          updated_at?: string
+          wbs_item_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_evaluation_findings_evidence_id_fkey"
+            columns: ["evidence_id"]
+            isOneToOne: false
+            referencedRelation: "wbs_completion_evidence"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_evaluation_findings_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_evaluation_findings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_evaluation_findings_wbs_item_id_fkey"
+            columns: ["wbs_item_id"]
+            isOneToOne: false
+            referencedRelation: "lfa_wbs_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_objectives: {
         Row: {
           archived_at: string | null
@@ -2913,6 +3417,7 @@ export type Database = {
           primary_objective_id: string | null
           project_id: string
           sort_order: number
+          stage_owner: string | null
           status: string
           title: string
           updated_at: string
@@ -2932,6 +3437,7 @@ export type Database = {
           primary_objective_id?: string | null
           project_id: string
           sort_order?: number
+          stage_owner?: string | null
           status?: string
           title: string
           updated_at?: string
@@ -2951,6 +3457,7 @@ export type Database = {
           primary_objective_id?: string | null
           project_id?: string
           sort_order?: number
+          stage_owner?: string | null
           status?: string
           title?: string
           updated_at?: string
@@ -3300,9 +3807,14 @@ export type Database = {
           claimed_by: string
           claimed_progress: number | null
           created_at: string
+          facts: Json
           id: string
+          lessons_learned: string | null
           lfa_project_id: string
+          next_action: string | null
+          observations: string | null
           org_id: string
+          recommendations: string | null
           review_note: string | null
           reviewed_at: string | null
           reviewed_by: string | null
@@ -3317,9 +3829,14 @@ export type Database = {
           claimed_by: string
           claimed_progress?: number | null
           created_at?: string
+          facts?: Json
           id?: string
+          lessons_learned?: string | null
           lfa_project_id: string
+          next_action?: string | null
+          observations?: string | null
           org_id: string
+          recommendations?: string | null
           review_note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -3334,9 +3851,14 @@ export type Database = {
           claimed_by?: string
           claimed_progress?: number | null
           created_at?: string
+          facts?: Json
           id?: string
+          lessons_learned?: string | null
           lfa_project_id?: string
+          next_action?: string | null
+          observations?: string | null
           org_id?: string
+          recommendations?: string | null
           review_note?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -3499,6 +4021,40 @@ export type Database = {
         Args: { _token: string; _user_id: string }
         Returns: Json
       }
+      approve_commitment: {
+        Args: { p_commitment_id: string; p_decision_note?: string }
+        Returns: {
+          amount_idr: number
+          approved_at: string | null
+          approved_by: string | null
+          budget_item_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          counterparty_name: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          expected_realization_date: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_budget_commitments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       archive_programme_deliverable: {
         Args: { p_archive_reason: string; p_deliverable_id: string }
         Returns: {
@@ -3551,6 +4107,10 @@ export type Database = {
           status: string
         }[]
       }
+      assert_finance_owner: {
+        Args: { _actor_id: string; _org_id: string }
+        Returns: undefined
+      }
       assign_meal_item_context: {
         Args: {
           p_deliverable_id: string
@@ -3565,6 +4125,20 @@ export type Database = {
           stage_id: string
         }[]
       }
+      assign_wbs_item_people: {
+        Args: {
+          p_clear_owner?: boolean
+          p_clear_reviewer?: boolean
+          p_owner_id?: string
+          p_reviewer_id?: string
+          p_wbs_item_id: string
+        }
+        Returns: {
+          id: string
+          owner_id: string
+          reviewer_id: string
+        }[]
+      }
       assign_wbs_item_to_stage: {
         Args: { p_stage_id: string; p_wbs_item_id: string }
         Returns: {
@@ -3576,6 +4150,52 @@ export type Database = {
         Args: { p_lfa_project_id: string; p_org_id: string }
         Returns: number
       }
+      cancel_commitment: {
+        Args: { p_commitment_id: string; p_decision_note?: string }
+        Returns: {
+          amount_idr: number
+          approved_at: string | null
+          approved_by: string | null
+          budget_item_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          counterparty_name: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          expected_realization_date: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_budget_commitments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      compute_budget_aggregates: {
+        Args: { _lfa_project_id: string }
+        Returns: {
+          approved_commitment: number
+          budget_item_id: string
+          committed_outstanding: number
+          net_actual: number
+          planned: number
+          posted_actual_gross: number
+          posted_reversals: number
+        }[]
+      }
       consume_ai_rate_limit: {
         Args: {
           _bucket: string
@@ -3584,6 +4204,91 @@ export type Database = {
           _window_seconds: number
         }
         Returns: Json
+      }
+      create_commitment_draft: {
+        Args: {
+          p_amount_idr: number
+          p_budget_item_id: string
+          p_counterparty_name?: string
+          p_description?: string
+          p_evidence_url?: string
+          p_expected_realization_date?: string
+          p_lfa_project_id: string
+          p_reference_number?: string
+        }
+        Returns: {
+          amount_idr: number
+          approved_at: string | null
+          approved_by: string | null
+          budget_item_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          counterparty_name: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          expected_realization_date: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_budget_commitments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      create_expenditure_draft: {
+        Args: {
+          p_amount_idr: number
+          p_budget_item_id: string
+          p_commitment_id?: string
+          p_description?: string
+          p_evidence_url?: string
+          p_lfa_project_id: string
+          p_reference_number?: string
+          p_transaction_date?: string
+        }
+        Returns: {
+          amount_idr: number
+          budget_item_id: string
+          commitment_id: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          transaction_date: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_budget_expenditures"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       create_programme_deliverable: {
         Args: {
@@ -3634,6 +4339,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      create_project_baseline: {
+        Args: { p_project_id: string }
+        Returns: {
+          created_at: string
+          created_by: string
+          id: string
+          project_id: string
+          version: number
+        }[]
+      }
       create_project_management_project: {
         Args: {
           p_beneficiary_count: number
@@ -3672,29 +4387,54 @@ export type Database = {
           title: string
         }[]
       }
-      create_project_stage: {
-        Args: {
-          p_description: string
-          p_planned_end_date: string
-          p_planned_start_date: string
-          p_primary_objective_id: string
-          p_project_id: string
-          p_title: string
-        }
-        Returns: {
-          created_at: string
-          description: string
-          id: string
-          org_id: string
-          planned_end_date: string
-          planned_start_date: string
-          primary_objective_id: string
-          project_id: string
-          sort_order: number
-          status: string
-          title: string
-        }[]
-      }
+      create_project_stage:
+        | {
+            Args: {
+              p_description: string
+              p_planned_end_date: string
+              p_planned_start_date: string
+              p_primary_objective_id: string
+              p_project_id: string
+              p_title: string
+            }
+            Returns: {
+              created_at: string
+              description: string
+              id: string
+              org_id: string
+              planned_end_date: string
+              planned_start_date: string
+              primary_objective_id: string
+              project_id: string
+              sort_order: number
+              status: string
+              title: string
+            }[]
+          }
+        | {
+            Args: {
+              p_description: string
+              p_planned_end_date: string
+              p_planned_start_date: string
+              p_primary_objective_id: string
+              p_project_id: string
+              p_stage_owner?: string
+              p_title: string
+            }
+            Returns: {
+              created_at: string
+              description: string
+              id: string
+              org_id: string
+              planned_end_date: string
+              planned_start_date: string
+              primary_objective_id: string
+              project_id: string
+              sort_order: number
+              status: string
+              title: string
+            }[]
+          }
       get_org_role: {
         Args: { _org_id: string; _user_id: string }
         Returns: Database["public"]["Enums"]["org_role"]
@@ -3797,6 +4537,106 @@ export type Database = {
         Args: { p_entries: Json; p_project_id: string }
         Returns: Json
       }
+      post_expenditure: {
+        Args: { p_decision_note?: string; p_expenditure_id: string }
+        Returns: {
+          amount_idr: number
+          budget_item_id: string
+          commitment_id: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          transaction_date: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_budget_expenditures"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reject_commitment: {
+        Args: { p_commitment_id: string; p_decision_note?: string }
+        Returns: {
+          amount_idr: number
+          approved_at: string | null
+          approved_by: string | null
+          budget_item_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          counterparty_name: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          expected_realization_date: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_budget_commitments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      reject_expenditure: {
+        Args: { p_decision_note?: string; p_expenditure_id: string }
+        Returns: {
+          amount_idr: number
+          budget_item_id: string
+          commitment_id: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          transaction_date: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_budget_expenditures"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       reorder_project_objectives: {
         Args: { p_ordered_ids: string[]; p_project_id: string }
         Returns: {
@@ -3824,6 +4664,121 @@ export type Database = {
           id: string
           status: string
         }[]
+      }
+      reverse_expenditure: {
+        Args: {
+          p_description?: string
+          p_evidence_url?: string
+          p_original_expenditure_id: string
+          p_reversal_amount_idr: number
+        }
+        Returns: {
+          amount_idr: number
+          budget_item_id: string
+          commitment_id: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          transaction_date: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_budget_expenditures"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      review_wbs_completion_claim: {
+        Args: { p_claim_id: string; p_decision: string; p_review_note?: string }
+        Returns: {
+          id: string
+          review_note: string
+          reviewed_at: string
+          reviewed_by: string
+          status: string
+        }[]
+      }
+      submit_commitment: {
+        Args: { p_commitment_id: string }
+        Returns: {
+          amount_idr: number
+          approved_at: string | null
+          approved_by: string | null
+          budget_item_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          counterparty_name: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          expected_realization_date: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_budget_commitments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      submit_expenditure: {
+        Args: { p_expenditure_id: string }
+        Returns: {
+          amount_idr: number
+          budget_item_id: string
+          commitment_id: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          transaction_date: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_budget_expenditures"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
       transition_programme_deliverable: {
         Args: {
@@ -3862,6 +4817,85 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "programme_deliverables"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_assigned_wbs_execution_status: {
+        Args: {
+          p_blocked_reason?: string
+          p_status: string
+          p_wbs_item_id: string
+        }
+        Returns: {
+          blocked_reason: string
+          id: string
+          status: string
+        }[]
+      }
+      update_commitment_draft: {
+        Args: { p_commitment_id: string; p_patch: Json }
+        Returns: {
+          amount_idr: number
+          approved_at: string | null
+          approved_by: string | null
+          budget_item_id: string
+          cancelled_at: string | null
+          cancelled_by: string | null
+          counterparty_name: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          expected_realization_date: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_budget_commitments"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      update_expenditure_draft: {
+        Args: { p_expenditure_id: string; p_patch: Json }
+        Returns: {
+          amount_idr: number
+          budget_item_id: string
+          commitment_id: string | null
+          created_at: string
+          created_by: string
+          decision_note: string | null
+          description: string | null
+          evidence_url: string | null
+          id: string
+          lfa_project_id: string
+          org_id: string
+          posted_at: string | null
+          posted_by: string | null
+          reference_number: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          reversal_of_id: string | null
+          submitted_at: string | null
+          submitted_by: string | null
+          transaction_date: string | null
+          updated_at: string
+          workflow_status: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "project_budget_expenditures"
           isOneToOne: true
           isSetofReturn: false
         }
@@ -3942,34 +4976,64 @@ export type Database = {
           updated_at: string
         }[]
       }
-      update_project_stage_metadata: {
-        Args: {
-          p_actual_end_date: string
-          p_actual_start_date: string
-          p_description: string
-          p_planned_end_date: string
-          p_planned_start_date: string
-          p_primary_objective_id: string
-          p_stage_id: string
-          p_status: string
-          p_title: string
-        }
-        Returns: {
-          actual_end_date: string
-          actual_start_date: string
-          description: string
-          id: string
-          org_id: string
-          planned_end_date: string
-          planned_start_date: string
-          primary_objective_id: string
-          project_id: string
-          sort_order: number
-          status: string
-          title: string
-          updated_at: string
-        }[]
-      }
+      update_project_stage_metadata:
+        | {
+            Args: {
+              p_actual_end_date: string
+              p_actual_start_date: string
+              p_description: string
+              p_planned_end_date: string
+              p_planned_start_date: string
+              p_primary_objective_id: string
+              p_stage_id: string
+              p_status: string
+              p_title: string
+            }
+            Returns: {
+              actual_end_date: string
+              actual_start_date: string
+              description: string
+              id: string
+              org_id: string
+              planned_end_date: string
+              planned_start_date: string
+              primary_objective_id: string
+              project_id: string
+              sort_order: number
+              status: string
+              title: string
+              updated_at: string
+            }[]
+          }
+        | {
+            Args: {
+              p_actual_end_date: string
+              p_actual_start_date: string
+              p_description: string
+              p_planned_end_date: string
+              p_planned_start_date: string
+              p_primary_objective_id: string
+              p_stage_id: string
+              p_stage_owner?: string
+              p_status: string
+              p_title: string
+            }
+            Returns: {
+              actual_end_date: string
+              actual_start_date: string
+              description: string
+              id: string
+              org_id: string
+              planned_end_date: string
+              planned_start_date: string
+              primary_objective_id: string
+              project_id: string
+              sort_order: number
+              status: string
+              title: string
+              updated_at: string
+            }[]
+          }
       user_has_organization: {
         Args: { check_user_id: string }
         Returns: boolean

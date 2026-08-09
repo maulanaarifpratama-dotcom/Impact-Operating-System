@@ -9,28 +9,15 @@
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import type { Database, Json } from '@/integrations/supabase/database.generated';
 
-// ── Types ───────────────────────────────────────────────────────────────────
+type Rpc = SupabaseClient<Database, 'public'>;
 
-export interface CommitmentRow {
-  id: string;
-  lfa_project_id: string;
-  budget_item_id: string;
-  amount_idr: number;
-  workflow_status: 'draft' | 'submitted' | 'approved' | 'rejected' | 'cancelled';
-  description: string | null;
-  counterparty_name: string | null;
-  reference_number: string | null;
-  expected_realization_date: string | null;
-  evidence_url: string | null;
-  submitted_at: string | null;
-  approved_at: string | null;
-  cancelled_at: string | null;
-  rejected_at: string | null;
-  decision_note: string | null;
-  created_at: string;
-  updated_at: string;
-}
+// ── Generated Row Type ──────────────────────────────────────────────────────
+
+export type CommitmentRow = Database['public']['Tables']['project_budget_commitments']['Row'];
+
+// ── User-Editable Form Types ────────────────────────────────────────────────
 
 export type CommitmentAction = 'edit' | 'submit' | 'approve' | 'reject' | 'cancel';
 
@@ -57,7 +44,7 @@ export interface UpdateCommitmentPatch {
 // ── Query ───────────────────────────────────────────────────────────────────
 
 export async function listProjectCommitments(
-  supabase: SupabaseClient<any, 'public', any>,
+  supabase: Rpc,
   lfa_project_id: string,
 ): Promise<CommitmentRow[]> {
   const { data, error } = await supabase
@@ -67,19 +54,18 @@ export async function listProjectCommitments(
     .order('created_at', { ascending: false });
 
   if (error) throw error;
-  return (data || []) as CommitmentRow[];
+  return (data ?? []) as unknown as CommitmentRow[];
 }
 
-const COMMITMENT_FIELDS =
-  'id,lfa_project_id,budget_item_id,amount_idr,workflow_status,description,counterparty_name,reference_number,expected_realization_date,evidence_url,submitted_at,approved_at,cancelled_at,rejected_at,decision_note,created_at,updated_at';
+const COMMITMENT_FIELDS = 'id,lfa_project_id,budget_item_id,amount_idr,workflow_status,description,counterparty_name,reference_number,expected_realization_date,evidence_url,submitted_at,approved_at,cancelled_at,rejected_at,decision_note,created_at,updated_at';
 
 // ── Mutations ───────────────────────────────────────────────────────────────
 
 export async function createCommitmentDraft(
-  supabase: SupabaseClient<any, 'public', any>,
+  supabase: Rpc,
   input: CreateCommitmentInput,
 ): Promise<CommitmentRow> {
-  const { data, error } = await (supabase as any).rpc('create_commitment_draft', {
+  const { data, error } = await supabase.rpc('create_commitment_draft', {
     p_lfa_project_id: input.lfa_project_id,
     p_budget_item_id: input.budget_item_id,
     p_amount_idr: input.amount_idr,
@@ -91,71 +77,71 @@ export async function createCommitmentDraft(
   });
 
   if (error) throw error;
-  return data as CommitmentRow;
+  return data as unknown as CommitmentRow;
 }
 
 export async function updateCommitmentDraft(
-  supabase: SupabaseClient<any, 'public', any>,
+  supabase: Rpc,
   commitmentId: string,
   patch: UpdateCommitmentPatch,
 ): Promise<CommitmentRow> {
-  const { data, error } = await (supabase as any).rpc('update_commitment_draft', {
+  const { data, error } = await supabase.rpc('update_commitment_draft', {
     p_commitment_id: commitmentId,
-    p_patch: patch,
+    p_patch: patch as Json,
   });
 
   if (error) throw error;
-  return data as CommitmentRow;
+  return data as unknown as CommitmentRow;
 }
 
 export async function submitCommitment(
-  supabase: SupabaseClient<any, 'public', any>,
+  supabase: Rpc,
   commitmentId: string,
 ): Promise<CommitmentRow> {
-  const { data, error } = await (supabase as any).rpc('submit_commitment', {
+  const { data, error } = await supabase.rpc('submit_commitment', {
     p_commitment_id: commitmentId,
   });
   if (error) throw error;
-  return data as CommitmentRow;
+  return data as unknown as CommitmentRow;
 }
 
 export async function approveCommitment(
-  supabase: SupabaseClient<any, 'public', any>,
+  supabase: Rpc,
   commitmentId: string,
   decisionNote?: string,
 ): Promise<CommitmentRow> {
-  const { data, error } = await (supabase as any).rpc('approve_commitment', {
+  const { data, error } = await supabase.rpc('approve_commitment', {
     p_commitment_id: commitmentId,
     p_decision_note: decisionNote ?? null,
   });
   if (error) throw error;
-  return data as CommitmentRow;
+  return data as unknown as CommitmentRow;
 }
 
 export async function rejectCommitment(
-  supabase: SupabaseClient<any, 'public', any>,
+  supabase: Rpc,
   commitmentId: string,
   decisionNote: string,
 ): Promise<CommitmentRow> {
-  const { data, error } = await (supabase as any).rpc('reject_commitment', {
+  const { data, error } = await supabase.rpc('reject_commitment', {
     p_commitment_id: commitmentId,
     p_decision_note: decisionNote,
   });
   if (error) throw error;
-  return data as CommitmentRow;
+  return data as unknown as CommitmentRow;
 }
 
 export async function cancelCommitment(
-  supabase: SupabaseClient<any, 'public', any>,
+  supabase: Rpc,
   commitmentId: string,
   decisionNote: string,
 ): Promise<CommitmentRow> {
-  const { data, error } = await (supabase as any).rpc('cancel_commitment', {
+  const { data, error } = await supabase.rpc('cancel_commitment', {
     p_commitment_id: commitmentId,
     p_decision_note: decisionNote,
   });
   if (error) throw error;
-  return data as CommitmentRow;
+  return data as unknown as CommitmentRow;
 }
 
 // ── Lifecycle Actions ───────────────────────────────────────────────────────
@@ -175,7 +161,7 @@ export function getCommitmentAvailableActions(status: string): CommitmentAction[
 
 // ── Patch Builder ───────────────────────────────────────────────────────────
 
-const ALLOWED_PATCH_FIELDS: (keyof UpdateCommitmentPatch)[] = [
+const ALLOWED_PATCH_FIELDS: readonly (keyof UpdateCommitmentPatch)[] = [
   'amount_idr',
   'description',
   'counterparty_name',
@@ -191,8 +177,8 @@ export function buildCommitmentPatch(
   const patch: Record<string, unknown> = {};
 
   for (const field of ALLOWED_PATCH_FIELDS) {
-    const orig = (original as any)[field];
-    const edit = (edited as any)[field];
+    const orig = (original as Record<string, unknown>)[field];
+    const edit = (edited as Record<string, unknown>)[field];
 
     if (edit === undefined) continue;
 
@@ -225,7 +211,9 @@ export function validateCommitmentAmount(value: unknown): string | null {
 
 // ── Error Mapping ───────────────────────────────────────────────────────────
 
-const ERROR_MAP: Array<{ prefix: string; message: string }> = [
+type ErrorMapperEntry = { prefix: string; message: string };
+
+const ERROR_MAP: ErrorMapperEntry[] = [
   { prefix: 'AUTHENTICATION_REQUIRED', message: 'Sesi Anda tidak valid. Silakan masuk kembali.' },
   { prefix: 'FINANCE_OWNER_REQUIRED', message: 'Hanya pemilik organisasi yang dapat mengelola komitmen keuangan.' },
   { prefix: 'COMMITMENT_NOT_FOUND', message: 'Komitmen tidak ditemukan.' },
@@ -239,11 +227,15 @@ const ERROR_MAP: Array<{ prefix: string; message: string }> = [
 ];
 
 export function mapFinanceCommitmentError(err: unknown): string {
-  const message = (err as any)?.message ?? (err as any)?.error?.message ?? String(err ?? '');
+  const message: string =
+    (err as { message?: string })?.message ??
+    (err as { error?: { message?: string } })?.error?.message ??
+    String(err ?? '');
+
   for (const entry of ERROR_MAP) {
     if (message.includes(entry.prefix)) return entry.message;
   }
-  // Do not leak raw SQL
+
   return 'Tindakan tidak dapat diselesaikan. Muat ulang data dan coba kembali.';
 }
 
