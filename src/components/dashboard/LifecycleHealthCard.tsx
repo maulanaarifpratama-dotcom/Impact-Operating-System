@@ -33,6 +33,7 @@ const DIMENSION_ICONS: Record<string, React.ComponentType<{ className?: string }
   evidence: FileCheck,
   evaluation: Shield,
   learning: BookOpen,
+  sroi: TrendingUp,
 };
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
@@ -62,6 +63,7 @@ const DIMENSION_LINKS: Record<string, string> = {
   evidence: '/dashboard/project-management',
   evaluation: '/dashboard/project-management',
   learning: '/dashboard/learning?status=published',
+  sroi: '/dashboard/sroi-workspace',
 };
 
 // ── Component ───────────────────────────────────────────────────────────────
@@ -164,6 +166,36 @@ export function LifecycleHealthCard() {
     staleTime: 2 * 60 * 1000,
   });
 
+  // ── SROI configs ───────────────────────────────────────────────────────────
+  const { data: sroiConfigs = [] } = useQuery({
+    queryKey: ['lifecycle-health-sroi', orgId],
+    queryFn: async () => {
+      if (!orgId) return [];
+      const { data } = await supabase
+        .from('lfa_sroi_config')
+        .select('lfa_project_id,sroi_ratio')
+        .eq('org_id', orgId);
+      return data || [];
+    },
+    enabled: !!orgId,
+    staleTime: 2 * 60 * 1000,
+  });
+
+  // ── Project count ──────────────────────────────────────────────────────────
+  const { data: projectCount = 0 } = useQuery({
+    queryKey: ['lifecycle-health-projects', orgId],
+    queryFn: async () => {
+      if (!orgId) return 0;
+      const { count } = await supabase
+        .from('lfa_projects')
+        .select('id', { count: 'exact', head: true })
+        .eq('org_id', orgId);
+      return count || 0;
+    },
+    enabled: !!orgId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // ── Compute aggregate ─────────────────────────────────────────────────────
   const result: LifecycleHealthResult | null = useMemo(() => {
     if (!orgId) return null;
@@ -193,6 +225,10 @@ export function LifecycleHealthCard() {
     // Learning
     const published = learningEntries.filter((e: any) => e.status === 'published').length;
     const drafts = learningEntries.filter((e: any) => e.status === 'draft').length;
+
+    const sroiProjectIds = new Set(sroiConfigs.map((c: any) => c.lfa_project_id));
+    const sroiRatios = sroiConfigs.map((c: any) => Number(c.sroi_ratio)).filter((r: number) => !isNaN(r) && r > 0);
+    const avgSroi = sroiRatios.length > 0 ? sroiRatios.reduce((a: number, b: number) => a + b, 0) / sroiRatios.length : null;
 
     const agg: LifecycleAggregate = {
       budget: { complianceScore: null, utilizationPct: null },
@@ -231,10 +267,15 @@ export function LifecycleHealthCard() {
         publishedEntries: published,
         draftEntries: drafts,
       },
+      sroi: {
+        totalProjects: projectCount,
+        projectsWithSroi: sroiProjectIds.size,
+        averageRatio: avgSroi,
+      },
     };
 
     return computeLifecycleHealth(agg);
-  }, [orgId, mealItems, wbsItems, claims, findings, learningEntries]);
+  }, [orgId, mealItems, wbsItems, claims, findings, learningEntries, sroiConfigs, projectCount]);
 
   // ── Loading / No Org ──────────────────────────────────────────────────────
   if (!orgId) {

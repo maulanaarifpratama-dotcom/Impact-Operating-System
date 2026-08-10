@@ -79,7 +79,7 @@ const IMPACT_ITEMS: NavItem[] = [
   { name: 'Beneficiary Registry', href: '/dashboard/beneficiary', icon: Users },
   { name: 'Campaign Builder', href: '/dashboard/impactory-ads', icon: Megaphone },
   { name: 'Impact Dashboard', href: '/dashboard/impact', icon: BarChart2 },
-  { name: 'SROI Calculator', href: '/dashboard/sroi', icon: TrendingUp },
+  { name: 'SROI Workspace', href: '/dashboard/sroi-workspace', icon: TrendingUp },
   { name: 'E-ROI Carbon', href: '/dashboard/eroi', icon: Leaf },
   { name: 'Monthly Report', href: '/dashboard/monthly-report', icon: BarChart3 },
   { name: 'Operating Review', href: '/dashboard/operating-review', icon: CalendarRange },

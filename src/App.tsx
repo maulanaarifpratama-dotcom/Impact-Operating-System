@@ -44,6 +44,7 @@ const ImpactDashboard = lazy(() => import('./pages/dashboard/ImpactDashboard'));
 const MonthlyOperatingReview = lazy(() => import('./pages/dashboard/MonthlyOperatingReview'));
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
 const SROIStandalone = lazy(() => import('./pages/dashboard/SROIStandalone'));
+const SROIWorkspace = lazy(() => import('./pages/dashboard/SROIWorkspace'));
 const EROIStandalone = lazy(() => import('./pages/dashboard/EROIStandalone'));
 const ESGDashboard = lazy(() => import('./pages/dashboard/ESGDashboard'));
 const SustainabilityReports = lazy(() => import('./pages/dashboard/SustainabilityReports'));
@@ -290,6 +291,7 @@ const App = () => (
               <Route path="/dashboard/learning" element={<LearningLibraryPage />} />
               <Route path="/dashboard/learning/:learningId" element={<LearningDetailPage />} />
               <Route path="/dashboard/sroi" element={<SROIStandalone />} />
+              <Route path="/dashboard/sroi-workspace/:projectId?" element={<SROIWorkspace />} />
               <Route path="/dashboard/eroi" element={<EROIStandalone />} />
               <Route path="/dashboard/esg" element={<ESGDashboard />} />
               <Route path="/dashboard/sustainability-reports" element={<SustainabilityReports />} />

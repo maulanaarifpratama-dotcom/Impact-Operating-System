@@ -46,6 +46,11 @@ export interface LifecycleAggregate {
     publishedEntries: number;
     draftEntries: number;
   };
+  sroi: {
+    totalProjects: number;
+    projectsWithSroi: number;
+    averageRatio: number | null;
+  };
 }
 
 export interface HealthDimension {
@@ -84,7 +89,8 @@ const WEIGHTS: Record<string, number> = {
   execution: 0.25,
   evidence: 0.15,
   evaluation: 0.10,
-  learning: 0.10,
+  learning: 0.08,
+  sroi: 0.02,
 };
 
 const DIMENSION_LABELS: Record<string, string> = {
@@ -94,6 +100,7 @@ const DIMENSION_LABELS: Record<string, string> = {
   evidence: 'Kematangan Bukti',
   evaluation: 'Cakupan Evaluasi',
   learning: 'Kematangan Pembelajaran',
+  sroi: 'SROI',
 };
 
 // ── Engine ──────────────────────────────────────────────────────────────────
@@ -150,6 +157,14 @@ function computeLearningHealth(a: LifecycleAggregate['learning']): number {
   return clamp((a.publishedEntries / a.totalEntries) * 100);
 }
 
+function computeSroiHealth(a: LifecycleAggregate['sroi']): number {
+  if (a.totalProjects === 0) return 4; // No projects
+  if (a.projectsWithSroi === 0) return 2; // Projects exist but no SROI
+  const coverage = clamp((a.projectsWithSroi / a.totalProjects) * 50); // Coverage score
+  const ratioScore = a.averageRatio != null ? clamp(Math.min(a.averageRatio * 15, 50)) : 0; // Ratio score
+  return clamp(coverage + ratioScore);
+}
+
 function dimensionDetail(key: string, score: number, agg: LifecycleAggregate): string {
   switch (key) {
     case 'budget':
@@ -166,6 +181,9 @@ function dimensionDetail(key: string, score: number, agg: LifecycleAggregate): s
       return `${agg.evaluation.totalFindings} temuan (${agg.evaluation.criticalFindings} kritis)`;
     case 'learning':
       return `${agg.learning.publishedEntries}/${agg.learning.totalEntries} dipublikasikan`;
+    case 'sroi':
+      if (agg.sroi.averageRatio != null) return `${agg.sroi.projectsWithSroi}/${agg.sroi.totalProjects} proyek, rata-rata ${Number(agg.sroi.averageRatio).toFixed(1)}:1`;
+      return `${agg.sroi.projectsWithSroi}/${agg.sroi.totalProjects} proyek terukur`;
     default:
       return '';
   }
@@ -217,6 +235,11 @@ function generateAlerts(agg: LifecycleAggregate): LifecycleAlert[] {
     alerts.push({ id: 'learn-published', severity: 'info', message: 'Pembelajaran dipublikasi', count: agg.learning.publishedEntries, dimension: 'learning', linkTo: '/dashboard/learning?status=published' });
   }
 
+  // SROI alerts
+  if (agg.sroi.totalProjects > 0 && agg.sroi.projectsWithSroi < agg.sroi.totalProjects) {
+    alerts.push({ id: 'sroi-missing', severity: 'warning', message: 'Proyek belum dihitung SROI', count: agg.sroi.totalProjects - agg.sroi.projectsWithSroi, dimension: 'sroi', linkTo: '/dashboard/sroi-workspace' });
+  }
+
   alerts.sort((a, b) => {
     const severityOrder = { critical: 0, warning: 1, info: 2 };
     return (severityOrder[a.severity] ?? 3) - (severityOrder[b.severity] ?? 3);
@@ -249,6 +272,7 @@ export function computeLifecycleHealth(agg: LifecycleAggregate): LifecycleHealth
   computeDim('evidence', computeEvidenceHealth, agg.evidence);
   computeDim('evaluation', computeEvaluationHealth, agg.evaluation);
   computeDim('learning', computeLearningHealth, agg.learning);
+  computeDim('sroi', computeSroiHealth, agg.sroi);
 
   // Normalize: if some dimensions have no data, re-weight the rest
   const totalScore = activeWeightSum > 0
