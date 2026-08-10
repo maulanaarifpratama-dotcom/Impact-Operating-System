@@ -24,6 +24,8 @@
  *                    (read-model aggregator)
  */
 
+import { computeBottleneckCounts } from './bottleneckModel';
+
 // ── Overall Project Health ──────────────────────────────────────────────────
 
 export type ProjectHealth = 'healthy' | 'at_risk' | 'critical' | 'unknown';
@@ -250,7 +252,181 @@ export interface ControlCenterProjectSnapshot {
   financialUtilizationPct: number | null;
   financialCashAvailable: number | null;
 
+  // Dashboard summary fields (derived from canonical sources)
+  executionProgressPct: number | null;
+  executionCompletedCount: number;
+  financialBudgetTotal: number;
+  financialRealisasiTotal: number;
+  financialPct: number | null;
+  resultsPct: number | null;
+  resultsOutputCount: number;
+
   overall: ProjectHealth;
+}
+
+// ── Snapshot Builder (reads canonical domain models) ────────────────────────
+//
+// Intended usage: the PM dashboard or health summary component calls this
+// function once with all raw data, and receives a single snapshot.
+// The component only renders — no inline business logic.
+
+export interface ControlCenterSnapshotInput {
+  projectId: string;
+  projectName: string;
+  /** WBS items for execution/overdue computation. */
+  wbsItems: Array<{
+    id: string;
+    level: number;
+    status?: string | null;
+    progress_percent?: number | null;
+    end_date?: string | null;
+    parent_id?: string | null;
+  }>;
+  /** Budget items for financial aggregation. */
+  budgetItems: Array<{
+    volume?: number | null;
+    unit_price_idr?: number | null;
+    actual_amount_idr?: number | null;
+  }>;
+  /** Bottleneck items for constraint health. */
+  bottleneckStatuses?: Array<{ status?: string | null }>;
+  /** MEAL output indicators with target_value and recorded entries. */
+  mealOutputs?: Array<{
+    id: string;
+    target_value?: number | null;
+    baseline?: number | null;
+  }>;
+  mealEntries?: Array<{
+    meal_item_id: string;
+    recorded_value: number | null;
+    recorded_date?: string | null;
+    created_at?: string | null;
+  }>;
+  /** Payment due date for overdue check. Defaults to now. */
+  now?: Date;
+}
+
+export function buildControlCenterSnapshot(
+  input: ControlCenterSnapshotInput,
+): ControlCenterProjectSnapshot {
+  const now = input.now ?? new Date();
+  const { wbsItems, budgetItems, bottleneckStatuses, mealOutputs, mealEntries } = input;
+
+  // ── Execution ──────────────────────────────────────────────────────────
+  const level2Items = wbsItems.filter((i) => i.level === 2);
+  const totalCount = level2Items.length;
+  let progressSum = 0;
+  let completedCount = 0;
+  let overdueCount = 0;
+  let overdueStalledCount = 0;
+
+  if (totalCount > 0) {
+    for (const item of level2Items) {
+      const prog = item.status === 'completed' ? 100 : (item.progress_percent ?? 0);
+      progressSum += prog;
+      if (prog >= 100) completedCount++;
+      if (item.end_date && new Date(item.end_date) < now && item.status !== 'completed') {
+        overdueCount++;
+        if (item.status !== 'in_progress') overdueStalledCount++;
+      }
+    }
+  }
+
+  const executionHealth = computeExecutionHealth({
+    overdueCount,
+    overdueStalledCount,
+    totalCount,
+  });
+
+  // ── Delivery ───────────────────────────────────────────────────────────
+  const deliveryHealth = computeDeliveryHealth({
+    overdueDeliverableCount: 0,
+    missedMilestoneCount: 0,
+    totalDeliverableCount: 0,
+  });
+
+  // ── Constraint ─────────────────────────────────────────────────────────
+  const bottleneckCounts = computeBottleneckCounts(bottleneckStatuses ?? []);
+  const constraintHealth = computeConstraintHealth({
+    activeBottleneckCount: bottleneckCounts.open + bottleneckCounts.inProgress,
+    pendingVerificationCount: bottleneckCounts.resolvedPendingVerification,
+  });
+
+  // ── Financial ──────────────────────────────────────────────────────────
+  let budgetTotal = 0;
+  let realisasiTotal = 0;
+  for (const b of budgetItems) {
+    budgetTotal += (b.volume ?? 1) * (b.unit_price_idr ?? 0);
+    realisasiTotal += (b.actual_amount_idr ?? 0);
+  }
+  const financialPct = budgetTotal > 0 ? Math.round((realisasiTotal / budgetTotal) * 100) : null;
+  const financialHealth: FinancialHealth = budgetTotal > 0
+    ? (realisasiTotal > budgetTotal ? 'overspent' :
+       financialPct != null && financialPct <= 80 ? 'healthy' :
+       financialPct != null && financialPct <= 95 ? 'watch' : 'critical')
+    : 'unknown';
+
+  // ── Results (MEAL) ─────────────────────────────────────────────────────
+  let resultsPct: number | null = null;
+  let outputCount = 0;
+  if (mealOutputs && mealOutputs.length > 0) {
+    const withTarget = mealOutputs.filter((m) => (m.target_value ?? 0) > 0);
+    outputCount = withTarget.length;
+    if (outputCount > 0) {
+      let achievementSum = 0;
+      for (const m of withTarget) {
+        const entries = (mealEntries ?? [])
+          .filter((e) => e.meal_item_id === m.id)
+          .sort((a, b) =>
+            new Date(b.recorded_date ?? b.created_at ?? 0).getTime() -
+            new Date(a.recorded_date ?? a.created_at ?? 0).getTime()
+          );
+        const latest = entries.length > 0 ? (entries[0].recorded_value ?? m.baseline ?? 0) : (m.baseline ?? 0);
+        achievementSum += Math.min(100, Math.max(0, (latest / m.target_value!) * 100));
+      }
+      resultsPct = Math.round(achievementSum / outputCount);
+    }
+  }
+
+  // ── Overall ────────────────────────────────────────────────────────────
+  const overall = computeOverallProjectHealth({
+    execution: executionHealth,
+    delivery: deliveryHealth,
+    constraint: constraintHealth,
+    financial: financialHealth,
+  });
+
+  return {
+    projectId: input.projectId,
+    projectName: input.projectName,
+
+    execution: executionHealth,
+    executionOverdueCount: overdueCount,
+    executionOverdueStalledCount: overdueStalledCount,
+    executionTotalCount: totalCount,
+    executionProgressPct: totalCount > 0 ? Math.round(progressSum / totalCount) : null,
+    executionCompletedCount: completedCount,
+
+    delivery: deliveryHealth,
+    deliveryOverdueCount: 0,
+    deliveryMissedMilestoneCount: 0,
+    deliveryTotalCount: 0,
+
+    constraint: constraintHealth,
+    constraintActiveCount: bottleneckCounts.open + bottleneckCounts.inProgress,
+    constraintPendingVerificationCount: bottleneckCounts.resolvedPendingVerification,
+
+    financial: financialHealth,
+    financialUtilizationPct: financialPct,
+    financialCashAvailable: null,
+    financialBudgetTotal: budgetTotal,
+    financialRealisasiTotal: realisasiTotal,
+    financialPct,
+    resultsPct,
+    resultsOutputCount: outputCount,
+
+    overall,
+  };
 }
 
 // ── Domain Source Attribution ───────────────────────────────────────────────
