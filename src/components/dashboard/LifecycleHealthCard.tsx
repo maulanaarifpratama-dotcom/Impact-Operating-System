@@ -56,12 +56,12 @@ const BAR_COLORS: Record<string, string> = {
 };
 
 const DIMENSION_LINKS: Record<string, string> = {
-  budget: '/dashboard/lfa-builder',
-  meal: '/dashboard/lfa-builder',
+  budget: '/dashboard/lfa-builder?tab=budget',
+  meal: '/dashboard/lfa-builder?tab=meal',
   execution: '/dashboard/project-management',
   evidence: '/dashboard/project-management',
   evaluation: '/dashboard/project-management',
-  learning: '/dashboard/learning',
+  learning: '/dashboard/learning?status=published',
 };
 
 // ── Component ───────────────────────────────────────────────────────────────

@@ -2,6 +2,7 @@
 // High-fidelity MEAL Planner module with Simple and Professional modes.
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/providers/AuthProvider';
@@ -23,7 +24,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { finalizePrintWindow } from '@/lib/print/printWindow';
 import { parseIndicatorText, cleanIndicatorText } from '@/lib/lfa/indicatorUtils';
-import { computeMealReadiness, getIndicatorHealth, getHealthBadgeClass, INDICATOR_HEALTH_LABELS } from '@/lib/lfa/mealReadiness';
+import { computeMealReadiness, getIndicatorHealth, getHealthBadgeClass, INDICATOR_HEALTH_LABELS, type IndicatorHealth } from '@/lib/lfa/mealReadiness';
 import { getEvidenceExpectations, computeEvidenceCoverage, getEvidenceReadiness } from '@/lib/lfa/evidenceGuidance';
 
 interface MEALPlannerProps {
@@ -84,6 +85,9 @@ export default function MEALPlanner({
   const [projectData, setProject] = useState<LfaProject | null>(null);
   const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; full_name: string; job_title: string | null }>>([]);
   const [picFilter, setPicFilter] = useState<'all' | 'assigned' | 'unassigned' | string>('all'); // string = PIC name filter
+  const [searchParams, setSearchParams] = useSearchParams();
+  const urlHealthFilter = searchParams.get('filter') as IndicatorHealth | null;
+  const [healthFilter, setHealthFilter] = useState<IndicatorHealth | 'all'>(() => urlHealthFilter || 'all');
   
   // UI States
   const [loading, setLoading] = useState(true);
@@ -126,6 +130,18 @@ export default function MEALPlanner({
   useEffect(() => {
     accountabilitiesRef.current = accountabilities;
   }, [accountabilities]);
+
+  useEffect(() => {
+    if (healthFilter === 'all') {
+      if (searchParams.has('filter')) {
+        const next = new URLSearchParams(searchParams);
+        next.delete('filter');
+        setSearchParams(next, { replace: true });
+      }
+    } else {
+      setSearchParams({ filter: healthFilter }, { replace: true });
+    }
+  }, [healthFilter]);
 
   useEffect(() => {
     if (!orgId) return;
@@ -1593,13 +1609,17 @@ export default function MEALPlanner({
                 })()}
                 {/* Quick Filter Chips */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <Badge variant="outline" className={`cursor-pointer text-[10px] ${picFilter === 'all' ? 'bg-slate-200' : 'bg-slate-100 hover:bg-slate-200'}`} onClick={() => setPicFilter('all')}>Semua ({r.totalIndicators})</Badge>
-                  {r.readyIndicators > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">Siap ({r.readyIndicators})</Badge>}
-                  {r.missingTarget > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">Target ({r.missingTarget})</Badge>}
-                  {r.missingMethod > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">Metode ({r.missingMethod})</Badge>}
-                  {r.missingMov > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">MoV ({r.missingMov})</Badge>}
-                  {r.missingFrequency > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">Frekuensi ({r.missingFrequency})</Badge>}
-                  {r.missingPic > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-orange-50 text-orange-700 border-orange-200">PIC ({r.missingPic})</Badge>}
+                  <Badge variant="outline" className={`cursor-pointer text-[10px] ${picFilter === 'all' && healthFilter === 'all' ? 'bg-slate-200' : 'bg-slate-100 hover:bg-slate-200'}`} onClick={() => { setPicFilter('all'); setHealthFilter('all'); }}>Semua ({r.totalIndicators})</Badge>
+                  {r.readyIndicators > 0 && <Badge variant="outline" className={`cursor-pointer text-[10px] ${healthFilter === 'ready' ? 'bg-emerald-200 text-emerald-700 border-emerald-300' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'}`} onClick={() => setHealthFilter('ready')}>Siap ({r.readyIndicators})</Badge>}
+                  {r.missingTarget > 0 && <Badge variant="outline" className={`cursor-pointer text-[10px] ${healthFilter === 'missing_target' ? 'bg-amber-200 text-amber-700 border-amber-300' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'}`} onClick={() => setHealthFilter('missing_target')}>Target ({r.missingTarget})</Badge>}
+                  {r.missingMethod > 0 && <Badge variant="outline" className={`cursor-pointer text-[10px] ${healthFilter === 'missing_method' ? 'bg-amber-200 text-amber-700 border-amber-300' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'}`} onClick={() => setHealthFilter('missing_method')}>Metode ({r.missingMethod})</Badge>}
+                  {r.missingMov > 0 && <Badge variant="outline" className={`cursor-pointer text-[10px] ${healthFilter === 'missing_mov' ? 'bg-amber-200 text-amber-700 border-amber-300' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'}`} onClick={() => setHealthFilter('missing_mov')}>MoV ({r.missingMov})</Badge>}
+                  {r.missingFrequency > 0 && <Badge variant="outline" className={`cursor-pointer text-[10px] ${healthFilter === 'missing_frequency' ? 'bg-amber-200 text-amber-700 border-amber-300' : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'}`} onClick={() => setHealthFilter('missing_frequency')}>Frekuensi ({r.missingFrequency})</Badge>}
+                  {r.missingPic > 0 && <Badge variant="outline" className={`cursor-pointer text-[10px] ${healthFilter === 'missing_pic' ? 'bg-orange-200 text-orange-700 border-orange-300' : 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100'}`} onClick={() => setHealthFilter('missing_pic')}>PIC ({r.missingPic})</Badge>}
+                  {r.incomplete > 0 && <Badge variant="outline" className={`cursor-pointer text-[10px] ${healthFilter === 'incomplete' ? 'bg-red-200 text-red-700 border-red-300' : 'bg-red-50 text-red-700 border-red-200 hover:bg-red-100'}`} onClick={() => setHealthFilter('incomplete')}>Belum Lengkap ({r.incomplete})</Badge>}
+                  {healthFilter !== 'all' && (
+                    <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={() => setHealthFilter('all')}>Hapus Filter</Button>
+                  )}
                 </div>
               </div>
             );
@@ -1631,7 +1651,7 @@ export default function MEALPlanner({
                 : picFilter === 'unassigned'
                 ? mealItems.filter(item => !item.pic || !item.pic.trim())
                 : mealItems.filter(item => (item.pic || '').trim() === picFilter)
-              ).map((item, index) => {
+              ).filter(item => healthFilter === 'all' || getIndicatorHealth(item as any) === healthFilter).map((item, index) => {
                 const chips = getFrequencyMonthChips(item.frequency);
                 const levelBadgeClass =
                   item.lfa_level === 'goal'

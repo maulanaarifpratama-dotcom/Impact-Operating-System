@@ -559,12 +559,16 @@ function DeliverablesTab({ projectId }: { projectId: string }) {
 }
 
 function AcrTab({ projectId }: { projectId: string }) {
+  const [searchParams] = useSearchParams();
   const { role: orgRole, canDelete: isReviewer } = useOrgRole();
   const isOwner = orgRole === 'owner';
   const { user } = { user: { id: null } }; // fallback — auth is handled by backend
   const { user: authUser } = useAuth(); // real user id, needed for Evaluation Finding created_by
   const { toast } = useToast();
-  const [view, setView] = useState<'claims' | 'findings'>('claims');
+  const [view, setView] = useState<'claims' | 'findings'>(() => {
+    const v = searchParams.get('view');
+    return v === 'findings' ? 'findings' : 'claims';
+  });
   const [claims, setClaims] = useState<any[]>([]);
   const [evidenceMap, setEvidenceMap] = useState<Record<string, any[]>>({});
   const [wbsMap, setWbsMap] = useState<Record<string, { id: string; name: string; level: number }>>({});
@@ -572,7 +576,7 @@ function AcrTab({ projectId }: { projectId: string }) {
   const [reviewerMap, setReviewerMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<string>('submitted');
+  const [filter, setFilter] = useState<string>(() => searchParams.get('claimFilter') || 'submitted');
   const [selectedClaim, setSelectedClaim] = useState<any | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 

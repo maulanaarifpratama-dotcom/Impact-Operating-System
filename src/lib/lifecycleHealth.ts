@@ -176,13 +176,22 @@ function generateAlerts(agg: LifecycleAggregate): LifecycleAlert[] {
 
   // MEAL alerts
   if (agg.meal.missingPic > 0) {
-    alerts.push({ id: 'meal-missing-pic', severity: 'warning', message: 'Indikator tanpa PIC', count: agg.meal.missingPic, dimension: 'meal', linkTo: '/dashboard/lfa-builder' });
+    alerts.push({ id: 'meal-missing-pic', severity: 'warning', message: 'Indikator tanpa PIC', count: agg.meal.missingPic, dimension: 'meal', linkTo: '/dashboard/lfa-builder?tab=meal&filter=missing_pic' });
   }
   if (agg.meal.missingMov > 0) {
-    alerts.push({ id: 'meal-missing-mov', severity: 'warning', message: 'Indikator tanpa MoV', count: agg.meal.missingMov, dimension: 'meal', linkTo: '/dashboard/lfa-builder' });
+    alerts.push({ id: 'meal-missing-mov', severity: 'warning', message: 'Indikator tanpa MoV', count: agg.meal.missingMov, dimension: 'meal', linkTo: '/dashboard/lfa-builder?tab=meal&filter=missing_mov' });
   }
   if (agg.meal.incomplete > 0) {
-    alerts.push({ id: 'meal-incomplete', severity: 'critical', message: 'Indikator belum lengkap', count: agg.meal.incomplete, dimension: 'meal', linkTo: '/dashboard/lfa-builder' });
+    alerts.push({ id: 'meal-incomplete', severity: 'critical', message: 'Indikator belum lengkap', count: agg.meal.incomplete, dimension: 'meal', linkTo: '/dashboard/lfa-builder?tab=meal&filter=incomplete' });
+  }
+  if (agg.meal.missingTarget > 0) {
+    alerts.push({ id: 'meal-missing-target', severity: 'warning', message: 'Indikator tanpa target', count: agg.meal.missingTarget, dimension: 'meal', linkTo: '/dashboard/lfa-builder?tab=meal&filter=missing_target' });
+  }
+  if (agg.meal.missingMethod > 0) {
+    alerts.push({ id: 'meal-missing-method', severity: 'warning', message: 'Indikator tanpa metode', count: agg.meal.missingMethod, dimension: 'meal', linkTo: '/dashboard/lfa-builder?tab=meal&filter=missing_method' });
+  }
+  if (agg.meal.missingFrequency > 0) {
+    alerts.push({ id: 'meal-missing-frequency', severity: 'warning', message: 'Indikator tanpa frekuensi', count: agg.meal.missingFrequency, dimension: 'meal', linkTo: '/dashboard/lfa-builder?tab=meal&filter=missing_frequency' });
   }
 
   // Execution alerts
@@ -202,7 +211,10 @@ function generateAlerts(agg: LifecycleAggregate): LifecycleAlert[] {
 
   // Learning alerts
   if (agg.learning.draftEntries > 0) {
-    alerts.push({ id: 'learn-draft', severity: 'info', message: 'Pembelajaran belum dipublikasi', count: agg.learning.draftEntries, dimension: 'learning', linkTo: '/dashboard/learning' });
+    alerts.push({ id: 'learn-draft', severity: 'info', message: 'Pembelajaran belum dipublikasi', count: agg.learning.draftEntries, dimension: 'learning', linkTo: '/dashboard/learning?status=my_drafts' });
+  }
+  if (agg.learning.publishedEntries > 0) {
+    alerts.push({ id: 'learn-published', severity: 'info', message: 'Pembelajaran dipublikasi', count: agg.learning.publishedEntries, dimension: 'learning', linkTo: '/dashboard/learning?status=published' });
   }
 
   alerts.sort((a, b) => {
