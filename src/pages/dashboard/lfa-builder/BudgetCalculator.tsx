@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { BudgetItem, WbsItem, LfaProject } from './types';
@@ -6,6 +6,7 @@ import { computeEvmVarianceFlag } from './evmVariance';
 import { SBM_2026, SBM_FLAT_ITEMS, SbmItem } from '@/data/sbm2026';
 import { INKINDO_ROLES, calculateInkindoRate, calculateInkindoProfessionalRate, INKINDO_PROVINCE_MULTIPLIERS, INKINDO_DIRECT_COST_MULTIPLIERS } from '@/data/inkindo2026';
 import { getProvenanceLabel } from '@/lib/grant-writer/deterministic/budget-provenance';
+import { evaluateBudgetCompliance, getComplianceStatusLabel, getComplianceBadgeClass, type ComplianceFinding, type BudgetComplianceResult } from '@/lib/budget/complianceEngine';
 
 interface AutocompleteItem {
   name: string;
@@ -86,6 +87,26 @@ export default function BudgetCalculator({
 
   // NGO Mode active multiplier state (default is true - NGO receives 70% rate discount under Lampiran II.2)
   const [isNgoMode, setIsNgoMode] = useState<boolean>(true);
+
+  // Budget Compliance Engine (FEATURE-BC1)
+  const [complianceJustifications, setComplianceJustifications] = useState<Map<string, string>>(new Map());
+
+  const complianceResult = useMemo<BudgetComplianceResult | null>(() => {
+    if (budgetItems.length === 0) return null;
+    return evaluateBudgetCompliance(
+      budgetItems.map(b => ({
+        id: b.id,
+        itemName: b.item_name || '',
+        category: b.category || '',
+        unit: b.unit || 'Orang',
+        unitPriceIdr: b.unit_price_idr ?? null,
+        volume: b.volume ?? null,
+        province: projectData?.location || undefined,
+        isNgoMode,
+      })),
+      complianceJustifications,
+    );
+  }, [budgetItems, complianceJustifications, projectData, isNgoMode]);
 
   // Autocomplete state
   const [activeSuggestionId, setActiveSuggestionId] = useState<string | null>(null);
@@ -2192,6 +2213,43 @@ export default function BudgetCalculator({
           </div>
 
           <div className="space-y-6">
+            {/* ── Budget Compliance Summary (FEATURE-BC1 MVP) ──────────────── */}
+            {complianceResult && complianceResult.evaluableItems > 0 && (
+              <Card className="border border-amber-100 dark:border-amber-900/50">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                      Skor Kepatuhan Anggaran
+                    </div>
+                    <span className="text-[9px] text-muted-foreground">
+                      Referensi: SBM 2026 & INKINDO 2026 (estimasi, belum terverifikasi)
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="text-2xl font-extrabold">
+                      {complianceResult.score != null ? `${complianceResult.score}/100` : '—'}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs flex-wrap">
+                      <span className="flex items-center gap-1 text-emerald-600">
+                        <Check className="h-3.5 w-3.5" /> {complianceResult.compliantCount} Sesuai
+                      </span>
+                      <span className="flex items-center gap-1 text-amber-600">
+                        <AlertTriangle className="h-3.5 w-3.5" /> {complianceResult.warningCount} Perlu Perhatian
+                      </span>
+                      <span className="flex items-center gap-1 text-red-600">
+                        <AlertCircle className="h-3.5 w-3.5" /> {complianceResult.violationCount} Melebihi Standar
+                      </span>
+                      {complianceResult.justifiedCount > 0 && (
+                        <span className="flex items-center gap-1 text-blue-600">
+                          <FileText className="h-3.5 w-3.5" /> {complianceResult.justifiedCount} Dijustifikasi
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* ASISTEN ANGGARAN DETERMINISTIK INKINDO */}
             <Card className="border border-indigo-100 dark:border-indigo-950 bg-gradient-to-br from-indigo-50/20 to-sky-50/10 dark:from-slate-950/40 dark:to-slate-950/20 overflow-hidden shadow-sm hover:shadow transition-all duration-300">
               <div className="px-4 py-3 bg-gradient-to-r from-indigo-500 to-indigo-600 dark:from-indigo-600 dark:to-indigo-700 flex items-center justify-between text-white select-none">
