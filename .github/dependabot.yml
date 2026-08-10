@@ -1,0 +1,61 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Jakarta"
+    open-pull-requests-limit: 5
+    versioning-strategy: "auto"
+    groups:
+      dev-dependencies:
+        patterns:
+          - "@types/*"
+          - "eslint*"
+          - "prettier*"
+          - "autoprefixer"
+          - "tailwindcss"
+        update-types:
+          - "minor"
+          - "patch"
+      ui-dependencies:
+        patterns:
+          - "@radix-ui/*"
+          - "lucide-react"
+          - "class-variance-authority"
+          - "tailwind-merge"
+          - "tailwindcss-animate"
+        update-types:
+          - "minor"
+          - "patch"
+    ignore:
+      - dependency-name: "react-router-dom"
+        versions: [">=7.0.0"]
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-router"
+        versions: [">=7.0.0"]
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react"
+        versions: [">=19.0.0"]
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "react-dom"
+        versions: [">=19.0.0"]
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+    labels:
+      - "dependencies"
+      - "security"
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Jakarta"
+    labels:
+      - "dependencies"
+      - "ci"
