@@ -43,7 +43,7 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
     queryKey: ['program_health_wbs', organizationId, selectedProgramId],
     queryFn: async () => {
       if (!organizationId) return [];
-      let query = supabase.from('lfa_wbs_items').select('*').eq('org_id', organizationId);
+      let query = supabase.from('lfa_wbs_items').select('id,level,status,progress_percent,end_date,parent_id,stage_id,org_id,lfa_project_id').eq('org_id', organizationId);
       if (selectedProgramId && selectedProgramId !== 'all') {
         query = query.eq('lfa_project_id', selectedProgramId);
       }
@@ -52,6 +52,7 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
       return data || [];
     },
     enabled: !!organizationId,
+    staleTime: 30_000,
   });
 
   // 2. Fetch Budget Items
@@ -59,7 +60,7 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
     queryKey: ['program_health_budget', organizationId, selectedProgramId],
     queryFn: async () => {
       if (!organizationId) return [];
-      let query = supabase.from('lfa_budget_items').select('*').eq('org_id', organizationId);
+      let query = supabase.from('lfa_budget_items').select('id,volume,unit_price_idr,actual_amount_idr,org_id,lfa_project_id').eq('org_id', organizationId);
       if (selectedProgramId && selectedProgramId !== 'all') {
         query = query.eq('lfa_project_id', selectedProgramId);
       }
@@ -68,6 +69,7 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
       return data || [];
     },
     enabled: !!organizationId,
+    staleTime: 30_000,
   });
 
   // 3. Fetch MEAL Items (Output Level)
@@ -77,7 +79,7 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
       if (!organizationId) return [];
       let query = supabase
         .from('lfa_meal_items')
-        .select('*')
+        .select('id,target_value,target_unit,baseline,lfa_level,indicator_text,org_id,lfa_project_id')
         .eq('org_id', organizationId)
         .eq('lfa_level', 'output');
       if (selectedProgramId && selectedProgramId !== 'all') {
@@ -88,6 +90,7 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
       return data || [];
     },
     enabled: !!organizationId,
+    staleTime: 30_000,
   });
 
   // 4. Fetch MEAL Tracking Entries
@@ -95,7 +98,7 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
     queryKey: ['program_health_meal_entries', organizationId, selectedProgramId],
     queryFn: async () => {
       if (!organizationId) return [];
-      let query = supabase.from('lfa_meal_tracking_entries').select('*').eq('org_id', organizationId);
+      let query = supabase.from('lfa_meal_tracking_entries').select('id,meal_item_id,recorded_value,recorded_date,created_at,org_id,lfa_project_id').eq('org_id', organizationId);
       if (selectedProgramId && selectedProgramId !== 'all') {
         query = query.eq('lfa_project_id', selectedProgramId);
       }
@@ -104,6 +107,7 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
       return data || [];
     },
     enabled: !!organizationId,
+    staleTime: 30_000,
   });
 
   const isLoading = isWbsLoading || isBudgetLoading || isMealLoading || isTrackingLoading;
