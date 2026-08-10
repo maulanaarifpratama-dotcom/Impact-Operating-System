@@ -24,6 +24,7 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { finalizePrintWindow } from '@/lib/print/printWindow';
 import { parseIndicatorText, cleanIndicatorText } from '@/lib/lfa/indicatorUtils';
 import { computeMealReadiness, getIndicatorHealth, getHealthBadgeClass, INDICATOR_HEALTH_LABELS } from '@/lib/lfa/mealReadiness';
+import { getEvidenceExpectations, computeEvidenceCoverage, getEvidenceReadiness } from '@/lib/lfa/evidenceGuidance';
 
 interface MEALPlannerProps {
   projectId: string;
@@ -1575,6 +1576,21 @@ export default function MEALPlanner({
                     <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={() => setPicFilter('all')}>Hapus Filter</Button>
                   )}
                 </div>
+                {/* Evidence Coverage Summary */}
+                {(() => {
+                  const ec = computeEvidenceCoverage(mealItems);
+                  if (ec.totalIndicators === 0) return null;
+                  return (
+                    <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600 dark:text-slate-400">
+                      <FileText className="h-3.5 w-3.5 text-slate-400" />
+                      <span className="font-bold uppercase tracking-wider text-[11px] text-slate-500">Rencana Bukti:</span>
+                      <Badge variant="outline" className="text-[10px] font-sans bg-emerald-50 text-emerald-600 border-emerald-200">{ec.evidenceReady} Jelas</Badge>
+                      {ec.evidenceUnclear > 0 && <Badge variant="outline" className="text-[10px] font-sans bg-amber-50 text-amber-600 border-amber-200">{ec.evidenceUnclear} Belum Jelas</Badge>}
+                      {ec.missingMov > 0 && <Badge variant="outline" className="text-[10px] font-sans bg-red-50 text-red-500 border-red-200">{ec.missingMov} Tanpa MoV</Badge>}
+                      {ec.noMethod > 0 && <Badge variant="outline" className="text-[10px] font-sans bg-red-50 text-red-500 border-red-200">{ec.noMethod} Tanpa Metode</Badge>}
+                    </div>
+                  );
+                })()}
                 {/* Quick Filter Chips */}
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <Badge variant="outline" className={`cursor-pointer text-[10px] ${picFilter === 'all' ? 'bg-slate-200' : 'bg-slate-100 hover:bg-slate-200'}`} onClick={() => setPicFilter('all')}>Semua ({r.totalIndicators})</Badge>
@@ -1894,6 +1910,27 @@ export default function MEALPlanner({
                         rows={2}
                         className="text-xs w-full min-h-[50px] resize-none py-1 bg-transparent border-slate-200 hover:border-slate-300 focus:bg-white dark:focus:bg-slate-950 focus:border-teal-500 rounded"
                       />
+                      {/* Expected Evidence Guidance */}
+                      {(() => {
+                        const guidance = getEvidenceExpectations(item.indicator_text, item.collection_method, item.secondary_source);
+                        if (!guidance.expectations.length) return null;
+                        return (
+                          <div className="mt-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                            <span className="text-[8px] text-slate-400 uppercase tracking-wider font-bold">Bukti yang Diharapkan</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {guidance.expectations.slice(0, 3).map((ev, i) => (
+                                <Badge key={i} variant="outline" className={`text-[8px] py-0 px-1.5 font-sans ${
+                                  ev.category === 'primary' ? 'bg-teal-50 text-teal-600 border-teal-200' :
+                                  ev.category === 'secondary' ? 'bg-blue-50 text-blue-600 border-blue-200' :
+                                  'bg-slate-50 text-slate-500 border-slate-200'
+                                }`}>
+                                  {ev.label}
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     {/* Frequency & Timeline Chips */}
