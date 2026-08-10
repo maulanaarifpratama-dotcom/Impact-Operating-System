@@ -28,6 +28,7 @@ import {
   Calendar,
   CheckSquare,
 } from 'lucide-react';
+import { LifecycleHealthCard } from '@/components/dashboard/LifecycleHealthCard';
 
 const SECTION_PHASE_MAP: Record<string, string> = {
   p1: 'g',
@@ -890,6 +891,9 @@ export default function DashboardHome() {
           )}
         </Card>
       </div>
+
+      {/* ── Lifecycle Health Card ───────────────────────────────────── */}
+      <LifecycleHealthCard />
 
       {/* Redesigned 90-Day Plan Checklist Section (Zone 3) */}
       <Card className="group relative overflow-hidden border-border bg-card p-6 shadow-card hover:shadow-elegant transition-all duration-300">
