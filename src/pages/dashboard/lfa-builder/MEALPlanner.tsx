@@ -1538,6 +1538,7 @@ export default function MEALPlanner({
               <tr className="bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 text-xs font-bold text-slate-700 dark:text-slate-300 sticky top-0 z-10 shadow-xs">
                 <th className="p-3.5 py-4 w-32 shrink-0">Tingkat LFA</th>
                 <th className="p-3.5 py-4 min-w-[220px]">Indikator Keberhasilan</th>
+                <th className="p-3.5 py-4 w-28 shrink-0">Kesehatan</th>
                 {globalMode === 'professional' && <th className="p-3.5 py-4 w-36 shrink-0">Baseline</th>}
                 <th className="p-3.5 py-4 w-44 shrink-0">Target Kuantitatif</th>
                 <th className="p-3.5 py-4 min-w-[180px]">Metode & Alat Pengumpulan</th>
@@ -1627,6 +1628,14 @@ export default function MEALPlanner({
                           Indikator belum diisi
                         </div>
                       )}
+                     </td>
+
+                    {/* Health */}
+                    <td className="p-3.5">
+                      {(() => { const h = getIndicatorHealth(item); return (
+                        <Badge variant="outline" className={`py-0.5 px-2 text-[9px] font-bold uppercase shadow-sm ${getHealthBadgeClass(h)}`}>
+                          {INDICATOR_HEALTH_LABELS[h]}
+                        </Badge>); })()}
                     </td>
 
                     {/* Baseline (Professional Only) */}
