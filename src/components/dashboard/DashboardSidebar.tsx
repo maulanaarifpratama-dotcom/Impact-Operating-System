@@ -80,6 +80,7 @@ const IMPACT_ITEMS: NavItem[] = [
   { name: 'Campaign Builder', href: '/dashboard/impactory-ads', icon: Megaphone },
   { name: 'Impact Dashboard', href: '/dashboard/impact', icon: BarChart2 },
   { name: 'SROI Workspace', href: '/dashboard/sroi-workspace', icon: TrendingUp },
+  { name: 'Portfolio', href: '/dashboard/portfolio', icon: LayoutDashboard },
   { name: 'E-ROI Carbon', href: '/dashboard/eroi', icon: Leaf },
   { name: 'Monthly Report', href: '/dashboard/monthly-report', icon: BarChart3 },
   { name: 'Operating Review', href: '/dashboard/operating-review', icon: CalendarRange },

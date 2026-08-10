@@ -45,6 +45,7 @@ const MonthlyOperatingReview = lazy(() => import('./pages/dashboard/MonthlyOpera
 const Settings = lazy(() => import('./pages/dashboard/Settings'));
 const SROIStandalone = lazy(() => import('./pages/dashboard/SROIStandalone'));
 const SROIWorkspace = lazy(() => import('./pages/dashboard/SROIWorkspace'));
+const ExecutivePortfolioDashboard = lazy(() => import('./pages/dashboard/ExecutivePortfolioDashboard'));
 const EROIStandalone = lazy(() => import('./pages/dashboard/EROIStandalone'));
 const ESGDashboard = lazy(() => import('./pages/dashboard/ESGDashboard'));
 const SustainabilityReports = lazy(() => import('./pages/dashboard/SustainabilityReports'));
@@ -228,6 +229,7 @@ const App = () => (
               <Route path="/dashboard/resource-access" element={<ResourceAccessTracker />} />
               <Route path="/dashboard/donor-crm" element={<DonorCRM />} />
               <Route path="/dashboard/impact" element={<ImpactDashboard />} />
+              <Route path="/dashboard/portfolio" element={<ExecutivePortfolioDashboard />} />
               
               {/* Product Modules under ProtectedRoute */}
               <Route path="/dashboard/grant-writer" element={<GrantWriterIndex />} />
