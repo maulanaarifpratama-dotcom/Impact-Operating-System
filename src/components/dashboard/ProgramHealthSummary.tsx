@@ -20,6 +20,9 @@ import {
   Scale
 } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { computeItemProgress } from '@/lib/project-management/workPlan';
+import { classifyFinanceHealth, safePct } from '@/lib/project-management/financeModel';
+import { computeBottleneckCounts } from '@/lib/project-management/bottleneckModel';
 
 interface ProgramHealthSummaryProps {
   organizationId?: string;
@@ -107,7 +110,7 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
 
   // Compute 3 Lenses Rollup
   const metrics = useMemo(() => {
-    // A. Physical Progress (Level 2 WBS Activities)
+    // A. Physical Progress (Level 2 WBS Activities) — canonical via workPlan.ts
     const level2Items = wbsItems.filter((item: any) => Number(item.level) === 2);
     const totalLevel2Count = level2Items.length;
     let physicalPct: number | null = null;
@@ -116,11 +119,9 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
     if (totalLevel2Count > 0) {
       let sumProgress = 0;
       level2Items.forEach((item: any) => {
-        const itemProg = item.status === 'completed' ? 100 : Number(item.progress_percent ?? 0);
+        const itemProg = computeItemProgress(item as any, wbsItems as any);
         sumProgress += itemProg;
-        if (item.status === 'completed' || itemProg === 100) {
-          completedLevel2Count++;
-        }
+        if (itemProg >= 100) completedLevel2Count++;
       });
       physicalPct = Math.round(sumProgress / totalLevel2Count);
     }
@@ -151,8 +152,9 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
 
     let financialPct: number | null = null;
     if (totalAnggaran > 0) {
-      financialPct = Math.round((totalRealisasi / totalAnggaran) * 100);
+      financialPct = safePct(totalRealisasi, totalAnggaran);
     }
+    const financeHealth = classifyFinanceHealth(totalAnggaran > 0 ? totalAnggaran : null, totalRealisasi > 0 ? totalRealisasi : null);
 
     // C. Results Progress (Output MEAL Indicators)
     const outputWithTarget = mealItems.filter((item: any) => Number(item.target_value ?? 0) > 0);
@@ -185,6 +187,7 @@ export function ProgramHealthSummary({ organizationId, programs }: ProgramHealth
       totalAnggaran,
       totalRealisasi,
       financialPct,
+      financeHealth,
       totalOutputCount,
       resultsPct,
       totalBudgetItemsCount,
