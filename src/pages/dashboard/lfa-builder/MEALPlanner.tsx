@@ -12,6 +12,7 @@ import {
   FileUp, Link2, Calendar, User, History, Upload, Layers
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -22,6 +23,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { finalizePrintWindow } from '@/lib/print/printWindow';
 import { parseIndicatorText, cleanIndicatorText } from '@/lib/lfa/indicatorUtils';
+import { computeMealReadiness, getIndicatorHealth, getHealthBadgeClass, INDICATOR_HEALTH_LABELS } from '@/lib/lfa/mealReadiness';
 
 interface MEALPlannerProps {
   projectId: string;
@@ -1488,6 +1490,31 @@ export default function MEALPlanner({
 
       {subTab === 'planner' ? (
         <div className="space-y-6">
+          {/* ── MEAL Readiness Score (P0 Quick Wins) ────────────────────── */}
+          {mealItems.length > 0 && (() => {
+            const readiness = computeMealReadiness(mealItems);
+            return (
+              <Card className="border border-amber-100 dark:border-amber-900/50 bg-gradient-to-r from-amber-50/30 to-white">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="text-xs font-bold uppercase tracking-wider text-slate-600">Kesiapan MEAL</div>
+                      <div className="text-2xl font-extrabold mt-1">{readiness.score}%</div>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs flex-wrap">
+                      <span className="flex items-center gap-1 text-emerald-600"><CheckCircle2 className="h-3.5 w-3.5" /> {readiness.readyIndicators} Siap</span>
+                      {readiness.missingTarget > 0 && <span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="h-3.5 w-3.5" /> {readiness.missingTarget} Target</span>}
+                      {readiness.missingMethod > 0 && <span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="h-3.5 w-3.5" /> {readiness.missingMethod} Metode</span>}
+                      {readiness.missingMov > 0 && <span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="h-3.5 w-3.5" /> {readiness.missingMov} MoV</span>}
+                      {readiness.missingFrequency > 0 && <span className="flex items-center gap-1 text-amber-600"><AlertTriangle className="h-3.5 w-3.5" /> {readiness.missingFrequency} Frekuensi</span>}
+                      {readiness.missingPic > 0 && <span className="flex items-center gap-1 text-orange-600"><User className="h-3.5 w-3.5" /> {readiness.missingPic} PIC</span>}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })()}
+
           {/* MATRIX TABLE CONTAINER */}
           <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-elegant">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
