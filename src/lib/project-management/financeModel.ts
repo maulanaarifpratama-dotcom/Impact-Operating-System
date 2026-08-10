@@ -2,16 +2,31 @@
  * Canonical PM Finance domain — single source of truth for Project Management
  * Finance signals.
  *
- * Two subdomains, one module:
+ * Three subdomains, one module:
  *
  * A. Financial Status Lifecycle (WBS resource flow) — §1 below.
  * B. Budget Finance dimensions, health, relation state, and aggregation — §2 below.
+ * C. Project Funding (cash-in) dimensions, receipt aggregation, and cash position — §3 below.
+ *
+ * Canonical domain hierarchy:
+ *
+ *   Funding Source (project_funding_sources)
+ *       ↓
+ *   Funding Tranche / Termin (project_funding_installments)
+ *       ↓
+ *   Funding Receipt / Penerimaan (project_funding_receipts)
+ *
+ *   Budget Allocation (lfa_budget_items)
+ *       ↓
+ *   Budget Commitment (project_budget_commitments)
+ *       ↓
+ *   Budget Realization / Expenditure (project_budget_expenditures)
  *
  * Every PM screen that displays financial numbers, health badges, budget–WBS
- * relation indicators, or project-level finance summaries MUST derive those
- * signals from this module. Do NOT reimplement planned/committed/actual/variance
- * math, percentage calculations, health thresholds, or relation-state logic
- * locally in a component.
+ * relation indicators, funding summaries, or project-level finance summaries
+ * MUST derive those signals from this module. Do NOT reimplement planned/
+ * committed/actual/variance math, percentage calculations, health thresholds,
+ * funding aggregate formulas, or cash-position logic locally in a component.
  *
  * Programme Design Budget stays in budgetModel.ts / mirrorBudgetModel.ts /
  * targetBudget.ts and is NOT merged into this module.
@@ -550,4 +565,201 @@ export function aggregateProjectFinance(
     health,
     dataCompleteness,
   };
+}
+
+// ─── §3 CANONICAL PM PROJECT FUNDING (CASH-IN) ─────────────────────────────
+
+// ── Funding Aggregate (from compute_project_funding_aggregates RPC) ──
+
+export interface ProjectFundingAggregate {
+  total_funding_agreement: number;
+  total_scheduled: number;
+  total_received_gross: number;
+  total_receipt_reversals: number;
+  net_received_cash: number;
+  allocated_received: number;
+  unallocated_received: number;
+  total_outstanding_receivable: number;
+}
+
+// ── Funding Installment Derived State ──
+
+export type InstallmentDerivedState =
+  | 'cancelled'
+  | 'fully_received'
+  | 'partially_received'
+  | 'over_received'
+  | 'overdue'
+  | 'awaiting_receipt'
+  | 'upcoming';
+
+/**
+ * Computes the derived state of an installment based on persisted status,
+ * net receipts, and due date.
+ *
+ * Rules:
+ *   cancelled         – persisted workflow_status = 'cancelled'
+ *   fully_received    – net received >= scheduled amount
+ *   over_received     – net received > scheduled amount
+ *   overdue           – due date passed, not cancelled, net received > 0 but < scheduled
+ *   partially_received– due date not yet, net received > 0 but < scheduled
+ *   awaiting_receipt  – due date passed, net received = 0
+ *   upcoming          – due date not yet, net received = 0
+ */
+export function computeInstallmentDerivedState(
+  workflowStatus: string,
+  scheduledAmount: number,
+  netReceived: number,
+  dueDate: string,
+  now: Date = new Date(),
+): InstallmentDerivedState {
+  if (workflowStatus === 'cancelled') return 'cancelled';
+
+  if (netReceived >= scheduledAmount) {
+    return netReceived > scheduledAmount ? 'over_received' : 'fully_received';
+  }
+
+  const due = new Date(dueDate);
+  const pastDue = due < now;
+
+  if (pastDue) {
+    return netReceived > 0 ? 'overdue' : 'awaiting_receipt';
+  }
+
+  return netReceived > 0 ? 'partially_received' : 'upcoming';
+}
+
+// ── Cash Position ──
+
+export interface ProjectCashPosition {
+  totalFundingAgreement: number | null;
+  totalScheduled: number | null;
+  netReceivedCash: number | null;
+  allocatedReceived: number | null;
+  unallocatedReceived: number | null;
+  totalOutstandingReceivable: number | null;
+  cashAvailable: number | null;
+  budgetAvailable: number | null;
+  fundingCoveragePct: number | null;
+}
+
+/**
+ * Computes the project cash position from the funding aggregate and
+ * the budget expenditure summary.
+ *
+ * Cash Available and Budget Available are TWO DIFFERENT concepts:
+ *   cashAvailable   = net received cash − net actual expenditure
+ *   budgetAvailable = planned budget − exposure
+ *
+ * Do not mix them under the same label. Unavailable values must stay null,
+ * never zero.
+ */
+export function computeProjectCashPosition(params: {
+  funding: ProjectFundingAggregate | null;
+  netActualExpenditure: number | null;
+  plannedBudget: number | null;
+  budgetAvailable: number | null;
+}): ProjectCashPosition {
+  const { funding, netActualExpenditure, plannedBudget, budgetAvailable } = params;
+
+  const nr = funding?.net_received_cash != null
+    ? normalizeFinite(funding.net_received_cash)
+    : null;
+
+  const nae = normalizeFinite(netActualExpenditure);
+
+  const cashAvailable = nr !== null && nae !== null ? nr - nae : null;
+
+  const fp = normalizeFinite(plannedBudget);
+  const fundingCoveragePct = safePct(nr, fp);
+
+  return {
+    totalFundingAgreement: funding ? normalizeFinite(funding.total_funding_agreement) : null,
+    totalScheduled: funding ? normalizeFinite(funding.total_scheduled) : null,
+    netReceivedCash: nr,
+    allocatedReceived: funding ? normalizeFinite(funding.allocated_received) : null,
+    unallocatedReceived: funding ? normalizeFinite(funding.unallocated_received) : null,
+    totalOutstandingReceivable: funding ? normalizeFinite(funding.total_outstanding_receivable) : null,
+    cashAvailable,
+    budgetAvailable: normalizeFinite(budgetAvailable),
+    fundingCoveragePct,
+  };
+}
+
+// ── Net Receipt per Installment ──
+
+/**
+ * Computes net received amount for a specific installment from a collection
+ * of receipts. Uses the canonical formula: posted originals − posted reversals.
+ */
+export function computeInstallmentNetReceived(
+  receipts: Array<{
+    installment_id: string | null;
+    workflow_status: string;
+    reversal_of_id: string | null;
+    amount_idr: number;
+  }>,
+  installmentId: string,
+): number {
+  return receipts
+    .filter(
+      (r) =>
+        r.installment_id === installmentId &&
+        r.workflow_status === 'posted',
+    )
+    .reduce((sum, r) => {
+      if (r.reversal_of_id !== null) return sum - r.amount_idr;
+      return sum + r.amount_idr;
+    }, 0);
+}
+
+// ── Receipt Reversal ──
+
+export interface ReceiptReversalCalculation {
+  alreadyReversed: number;
+  remainingReversible: number;
+}
+
+/**
+ * Calculates reversal capacity for a posted original receipt.
+ * remainingReversible = original amount − total posted reversals, minimum zero.
+ */
+export function computeReceiptReversalCapacity(
+  originalAmount: number,
+  reversals: Array<{ amount_idr: number; workflow_status: string }>,
+): ReceiptReversalCalculation {
+  const alreadyReversed = reversals
+    .filter((r) => r.workflow_status === 'posted')
+    .reduce((sum, r) => sum + r.amount_idr, 0);
+
+  return {
+    alreadyReversed,
+    remainingReversible: Math.max(originalAmount - alreadyReversed, 0),
+  };
+}
+
+// ── Funding Type Labels ──
+
+export const FUNDING_TYPE_CANONICAL: ReadonlyArray<{ value: string; label: string }> = [
+  { value: 'grant', label: 'Grant' },
+  { value: 'donation', label: 'Donasi' },
+  { value: 'government', label: 'Pemerintah' },
+  { value: 'corporate', label: 'Perusahaan' },
+  { value: 'internal', label: 'Internal' },
+  { value: 'loan', label: 'Pinjaman' },
+  { value: 'other', label: 'Lainnya' },
+] as const;
+
+// ── Domain Boundary Assertions ──
+
+/**
+ * Cash Available and Budget Available are two distinct concepts.
+ * Use the appropriate label in UI.
+ */
+export function isCashAvailableLabel(label: string): boolean {
+  return label === 'Kas Tersedia';
+}
+
+export function isBudgetAvailableLabel(label: string): boolean {
+  return label === 'Dana Anggaran Tersedia' || label === 'Budget Available';
 }
