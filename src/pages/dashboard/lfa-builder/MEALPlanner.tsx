@@ -1516,6 +1516,21 @@ export default function MEALPlanner({
           })()}
 
           {/* MATRIX TABLE CONTAINER */}
+          {/* Quick Filter Chips */}
+          {mealItems.length > 0 && (() => {
+            const r = computeMealReadiness(mealItems);
+            return (
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <Badge variant="outline" className="cursor-pointer text-[10px] bg-slate-100 hover:bg-slate-200">Semua ({r.totalIndicators})</Badge>
+                {r.readyIndicators > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">Siap ({r.readyIndicators})</Badge>}
+                {r.missingTarget > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">Target ({r.missingTarget})</Badge>}
+                {r.missingMethod > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">Metode ({r.missingMethod})</Badge>}
+                {r.missingMov > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">MoV ({r.missingMov})</Badge>}
+                {r.missingFrequency > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">Frekuensi ({r.missingFrequency})</Badge>}
+                {r.missingPic > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-orange-50 text-orange-700 border-orange-200">PIC ({r.missingPic})</Badge>}
+              </div>
+            );
+          })()}
           <div className="bg-white dark:bg-slate-950 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-elegant">
         <div className="overflow-x-auto max-h-[600px] overflow-y-auto">
           <table className="w-full text-left border-collapse">
@@ -1554,6 +1569,11 @@ export default function MEALPlanner({
                         <Badge variant="outline" className={`py-0.5 px-2 text-[10px] font-bold tracking-wide uppercase shadow-sm ${levelBadgeClass}`}>
                           {item.lfa_level === 'goal' ? 'Dampak' : item.lfa_level === 'purpose' ? 'Tujuan' : 'Hasil'}
                         </Badge>
+                        {/* Indicator Health Badge */}
+                        {(() => { const h = getIndicatorHealth(item); if (h === 'ready') return null; return (
+                          <Badge variant="outline" className={`py-0.5 px-2 text-[9px] font-bold uppercase shadow-sm ${getHealthBadgeClass(h)}`}>
+                            {INDICATOR_HEALTH_LABELS[h]}
+                          </Badge>); })()}
 
                         {item.lfa_level === 'output' && (() => {
                           const rollup = getOutputWbsRollup(item);
