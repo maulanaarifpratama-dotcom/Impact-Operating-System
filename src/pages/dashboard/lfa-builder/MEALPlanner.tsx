@@ -81,6 +81,8 @@ export default function MEALPlanner({
   const [accountabilities, setAccountabilities] = useState<MealAccountability[]>([]);
   const [wbsItems, setWbsItems] = useState<WbsItem[]>([]);
   const [projectData, setProject] = useState<LfaProject | null>(null);
+  const [orgMembers, setOrgMembers] = useState<Array<{ user_id: string; full_name: string; job_title: string | null }>>([]);
+  const [picFilter, setPicFilter] = useState<'all' | 'assigned' | 'unassigned' | string>('all'); // string = PIC name filter
   
   // UI States
   const [loading, setLoading] = useState(true);
@@ -123,6 +125,31 @@ export default function MEALPlanner({
   useEffect(() => {
     accountabilitiesRef.current = accountabilities;
   }, [accountabilities]);
+
+  useEffect(() => {
+    if (!orgId) return;
+    supabase
+      .from('organization_members')
+      .select('user_id, job_title')
+      .eq('organization_id', orgId)
+      .then(({ data, error }) => {
+        if (error || !data) return;
+        const userIds = data.map(m => m.user_id).filter(Boolean);
+        if (userIds.length === 0) return;
+        supabase
+          .from('profiles')
+          .select('id, full_name, email')
+          .in('id', userIds)
+          .then(({ data: profiles }) => {
+            const pmap = new Map((profiles || []).map(p => [p.id, p]));
+            setOrgMembers(data.map(m => ({
+              user_id: m.user_id,
+              full_name: pmap.get(m.user_id)?.full_name || pmap.get(m.user_id)?.email || 'Anggota Tim',
+              job_title: m.job_title || null,
+            })));
+          });
+      });
+  }, [orgId]);
 
   // Load Data
   const loadData = useCallback(async () => {
@@ -1515,19 +1542,49 @@ export default function MEALPlanner({
             );
           })()}
 
-          {/* MATRIX TABLE CONTAINER */}
-          {/* Quick Filter Chips */}
+          {/* ── Ownership Summary & Filters ────────────────────── */}
           {mealItems.length > 0 && (() => {
             const r = computeMealReadiness(mealItems);
+            const picCounts = new Map<string, number>();
+            let unassignedCount = 0;
+            mealItems.forEach(item => {
+              if (item.pic && item.pic.trim()) {
+                picCounts.set(item.pic.trim(), (picCounts.get(item.pic.trim()) || 0) + 1);
+              } else {
+                unassignedCount++;
+              }
+            });
+            const sortedPics = [...picCounts.entries()].sort((a, b) => b[1] - a[1]);
             return (
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <Badge variant="outline" className="cursor-pointer text-[10px] bg-slate-100 hover:bg-slate-200">Semua ({r.totalIndicators})</Badge>
-                {r.readyIndicators > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">Siap ({r.readyIndicators})</Badge>}
-                {r.missingTarget > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">Target ({r.missingTarget})</Badge>}
-                {r.missingMethod > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">Metode ({r.missingMethod})</Badge>}
-                {r.missingMov > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">MoV ({r.missingMov})</Badge>}
-                {r.missingFrequency > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">Frekuensi ({r.missingFrequency})</Badge>}
-                {r.missingPic > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-orange-50 text-orange-700 border-orange-200">PIC ({r.missingPic})</Badge>}
+              <div className="space-y-2">
+                {/* Ownership Summary */}
+                <div className="flex items-center gap-2 flex-wrap text-xs text-slate-600 dark:text-slate-400">
+                  <User className="h-3.5 w-3.5 text-slate-400" />
+                  <span className="font-bold uppercase tracking-wider text-[11px] text-slate-500">Beban PIC:</span>
+                  {sortedPics.slice(0, 4).map(([name, count]) => (
+                    <Badge key={name} variant="outline" className={`cursor-pointer text-[10px] font-sans ${picFilter === name ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-slate-50 hover:bg-slate-100'}`} onClick={() => setPicFilter(prev => prev === name ? 'all' : name)}>
+                      {name} ({count})
+                    </Badge>
+                  ))}
+                  {unassignedCount > 0 && (
+                    <Badge variant="outline" className={`cursor-pointer text-[10px] font-sans ${picFilter === 'unassigned' ? 'bg-orange-100 border-orange-300 text-orange-700' : 'bg-orange-50 hover:bg-orange-100 text-orange-600 border-orange-200'}`} onClick={() => setPicFilter(prev => prev === 'unassigned' ? 'all' : 'unassigned')}>
+                      Belum Ditentukan ({unassignedCount})
+                    </Badge>
+                  )}
+                  {picFilter !== 'all' && (
+                    <Button variant="ghost" size="sm" className="h-5 px-1.5 text-[10px]" onClick={() => setPicFilter('all')}>Hapus Filter</Button>
+                  )}
+                </div>
+                {/* Quick Filter Chips */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <Badge variant="outline" className={`cursor-pointer text-[10px] ${picFilter === 'all' ? 'bg-slate-200' : 'bg-slate-100 hover:bg-slate-200'}`} onClick={() => setPicFilter('all')}>Semua ({r.totalIndicators})</Badge>
+                  {r.readyIndicators > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100">Siap ({r.readyIndicators})</Badge>}
+                  {r.missingTarget > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">Target ({r.missingTarget})</Badge>}
+                  {r.missingMethod > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">Metode ({r.missingMethod})</Badge>}
+                  {r.missingMov > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">MoV ({r.missingMov})</Badge>}
+                  {r.missingFrequency > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-amber-50 text-amber-700 border-amber-200">Frekuensi ({r.missingFrequency})</Badge>}
+                  {r.missingPic > 0 && <Badge variant="outline" className="cursor-pointer text-[10px] bg-orange-50 text-orange-700 border-orange-200">PIC ({r.missingPic})</Badge>}
+                </div>
               </div>
             );
           })()}
@@ -1553,7 +1610,12 @@ export default function MEALPlanner({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-xs">
-              {mealItems.map((item, index) => {
+              {(picFilter === 'all'
+                ? mealItems
+                : picFilter === 'unassigned'
+                ? mealItems.filter(item => !item.pic || !item.pic.trim())
+                : mealItems.filter(item => (item.pic || '').trim() === picFilter)
+              ).map((item, index) => {
                 const chips = getFrequencyMonthChips(item.frequency);
                 const levelBadgeClass =
                   item.lfa_level === 'goal'
@@ -1876,17 +1938,37 @@ export default function MEALPlanner({
 
                     {/* PIC */}
                     <td className="p-3.5">
-                      <Input
-                        value={item.pic || ''}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setMealItems(prev => prev.map(m => m.id === item.id ? { ...m, pic: val } : m));
-                          const target = { ...item, pic: val };
-                          queueAutosave('items', item.id, () => saveMealItem(target));
-                        }}
-                        placeholder="Mis. MEAL Officer"
-                        className="text-xs h-7.5"
-                      />
+                      <div className="flex flex-col gap-0.5">
+                        <input
+                          list={`pic-datalist-${item.id}`}
+                          value={item.pic || ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setMealItems(prev => prev.map(m => m.id === item.id ? { ...m, pic: val } : m));
+                            const target = { ...item, pic: val };
+                            queueAutosave('items', item.id, () => saveMealItem(target));
+                          }}
+                          placeholder="Mis. MEAL Officer"
+                          className="flex h-7.5 w-full rounded-md border border-input bg-transparent px-2 text-xs shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                        />
+                        <datalist id={`pic-datalist-${item.id}`}>
+                          {orgMembers.map(m => (
+                            <option key={m.user_id} value={m.full_name}>
+                              {m.job_title ? `${m.full_name} — ${m.job_title}` : m.full_name}
+                            </option>
+                          ))}
+                        </datalist>
+                        {item.pic && (() => {
+                          const m = orgMembers.find(om => om.full_name === item.pic);
+                          if (m?.job_title) return (
+                            <span className="text-[9px] text-slate-400 leading-tight truncate">{m.job_title}</span>
+                          );
+                          return null;
+                        })()}
+                        {!item.pic && (
+                          <span className="text-[9px] text-orange-400 leading-tight">Belum ditentukan</span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Status */}
