@@ -370,6 +370,36 @@ export default function FinanceLifecyclePanel({
                   <div><span className="text-muted-foreground">Piutang Termin</span><div className="font-bold">{formatIDR(fundingAgg.total_outstanding_receivable ?? 0)}</div></div>
                 </div>
                 {fundingLoading && <div className="py-8 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></div>}
+                {/* Funding Source Create Form */}
+                {showSrcCreate && (
+                  <div className="rounded border p-3 space-y-2 bg-white dark:bg-slate-950">
+                    <div className="text-xs font-semibold">Pendanaan Baru</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><Label className="text-[10px]">Nama Sumber Dana *</Label><Input value={srcCreate.source_name} onChange={e => setSrcCreate(p => ({ ...p, source_name: e.target.value }))} className="h-8 text-xs" /></div>
+                      <div><Label className="text-[10px]">Jenis</Label><Select value={srcCreate.funding_type || 'grant'} onValueChange={v => setSrcCreate(p => ({ ...p, funding_type: v }))}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{Object.entries(FUNDING_TYPE_LABELS).map(([k, v]) => <SelectItem key={k} value={k}>{v}</SelectItem>)}</SelectContent></Select></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><Label className="text-[10px]">Nilai Perjanjian *</Label><Input type="number" min={0} value={srcCreate.agreement_amount_idr || ''} onChange={e => setSrcCreate(p => ({ ...p, agreement_amount_idr: e.target.value === '' ? 0 : Number(e.target.value) }))} className="h-8 text-xs" /></div>
+                      <div><Label className="text-[10px]">Mata Uang</Label><Input value={srcCreate.currency || 'IDR'} onChange={e => setSrcCreate(p => ({ ...p, currency: e.target.value }))} className="h-8 text-xs" /></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><Label className="text-[10px]">Nomor Perjanjian</Label><Input value={srcCreate.agreement_number ?? ''} onChange={e => setSrcCreate(p => ({ ...p, agreement_number: e.target.value }))} className="h-8 text-xs" /></div>
+                      <div><Label className="text-[10px]">Tanggal Mulai</Label><Input type="date" value={srcCreate.start_date ?? ''} onChange={e => setSrcCreate(p => ({ ...p, start_date: e.target.value }))} className="h-8 text-xs" /></div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div><Label className="text-[10px]">Tanggal Berakhir</Label><Input type="date" value={srcCreate.end_date ?? ''} onChange={e => setSrcCreate(p => ({ ...p, end_date: e.target.value }))} className="h-8 text-xs" /></div>
+                      <div><Label className="text-[10px]">Deskripsi</Label><Input value={srcCreate.description ?? ''} onChange={e => setSrcCreate(p => ({ ...p, description: e.target.value }))} className="h-8 text-xs" /></div>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <Button size="sm" className="h-7 text-[10px]" disabled={!!fundingActioning} onClick={async () => {
+                        const err = validateFundingAmount(srcCreate.agreement_amount_idr); if (err) { toast({ title: err, variant: 'destructive' }); return; }
+                        setFundingActioning('srcCreate');
+                        try { await createFundingSourceDraft(supabase, srcCreate); toast({ title: 'Pendanaan draft dibuat' }); setShowSrcCreate(false); setSrcCreate({ lfa_project_id: projectId, source_name: '', agreement_amount_idr: 0 }); const d = await fetchProjectFunding(supabase, projectId); setSources(d.sources); setInstallments(d.installments); setReceipts(d.receipts); onMutated(); } catch (e: any) { toast({ title: mapFundingError(e), variant: 'destructive' }); } finally { setFundingActioning(null); }
+                      }}>{fundingActioning === 'srcCreate' ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Check className="mr-1 h-3 w-3" />}Simpan Draf</Button>
+                      <Button variant="ghost" size="sm" className="h-7 text-[10px]" onClick={() => { setShowSrcCreate(false); setSrcCreate({ lfa_project_id: projectId, source_name: '', agreement_amount_idr: 0 }); }}><X className="mr-1 h-3 w-3" />Batal</Button>
+                    </div>
+                  </div>
+                )}
                 {!fundingLoading && isOwner && !showSrcCreate && (
                   <Button size="sm" className="h-8 text-xs w-full" onClick={() => { setShowSrcCreate(true); setSrcCreate({ lfa_project_id: projectId, source_name: '', agreement_amount_idr: 0 }); }}>
                     <Plus className="mr-1.5 h-3.5 w-3.5" />Tambah Pendanaan</Button>)}
@@ -385,6 +415,32 @@ export default function FinanceLifecyclePanel({
             {/* ── TERMIN TAB ─────────────────────────────────────────── */}
             {mode === 'project' && (
               <TabsContent value="installments" className="mt-3 space-y-3">
+                {fundingLoading && <div className="py-8 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></div>}
+                {!fundingLoading && !isOwner && <p className="text-[10px] text-muted-foreground italic text-center py-2">Hanya pemilik organisasi yang dapat mengelola termin.</p>}
+                {!fundingLoading && !sources.some(s => s.workflow_status === 'approved') && (
+                  <div className="text-center py-8 text-xs text-muted-foreground italic">
+                    <p>Belum ada sumber pendanaan yang disetujui.</p>
+                    <p className="text-[10px] mt-1">Buat dan setujui sumber pendanaan terlebih dahulu sebelum membuat jadwal termin.</p>
+                  </div>
+                )}
+                {!fundingLoading && sources.some(s => s.workflow_status === 'approved') && installments.length === 0 && !showInstCreate && (
+                  <div className="text-center py-8 text-xs text-muted-foreground italic">
+                    <p>Belum ada jadwal termin.</p>
+                    {isOwner && <Button size="sm" className="h-8 text-xs mt-2" onClick={() => { setShowInstCreate(true); setInstCreate({ funding_source_id: sources.find(s => s.workflow_status === 'approved')?.id || '', installment_number: 1, scheduled_amount_idr: 0, due_date: '' }); }}><Plus className="mr-1.5 h-3.5 w-3.5" />Tambah Termin</Button>}
+                  </div>
+                )}
+                {showInstCreate && (
+                  <div className="rounded border p-3 space-y-2 bg-white dark:bg-slate-950">
+                    <div className="text-xs font-semibold">Termin Baru</div>
+                    <div><Label className="text-[10px]">Sumber Pendanaan</Label><Select value={instCreate.funding_source_id} onValueChange={v => setInstCreate(p => ({ ...p, funding_source_id: v }))}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{sources.filter(s => s.workflow_status === 'approved').map(s => <SelectItem key={s.id} value={s.id}>{s.source_name}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="grid grid-cols-2 gap-2"><div><Label className="text-[10px]">Nomor Termin *</Label><Input type="number" min={1} value={instCreate.installment_number} onChange={e => setInstCreate(p => ({ ...p, installment_number: parseInt(e.target.value) || 1 }))} className="h-8 text-xs" /></div><div><Label className="text-[10px]">Nama Termin</Label><Input value={instCreate.installment_name ?? ''} onChange={e => setInstCreate(p => ({ ...p, installment_name: e.target.value }))} className="h-8 text-xs" /></div></div>
+                    <div className="grid grid-cols-2 gap-2"><div><Label className="text-[10px]">Nilai Termin *</Label><Input type="number" min={0} value={instCreate.scheduled_amount_idr || ''} onChange={e => setInstCreate(p => ({ ...p, scheduled_amount_idr: e.target.value === '' ? 0 : Number(e.target.value) }))} className="h-8 text-xs" /></div><div><Label className="text-[10px]">Jatuh Tempo *</Label><Input type="date" value={instCreate.due_date} onChange={e => setInstCreate(p => ({ ...p, due_date: e.target.value }))} className="h-8 text-xs" /></div></div>
+                    <div className="flex gap-2 pt-1"><Button size="sm" className="h-7 text-[10px]" disabled={!!fundingActioning} onClick={async () => { if (!instCreate.funding_source_id) { toast({ title: 'Pilih sumber pendanaan', variant: 'destructive' }); return; } const err = validateFundingAmount(instCreate.scheduled_amount_idr); if (err) { toast({ title: err, variant: 'destructive' }); return; } setFundingActioning('instCreate'); try { await createFundingInstallmentDraft(supabase, instCreate); toast({ title: 'Termin dibuat' }); setShowInstCreate(false); const d = await fetchProjectFunding(supabase, projectId); setSources(d.sources); setInstallments(d.installments); setReceipts(d.receipts); onMutated(); } catch (e: any) { toast({ title: mapFundingError(e), variant: 'destructive' }); } finally { setFundingActioning(null); } }}>{fundingActioning === 'instCreate' ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Check className="mr-1 h-3 w-3" />}Simpan Draf</Button><Button variant="ghost" size="sm" className="h-7 text-[10px]" onClick={() => { setShowInstCreate(false); setInstCreate({ funding_source_id: '', installment_number: 1, scheduled_amount_idr: 0, due_date: '' }); }}><X className="mr-1 h-3 w-3" />Batal</Button></div>
+                  </div>
+                )}
+                {!fundingLoading && installments.length > 0 && isOwner && !showInstCreate && (
+                  <Button size="sm" className="h-8 text-xs w-full" onClick={() => { setShowInstCreate(true); setInstCreate({ funding_source_id: sources.find(s => s.workflow_status === 'approved')?.id || '', installment_number: (installments.filter(i => i.funding_source_id === (sources.find(s => s.workflow_status === 'approved')?.id || '')).length || 0) + 1, scheduled_amount_idr: 0, due_date: '' }); }}><Plus className="mr-1.5 h-3.5 w-3.5" />Tambah Termin</Button>
+                )}
                 {!fundingLoading && installments.map(inst => {
                   const derived = computeInstallmentDerivedState(inst, receipts);
                   const srcName = sources.find(s => s.id === inst.funding_source_id)?.source_name || inst.funding_source_id.slice(0, 8);
@@ -398,6 +454,33 @@ export default function FinanceLifecyclePanel({
             {/* ── PENERIMAAN TAB ─────────────────────────────────────── */}
             {mode === 'project' && (
               <TabsContent value="receipts" className="mt-3 space-y-3">
+                {fundingLoading && <div className="py-8 text-center"><Loader2 className="h-5 w-5 animate-spin mx-auto" /></div>}
+                {!fundingLoading && !isOwner && <p className="text-[10px] text-muted-foreground italic text-center py-2">Hanya pemilik organisasi yang dapat mencatat penerimaan.</p>}
+                {!fundingLoading && !sources.some(s => s.workflow_status === 'approved') && (
+                  <div className="text-center py-8 text-xs text-muted-foreground italic">
+                    <p>Belum ada sumber pendanaan yang disetujui.</p>
+                    <p className="text-[10px] mt-1">Setujui sumber pendanaan sebelum mencatat penerimaan dana.</p>
+                  </div>
+                )}
+                {!fundingLoading && sources.some(s => s.workflow_status === 'approved') && receipts.length === 0 && !showRecCreate && !recReversalTarget && (
+                  <div className="text-center py-8 text-xs text-muted-foreground italic">
+                    <p>Belum ada penerimaan dana yang tercatat.</p>
+                    {isOwner && <Button size="sm" className="h-8 text-xs mt-2" onClick={() => { setShowRecCreate(true); setRecCreate({ funding_source_id: sources.find(s => s.workflow_status === 'approved')?.id || '', amount_idr: 0, receipt_date: new Date().toISOString().slice(0, 10), installment_id: null }); }}><Plus className="mr-1.5 h-3.5 w-3.5" />Catat Penerimaan</Button>}
+                  </div>
+                )}
+                {showRecCreate && (
+                  <div className="rounded border p-3 space-y-2 bg-white dark:bg-slate-950">
+                    <div className="text-xs font-semibold">Penerimaan Baru</div>
+                    <div><Label className="text-[10px]">Sumber Pendanaan</Label><Select value={recCreate.funding_source_id} onValueChange={v => setRecCreate(p => ({ ...p, funding_source_id: v, installment_id: null }))}><SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger><SelectContent>{sources.filter(s => s.workflow_status === 'approved').map(s => <SelectItem key={s.id} value={s.id}>{s.source_name}</SelectItem>)}</SelectContent></Select></div>
+                    <div><Label className="text-[10px]">Termin</Label><Select value={recCreate.installment_id ?? 'none'} onValueChange={v => setRecCreate(p => ({ ...p, installment_id: v === 'none' ? null : v }))}><SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Tanpa Termin" /></SelectTrigger><SelectContent><SelectItem value="none">Tanpa Termin</SelectItem>{installments.filter(i => i.funding_source_id === recCreate.funding_source_id && i.workflow_status === 'scheduled').map(i => <SelectItem key={i.id} value={i.id}>{i.installment_name || `Termin #${i.installment_number}`}</SelectItem>)}</SelectContent></Select></div>
+                    <div className="grid grid-cols-2 gap-2"><div><Label className="text-[10px]">Nilai Diterima *</Label><Input type="number" min={0} value={recCreate.amount_idr || ''} onChange={e => setRecCreate(p => ({ ...p, amount_idr: e.target.value === '' ? 0 : Number(e.target.value) }))} className="h-8 text-xs" /></div><div><Label className="text-[10px]">Tanggal Diterima *</Label><Input type="date" value={recCreate.receipt_date} onChange={e => setRecCreate(p => ({ ...p, receipt_date: e.target.value }))} className="h-8 text-xs" /></div></div>
+                    <div className="grid grid-cols-2 gap-2"><div><Label className="text-[10px]">Nomor Referensi</Label><Input value={recCreate.reference_number ?? ''} onChange={e => setRecCreate(p => ({ ...p, reference_number: e.target.value }))} className="h-8 text-xs" /></div><div><Label className="text-[10px]">Label Rekening</Label><Input value={recCreate.bank_account_label ?? ''} onChange={e => setRecCreate(p => ({ ...p, bank_account_label: e.target.value }))} className="h-8 text-xs" /></div></div>
+                    <div className="flex gap-2 pt-1"><Button size="sm" className="h-7 text-[10px]" disabled={!!fundingActioning} onClick={async () => { const err = validateFundingAmount(recCreate.amount_idr); if (err) { toast({ title: err, variant: 'destructive' }); return; } setFundingActioning('recCreate'); try { await createFundingReceiptDraft(supabase, recCreate); toast({ title: 'Penerimaan draft dibuat' }); setShowRecCreate(false); const d = await fetchProjectFunding(supabase, projectId); setSources(d.sources); setInstallments(d.installments); setReceipts(d.receipts); onMutated(); } catch (e: any) { toast({ title: mapFundingError(e), variant: 'destructive' }); } finally { setFundingActioning(null); } }}>{fundingActioning === 'recCreate' ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : <Check className="mr-1 h-3 w-3" />}Simpan Draf</Button><Button variant="ghost" size="sm" className="h-7 text-[10px]" onClick={() => { setShowRecCreate(false); setRecCreate({ funding_source_id: '', amount_idr: 0, receipt_date: new Date().toISOString().slice(0, 10), installment_id: null }); }}><X className="mr-1 h-3 w-3" />Batal</Button></div>
+                  </div>
+                )}
+                {!fundingLoading && receipts.length > 0 && isOwner && !showRecCreate && !recReversalTarget && (
+                  <Button size="sm" className="h-8 text-xs w-full" onClick={() => { setShowRecCreate(true); setRecCreate({ funding_source_id: sources.find(s => s.workflow_status === 'approved')?.id || '', amount_idr: 0, receipt_date: new Date().toISOString().slice(0, 10), installment_id: null }); }}><Plus className="mr-1.5 h-3.5 w-3.5" />Catat Penerimaan</Button>
+                )}
                 {!fundingLoading && receipts.map(rec => {
                   const isRev = rec.reversal_of_id != null;
                   const srcName = sources.find(s => s.id === rec.funding_source_id)?.source_name || rec.funding_source_id.slice(0, 8);
