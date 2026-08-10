@@ -77,7 +77,7 @@ export default function FinanceLifecyclePanel({
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [actioning, setActioning] = useState<string | null>(null);
-  const [tab, setTab] = useState('commitments');
+  const [tab, setTab] = useState(mode === 'project' ? 'funding' : 'commitments');
 
   // Funding state (project-level only)
   const [sources, setSources] = useState<FundingSourceRow[]>([]);
@@ -137,6 +137,9 @@ export default function FinanceLifecyclePanel({
   }, [supabase, projectId]);
 
   useEffect(() => { if (open) { void load(); setShowCreate(false); setShowExpCreate(false); setEditingId(null); setExpEditingId(null); setShowSrcCreate(false); setShowInstCreate(false); setShowRecCreate(false); } }, [open, load]);
+
+  // Reset tab when mode changes to avoid invalid tab state
+  useEffect(() => { setTab(mode === 'project' ? 'funding' : 'commitments'); }, [mode]);
 
   // Load funding data for project mode
   useEffect(() => {
@@ -242,9 +245,11 @@ export default function FinanceLifecyclePanel({
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent className="w-[520px] sm:max-w-[520px] overflow-y-auto">
           <SheetHeader>
-            <SheetTitle className="text-base">Kelola Keuangan</SheetTitle>
+            <SheetTitle className="text-base">{mode === 'project' ? 'Keuangan Project' : 'Keuangan Item Anggaran'}</SheetTitle>
             <SheetDescription className="text-xs">
-              {budgetItem ? <span>Budget: <strong>{budgetItem.name}</strong> · Plafon: {budgetItem.planned > 0 ? formatIDR(budgetItem.planned) : '—'}</span> : 'Pilih item anggaran untuk melihat detail.'}
+              {mode === 'project'
+                ? 'Kelola sumber pendanaan, jadwal termin, dan penerimaan dana project.'
+                : budgetItem ? <span>Budget: <strong>{budgetItem.name}</strong> · Plafon: {budgetItem.planned > 0 ? formatIDR(budgetItem.planned) : '—'}</span> : 'Pilih item anggaran untuk melihat detail.'}
             </SheetDescription>
           </SheetHeader>
 
@@ -253,12 +258,13 @@ export default function FinanceLifecyclePanel({
               {mode === 'project' && <TabsTrigger value="funding" className="flex-1 text-xs">Pendanaan</TabsTrigger>}
               {mode === 'project' && <TabsTrigger value="installments" className="flex-1 text-xs">Termin</TabsTrigger>}
               {mode === 'project' && <TabsTrigger value="receipts" className="flex-1 text-xs">Penerimaan</TabsTrigger>}
-              <TabsTrigger value="commitments" className="flex-1 text-xs">Komitmen</TabsTrigger>
-              <TabsTrigger value="expenditures" className="flex-1 text-xs">Realisasi</TabsTrigger>
+              {mode !== 'project' && <TabsTrigger value="commitments" className="flex-1 text-xs">Komitmen</TabsTrigger>}
+              {mode !== 'project' && <TabsTrigger value="expenditures" className="flex-1 text-xs">Realisasi</TabsTrigger>}
             </TabsList>
 
             {/* ── KOMITMEN TAB ──────────────────────────────────────── */}
-            <TabsContent value="commitments" className="mt-3 space-y-3">
+            {mode !== 'project' && (
+              <TabsContent value="commitments" className="mt-3 space-y-3">
               {isOwner && hasLegacyActual && filteredC.length === 0 && (
                 <div className="flex items-start gap-2 rounded border border-amber-200 bg-amber-50 dark:bg-amber-950/20 px-3 py-2 text-[10px] text-amber-700 dark:text-amber-400">
                   <AlertTriangle className="h-3.5 w-3.5 mt-0.5 shrink-0" /><span>Item ini memiliki realisasi lama tanpa riwayat transaksi. Komitmen baru tidak menjumlahkan nilai lama secara otomatis.</span>
@@ -298,8 +304,10 @@ export default function FinanceLifecyclePanel({
                 </div>
               ))}
             </TabsContent>
+              )}
 
             {/* ── REALISASI TAB ────────────────────────────────────── */}
+            {mode !== 'project' && (
             <TabsContent value="expenditures" className="mt-3 space-y-3">
               {isOwner && !showExpCreate && !reversalTarget && (
                 <Button size="sm" className="h-8 text-xs w-full" onClick={() => { setShowExpCreate(true); setExpCreateForm({ lfa_project_id: projectId, budget_item_id: budgetItem?.id ?? '', amount_idr: 0, commitment_id: null }); }}><Plus className="mr-1.5 h-3.5 w-3.5" />Tambah Realisasi</Button>
@@ -350,6 +358,7 @@ export default function FinanceLifecyclePanel({
                 );
               })}
             </TabsContent>
+              )}
 
             {/* ── PENDANAAN TAB ─────────────────────────────────────── */}
             {mode === 'project' && (
