@@ -1,5 +1,6 @@
 import React from 'react';
 import SEO from '@/components/SEO';
+import { BerdayaTracking } from '@/components/berdaya/BerdayaTracking';
 import { Navbar } from '@/components/landing/Navbar';
 import { Footer } from '@/components/landing/Footer';
 import { BerdayaHero } from '@/components/berdaya/BerdayaHero';
@@ -39,6 +40,7 @@ export default function Berdaya() {
         ogType="product"
         ogImage={ogImage}
       />
+      <BerdayaTracking />
 
       <Navbar />
 
