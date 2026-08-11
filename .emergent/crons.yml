@@ -1,0 +1,14 @@
+crons:
+  - name: weekly-digest
+    description: "Emails every member a weekly digest of open activities and upcoming deadlines, Monday 08:00 UTC"
+    cron: "0 8 * * 1"
+    endpoint: "{{BASE_URL}}/api/cron/weekly-digest"
+    method: POST
+    # Cron endpoints must ack 2xx immediately; enqueue/background the actual work.
+    enabled: true
+  - name: kpi-snapshot
+    description: "Captures a daily KPI snapshot per organization for executive trend charts, 07:00 UTC"
+    cron: "0 7 * * *"
+    endpoint: "{{BASE_URL}}/api/cron/kpi-snapshot"
+    method: POST
+    enabled: true

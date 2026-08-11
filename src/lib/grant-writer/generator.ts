@@ -10,7 +10,7 @@ import type {
 /**
  * Mock LFA generator. Builds a UN/OECD-DAC-style logframe matrix
  * from collected wizard data. Real model integration lands in a later chunk
- * via a Supabase Edge Function calling the Lovable AI Gateway.
+ * via a Supabase Edge Function calling an AI gateway.
  */
 export function generateLfaMatrix(input: WizardData): LfaMatrix {
   const ctx: Partial<ContextData> = input.context ?? {};

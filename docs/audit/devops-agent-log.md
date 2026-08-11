@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-08-10 |
-| **Agent** | Claude (open-code session) |
+| **Agent** | AI coding agent (open-code session) |
 | **Tier** | 3 (COMPLEX — new tables, RLS, RPC, Production schema change) |
 | **Commit** | `d74a2e7` — `feat(finance): add normalized commitment and expenditure ledger (PM-F2B1)` |
 | **Migrations** | `20260810000000_add_normalized_finance_schema.sql` (schema, RLS, default fix) |

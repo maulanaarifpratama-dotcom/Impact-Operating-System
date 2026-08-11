@@ -2,7 +2,7 @@ import type { AdBrief, AdPlatform, AdVariant } from './types';
 
 /**
  * Deterministic mock copy generator for the Ads MVP.
- * Real LLM call can be wired later via Lovable AI Gateway.
+ * Real LLM call can be wired later via an AI gateway.
  */
 
 const CTA_BY_OBJECTIVE: Record<AdBrief['objective'], string[]> = {

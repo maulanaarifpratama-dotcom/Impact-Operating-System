@@ -264,7 +264,7 @@ CI does not gate on lint.
 - **God components**: `WBSBuilder.tsx` (3197 lines), `BudgetCalculator.tsx`
   (3013), `MEALPlanner.tsx` (2744), `SROICalculator.tsx` (2632).
 - **Stale metadata**: `index.html` still points `og:image` at a
-  `lovable.app` R2 URL. The prerenderer overrides it for the six public routes,
+  stale R2 URL. The prerenderer overrides it for the six public routes,
   so only non-prerendered paths are affected.
 - **`LIMIT 1` multi-org bug**: roughly fourteen policies scope rows with
   `org_id = (SELECT organization_id FROM organization_members WHERE user_id = auth.uid() LIMIT 1)`

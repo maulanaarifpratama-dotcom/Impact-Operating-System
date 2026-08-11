@@ -72,7 +72,7 @@ export const PLATFORMS: Platform[] = [
       period: 'Tahunan',
       note: 'Update dokumen jika ada perubahan legalitas organisasi',
     },
-    description: 'Kartu identitas nonprofit digital global. Daftar Goodstack DULU sebelum apply platform lain — mayoritas program tech nonprofit internasional kini verifikasi via Goodstack: Google, Canva, Microsoft, Claude, OpenAI, Zoom, Asana, dan lainnya.',
+    description: 'Kartu identitas nonprofit digital global. Daftar Goodstack DULU sebelum apply platform lain — mayoritas program tech nonprofit internasional kini verifikasi via Goodstack: Google, Canva, Microsoft, OpenAI, Zoom, Asana, dan lainnya.',
     use_cases: [
       'Verifikasi status nonprofit untuk unlock 30+ program tech diskon',
       'Akses Grant Assistant (Maia AI) untuk discover funding opportunities',
@@ -951,56 +951,6 @@ export const PLATFORMS: Platform[] = [
   // ============================================================
 
   {
-    id: 'claude',
-    name: 'Claude (Anthropic)',
-    gateway: 'goodstack',
-    priority: 6,
-    category: ['ai'],
-    pricing: {
-      type: 'discount',
-      label: 'DISKON ~70%',
-      detail: 'Via Goodstack — exact price cek di Product Offers Goodstack',
-    },
-    renewal: { type: 'auto', period: 'Tahunan', note: '' },
-    description: 'Claude adalah AI assistant dari Anthropic untuk writing, research, dan pekerjaan harian. Sangat cocok untuk NGO yang butuh bantuan draft laporan donor, grant writing, dan analisis dokumen panjang.',
-    use_cases: [
-      'Grant writing — bantu draft proposal dengan bahasa yang compelling',
-      'Draft laporan program dan laporan donor',
-      'Ringkas dokumen panjang (kebijakan, laporan, artikel riset)',
-      'Terjemahkan dan adaptasi dokumen teknis ke bahasa mudah dipahami',
-      'Buat materi komunikasi: press release, email blast, newsletter',
-      'Analisis data kualitatif dari FGD atau interview',
-    ],
-    products: [
-      {
-        name: 'Claude Pro/Team',
-        status: 'discount',
-        discount_percent: 70,
-        description: 'Akses penuh ke Claude AI untuk writing, research, dan analisis',
-        use_case_ngo: 'Grant writing, laporan donor, analisis kebijakan, draft komunikasi publik',
-      },
-    ],
-    requirements: {
-      documents: ['Verifikasi Goodstack'],
-      conditions: ['Sudah verified di Goodstack'],
-    },
-    registration: {
-      url: 'https://goodstack.org',
-      estimated_time: '1-3 hari kerja',
-      steps: [
-        'Login Goodstack → Product Offers → Claude → Apply',
-        'Buat akun di claude.ai dengan email domain organisasi',
-        'Aktivasi diskon dengan instruksi dari Goodstack',
-      ],
-      gotchas: [
-        'Gunakan email domain organisasi untuk dapat diskon nonprofit',
-        'Claude dan ChatGPT bisa dipakai bersamaan — keduanya punya kekuatan berbeda',
-      ],
-    },
-    not_eligible: [],
-  },
-
-  {
     id: 'openai',
     name: 'OpenAI ChatGPT',
     gateway: 'goodstack',
@@ -1050,7 +1000,6 @@ export const PLATFORMS: Platform[] = [
         'Ikuti instruksi aktivasi ChatGPT Team',
       ],
       gotchas: [
-        'Claude lebih kuat untuk analisis dokumen panjang, ChatGPT lebih kuat untuk browsing web real-time',
         'Tidak perlu keduanya untuk tim kecil — pilih satu dulu',
       ],
     },

@@ -4,7 +4,7 @@
 > Last updated: April 2026
 >
 > Dokumen ini adalah single-source-of-truth untuk integrasi AI Impactory.
-> Kalau melanjutkan di Lovable.ai atau session AI baru, **paste seluruh isi file ini sebagai context**.
+> Kalau melanjutkan di session AI baru, **paste seluruh isi file ini sebagai context**.
 
 ---
 
@@ -335,7 +335,7 @@ Kalau deploy di Vercel, set juga di Vercel Project Settings → Environment Vari
 
 ---
 
-## 9. 🤖 Cara Lanjutkan di Lovable.ai / AI Assistant lain
+## 9. 🤖 Cara Lanjutkan di Session AI Assistant Lain
 
 Kalau session AI baru, paste prompt berikut sebagai context awal:
 

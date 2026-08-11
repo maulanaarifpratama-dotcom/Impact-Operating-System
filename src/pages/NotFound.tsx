@@ -7,8 +7,8 @@ import { Logo } from "@/components/Logo";
 /**
  * Catch-all 404 rendered by React Router for any unmatched path.
  *
- * Because the SPA rewrite in `vercel.json` (and Lovable hosting's built-in
- * SPA fallback) routes every non-asset request to `index.html`, users will
+ * Because the SPA rewrite in `vercel.json` (and the hosting platform's
+ * built-in SPA fallback) routes every non-asset request to `index.html`, users will
  * always see this branded page instead of Vercel's generic error.
  */
 const NotFound = () => {

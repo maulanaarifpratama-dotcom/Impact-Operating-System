@@ -9,7 +9,7 @@ that a single push to `main` automatically deploys both the frontend
 ## Architecture at a glance
 
 ```
-                         Lovable.dev
+                         Git push
                               |
                        (push commits)
                               v
@@ -43,7 +43,7 @@ that a single push to `main` automatically deploys both the frontend
 
 - **Repo:** [`maulanaarifpratama-dotcom/impactory`](https://github.com/maulanaarifpratama-dotcom/impactory)
 - **Default branch:** `main`
-- **Authoring:** Lovable.dev pushes commits here automatically.
+- **Authoring:** Commits are pushed here automatically.
 - **Workflow file:** `.github/workflows/deploy-supabase-functions.yml`
 
 #### GitHub Actions secrets (repo level)
@@ -125,7 +125,7 @@ the database). **Never** put the `service_role` key here.
 
 ## End-to-end flow when you push a commit
 
-1. Lovable pushes a commit to `main`.
+1. A commit is pushed to `main`.
 2. GitHub fires two parallel pipelines:
    - **Vercel** detects the push, builds the Vite app, and deploys it.
    - **GitHub Actions** runs `deploy-supabase-functions.yml` if the

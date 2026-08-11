@@ -51,7 +51,7 @@ Akan membuat tabel: `library_documents`, `library_chunks`, `grants_catalog`, `gr
 ### 3) Set Edge Function Secrets di Supabase
 
 **Dashboard → Edge Functions → Manage secrets**, tambahkan 5 secret berikut (paste sendiri,
-jangan kirim ke Claude):
+jangan kirim ke AI assistant):
 
 ```
 AZURE_FOUNDRY_ENDPOINT=https://<your-resource>.openai.azure.com

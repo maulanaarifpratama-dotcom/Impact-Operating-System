@@ -95,7 +95,7 @@ function escapeRe(value) {
  *
  * That was not merely untidy. Crawlers generally take the first occurrence, and
  * the first was the baseline: index.html's og:image still pointed at a stale
- * preview asset on lovable.app, so a shared impactory.id link could render with
+ * preview asset, so a shared impactory.id link could render with
  * the wrong image entirely while the correct one sat further down the document.
  */
 function stripTagsReplacedByHelmet(html, helmetHead) {
