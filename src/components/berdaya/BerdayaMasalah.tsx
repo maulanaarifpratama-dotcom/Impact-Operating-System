@@ -43,8 +43,11 @@ export const BerdayaMasalah: React.FC = () => {
           <span className="inline-block px-3 py-1 text-xs font-bold uppercase tracking-wider text-rose-400 bg-rose-500/10 rounded-full border border-rose-500/20 mb-4">
             Tantangan Nyata Sektor Sosial
           </span>
+          <p className="text-amber-300 font-semibold text-sm sm:text-base mb-3">
+            Mendapatkan grant digital adalah awal. Mengelolanya adalah tantangan berikutnya.
+          </p>
           <h2 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
-            Apakah Organisasi Anda Mengalami Kendala Ini?
+            Grant Banyak, Sistem Nggak Ada?
           </h2>
           <p className="mt-4 text-slate-300 text-base sm:text-lg">
             Banyak yayasan dan komunitatif hebat di Indonesia memiliki niat tulus, namun terhambat oleh keterbatasan sistem operasional dan akses pendanaan.

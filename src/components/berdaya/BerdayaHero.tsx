@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, BookOpen, Zap } from 'lucide-react';
+import { ArrowRight, Sparkles, CheckCircle2, ShieldCheck, HeartHandshake, BookOpen, Zap, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 export const LYNK_EBOOK_URL = "http://lynk.id/impactory/0rdn61ky3j9z/checkout";
@@ -22,35 +22,50 @@ export const BerdayaHero: React.FC = () => {
             
             <div className="inline-flex items-center gap-2 rounded-full bg-teal-500/10 px-4 py-2 text-xs sm:text-sm font-semibold text-teal-300 border border-teal-500/25 backdrop-blur-md">
               <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-              <span>Panduan & Sistem Pertumbuhan untuk NGO Indonesia</span>
+              <span>Panduan Grant Digital & Sistem Pertumbuhan NGO Indonesia</span>
             </div>
 
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1] bg-gradient-to-r from-white via-slate-100 to-teal-200 bg-clip-text text-transparent">
-              Grant Banyak,<br className="hidden sm:inline" />
-              <span className="text-amber-400">Sistem Nggak Ada?</span>
+            <h1 className="text-2xl sm:text-4xl lg:text-5xl font-black tracking-tight leading-[1.15] bg-gradient-to-r from-white via-slate-100 to-teal-200 bg-clip-text text-transparent">
+              Pelajari Cara Membuka Akses Benefit Digital NGO Senilai Hingga{' '}
+              <span className="text-amber-400">Rp2,39 Miliar per Tahun*</span>
             </h1>
 
             <p className="text-sm sm:text-lg text-slate-300 max-w-2xl leading-relaxed">
-              Banyak yayasan dan komunitas hebat tetap stagnan bukan karena kurang niat, tapi karena belum punya sistem untuk membuka akses dana dan mengelola pertumbuhannya. <strong className="text-white">Buku "Grant Banyak, Sistem Nggak Ada"</strong> menunjukkan caranya — dan <strong className="text-white">Paket Berdaya</strong> memberi Anda sistem lengkap yang nilainya jauh lebih besar dari harganya.
+              Mulai dari Google Ad Grants hingga Rp163 juta per bulan, Microsoft 365 gratis hingga 300 pengguna dengan 300 TB OneDrive, Copilot Chat, Azure credit hingga Rp32,6 juta per tahun, Canva untuk Nonprofit, serta beragam diskon software organisasi.
             </p>
+
+            <p className="text-sm text-slate-400 max-w-2xl leading-relaxed">
+              Buku <strong className="text-white">"Grant Banyak, Sistem Nggak Ada"</strong> membantu organisasi memahami peluangnya, mempersiapkan dokumen, menavigasi gateway verifikasi, dan membangun kesiapan untuk mengajukan benefit tersebut.
+            </p>
+
+            <p className="text-xs font-bold text-amber-300 uppercase tracking-wider">Mulai dari Ebook Rp129.000</p>
 
             {/* DUAL CTA BUTTONS WITH EXPLICIT PRICES */}
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center lg:justify-start gap-4 pt-2">
-              <a href={LYNK_PAKET_URL} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
-                <Button size="lg" className="w-full sm:w-auto bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-bold text-base px-7 py-6 rounded-xl shadow-lg shadow-teal-500/25 group transition-all duration-300 hover:scale-105">
-                  <Zap className="mr-2 w-5 h-5 text-amber-300" />
-                  <span>Paket Berdaya — Rp499.000</span>
+              <a href={LYNK_EBOOK_URL} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
+                <Button size="lg" className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-base px-7 py-6 rounded-xl shadow-lg shadow-amber-500/25 group transition-all duration-300 hover:scale-105">
+                  <BookOpen className="mr-2 w-5 h-5" />
+                  <span>Dapatkan Buku & Panduan Aksesnya</span>
                   <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </a>
 
-              <a href={LYNK_EBOOK_URL} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
-                <Button size="lg" variant="outline" className="w-full sm:w-auto border-amber-500/50 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 font-bold text-base px-7 py-6 rounded-xl backdrop-blur-sm">
-                  <BookOpen className="mr-2 w-5 h-5" />
-                  <span>Ebook Only — Rp129.000</span>
+              <a href={LYNK_PAKET_URL} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto border-teal-500/50 bg-teal-500/10 hover:bg-teal-500/20 text-teal-300 font-bold text-base px-7 py-6 rounded-xl backdrop-blur-sm">
+                  <Zap className="mr-2 w-5 h-5 text-amber-300" />
+                  <span>Paket Berdaya — Rp499.000</span>
                 </Button>
               </a>
             </div>
+
+            <a href="#value-ledger" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-teal-300 transition-colors">
+              <span>Lihat Rincian Potensi Nilainya</span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </a>
+
+            <p className="text-[11px] text-slate-500 max-w-2xl leading-relaxed">
+              *Bukan dana tunai dan bukan jaminan approval. Nilai merupakan kombinasi kredit in-kind, estimasi penghematan lisensi, dan cloud credit bagi organisasi yang memenuhi syarat dan disetujui penyedia.
+            </p>
 
             {/* Key Trust Badges */}
             <div className="pt-4 grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs text-slate-300">

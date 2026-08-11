@@ -24,7 +24,7 @@ export const BerdayaKenapaBuku: React.FC = () => {
                 />
                 <div className="mt-4 text-center">
                   <span className="text-xs font-bold text-amber-400 bg-amber-500/10 px-3 py-1 rounded-full border border-amber-500/20">
-                    Buku & Playbook Resmi
+                    Peta & Tutor Akses Grant Digital
                   </span>
                 </div>
               </div>
@@ -58,6 +58,14 @@ export const BerdayaKenapaBuku: React.FC = () => {
 
               <p className="text-white font-semibold pt-2 border-l-4 border-amber-400 pl-4 bg-white/5 py-3 rounded-r-xl">
                 "Buku 'Grant Banyak, Sistem Nggak Ada' dan Paket Berdaya hadir sebagai blueprint praktis untuk membantu pimpinan dan aktivis sosial membangun mesin pertumbuhan yang mandiri, akuntabel, dan berkelanjutan."
+              </p>
+
+              <p>
+                Buku ini berfungsi sebagai <strong className="text-white">peta dan tutor</strong> untuk membantu organisasi Anda mengenali benefit yang tersedia, memprioritaskan program mana yang didaftarkan lebih dulu, menavigasi gateway Goodstack dan TechSoup, menyiapkan legalitas dan profil organisasi, hingga mengelola status pendaftaran dan renewal.
+              </p>
+
+              <p className="text-sm text-slate-400 italic">
+                Buku tidak menjamin approval. Buku tidak memberikan dana tunai. Buku memberikan peta, metode, tutorial, dan sistem kesiapan.
               </p>
             </div>
 
