@@ -43,21 +43,21 @@ export default function Berdaya() {
       <Navbar />
 
       <main className="flex-grow">
-        {/* CRO Sales Funnel */}
+        {/* CRO Sales Funnel — narrative order: masalah dulu, penawaran setelah konteks terbangun */}
         <BerdayaHero />
-        <BerdayaPilihJalur />
+        <BerdayaMasalah />
+        <BerdayaEkosistemHub />
         <BerdayaKenapaBuku />
         <BerdayaPreviewBuku />
-        <BerdayaPanduanPilihan />
-        <BerdayaBeforeAfter />
-        <BerdayaEkosistemHub />
-        <BerdayaMasalah />
         <BerdayaPelajaran />
         <BerdayaDemo />
-        <BerdayaIsiPaket />
-        <BerdayaWakafMasjid />
+        <BerdayaBeforeAfter />
         <BerdayaTargetPengguna />
+        <BerdayaPilihJalur />
+        <BerdayaIsiPaket />
         <BerdayaValueStack />
+        <BerdayaWakafMasjid />
+        <BerdayaPanduanPilihan />
         <BerdayaFAQ />
         <BerdayaCTA />
       </main>

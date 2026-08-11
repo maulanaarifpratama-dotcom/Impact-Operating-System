@@ -57,6 +57,9 @@ export const BerdayaPreviewBuku: React.FC = () => {
           <p className="text-slate-300 text-base sm:text-lg">
             Intip pokok bahasan dan strategi yang dirancang khusus untuk memodernisasi ekosistem kerja organisasi Anda.
           </p>
+          <p className="text-xs sm:text-sm text-slate-400 max-w-2xl mx-auto pt-1">
+            Beberapa istilah teknis (LFA, WBS, SROI) akan dibahas sederhana di setiap bab — singkatnya: <strong className="text-slate-300">LFA</strong> = cara menyusun rencana program yang dikenali donor, <strong className="text-slate-300">WBS</strong> = rincian anggaran & jadwal kerja, <strong className="text-slate-300">SROI</strong> = cara membuktikan nilai dampak dengan angka.
+          </p>
         </div>
 
         {/* Chapters Cards List */}

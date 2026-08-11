@@ -31,7 +31,7 @@ export const BerdayaValueStack: React.FC = () => {
           </h2>
 
           <p className="text-slate-300 text-base sm:text-lg">
-            Jika seluruh item di bawah ini dibeli secara terpisah, total investasi bernilai jutaan rupiah.
+            Nilai akses sistem dan peluang pendanaan digital yang Anda dapatkan jauh lebih besar dari investasinya. Jika seluruh item di bawah ini dibeli secara terpisah, totalnya bisa mencapai jutaan rupiah.
           </p>
         </div>
 

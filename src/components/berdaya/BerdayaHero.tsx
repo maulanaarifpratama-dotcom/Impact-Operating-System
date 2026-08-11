@@ -22,7 +22,7 @@ export const BerdayaHero: React.FC = () => {
             
             <div className="inline-flex items-center gap-2 rounded-full bg-teal-500/10 px-4 py-2 text-xs sm:text-sm font-semibold text-teal-300 border border-teal-500/25 backdrop-blur-md">
               <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
-              <span>Blueprint & Operating System Pertumbuhan NGO</span>
+              <span>Panduan & Sistem Pertumbuhan untuk NGO Indonesia</span>
             </div>
 
             <h1 className="text-3xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-[1.1] bg-gradient-to-r from-white via-slate-100 to-teal-200 bg-clip-text text-transparent">
@@ -31,7 +31,7 @@ export const BerdayaHero: React.FC = () => {
             </h1>
 
             <p className="text-sm sm:text-lg text-slate-300 max-w-2xl leading-relaxed">
-              Bebaskan organisasi Anda dari jebakan admin manual. Pelajari <strong className="text-white">Buku Playbook Blueprint</strong> atau langsung gunakan <strong className="text-white">Paket Berdaya Impactory</strong> untuk menghasilkan proposal AI standar donor & mengukur nilai dampak sosial.
+              Banyak yayasan dan komunitas hebat tetap stagnan bukan karena kurang niat, tapi karena belum punya sistem untuk membuka akses dana dan mengelola pertumbuhannya. <strong className="text-white">Buku "Grant Banyak, Sistem Nggak Ada"</strong> menunjukkan caranya — dan <strong className="text-white">Paket Berdaya</strong> memberi Anda sistem lengkap yang nilainya jauh lebih besar dari harganya.
             </p>
 
             {/* DUAL CTA BUTTONS WITH EXPLICIT PRICES */}
@@ -64,7 +64,7 @@ export const BerdayaHero: React.FC = () => {
               </div>
               <div className="flex items-center gap-2 bg-white/5 p-2.5 rounded-lg border border-white/10 col-span-2 sm:col-span-1">
                 <HeartHandshake className="w-4 h-4 text-rose-400 shrink-0" />
-                <span>Wakaf Masjid Included</span>
+                <span>Wakaf Masjid Termasuk</span>
               </div>
             </div>
 

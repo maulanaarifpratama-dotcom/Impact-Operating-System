@@ -192,6 +192,11 @@ KESIMPULAN     : Setiap Rp 1 donasi menghasilkan dampak senilai Rp 4,70`
               </div>
               <pre className="whitespace-pre-wrap">{currentDemo.previewCode}</pre>
             </div>
+            {activeTab === 'sroi' && (
+              <p className="text-[11px] text-slate-500 mt-2 italic">
+                Contoh ilustrasi perhitungan untuk menunjukkan cara kerja fitur, bukan hasil aktual dari organisasi tertentu.
+              </p>
+            )}
           </div>
 
         </div>

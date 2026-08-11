@@ -19,7 +19,7 @@ export const BerdayaPilihJalur: React.FC = () => {
             Pilih Jalur Pertumbuhan Anda
           </h2>
           <p className="text-slate-300 text-base sm:text-lg">
-            Dua pilihan investasi cerdas untuk membantu organisasi Anda membangun fondasi sistemik dan akselerasi pendanaan.
+            Setelah memahami masalah dan sistemnya, sekarang saatnya memilih titik masuk. Nilai akses pendanaan, sistem, dan peluang digital yang Anda dapatkan jauh lebih besar dari harga yang dibayarkan.
           </p>
         </div>
 

@@ -23,7 +23,7 @@ export const BerdayaCTA: React.FC = () => {
           </h2>
 
           <p className="text-base sm:text-lg text-slate-300 max-w-2xl mx-auto leading-relaxed">
-            Dapatkan Buku Playbook & Paket Berdaya sekarang di Lynk. Bangun fondasi sistemik organisasi sekaligus berkontribusi dalam Wakaf Masjid Ar-Rustendi.
+            Dapatkan Buku Playbook & Paket Berdaya sekarang di Lynk — nilai sistem dan akses pendanaan digital yang Anda dapatkan jauh lebih besar dari harganya. Bangun fondasi organisasi sekaligus berkontribusi dalam Wakaf Masjid Ar-Rustendi.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
