@@ -8,8 +8,6 @@ export const BerdayaValueStack: React.FC = () => {
     { title: "Buku Playbook 'Grant Banyak, Sistem Nggak Ada' PDF", val: "Rp 350.000" },
     { title: "Akses Lisensi Platform Software Impactory (GrantWriter AI, LFA, SROI)", val: "Rp 1.500.000" },
     { title: "Bundle Template Proposal & SOP Operasional Standar Donor Global", val: "Rp 750.000" },
-    { title: "Modul Video Guidance & Pelatihan Intensif Penetapan KPI", val: "Rp 500.000" },
-    { title: "Akses Komunitas Penggerak Berdaya & Sesi Konsultasi Q&A", val: "Rp 300.000" },
     { title: "Alokasi Wakaf Pembangunan & Operasional Masjid Ar-Rustendi", val: "INCLUDED" }
   ];
 
@@ -57,7 +55,7 @@ export const BerdayaValueStack: React.FC = () => {
           <div className="pt-6 border-t border-white/20 flex flex-col sm:flex-row items-center justify-between gap-6 bg-slate-950/60 p-6 rounded-2xl border border-white/10">
             <div>
               <span className="text-xs text-slate-400 uppercase tracking-widest block">Total Nilai Keseluruhan</span>
-              <span className="text-xl sm:text-2xl font-bold text-slate-400 line-through">Rp 3.400.000+</span>
+              <span className="text-xl sm:text-2xl font-bold text-slate-400 line-through">Rp 2.600.000</span>
             </div>
 
             <div className="text-center sm:text-right">

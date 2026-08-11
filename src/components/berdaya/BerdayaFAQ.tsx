@@ -18,7 +18,7 @@ export const BerdayaFAQ: React.FC = () => {
     },
     {
       q: "Apa itu Paket Berdaya Impactory?",
-      a: "Paket Berdaya adalah program solusi terpadu dari Impactory yang menggabungkan lisensi akses platform software Impactory (GrantWriter AI, LFA Builder, SROI Calculator, Donor CRM), pustaka template SOP, modul pelatihan intensif, serta kontribusi wakaf untuk pembangunan Masjid Ar-Rustendi."
+      a: "Paket Berdaya adalah program solusi terpadu dari Impactory yang menggabungkan lisensi akses platform software Impactory (GrantWriter AI, LFA Builder, SROI Calculator, Donor CRM), pustaka template SOP, serta kontribusi wakaf untuk pembangunan Masjid Ar-Rustendi."
     },
     {
       q: "Bagaimana cara mengakses platform Impactory setelah melakukan pembelian di Lynk?",
@@ -26,15 +26,11 @@ export const BerdayaFAQ: React.FC = () => {
     },
     {
       q: "Apakah Paket Berdaya cocok untuk yayasan kecil atau komunitas yang baru berdiri?",
-      a: "Sangat cocok! Paket Berdaya dirancang khusus agar mudah digunakan oleh organisasi dari berbagai skala. Modul pelatihan dan template SOP yang disediakan membantu organisasi pemula membangun standar operasional profesional dalam waktu singkat."
+      a: "Sangat cocok! Paket Berdaya dirancang khusus agar mudah digunakan oleh organisasi dari berbagai skala. Template SOP yang disediakan membantu organisasi pemula membangun standar operasional profesional dalam waktu singkat."
     },
     {
       q: "Bagaimana alokasi Wakaf Masjid Ar-Rustendi dikelola?",
       a: "Sebagian dari hasil penjualan Paket Berdaya dialokasikan secara langsung dan transparan untuk dana pembangunan serta operasional kegiatan ibadah Masjid Ar-Rustendi. Tim Impactory secara berkala memberikan laporan keterbukaan penyaluran wakaf kepada para pengguna."
-    },
-    {
-      q: "Apakah ada pendampingan jika tim kami mengalami kesulitan teknis?",
-      a: "Ya. Setiap pengguna Paket Berdaya mendapatkan akses ke Komunitas Penggerak Berdaya, sesi Q&A / konsultasi berkala, serta dukungan tim Customer Support Impactory untuk memastikan platform dapat dimanfaatkan secara maksimal."
     },
     {
       q: "Perangkat apa saja yang dibutuhkan untuk menjalankan Impactory?",

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, Cpu, FileText, Video, Users, HeartHandshake, Sparkles } from 'lucide-react';
+import { Check, Cpu, FileText, HeartHandshake, Sparkles } from 'lucide-react';
 
 export const BerdayaIsiPaket: React.FC = () => {
   const packageContents = [
@@ -28,32 +28,6 @@ export const BerdayaIsiPaket: React.FC = () => {
         "Panduan Integrasi Indikator Keberhasilan"
       ],
       badge: "Ready Documents"
-    },
-    {
-      icon: Video,
-      title: "Modul & Video Guidance",
-      subtitle: "Panduan Langkah demi Langkah",
-      items: [
-        "Video Tutorial Penggunaan Platform Impactory",
-        "Modul Strategi Menulis Proposal Lolos Donor",
-        "Panduan Metode Monetisasi Dampak Sosial (SROI)",
-        "Studi Kasus Best Practices Yayasan Sukses",
-        "Update Ringkasan Regulasi Sektor Sosial"
-      ],
-      badge: "Learning Hub"
-    },
-    {
-      icon: Users,
-      title: "Pendampingan & Komunitas",
-      subtitle: "Jaringan & Sesi Konsultasi",
-      items: [
-        "Akses Komunitas Penggerak Berdaya",
-        "Sesi Tanya Jawab & Q&A Rutin Bersama Ekspert",
-        "Jaringan Kolaborasi Antar-Lembaga Sosial",
-        "Dukungan Layanan Pelanggan (Customer Support)",
-        "Update Fitur & Pembaharuan Sistem Berkala"
-      ],
-      badge: "Support Network"
     }
   ];
 

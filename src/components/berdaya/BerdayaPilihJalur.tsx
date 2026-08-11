@@ -122,7 +122,7 @@ export const BerdayaPilihJalur: React.FC = () => {
               </h3>
               
               <p className="text-sm text-slate-300 mt-2 mb-6">
-                Pilihan paling diminati! Dapatkan Buku Playbook + Lisensi Software Platform Impactory + Bundle Template SOP + Video Modul + Komunitas + Kontribusi Wakaf Masjid Ar-Rustendi.
+                Pilihan paling diminati! Dapatkan Buku Playbook + Lisensi Software Platform Impactory + Bundle Template SOP + Kontribusi Wakaf Masjid Ar-Rustendi.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">

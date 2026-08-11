@@ -19,7 +19,7 @@ export const BerdayaPricing: React.FC = () => {
             Penawaran Spesial Paket Berdaya
           </h2>
           <p className="mt-4 text-slate-300 text-base sm:text-lg">
-            Dapatkan seluruh akses platform Impactory, modul pelatihan, template SOP, serta alokasi wakaf dalam satu paket investasi hemat.
+            Dapatkan seluruh akses platform Impactory, template SOP, serta alokasi wakaf dalam satu paket investasi hemat.
           </p>
         </div>
 
@@ -62,20 +62,6 @@ export const BerdayaPricing: React.FC = () => {
                       <Check className="w-3.5 h-3.5" />
                     </div>
                     <span><strong>Bundle Template Proposal & SOP</strong> Siap Pakai</span>
-                  </div>
-
-                  <div className="flex items-start gap-3 text-sm text-slate-200">
-                    <div className="w-5 h-5 rounded-full bg-teal-500/20 text-teal-400 flex items-center justify-center shrink-0 mt-0.5">
-                      <Check className="w-3.5 h-3.5" />
-                    </div>
-                    <span><strong>Modul & Video Guidance</strong> Pelatihan Intensif</span>
-                  </div>
-
-                  <div className="flex items-start gap-3 text-sm text-slate-200">
-                    <div className="w-5 h-5 rounded-full bg-teal-500/20 text-teal-400 flex items-center justify-center shrink-0 mt-0.5">
-                      <Check className="w-3.5 h-3.5" />
-                    </div>
-                    <span><strong>Akses Komunitas & Sesi Konsultasi</strong> Eksklusif</span>
                   </div>
 
                   <div className="flex items-start gap-3 text-sm text-emerald-300 font-semibold bg-emerald-950/40 p-2.5 rounded-xl border border-emerald-500/20">
