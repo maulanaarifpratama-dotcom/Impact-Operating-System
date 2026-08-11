@@ -34,68 +34,63 @@ export const ADDITIONAL_BENEFIT_GROUPS = [
   {
     title: 'Desain & Komunikasi',
     items: [
-      { name: 'Canva untuk Nonprofit', badge: 'GRATIS', note: 'Akses desain premium hingga 50 anggota tim per organisasi terverifikasi.' },
-      { name: 'Adobe Express & Acrobat Pro', badge: 'DISKON', note: 'Diskon untuk organisasi nonprofit yang memenuhi ketentuan.' },
+      { name: 'Canva untuk Nonprofit', badge: 'GRATIS', note: 'Akses desain premium untuk mendukung kampanye, proposal, dan laporan organisasi.' },
+      { name: 'Adobe Express & Acrobat Pro', badge: 'DISKON', note: 'Diskon untuk organisasi nonprofit yang memenuhi syarat.' },
     ],
   },
   {
     title: 'Project & Kolaborasi',
     items: [
-      { name: 'Asana untuk Nonprofit', badge: 'DISKON', note: 'Diskon tim & project management sesuai paket yang berlaku.' },
-      { name: 'Atlassian', badge: 'DISKON', note: 'Program diskon untuk organisasi nonprofit terverifikasi.' },
-      { name: 'monday.com untuk Nonprofit', badge: 'DISKON', note: 'Diskon pengelolaan kerja tim sesuai paket yang berlaku.' },
-      { name: 'Zoom untuk Nonprofit', badge: 'DISKON', note: 'Diskon lisensi meeting & webinar untuk nonprofit.' },
+      { name: 'Asana untuk Nonprofit', badge: 'DISKON', note: 'Diskon lisensi untuk tim & project management.' },
+      { name: 'Atlassian', badge: 'DISKON', note: 'Diskon lisensi untuk organisasi nonprofit.' },
+      { name: 'monday.com untuk Nonprofit', badge: 'DISKON', note: 'Diskon lisensi pengelolaan kerja tim.' },
+      { name: 'Zoom untuk Nonprofit', badge: 'DISKON', note: 'Diskon lisensi meeting & webinar.' },
     ],
   },
   {
     title: 'Cloud & Keamanan',
     items: [
-      { name: 'AWS untuk Nonprofit', badge: 'KREDIT', note: 'Kredit/diskon cloud sesuai program dan ketentuan yang berlaku saat pengajuan.' },
-      { name: 'Box untuk Nonprofit', badge: 'DISKON', note: 'Diskon penyimpanan & kolaborasi file untuk organisasi nonprofit.' },
-      { name: 'Dropbox untuk Nonprofit', badge: 'DISKON', note: 'Diskon penyimpanan cloud untuk organisasi nonprofit.' },
-      { name: 'Okta & 1Password untuk Nonprofit', badge: 'DISKON', note: 'Diskon keamanan identitas dan manajemen password tim.' },
+      { name: 'AWS untuk Nonprofit', badge: 'KREDIT', note: 'Potensi kredit atau diskon cloud sesuai program yang berlaku.' },
+      { name: 'Box untuk Nonprofit', badge: 'DISKON', note: 'Diskon penyimpanan & kolaborasi file.' },
+      { name: 'Dropbox untuk Nonprofit', badge: 'DISKON', note: 'Diskon penyimpanan cloud.' },
+      { name: 'Okta & 1Password untuk Nonprofit', badge: 'DISKON', note: 'Diskon keamanan identitas & manajemen password.' },
     ],
   },
   {
     title: 'AI & Produktivitas',
     items: [
-      { name: 'Microsoft 365 Copilot Chat', badge: 'TERMASUK', note: 'Sudah termasuk dalam lisensi Microsoft 365 untuk Nonprofit di atas — tidak dihitung terpisah.' },
-      { name: 'Program AI Nonprofit Lainnya', badge: 'AKSES GATEWAY', note: 'Sejumlah penyedia AI membuka program khusus nonprofit; syarat & kuota mengikuti kebijakan masing-masing penyedia.' },
+      { name: 'Microsoft 365 Copilot Chat', badge: 'TERMASUK', note: 'Sudah termasuk dalam lisensi Microsoft 365 di atas — tidak dihitung terpisah.' },
+      { name: 'AI Nonprofit Lainnya', badge: 'DISKON', note: 'Sejumlah penyedia AI membuka program khusus untuk organisasi nonprofit.' },
     ],
   },
   {
     title: 'Marketing & Donor Outreach',
     items: [
-      { name: 'LinkedIn untuk Nonprofit', badge: 'AKSES GATEWAY', note: 'Akses program nonprofit LinkedIn sesuai ketentuan verifikasi.' },
-      { name: 'Hootsuite, Constant Contact, Eventbrite', badge: 'DISKON', note: 'Diskon untuk kebutuhan penjadwalan konten, email, dan event donor.' },
+      { name: 'LinkedIn untuk Nonprofit', badge: 'DISKON', note: 'Program nonprofit untuk kebutuhan branding & talent.' },
+      { name: 'Hootsuite, Constant Contact, Eventbrite', badge: 'DISKON', note: 'Diskon untuk kebutuhan konten, email, dan event donor.' },
     ],
   },
   {
     title: 'Data & Website',
     items: [
-      { name: 'Tableau untuk Nonprofit', badge: 'DISKON', note: 'Diskon lisensi visualisasi data untuk pelaporan program.' },
-      { name: 'Wix untuk Nonprofit', badge: 'DISKON', note: 'Diskon pembuatan & pengelolaan website organisasi.' },
-      { name: 'Sage Intacct', badge: 'DISKON', note: 'Diskon sistem akuntansi untuk organisasi nonprofit berskala menengah-besar.' },
+      { name: 'Tableau untuk Nonprofit', badge: 'DISKON', note: 'Diskon lisensi visualisasi data.' },
+      { name: 'Wix untuk Nonprofit', badge: 'DISKON', note: 'Diskon pembuatan & pengelolaan website.' },
+      { name: 'Sage Intacct', badge: 'DISKON', note: 'Diskon sistem akuntansi untuk organisasi skala menengah-besar.' },
     ],
   },
 ];
 
-export const GATEWAY_PROGRAMS = [
-  { name: 'TechSoup Indonesia', note: 'Gateway verifikasi utama untuk mengklaim Canva, Google, dan Microsoft — menerbitkan Validation Token.' },
-  { name: 'Goodstack', note: 'Gateway verifikasi rekening & identitas hukum organisasi, dibutuhkan sebelum sejumlah klaim benefit.' },
-  { name: 'Corporate Giving Directory', note: 'Direktori program corporate giving yang dapat dijajaki organisasi terverifikasi.' },
-  { name: 'Grant Assistant', note: 'Bantuan navigasi menemukan dan memprioritaskan program yang relevan dengan organisasi Anda.' },
+export const ACCESS_TEASERS = [
+  { title: 'Kelayakan Organisasi', desc: 'Tidak semua benefit menggunakan standar kelayakan yang sama.' },
+  { title: 'Urutan Pengajuan', desc: 'Beberapa program membutuhkan tahapan tertentu sebelum pengajuan utama dapat dilakukan.' },
+  { title: 'Kesiapan Informasi', desc: 'Data organisasi yang tidak konsisten dapat memperlambat proses verifikasi.' },
+  { title: 'Masa Berlaku', desc: 'Sejumlah benefit perlu dikelola dan diperbarui agar akses tetap aktif.' },
 ];
 
-export const WHY_NOT_YET_REASONS = [
-  'Tidak tahu program apa saja yang sebenarnya tersedia untuk NGO',
-  'Tidak tahu gateway verifikasi mana yang harus didaftarkan lebih dulu',
-  'Dokumen legalitas dan profil organisasi belum siap saat mendaftar',
-  'Laporan keuangan organisasi masih terlalu informal untuk lolos verifikasi',
-  'Tidak ada satu orang yang benar-benar bertanggung jawab (PIC) atas proses klaim',
-  'Status aplikasi tidak dipantau, sehingga proses terhenti tanpa disadari',
-  'Tanggal renewal terlupakan sehingga akses yang sudah didapat hangus',
-  'Benefit yang sudah diperoleh tidak dimanfaatkan secara optimal',
+export const WHY_NOT_YET_PROBLEMS = [
+  { title: 'Informasi Tersebar', desc: 'Benefit tersedia di banyak penyedia dengan ketentuan yang berbeda.' },
+  { title: 'Jalur Tidak Seragam', desc: 'Setiap program memiliki proses, waktu, dan mekanisme verifikasi sendiri.' },
+  { title: 'Tidak Ada Sistem', desc: 'Pengajuan, status, penggunaan, dan masa berlaku sering tidak dikelola secara terpusat.' },
 ];
 
 export const GROWTH_LETTERS = [

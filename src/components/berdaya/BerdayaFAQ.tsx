@@ -9,6 +9,14 @@ import {
 export const BerdayaFAQ: React.FC = () => {
   const faqs = [
     {
+      q: "Apakah nilai Rp2,39 miliar per tahun itu uang tunai yang langsung diterima organisasi?",
+      a: "Bukan. Nilai tersebut adalah kombinasi kredit iklan in-kind, estimasi penghematan lisensi, dan cloud credit dari penyedia seperti Google dan Microsoft — bukan dana tunai, dan tidak dapat dicairkan. Nilai aktual bergantung pada eligibility, approval, kurs, dan kebijakan masing-masing penyedia."
+    },
+    {
+      q: "Apakah buku ini menjamin organisasi saya disetujui atau pasti mendapatkan benefit?",
+      a: "Tidak. Buku tidak menjamin approval dan bukan pengganti keputusan resmi penyedia program. Buku membantu Anda memahami peluang, menentukan prioritas, dan membangun kesiapan organisasi — tahapan, urutan, dan readiness checklist yang berbeda untuk setiap program dibahas secara sistematis di dalam buku."
+    },
+    {
       q: "Apa itu Paket Berdaya Impactory?",
       a: "Paket Berdaya adalah program solusi terpadu dari Impactory yang menggabungkan lisensi akses platform software Impactory (GrantWriter AI, LFA Builder, SROI Calculator, Donor CRM), pustaka template SOP, modul pelatihan intensif, serta kontribusi wakaf untuk pembangunan Masjid Ar-Rustendi."
     },

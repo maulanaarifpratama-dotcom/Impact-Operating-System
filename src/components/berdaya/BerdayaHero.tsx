@@ -31,11 +31,24 @@ export const BerdayaHero: React.FC = () => {
             </h1>
 
             <p className="text-sm sm:text-lg text-slate-300 max-w-2xl leading-relaxed">
-              Mulai dari Google Ad Grants hingga Rp163 juta per bulan, Microsoft 365 gratis hingga 300 pengguna dengan 300 TB OneDrive, Copilot Chat, Azure credit hingga Rp32,6 juta per tahun, Canva untuk Nonprofit, serta beragam diskon software organisasi.
+              Termasuk kredit iklan digital, lisensi produktivitas untuk ratusan pengguna, penyimpanan cloud, AI, cloud credit, desain premium, serta berbagai benefit nonprofit lainnya.
             </p>
 
+            {/* Proof Strip */}
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2">
+              <span className="text-[11px] sm:text-xs font-bold text-amber-300 bg-amber-500/10 px-3 py-1.5 rounded-full border border-amber-500/20">
+                Hingga Rp163 Juta Kredit Iklan/Bulan
+              </span>
+              <span className="text-[11px] sm:text-xs font-bold text-teal-300 bg-teal-500/10 px-3 py-1.5 rounded-full border border-teal-500/20">
+                Hingga 300 Pengguna & 300 TB Cloud
+              </span>
+              <span className="text-[11px] sm:text-xs font-bold text-emerald-300 bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/20">
+                Cloud Credit Hingga Rp32,6 Juta/Tahun
+              </span>
+            </div>
+
             <p className="text-sm text-slate-400 max-w-2xl leading-relaxed">
-              Buku <strong className="text-white">"Grant Banyak, Sistem Nggak Ada"</strong> membantu organisasi memahami peluangnya, mempersiapkan dokumen, menavigasi gateway verifikasi, dan membangun kesiapan untuk mengajukan benefit tersebut.
+              Buku <strong className="text-white">"Grant Banyak, Sistem Nggak Ada"</strong> membantu organisasi memahami peluang yang tersedia dan langkah strategis untuk mempersiapkan aksesnya.
             </p>
 
             <p className="text-xs font-bold text-amber-300 uppercase tracking-wider">Mulai dari Ebook Rp129.000</p>
@@ -45,7 +58,7 @@ export const BerdayaHero: React.FC = () => {
               <a href={LYNK_EBOOK_URL} target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto">
                 <Button size="lg" className="w-full sm:w-auto bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-base px-7 py-6 rounded-xl shadow-lg shadow-amber-500/25 group transition-all duration-300 hover:scale-105">
                   <BookOpen className="mr-2 w-5 h-5" />
-                  <span>Dapatkan Buku & Panduan Aksesnya</span>
+                  <span>Dapatkan Buku & Panduannya</span>
                   <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />
                 </Button>
               </a>
@@ -59,12 +72,12 @@ export const BerdayaHero: React.FC = () => {
             </div>
 
             <a href="#value-ledger" className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-400 hover:text-teal-300 transition-colors">
-              <span>Lihat Rincian Potensi Nilainya</span>
+              <span>Lihat Benefit yang Bisa Diakses</span>
               <ChevronDown className="w-3.5 h-3.5" />
             </a>
 
             <p className="text-[11px] text-slate-500 max-w-2xl leading-relaxed">
-              *Bukan dana tunai dan bukan jaminan approval. Nilai merupakan kombinasi kredit in-kind, estimasi penghematan lisensi, dan cloud credit bagi organisasi yang memenuhi syarat dan disetujui penyedia.
+              *Bukan dana tunai dan bukan jaminan approval. Benefit mengikuti eligibility dan keputusan masing-masing penyedia.
             </p>
 
             {/* Key Trust Badges */}

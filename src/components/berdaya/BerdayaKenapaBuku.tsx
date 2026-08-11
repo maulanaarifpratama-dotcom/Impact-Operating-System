@@ -61,12 +61,28 @@ export const BerdayaKenapaBuku: React.FC = () => {
               </p>
 
               <p>
-                Buku ini berfungsi sebagai <strong className="text-white">peta dan tutor</strong> untuk membantu organisasi Anda mengenali benefit yang tersedia, memprioritaskan program mana yang didaftarkan lebih dulu, menavigasi gateway Goodstack dan TechSoup, menyiapkan legalitas dan profil organisasi, hingga mengelola status pendaftaran dan renewal.
+                Buku ini berfungsi sebagai <strong className="text-white">peta dan tutor</strong> yang menyusun peluang yang tersebar menjadi satu playbook terarah — dari mengenali benefit, menentukan prioritas akses, membangun kesiapan organisasi, hingga mengelola benefit yang telah diperoleh.
               </p>
+            </div>
 
-              <p className="text-sm text-slate-400 italic">
-                Buku tidak menjamin approval. Buku tidak memberikan dana tunai. Buku memberikan peta, metode, tutorial, dan sistem kesiapan.
-              </p>
+            <ul className="space-y-2.5">
+              {[
+                'Peta ekosistem grant digital dan benefit nonprofit',
+                'Framework menentukan prioritas akses',
+                'Panduan membangun kesiapan organisasi',
+                'Sistem mengelola benefit yang telah diperoleh',
+                'Fondasi menuju G.R.O.W.T.H. dan Impactory',
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-2.5 text-sm text-slate-200">
+                  <CheckCircle className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+
+            <div className="space-y-2 text-sm text-slate-400 italic">
+              <p>Buku tidak menjamin approval. Buku tidak memberikan dana tunai. Buku memberikan peta, metode, tutorial, dan sistem kesiapan.</p>
+              <p>Detail langkah, urutan, preparedness checklist, dan panduan implementasi tersedia di dalam buku.</p>
             </div>
 
             <div className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">

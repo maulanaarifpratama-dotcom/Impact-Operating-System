@@ -43,7 +43,7 @@ export const BerdayaValueLedger: React.FC = () => {
         </div>
 
         <div className="mt-6 space-y-3 text-xs text-slate-400 max-w-2xl mx-auto">
-          <p className="flex items-start gap-2"><Info className="w-4 h-4 shrink-0 mt-0.5" /><span>*Terdiri atas kredit iklan in-kind, estimasi penghematan lisensi, dan cloud credit. Bukan dana tunai. Memerlukan eligibility, approval, kepatuhan, dan pemanfaatan aktif.</span></p>
+          <p className="flex items-start gap-2"><Info className="w-4 h-4 shrink-0 mt-0.5" /><span>Angka merupakan kombinasi kredit in-kind, estimasi nilai lisensi, dan cloud credit. Bukan dana tunai. Nilai aktual bergantung pada eligibility, approval, pemanfaatan, harga resmi, kurs, dan kebijakan penyedia.</span></p>
           <p className="flex items-start gap-2"><Info className="w-4 h-4 shrink-0 mt-0.5" /><span>{FX_RATE_NOTE}</span></p>
         </div>
 
